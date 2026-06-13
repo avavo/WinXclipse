@@ -4,7 +4,7 @@
     <!ENTITY TERMUX_X11_APP_NAME "Winlator:X11">
     ]>
 <resources>
-    <string name="app_name">Winlator Cmod</string>
+    <string name="app_name">WinXclipse</string>
     <string name="run">Run</string>
     <string name="edit">Edit</string>
     <string name="remove">Remove</string>
@@ -615,10 +615,10 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="fexcore_tso_preset">TSOMode</string>
     <string name="fexcore_x87reduced_precision">X87Mode</string>
     <string name="fexcore_multiblock">MultiBlock</string>
-    <string name="adrenotools_gpu_drivers">Adrenotools GPU Drivers</string>
+    <string name="adrenotools_gpu_drivers">Xclipse GPU Drivers</string>
     <string name="install_drivers">Install Drivers</string>
-    <string name="install_drivers_message">You will now be prompted to pick a driver. These must be the same ones used in other emulators like Yuzu, Dolphin, Citra, etc.</string>
-    <string name="install_drivers_warning">Be warned that because of limitations of current PC emulators, Qualcomm Drivers may not work on chipsets below 8 Gen2 without getting patched.</string>
+    <string name="install_drivers_message">You will now be prompted to pick a driver package. Use only compatible WinXclipse/Xclipse driver packages.</string>
+    <string name="install_drivers_warning">Use only compatible driver packages for your device. Some drivers may not work correctly on unsupported GPUs.</string>
     <string name="enable_vulkan_api_dump">Enable dumping of Vulkan api calls to file.</string>
     <string name="dll_emulator">32bit Emulator</string>
     <string name="open_with_android_browser">Open Android Browser in Wine</string>
@@ -716,4 +716,8 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="gdi">gdi</string>
 
 
+    <string name="backend_logs">Backend Logs</string>
+    <string name="app_name_winxclipse">WinXclipse</string>
+    <string name="winxclipse_credits">WinXclipse Based on Winlator/Cmod/Ludashi Exynos/Xclipse adaptation by Álvaro</string>
+    <string name="xclipse_driver_download_hint">Download compatible drivers from MdiEx v3.2: https://github.com/avavo/MdiEx/releases/tag/V3.2</string>
 </resources>

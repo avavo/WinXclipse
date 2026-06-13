@@ -1,4 +1,44 @@
 [
-  { "type": "DXVK", "verName": "0.96", "verCode": 1, "remoteUrl": "https://github.com/longjunyu2/winlator/releases/download/v7.1.2/dxvk-0.96.wcp" },
-  { "type": "DXVK", "verName": "1.10.3", "verCode": 1, "remoteUrl": "https://github.com/longjunyu2/winlator/releases/download/v7.1.2/dxvk-1.10.3.wcp" }
+  {
+    "type": "DXVK",
+    "verName": "0.96",
+    "verCode": 1,
+    "remoteUrl": "https://github.com/longjunyu2/winlator/releases/download/v7.1.2/dxvk-0.96.wcp"
+  },
+  {
+    "type": "DXVK",
+    "verName": "1.10.3",
+    "verCode": 1,
+    "remoteUrl": "https://github.com/longjunyu2/winlator/releases/download/v7.1.2/dxvk-1.10.3.wcp"
+  },
+  {
+    "type": "FEXCore",
+    "verName": "2605",
+    "verCode": 2605,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-fexcore-v0.8/FEX-2605.wcp"
+  },
+  {
+    "type": "FEXCore",
+    "verName": "2601",
+    "verCode": 2601,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-fexcore-v0.8/FEXCore-2601-aabdded.wcp"
+  },
+  {
+    "type": "Proton",
+    "verName": "10-arm64ec",
+    "verCode": 1000,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-wine-proton-v0.8/proton-10-arm64ec.wcp.xz"
+  },
+  {
+    "type": "Proton",
+    "verName": "11.0-1-arm64ec",
+    "verCode": 1101,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-wine-proton-v0.8/proton-wine-11.0-1-arm64ec.wcp.xz"
+  },
+  {
+    "type": "Proton",
+    "verName": "bleeding-edge-20260408-arm64ec",
+    "verCode": 20260408,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-wine-proton-v0.8/proton-wine-proton-bleeding-edge-20260408-8de17ab-arm64ec.wcp.xz"
+  }
 ]
