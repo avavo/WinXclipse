@@ -15,6 +15,8 @@ import com.winlator.cmod.core.UnitUtils;
 import com.winlator.cmod.widget.LogView;
 
 import java.io.BufferedWriter;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.io.FileWriter;
 import java.io.IOException;
 
@@ -49,6 +51,31 @@ public class DebugDialog extends ContentDialog implements Callback<String> {
         catch (IOException e) {
             throw new RuntimeException(e);
         }
+
+        call("WinXclipse Backend Logs - logcat snapshot");
+        loadInitialLogcat();
+    }
+
+    private void loadInitialLogcat() {
+        new Thread(() -> {
+            int count = 0;
+            try {
+                Process process = new ProcessBuilder("logcat", "-d", "-t", "300").redirectErrorStream(true).start();
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        final String out = line;
+                        count++;
+                        logView.post(() -> call(out));
+                    }
+                }
+                process.destroy();
+                if (count == 0) logView.post(() -> call("logcat returned no visible lines for this app."));
+            }
+            catch (Exception e) {
+                logView.post(() -> call("Failed to read logcat: " + e.getMessage()));
+            }
+        }, "WinXclipseLogcatLoader").start();
     }
 
     @Override

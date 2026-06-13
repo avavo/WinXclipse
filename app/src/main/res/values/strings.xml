@@ -617,7 +617,7 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="fexcore_multiblock">MultiBlock</string>
     <string name="adrenotools_gpu_drivers">Xclipse GPU Drivers</string>
     <string name="install_drivers">Install Drivers</string>
-    <string name="install_drivers_message">You will now be prompted to pick a driver package. Use only compatible WinXclipse/Xclipse driver packages.</string>
+    <string name="install_drivers_message">You will now be prompted to pick a driver package. Use only compatible WinXclipse/Xclipse driver packages. Download MdiEx/Xclipse drivers here: https://github.com/avavo/MdiEx/releases/tag/V3.2</string>
     <string name="install_drivers_warning">Use only compatible driver packages for your device. Some drivers may not work correctly on unsupported GPUs.</string>
     <string name="enable_vulkan_api_dump">Enable dumping of Vulkan api calls to file.</string>
     <string name="dll_emulator">32bit Emulator</string>

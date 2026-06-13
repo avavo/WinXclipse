@@ -39,6 +39,7 @@ import androidx.preference.PreferenceManager;
 import com.google.android.material.navigation.NavigationView;
 import com.winlator.cmod.R;
 import com.winlator.cmod.contentdialog.ContentDialog;
+import com.winlator.cmod.contentdialog.DebugDialog;
 import com.winlator.cmod.contentdialog.ControllerAssignmentDialog;
 import com.winlator.cmod.contentdialog.SaveEditDialog;
 import com.winlator.cmod.contentdialog.SaveSettingsDialog;
@@ -534,6 +535,10 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             case R.id.main_menu_adrenotools_gpu_drivers:
                 show(new AdrenotoolsFragment(), false);
                 break;
+            case R.id.main_menu_logs:
+                new DebugDialog(this).show();
+                drawerLayout.closeDrawers();
+                break;
             case R.id.main_menu_saves:
                 show(new SavesFragment(), false);  // Forward animation
                 break;
@@ -579,14 +584,15 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             final PackageInfo pInfo = getPackageManager().getPackageInfo(getPackageName(), 0);
 
             TextView tvWebpage = dialog.findViewById(R.id.TVWebpage);
-            tvWebpage.setText(Html.fromHtml("<a href=\"https://www.winlator.org\">winlator.org</a>", Html.FROM_HTML_MODE_LEGACY));
+            tvWebpage.setText(Html.fromHtml("<a href=\"https://github.com/avavo/WinXclipse\">github.com/avavo/WinXclipse</a>", Html.FROM_HTML_MODE_LEGACY));
             tvWebpage.setMovementMethod(LinkMovementMethod.getInstance());
 
             ((TextView) dialog.findViewById(R.id.TVAppVersion)).setText(getString(R.string.version) + " " + pInfo.versionName);
 
             String creditsAndThirdPartyAppsHTML = String.join("<br />",
-                    "Winlator was created by Brunodev85 (<a href=\"https://github.com/brunodev85\">Git</a>)",
-                    "Winlator Cmod by <a href=\"https://github.com/coffincolors/winlator\">coffincolors</a>, <a href=\"https://github.com/Pipetto-crypto/winlator\">Pipetto-crypto</a>",
+                    "WinXclipse Exynos/Xclipse adaptation by Álvaro (<a href=\"https://github.com/avavo\">GitHub</a>)",
+                    "Based on Winlator by Brunodev85 (<a href=\"https://github.com/brunodev85\">Git</a>)",
+                    "Based on Winlator CMod by <a href=\"https://github.com/coffincolors/winlator\">coffincolors</a> and <a href=\"https://github.com/Pipetto-crypto/winlator\">Pipetto-crypto</a>",
                     "Winlator Glibc by longjunyu2 (<a href=\"https://github.com/longjunyu2/winlator/\">Fork</a>)",
                     "Winlator OpenXR by lvonasek (<a href=\"https://github.com/lvonasek\">Git</a>)",
                     "Big Picture Mode Music by Fumer",
