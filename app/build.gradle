@@ -32,7 +32,7 @@ android {
         targetSdkVersion 28
 
         versionCode 20
-        versionName "0.7.6-source-port"
+        versionName "0.7.6"
 
         // External native build from Winlator
         externalNativeBuild {
