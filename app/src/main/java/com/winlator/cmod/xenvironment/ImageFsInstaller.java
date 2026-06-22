@@ -163,7 +163,7 @@ public abstract class ImageFsInstaller {
                     .setMessage(formattedMessage) // Set the Spanned CharSequence
                     .setCancelable(false)
                     .setPositiveButton("Continue", (dialog, which) -> {
-                        // installFromAssets(activity, onCompletion);
+                        installFromAssets(activity, onCompletion);
                     })
                     .show();
         }
