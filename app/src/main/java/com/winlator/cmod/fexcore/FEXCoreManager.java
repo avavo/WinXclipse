@@ -117,6 +117,8 @@ public final class FEXCoreManager {
                 .put("X87ReducedPrecision", X87ReducedPrecisionValue);
             config.put("Config", opts);
             String json = config.toString();
+            File parentDir = configFile.getParentFile();
+            if (parentDir != null) parentDir.mkdirs();
             FileUtils.writeString(configFile, json);
         }
         catch (JSONException e) {
@@ -190,6 +192,8 @@ public final class FEXCoreManager {
                     .put("X87ReducedPrecision", X87ReducedPrecisionValue);
             config.put("Config", opts);
             String json = config.toString();
+            File parentDir = configFile.getParentFile();
+            if (parentDir != null) parentDir.mkdirs();
             FileUtils.writeString(configFile, json);
         }
         catch (JSONException e) {
