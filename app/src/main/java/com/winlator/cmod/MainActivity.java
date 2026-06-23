@@ -168,7 +168,8 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 ImageFsInstaller.installIfNeeded(this, () ->
                         checkForAndInstallAssetContents(() -> {
                             if (!allAccessFilesDialogDismissed
-                                    && false) {
+                                    && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+                                    && !Environment.isExternalStorageManager()) {
                                 showAllFilesAccessDialog();
                             }
                         }));
@@ -364,7 +365,8 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 ImageFsInstaller.installIfNeeded(this, () -> {
                     if (!allAccessFilesDialogDismissed
-                            && false) {
+                            && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+                            && !Environment.isExternalStorageManager()) {
                         showAllFilesAccessDialog();
                     }
                 });
@@ -440,7 +442,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     private boolean requestAppPermissions() {
         boolean hasWritePermission = ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
         boolean hasReadPermission = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
-        boolean hasManageStoragePermission = true; // WinXclipse: do not require All Files Access on startup
+        boolean hasManageStoragePermission = Build.VERSION.SDK_INT < Build.VERSION_CODES.R || Environment.isExternalStorageManager();
 
         if (hasWritePermission && hasReadPermission && hasManageStoragePermission) {
             return false; // All permissions are granted
