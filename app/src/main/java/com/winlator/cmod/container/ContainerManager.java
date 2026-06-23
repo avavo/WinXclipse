@@ -62,27 +62,47 @@ public class ContainerManager {
         containers.clear();
         maxContainerId = 0;
 
-        try {
-            File[] files = homeDir.listFiles();
-            if (files != null) {
-                for (File file : files) {
-                    if (file.isDirectory()) {
-                        if (file.getName().startsWith(ImageFs.USER + "-")) {
-                            Container container = new Container(
-                                    Integer.parseInt(file.getName().replace(ImageFs.USER + "-", "")), this
-                            );
+        File[] files = homeDir.listFiles();
+        if (files == null) return;
 
-                            container.setRootDir(new File(homeDir, ImageFs.USER + "-" + container.id));
-                            JSONObject data = new JSONObject(FileUtils.readString(container.getConfigFile()));
-                            container.loadData(data);
-                            containers.add(container);
-                            maxContainerId = Math.max(maxContainerId, container.id);
-                        }
-                    }
-                }
+        for (File file : files) {
+            if (!file.isDirectory()) continue;
+            if (!file.getName().startsWith(ImageFs.USER + "-")) continue;
+
+            int id;
+            try {
+                id = Integer.parseInt(file.getName().replace(ImageFs.USER + "-", ""));
             }
-        } catch (JSONException | NullPointerException e) {
-            Log.e("ContainerManager", "Error loading containers", e);
+            catch (NumberFormatException e) {
+                Log.w("ContainerManager", "Skipping malformed container directory: " + file.getName(), e);
+                continue;
+            }
+
+            maxContainerId = Math.max(maxContainerId, id);
+
+            Container container = new Container(id, this);
+            container.setRootDir(file);
+
+            File configFile = container.getConfigFile();
+            if (!configFile.isFile()) {
+                Log.w("ContainerManager", "Skipping container directory without config: " + file.getAbsolutePath());
+                continue;
+            }
+
+            String configString = FileUtils.readString(configFile);
+            if (configString == null || configString.trim().isEmpty()) {
+                Log.w("ContainerManager", "Skipping container with empty config: " + file.getAbsolutePath());
+                continue;
+            }
+
+            try {
+                JSONObject data = new JSONObject(configString);
+                container.loadData(data);
+                containers.add(container);
+            }
+            catch (JSONException e) {
+                Log.e("ContainerManager", "Skipping malformed container config: " + file.getAbsolutePath(), e);
+            }
         }
     }
 
@@ -126,9 +146,15 @@ public class ContainerManager {
     private Container createContainer(JSONObject data, ContentsManager contentsManager) {
         try {
             int id = maxContainerId + 1;
+            File containerDir = new File(homeDir, ImageFs.USER + "-" + id);
+
+            while (containerDir.exists()) {
+                id++;
+                containerDir = new File(homeDir, ImageFs.USER + "-" + id);
+            }
+
             data.put("id", id);
 
-            File containerDir = new File(homeDir, ImageFs.USER+"-"+id);
             if (!containerDir.mkdirs()) return null;
 
             Container container = new Container(id, this);
@@ -239,20 +265,44 @@ public class ContainerManager {
     }
 
     private void extractCommonDlls(WineInfo wineInfo, String srcName, String dstName, File containerDir, OnExtractFileListener onExtractFileListener) throws JSONException {
+        if (wineInfo == null || wineInfo.path == null) {
+            Log.w("ContainerManager", "Skipping common DLL extraction: missing WineInfo for " + srcName);
+            return;
+        }
+
         File srcDir = new File(wineInfo.path + "/lib/wine/" + srcName);
+        if (!srcDir.isDirectory()) {
+            Log.w("ContainerManager", "Skipping common DLL extraction: missing source dir " + srcDir.getAbsolutePath());
+            return;
+        }
 
         File[] srcfiles = srcDir.listFiles(file -> file.isFile());
+        if (srcfiles == null || srcfiles.length == 0) {
+            Log.w("ContainerManager", "Skipping common DLL extraction: no files in " + srcDir.getAbsolutePath());
+            return;
+        }
+
+        File dstDir = new File(containerDir, ".wine/drive_c/windows/" + dstName);
+        if (!dstDir.exists() && !dstDir.mkdirs()) {
+            Log.w("ContainerManager", "Skipping common DLL extraction: unable to create destination dir " + dstDir.getAbsolutePath());
+            return;
+        }
 
         for (File file : srcfiles) {
             String dllName = file.getName();
-            if (dllName.equals("iexplore.exe") && wineInfo.isArm64EC() && srcName.equals("aarch64-windows"))
-                file = new File(wineInfo.path + "/lib/wine/" + "i386-windows/iexplore.exe");
-            File dstFile = new File(containerDir, ".wine/drive_c/windows/" + dstName + "/" + dllName);
+            if (dllName.equals("iexplore.exe") && wineInfo.isArm64EC() && srcName.equals("aarch64-windows")) {
+                File fallbackFile = new File(wineInfo.path + "/lib/wine/" + "i386-windows/iexplore.exe");
+                if (fallbackFile.isFile()) file = fallbackFile;
+            }
+
+            File dstFile = new File(dstDir, dllName);
             if (dstFile.exists()) continue;
-            if (onExtractFileListener != null ) {
+
+            if (onExtractFileListener != null) {
                 dstFile = onExtractFileListener.onExtractFile(dstFile, 0);
                 if (dstFile == null) continue;
             }
+
             FileUtils.copy(file, dstFile);
         }
     }

@@ -1491,6 +1491,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         // Check if the wineVersion string is not null and contains "arm64ec"
         if (wineVersion != null && wineVersion.contains("proton-9.0-arm64ec")) {
+            ensureProton9Arm64EcRuntime();
             File wineFolder = new File(imageFs.getWinePath() + "/lib/wine/");
             Log.d("XServerDisplayActivity", "Wine version contains arm64ec. Extracting input dlls to " + wineFolder.getPath());
             boolean success = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, inputAsset, wineFolder);
@@ -2819,4 +2820,63 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         // Register the callback with the system.
         audioManager.registerAudioDeviceCallback(audioDeviceCallback, new Handler(Looper.getMainLooper()));
     }
+    private void ensureProton9Arm64EcRuntime() {
+        try {
+            File rootDir = imageFs.getRootDir();
+
+            File baseWine = new File(rootDir, "../contents/Wine/10-arm64ec-0").getCanonicalFile();
+            File protonDir = new File(rootDir, "opt/proton-9.0-arm64ec");
+
+            File protonWineLib = new File(protonDir, "lib/wine");
+            protonWineLib.mkdirs();
+
+            ensureSymlink(new File(baseWine, "bin"), new File(protonDir, "bin"));
+            ensureSymlink(new File(baseWine, "share"), new File(protonDir, "share"));
+            ensureSymlink(new File(baseWine, "lib/wine/aarch64-unix"), new File(protonWineLib, "aarch64-unix"));
+            ensureSymlink(new File(baseWine, "lib/wine/aarch64-windows"), new File(protonWineLib, "aarch64-windows"));
+            ensureSymlink(new File(baseWine, "lib/wine/i386-windows"), new File(protonWineLib, "i386-windows"));
+
+            new File(rootDir, "home/xuser/.fex-emu/AppConfig").mkdirs();
+
+            Log.d("XServerDisplayActivity", "Proton 9 ARM64EC runtime links verified.");
+        }
+        catch (Exception e) {
+            Log.e("XServerDisplayActivity", "Failed to verify Proton 9 ARM64EC runtime links", e);
+        }
+    }
+
+    private void ensureSymlink(File target, File link) {
+        try {
+            if (target == null || !target.exists()) {
+                Log.w("XServerDisplayActivity", "Symlink target missing: " + target);
+                return;
+            }
+
+            File parent = link.getParentFile();
+            if (parent != null) parent.mkdirs();
+
+            if (link.exists()) {
+                String canonicalTarget = target.getCanonicalPath();
+                String canonicalLink = link.getCanonicalPath();
+
+                if (canonicalTarget.equals(canonicalLink)) {
+                    return;
+                }
+
+                File backup = new File(link.getParentFile(), link.getName() + ".bak");
+                if (backup.exists()) FileUtils.delete(backup);
+
+                Log.w("XServerDisplayActivity", "Replacing existing runtime path with symlink: " + link.getAbsolutePath());
+                if (!link.renameTo(backup)) {
+                    FileUtils.delete(link);
+                }
+            }
+
+            FileUtils.symlink(target.getAbsolutePath(), link.getAbsolutePath());
+        }
+        catch (Exception e) {
+            Log.e("XServerDisplayActivity", "Failed to create symlink: " + link + " -> " + target, e);
+        }
+    }
+
 }

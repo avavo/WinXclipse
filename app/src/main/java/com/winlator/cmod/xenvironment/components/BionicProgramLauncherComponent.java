@@ -383,8 +383,11 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         else {
             if (wineInfo.isArm64EC()) {
                 command = winePath + "/" + guestExecutable;
-                if (emulator.toLowerCase().equals("fexcore"))
-                    envVars.put("HODLL", "libwow64fex.dll");
+                if (emulator.toLowerCase().equals("fexcore")) {
+                    String wineVersion = container.getWineVersion();
+                    boolean isArm64ECWine = wineVersion != null && wineVersion.toLowerCase().contains("arm64ec");
+                    envVars.put("HODLL", isArm64ECWine ? "libarm64ecfex.dll" : "libwow64fex.dll");
+                }
                 else
                     envVars.put("HODLL", "wowbox64.dll");
             }
