@@ -1,40 +1,89 @@
-# WinXclipse
+WinXclipse
 
-WinXclipse, é um projeto experimental focado em adaptar a build do Winlator CMOD para dispositivos Samsung Exynos com GPU Xclipse.
 
-## Objetivo
+WinXclipse is an experimental project focused on adapting the Winlator CMOD build for Samsung Exynos devices with Xclipse GPUs.
 
-Criar uma base organizada para testes em Exynos/Xclipse, com foco futuro em presets, documentação, integração com MdiEx/ExynosTools e ajustes voltados para compatibilidade.
 
-## Aviso
+Goal
 
-Projeto experimental. Nada aqui promete desempenho, estabilidade ou compatibilidade universal.
 
-## Créditos
+The goal of this project is to provide an organized base for Exynos/Xclipse testing, with future focus on presets, documentation, MdiEx/ExynosTools integration, and compatibility-oriented adjustments.
 
-Baseado no trabalho do Winlator, Winlator CMOD e seus respectivos desenvolvedores/contribuidores.
 
-## WinXclipse v0.7.5
+Disclaimer
 
-A v0.7.5, mudança na identidade visual.
 
-### Wrappers disponíveis
+This is an experimental project. Nothing here guarantees performance, stability, or universal compatibility.
 
-- Wrapper
-- Wrapper-v2
-- Wrapper-Leegao
-- Wrapper-EV1
-- Wrapper-EV2
-- Wrapper-Kirimu
-- Wrapper-LD24
 
-### Implementação
+Use it at your own risk.
 
-- A lista de Graphics Driver foi expandida via smali
-- Os pacotes .tzst foram criados a partir do wrapper.tzst original
-- Apenas usr/lib/libvulkan_wrapper.so muda em cada variante
-- A estrutura original do wrapper foi preservada
-- Nome visual e logo foram corrigidos para WinXclipse
 
-### Status
-Experimental funcional.
+Credits
+
+
+WinXclipse is based on the work of Winlator, Winlator CMOD, and their respective developers and contributors.
+
+
+WinXclipse v0.7.5
+
+
+WinXclipse v0.7.5 introduced visual identity changes and expanded wrapper support.
+
+
+Available Wrappers
+
+
+
+
+Wrapper
+
+
+Wrapper-v2
+
+
+Wrapper-Leegao
+
+
+Wrapper-EV1
+
+
+Wrapper-EV2
+
+
+Wrapper-Kirimu
+
+
+Wrapper-LD24
+
+
+
+
+Implementation
+
+
+
+
+The Graphics Driver list was expanded through smali changes.
+
+
+The .tzst packages were created from the original wrapper.tzst.
+
+
+Only usr/lib/libvulkan_wrapper.so changes between wrapper variants.
+
+
+The original wrapper structure was preserved.
+
+
+The visual name and logo were corrected to WinXclipse.
+
+
+
+
+Status
+
+
+Functionally experimental.
+
+
