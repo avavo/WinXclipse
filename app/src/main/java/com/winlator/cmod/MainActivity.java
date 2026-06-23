@@ -167,8 +167,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             if (!waitingForPerms) {
                 ImageFsInstaller.installIfNeeded(this, () ->
                         checkForAndInstallAssetContents(() -> {
-                            if (!allAccessFilesDialogDismissed
-                                    && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
                                     && !Environment.isExternalStorageManager()) {
                                 showAllFilesAccessDialog();
                             }
@@ -364,8 +363,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         if (requestCode == PERMISSION_WRITE_EXTERNAL_STORAGE_REQUEST_CODE) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 ImageFsInstaller.installIfNeeded(this, () -> {
-                    if (!allAccessFilesDialogDismissed
-                            && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
                             && !Environment.isExternalStorageManager()) {
                         showAllFilesAccessDialog();
                     }
