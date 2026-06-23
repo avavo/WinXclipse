@@ -147,28 +147,10 @@ public abstract class ImageFsInstaller {
 
     public static void installIfNeeded(final MainActivity activity, final Runnable onCompletion) {
         ImageFs imageFs = ImageFs.find(activity);
-
         if (!imageFs.isValid() || imageFs.getVersion() < LATEST_VERSION) {
-            // A system files update is required, so show a warning dialog first.
-            String htmlMessageString = activity.getString(R.string.system_update_warning);
-            CharSequence formattedMessage;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                formattedMessage = Html.fromHtml(htmlMessageString, Html.FROM_HTML_MODE_LEGACY);
-            } else {
-                //noinspection deprecation
-                formattedMessage = Html.fromHtml(htmlMessageString);
-            }
-            new AlertDialog.Builder(activity)
-                    .setTitle("System Files Update Required")
-                    .setMessage(formattedMessage) // Set the Spanned CharSequence
-                    .setCancelable(false)
-                    .setPositiveButton("Continue", (dialog, which) -> {
-                        installFromAssets(activity, onCompletion);
-                    })
-                    .show();
+            installFromAssets(activity, onCompletion);
         }
         else if (onCompletion != null) {
-            // If no installation is needed, just run the callback.
             onCompletion.run();
         }
     }
