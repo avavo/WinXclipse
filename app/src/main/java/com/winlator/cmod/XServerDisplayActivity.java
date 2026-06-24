@@ -1491,7 +1491,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         // Check if the wineVersion string is not null and contains "arm64ec"
         if (wineVersion != null && wineVersion.contains("proton-9.0-arm64ec")) {
-            ensureProton9Arm64EcRuntime();
+            // ensureProton9Arm64EcRuntime(); disabled: Proton 9 ARM64EC is bundled, do not relink to contents Wine 10
             File wineFolder = new File(imageFs.getWinePath() + "/lib/wine/");
             Log.d("XServerDisplayActivity", "Wine version contains arm64ec. Extracting input dlls to " + wineFolder.getPath());
             boolean success = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, inputAsset, wineFolder);

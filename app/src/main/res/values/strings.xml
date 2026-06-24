@@ -720,4 +720,6 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="app_name_winxclipse">WinXclipse</string>
     <string name="winxclipse_credits">WinXclipse Based on Winlator/Cmod/Ludashi Exynos/Xclipse adaptation by Álvaro</string>
     <string name="xclipse_driver_download_hint">Download compatible drivers from MdiEx v3.2: https://github.com/avavo/MdiEx/releases/tag/V3.2</string>
+
+    <string name="fexcore_preset">FEXCore Preset</string>
 </resources>

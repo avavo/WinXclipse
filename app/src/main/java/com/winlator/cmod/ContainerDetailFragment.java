@@ -61,6 +61,7 @@ import com.winlator.cmod.core.WineRegistryEditor;
 import com.winlator.cmod.core.WineThemeManager;
 import com.winlator.cmod.core.WineUtils;
 import com.winlator.cmod.fexcore.FEXCoreManager;
+import com.winlator.cmod.fexcore.FEXCorePresetManager;
 import com.winlator.cmod.midi.MidiManager;
 import com.winlator.cmod.widget.CPUListView;
 import com.winlator.cmod.widget.ColorPickerView;
@@ -219,15 +220,8 @@ public class ContainerDetailFragment extends Fragment {
 
         Spinner sFEXCoreVersion = view.findViewById(R.id.SFEXCoreVersion);
         sFEXCoreVersion.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
-
-        Spinner sFEXCoreTSOPreset = view.findViewById(R.id.SFEXCoreTSOPreset);
-        sFEXCoreTSOPreset.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
-        
-        Spinner sFEXCoreMultiBlock = view.findViewById(R.id.SFEXCoreMultiblock);
-        sFEXCoreMultiBlock.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
-        
-        Spinner sFEXCoreX87ReducedPrecision = view.findViewById(R.id.SFEXCoreX87ReducedPrecision);
-        sFEXCoreX87ReducedPrecision.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
+        Spinner sFEXCorePreset = view.findViewById(R.id.SFEXCorePreset);
+        sFEXCorePreset.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
         
 
         Spinner sStartupSelection = view.findViewById(R.id.SStartupSelection);
@@ -500,12 +494,8 @@ public class ContainerDetailFragment extends Fragment {
 
         final Spinner sFEXCoreVersion = view.findViewById(R.id.SFEXCoreVersion);
         FEXCoreManager.loadFEXCoreVersion(context, contentsManager, sFEXCoreVersion, container);
-
-        final Spinner sFEXCoreTSOPreset = view.findViewById(R.id.SFEXCoreTSOPreset);
-        final Spinner sFEXCoreMultiBlock = view.findViewById(R.id.SFEXCoreMultiblock);
-        final Spinner sFEXCoreX87ReducedPrecision = view.findViewById(R.id.SFEXCoreX87ReducedPrecision);
-        
-        FEXCoreManager.loadFEXCoreSettings(context, container, sFEXCoreTSOPreset, sFEXCoreMultiBlock, sFEXCoreX87ReducedPrecision);
+        final Spinner sFEXCorePreset = view.findViewById(R.id.SFEXCorePreset);
+        FEXCorePresetManager.loadSpinner(sFEXCorePreset, container != null ? container.getFEXCorePreset() : "intermediate");
 
         String selectedDriver = sGraphicsDriver.getSelectedItem().toString();
         List<String> sGraphicsItemsList = new ArrayList<>(Arrays.asList(context.getResources().getStringArray(R.array.graphics_driver_entries)));
@@ -646,7 +636,7 @@ public class ContainerDetailFragment extends Fragment {
                     container.setGstreamerWorkaround(gstreamerWorkaround);
                     container.saveData();
                     saveWineRegistryKeys(view);
-                    FEXCoreManager.saveFEXCoreSpinners(container, sFEXCoreTSOPreset, sFEXCoreMultiBlock, sFEXCoreX87ReducedPrecision);
+                    container.setFEXCorePreset(FEXCorePresetManager.getSpinnerSelectedId(sFEXCorePreset));
                     getActivity().onBackPressed();
                 } else {
                     // Create new container with specified properties
@@ -674,6 +664,7 @@ public class ContainerDetailFragment extends Fragment {
                     data.put("box64Version", box64Version);
                     data.put("box64Preset", box64Preset);
                     data.put("fexcoreVersion", fexcoreVersion);
+                    data.put("fexcorePreset", FEXCorePresetManager.getSpinnerSelectedId(sFEXCorePreset));
                     data.put("desktopTheme", desktopTheme);
                     data.put("rcfileId", rcfileId);
                     data.put("wineVersion", sWineVersion.getSelectedItem().toString());
@@ -694,7 +685,7 @@ public class ContainerDetailFragment extends Fragment {
                         if (container != null) {
                             this.container = container;
                             saveWineRegistryKeys(view);
-                            FEXCoreManager.saveFEXCoreSpinners(container, sFEXCoreTSOPreset, sFEXCoreMultiBlock, sFEXCoreX87ReducedPrecision);
+                            container.setFEXCorePreset(FEXCorePresetManager.getSpinnerSelectedId(sFEXCorePreset));
                         }
                         preloaderDialog.close();
                         getActivity().onBackPressed();

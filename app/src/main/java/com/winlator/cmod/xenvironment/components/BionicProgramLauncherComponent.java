@@ -19,6 +19,7 @@ import com.winlator.cmod.container.Container;
 import com.winlator.cmod.container.Shortcut;
 import com.winlator.cmod.contents.ContentProfile;
 import com.winlator.cmod.contents.ContentsManager;
+import com.winlator.cmod.fexcore.FEXCorePresetManager;
 import com.winlator.cmod.core.Callback;
 import com.winlator.cmod.core.DefaultVersion;
 import com.winlator.cmod.core.EnvVars;
@@ -122,7 +123,12 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         }
 
         Log.d("BionicProgramLauncherComponent", "box64Version in use: " + wowbox64Version);
+        String fexcorePreset = container.getFEXCorePreset();
+        if (shortcut != null) {
+            fexcorePreset = shortcut.getExtra("fexcorePreset", shortcut.container.getFEXCorePreset());
+        }
         Log.d("BionicProgramLauncherComponent", "fexcoreVersion in use: " + fexcoreVersion);
+        Log.d("BionicProgramLauncherComponent", "fexcorePreset in use: " + fexcorePreset);
 
         if (!wowbox64Version.equals(container.getExtra("box64Version"))) {
             ContentProfile profile = contentsManager.getProfileByEntryName("wowbox64-" + wowbox64Version);
@@ -387,6 +393,12 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
                     String wineVersion = container.getWineVersion();
                     boolean isArm64ECWine = wineVersion != null && wineVersion.toLowerCase().contains("arm64ec");
                     envVars.put("HODLL", isArm64ECWine ? "libarm64ecfex.dll" : "libwow64fex.dll");
+                    String activeFEXCorePreset = container.getFEXCorePreset();
+                    if (shortcut != null) {
+                        activeFEXCorePreset = shortcut.getExtra("fexcorePreset", shortcut.container.getFEXCorePreset());
+                    }
+                    if (!isArm64ECWine)
+                        FEXCorePresetManager.applyPreset(activeFEXCorePreset, envVars);
                 }
                 else
                     envVars.put("HODLL", "wowbox64.dll");

@@ -185,7 +185,7 @@ public class WineRequestHandler {
             ddraWrapper = shortcut.getExtra("ddrawrapper", this.container.getDDrawWrapper());
             emulator = shortcut.getExtra("emulator", this.container.getEmulator());
             fexcoreVersion = shortcut.getExtra("fexcoreVersion", this.container.getFEXCoreVersion());
-            fexcorePreset = FEXCoreManager.printFEXCoreSettings(context, this.shortcut);
+            fexcorePreset = this.shortcut.getExtra("fexcorePreset", this.container.getFEXCorePreset());
             cpuList = shortcut.getExtra("cpuList", this.container.getCPUList());
         } else {
             screenSize = container.getScreenSize();
@@ -200,7 +200,7 @@ public class WineRequestHandler {
             ddraWrapper = container.getDDrawWrapper();
             emulator = container.getEmulator();
             fexcoreVersion = container.getFEXCoreVersion();
-            fexcorePreset = FEXCoreManager.printFEXCoreSettings(context, container);
+            fexcorePreset = container.getFEXCorePreset();
             cpuList = container.getCPUList();
         }
 

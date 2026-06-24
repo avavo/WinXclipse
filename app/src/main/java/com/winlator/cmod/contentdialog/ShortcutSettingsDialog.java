@@ -38,6 +38,7 @@ import com.winlator.cmod.core.EnvVars;
 import com.winlator.cmod.core.StringUtils;
 import com.winlator.cmod.core.WineInfo;
 import com.winlator.cmod.fexcore.FEXCoreManager;
+import com.winlator.cmod.fexcore.FEXCorePresetManager;
 import com.winlator.cmod.inputcontrols.ControlsProfile;
 import com.winlator.cmod.inputcontrols.InputControlsManager;
 import com.winlator.cmod.midi.MidiManager;
@@ -279,12 +280,8 @@ public class ShortcutSettingsDialog extends ContentDialog {
 
         final Spinner sFEXCoreVersion = findViewById(R.id.SFEXCoreVersion);
         FEXCoreManager.loadFEXCoreVersion(context, contentsManager, sFEXCoreVersion, shortcut);
-        
-        final Spinner sFEXCoreTSOPreset = findViewById(R.id.SFEXCoreTSOPreset);
-        final Spinner sFEXCoreMultiBlock = findViewById(R.id.SFEXCoreMultiblock);
-        final Spinner sFEXCoreX87ReducedPrecision = findViewById(R.id.SFEXCoreX87ReducedPrecision);
-        
-        FEXCoreManager.loadFEXCoreSettings(context, shortcut, sFEXCoreTSOPreset, sFEXCoreMultiBlock, sFEXCoreX87ReducedPrecision);
+        final Spinner sFEXCorePreset = findViewById(R.id.SFEXCorePreset);
+        FEXCorePresetManager.loadSpinner(sFEXCorePreset, shortcut.getExtra("fexcorePreset", shortcut.container.getFEXCorePreset()));
 
         final Spinner sRCFile = findViewById(R.id.SRCFile);
         final int[] rcfileIds = {0};
@@ -518,7 +515,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
                 // Save all changes to the shortcut
                 shortcut.saveData();
 //
-                FEXCoreManager.saveFEXCoreSpinners(shortcut.container, sFEXCoreTSOPreset, sFEXCoreMultiBlock, sFEXCoreX87ReducedPrecision); 
+                shortcut.putExtra("fexcorePreset", FEXCorePresetManager.getSpinnerSelectedId(sFEXCorePreset)); 
             }
         });
     }
@@ -604,9 +601,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
         Spinner sMIDISoundFont = view.findViewById(R.id.SMIDISoundFont);
         Spinner sBox64Version = view.findViewById(R.id.SBox64Version);
         Spinner sFEXCoreVersion = view.findViewById(R.id.SFEXCoreVersion);
-        Spinner sFEXCoreTSOPreset = findViewById(R.id.SFEXCoreTSOPreset);
-        Spinner sFEXCoreMultiBlock = findViewById(R.id.SFEXCoreMultiblock);
-        Spinner sFEXCoreX87ReducedPrecision = findViewById(R.id.SFEXCoreX87ReducedPrecision);
+        Spinner sFEXCorePreset = findViewById(R.id.SFEXCorePreset);
         Spinner sStartupSelection = findViewById(R.id.SStartupSelection);
         
 
@@ -622,9 +617,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
 //        sDInputType.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
         sMIDISoundFont.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
         sBox64Version.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
-        sFEXCoreTSOPreset.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
-        sFEXCoreMultiBlock.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
-        sFEXCoreX87ReducedPrecision.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
+        sFEXCorePreset.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
         sFEXCoreVersion.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
         sStartupSelection.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
 

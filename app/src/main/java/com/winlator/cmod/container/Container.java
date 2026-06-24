@@ -80,6 +80,7 @@ public class Container {
     private int primaryController = 1;
     private String controllerMapping = new String(new char[XrControllerMapping.values().length]);
     private String fexcoreVersion = DefaultVersion.FEXCORE;
+    private String fexcorePreset = "intermediate";
     private String box64Version = DefaultVersion.BOX64;
     private String emulator;
     private boolean isRelativeMouseMovement;
@@ -281,6 +282,14 @@ public class Container {
 
     public void setFEXCoreVersion(String version) { this.fexcoreVersion = version; }
 
+    public String getFEXCorePreset() {
+        return this.fexcorePreset != null && !this.fexcorePreset.isEmpty() ? this.fexcorePreset : "intermediate";
+    }
+
+    public void setFEXCorePreset(String preset) {
+        this.fexcorePreset = preset != null && !preset.isEmpty() ? preset : "intermediate";
+    }
+
     public String getBox64Version() { return box64Version; }
 
     public void setBox64Version(String version) { this.box64Version = version; }
@@ -448,7 +457,8 @@ public class Container {
             data.put("box64Version", box64Version);
             data.put("box64Preset", box64Preset);
             data.put("fexcoreVersion", fexcoreVersion);
-            data.put("desktopTheme", desktopTheme);
+                        data.put("fexcorePreset", getFEXCorePreset());
+data.put("desktopTheme", desktopTheme);
             data.put("extraData", extraData);
             data.put("rcfileId", rcfileId);
             data.put("midiSoundFont", midiSoundFont);
@@ -544,6 +554,9 @@ public class Container {
                     break;
                 case "fexcoreVersion":
                     setFEXCoreVersion(data.getString(key));
+                    break;
+                case "fexcorePreset":
+                    setFEXCorePreset(data.getString(key));
                     break;
                 case "audioDriver" :
                     setAudioDriver(data.getString(key));
