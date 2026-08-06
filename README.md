@@ -16,9 +16,9 @@ Use it at your own risk.
 
 WinXclipse is based on the work of Winlator, Winlator CMOD, and their respective developers and contributors.
 
-## WinXclipse v0.7.5
+## WinXclipse v0.7.6
 
-WinXclipse v0.7.5 introduced visual identity changes and expanded wrapper support.
+WinXclipse v0.7.6 introduced visual identity changes and expanded wrapper support.
 
 ### Available Wrappers
 
