@@ -198,7 +198,7 @@ public class ScreenEffectDialog extends ContentDialog {
             }
             position++;
         }
-        sProfile.setAdapter(new ArrayAdapter<>(activity, android.R.layout.simple_spinner_dropdown_item, items));
+        sProfile.setAdapter(new com.winlator.cmod.widget.ThemedSpinnerAdapter<>(sProfile.getContext(), items));
         sProfile.setSelection(selectedPosition);
     }
 

@@ -4,24 +4,24 @@
     <color name="seekbar_blue_track">#332196F3</color>
 
     <!-- Light Theme Colors -->
-    <color name="window_background_color">#fafafa</color>
+    <color name="window_background_color">#F8FAFC</color>
     <color name="colorPrimary">#2F0B81</color>
-    <color name="colorPrimaryDark">#350D66</color>
-    <color name="colorAccent">#0288d1</color>
+    <color name="colorPrimaryDark">#2F0B81</color>
+    <color name="colorAccent">#6D28D9</color>
     <color name="black">#000000</color>
 
     <!-- Dark Theme Colors -->
-    <color name="window_background_color_dark">#121212</color>
+    <color name="window_background_color_dark">#000000</color>
     <color name="colorPrimaryDarkMode">#390E7A</color>
-    <color name="colorPrimaryDarkModeDark">#43197C</color>
-    <color name="colorAccentDark">#80d8ff</color>
+    <color name="colorPrimaryDarkModeDark">#390E7A</color>
+    <color name="colorAccentDark">#7C3AED</color>
     <color name="white">#ffffff</color>
 
     <!-- Additional Colors for Dark Mode -->
-    <color name="combo_box_dark">#303030</color>
-    <color name="content_dialog_background_dark">#424242</color>
+    <color name="combo_box_dark">#050505</color>
+    <color name="content_dialog_background_dark">#000000</color>
     <color name="button_neutral_dark">#37474f</color>
-    <color name="button_positive_dark">#1e88e5</color>
+    <color name="button_positive_dark">#7C3AED</color>
 
     <color name="abc_decor_view_status_guard">#ff000000</color>
     <color name="abc_decor_view_status_guard_light">#ffffffff</color>
@@ -32,10 +32,10 @@
     <color name="accent_material_light">@color/material_deep_teal_500</color>
     <color name="androidx_core_ripple_material_light">#1f000000</color>
     <color name="androidx_core_secondary_text_default_material_light">#8a000000</color>
-    <color name="background_floating_material_dark">@color/material_grey_800</color>
-    <color name="background_floating_material_light">@android:color/white</color>
-    <color name="background_material_dark">@color/material_grey_850</color>
-    <color name="background_material_light">@color/material_grey_50</color>
+    <color name="background_floating_material_dark">#ff050505</color>
+    <color name="background_floating_material_light">#fff8fafc</color>
+    <color name="background_material_dark">#ff000000</color>
+    <color name="background_material_light">#fff8fafc</color>
     <color name="bright_foreground_disabled_material_dark">#80ffffff</color>
     <color name="bright_foreground_disabled_material_light">#80000000</color>
     <color name="bright_foreground_inverse_material_dark">@color/bright_foreground_material_light</color>
@@ -44,12 +44,12 @@
     <color name="bright_foreground_material_light">@android:color/black</color>
     <color name="button_material_dark">#ff5a595b</color>
     <color name="button_material_light">#ffd6d7d7</color>
-    <color name="cardview_dark_background">#ff424242</color>
-    <color name="cardview_light_background">#ffffffff</color>
+    <color name="cardview_dark_background">#ff050505</color>
+    <color name="cardview_light_background">#fff8fafc</color>
     <color name="cardview_shadow_end_color">#03000000</color>
     <color name="cardview_shadow_start_color">#37000000</color>
     <color name="design_bottom_navigation_shadow_color">#14000000</color>
-    <color name="design_dark_default_color_background">#ff121212</color>
+    <color name="design_dark_default_color_background">#ff000000</color>
     <color name="design_dark_default_color_error">#ffcf6679</color>
     <color name="design_dark_default_color_on_background">#ffffffff</color>
     <color name="design_dark_default_color_on_error">#ff000000</color>
@@ -61,8 +61,8 @@
     <color name="design_dark_default_color_primary_variant">#ff3700b3</color>
     <color name="design_dark_default_color_secondary">#ff03dac6</color>
     <color name="design_dark_default_color_secondary_variant">#ff03dac6</color>
-    <color name="design_dark_default_color_surface">#ff121212</color>
-    <color name="design_default_color_background">#ffffffff</color>
+    <color name="design_dark_default_color_surface">#ff000000</color>
+    <color name="design_default_color_background">#fff8fafc</color>
     <color name="design_default_color_error">#ffb00020</color>
     <color name="design_default_color_on_background">#ff000000</color>
     <color name="design_default_color_on_error">#ffffffff</color>
@@ -74,7 +74,7 @@
     <color name="design_default_color_primary_variant">#ff3700b3</color>
     <color name="design_default_color_secondary">#ff03dac6</color>
     <color name="design_default_color_secondary_variant">#ff018786</color>
-    <color name="design_default_color_surface">#ffffffff</color>
+    <color name="design_default_color_surface">#fff8fafc</color>
     <color name="design_fab_shadow_end_color">@android:color/transparent</color>
     <color name="design_fab_shadow_mid_color">#14000000</color>
     <color name="design_fab_shadow_start_color">#44000000</color>

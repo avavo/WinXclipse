@@ -140,7 +140,8 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
             containerDataChanged = true;
         }
 
-        if (!fexcoreVersion.equals(container.getExtra("fexcoreVersion"))) {
+        File fexDll = new File(system32dir, "libwow64fex.dll");
+        if (!fexcoreVersion.equals(container.getExtra("fexcoreVersion")) || !fexDll.isFile()) {
             ContentProfile profile = contentsManager.getProfileByEntryName("fexcore-" + fexcoreVersion);
             if (profile != null)
                 contentsManager.applyContent(profile);
@@ -237,16 +238,23 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
 
         // final int MAX_PLAYERS = 1; // old static method
 
+        Context context = environment.getContext();
+        File gamepadDir = new File(context.getFilesDir(), "imagefs/tmp");
+
         // Get the number of enabled players directly from ControllerManager.
-        final int enabledPlayerCount = ControllerManager.getInstance().getEnabledPlayerCount();
+        // Always expose P1. Touch controls can become active immediately before
+        // or after Wine starts, and an initial zero here made evshim create no
+        // virtual controller at all.
+        final int enabledPlayerCount = Math.max(1,
+                ControllerManager.getInstance().getEnabledPlayerCount());
         for (int i = 0; i < enabledPlayerCount; i++) {
             String memPath;
             if (i == 0) {
                 // Player 1 uses the original, non-numbered path that is known to work.
-                memPath = "/data/data/com.winlator.cmod/files/imagefs/tmp/gamepad.mem";
+                memPath = new File(gamepadDir, "gamepad.mem").getAbsolutePath();
             } else {
                 // Players 2, 3, 4 use a 1-based index.
-                memPath = "/data/data/com.winlator.cmod/files/imagefs/tmp/gamepad" + i + ".mem";
+                memPath = new File(gamepadDir, "gamepad" + i + ".mem").getAbsolutePath();
             }
 
             File memFile = new File(memPath);
@@ -259,7 +267,6 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         }
 
 
-        Context context = environment.getContext();
         ImageFs imageFs = environment.getImageFs();
         File rootDir = imageFs.getRootDir();
 
@@ -269,6 +276,7 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         boolean shareAndroidClipboard = preferences.getBoolean("share_android_clipboard", false);
         boolean enablePebLogs = preferences.getBoolean("enable_peb_logs", false);
 
+        EnvVars envVars = new EnvVars();
 
         if (openWithAndroidBrowser)
             envVars.put("WINE_OPEN_WITH_ANDROID_BROWSER", "1");
@@ -280,10 +288,9 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
             envVars.put("WINE_LOG_PEB_DATA", "1");
         }
 
-        EnvVars envVars = new EnvVars();
-
         // Use the ControllerManager's dynamic count for the environment variable
         envVars.put("EVSHIM_MAX_PLAYERS", String.valueOf(enabledPlayerCount));
+        envVars.put("EVSHIM_GAMEPAD_DIR", gamepadDir.getAbsolutePath());
 
 
         if (true) {
@@ -294,6 +301,34 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
 
         addBox64EnvVars(envVars, enableBox86_64Logs);
 
+        String emulator = container.getEmulator();
+        if (shortcut != null) {
+            emulator = shortcut.getExtra("emulator", container.getEmulator());
+        }
+
+        // User-installed ARM64EC Wine/Proton packages follow the proven Mali
+        // launcher path. They are always started through FEXCore; this avoids
+        // interpreting a newer package with an incompatible WOWBox runtime.
+        if (wineInfo.isArm64EC() && wineProfile != null) emulator = "fexcore";
+
+        if (wineInfo.isArm64EC()) {
+            if (emulator.equalsIgnoreCase("fexcore")) {
+                String activeFEXCorePreset = container.getFEXCorePreset();
+                if (shortcut != null) {
+                    activeFEXCorePreset = shortcut.getExtra(
+                            "fexcorePreset", shortcut.container.getFEXCorePreset());
+                }
+                envVars.putAll(FEXCorePresetManager.getEnvVars(
+                        environment.getContext(), activeFEXCorePreset));
+
+                envVars.put("HODLL", wineProfile != null
+                        ? "libwow64fex.dll" : "libarm64ecfex.dll");
+            }
+            else {
+                envVars.put("HODLL", "wowbox64.dll");
+            }
+        }
+
         if (envVars.get("BOX64_MMAP32").equals("1") && !wineInfo.isArm64EC())
             envVars.put("WRAPPER_DISABLE_PLACED", "1");
 
@@ -302,7 +337,25 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         envVars.put("USER", ImageFs.USER);
         envVars.put("TMPDIR", rootDir.getPath() + "/usr/tmp");
         envVars.put("XDG_DATA_DIRS", rootDir.getPath() + "/usr/share");
-        envVars.put("LD_LIBRARY_PATH", rootDir.getPath() + "/usr/lib" + ":" + "/system/lib64");
+        File wineLibRoot = wineProfile != null && wineProfile.wineLibPath != null
+                ? ContentsManager.getSourceFile(context, wineProfile, wineProfile.wineLibPath)
+                : new File(imageFs.getWinePath(), "lib");
+        ArrayList<String> libraryPaths = new ArrayList<>();
+        ArrayList<String> wineDllPaths = new ArrayList<>();
+        for (String architecture : new String[]{"aarch64-unix", "x86_64-unix", "i386-unix"}) {
+            File moduleDir = new File(wineLibRoot, "wine/" + architecture);
+            if (moduleDir.isDirectory()) {
+                libraryPaths.add(moduleDir.getAbsolutePath());
+                wineDllPaths.add(moduleDir.getAbsolutePath());
+            }
+        }
+        if (wineLibRoot.isDirectory()) libraryPaths.add(wineLibRoot.getAbsolutePath());
+        libraryPaths.add(rootDir.getPath() + "/usr/lib");
+        libraryPaths.add("/system/lib64");
+        envVars.put("LD_LIBRARY_PATH", String.join(":", libraryPaths));
+        if (!wineDllPaths.isEmpty()) {
+            envVars.put("WINEDLLPATH", String.join(":", wineDllPaths));
+        }
         envVars.put("XDG_CONFIG_DIRS", rootDir.getPath() + "/usr/etc/xdg");
         envVars.put("GST_PLUGIN_PATH", rootDir.getPath() + "/usr/lib/gstreamer-1.0");
         envVars.put("FONTCONFIG_PATH", rootDir.getPath() + "/usr/etc/fonts");
@@ -321,8 +374,13 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         envVars.put("WINE_X11FORCEGLX", "1");
         envVars.put("WINE_GST_NO_GL", "1");
         envVars.put("SteamGameId", "0");
+        envVars.put("PROTON_AUDIO_CONVERT", "0");
+        envVars.put("PROTON_VIDEO_CONVERT", "0");
+        envVars.put("PROTON_DEMUX", "0");
 
-        String winePath = imageFs.getWinePath() + "/bin";
+        String winePath = wineProfile != null && wineProfile.wineBinPath != null
+                ? ContentsManager.getSourceFile(context, wineProfile, wineProfile.wineBinPath).getAbsolutePath()
+                : imageFs.getWinePath() + "/bin";
 
         Log.d("BionicProgramLauncherComponent", "WinePath is " + winePath);
 
@@ -356,26 +414,35 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
 
         String sysvPath = imageFs.getLibDir() + "/libandroid-sysvshm.so";
 
-        String evshimPath = imageFs.getLibDir() + "/libevshim.so";
+        File fakeInputPath = new File(imageFs.getLibDir(), "libfakeinput.so");
+        File packagedFakeInput = new File(context.getApplicationInfo().nativeLibraryDir,
+                "libfakeinput.so");
+        if (packagedFakeInput.isFile()) FileUtils.copy(packagedFakeInput, fakeInputPath);
 
-
-        if (new File(sysvPath).exists()) ld_preload += sysvPath;
-
-
-        ld_preload += ":" + evshimPath;
-
-        envVars.put("LD_PRELOAD", ld_preload);
-
-        envVars.put("EVSHIM_SHM_NAME", "controller-shm0");
+        if (new File(sysvPath).exists()) ld_preload = sysvPath;
+        if (fakeInputPath.isFile()) {
+            ld_preload += (ld_preload.isEmpty() ? "" : ":") + fakeInputPath.getAbsolutePath();
+        }
+        else {
+            Log.e("FakeInput", "Missing libfakeinput.so");
+        }
+        if (!ld_preload.isEmpty()) envVars.put("LD_PRELOAD", ld_preload);
+        File fakeInputDir = new File(rootDir, "dev/input");
+        if (!fakeInputDir.isDirectory()) fakeInputDir.mkdirs();
+        File event0 = new File(fakeInputDir, "event0");
+        try {
+            if (!event0.exists()) event0.createNewFile();
+        }
+        catch (IOException e) {
+            Log.e("FakeInput", "Could not create initial controller device", e);
+        }
+        envVars.put("FAKE_EVDEV_DIR", fakeInputDir.getAbsolutePath());
+        envVars.put("FAKE_EVDEV_VIBRATION", "1");
         
         // Merge any additional environment variables from external sources
         if (this.envVars != null) {
             envVars.putAll(this.envVars);
         }
-
-        String emulator = container.getEmulator();
-        if (shortcut != null)
-            emulator = shortcut.getExtra("emulator", container.getEmulator());
 
         // Construct the command without Box64 to the Wine executable
         String command = "";
@@ -389,19 +456,6 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         else {
             if (wineInfo.isArm64EC()) {
                 command = winePath + "/" + guestExecutable;
-                if (emulator.toLowerCase().equals("fexcore")) {
-                    String wineVersion = container.getWineVersion();
-                    boolean isArm64ECWine = wineVersion != null && wineVersion.toLowerCase().contains("arm64ec");
-                    envVars.put("HODLL", isArm64ECWine ? "libarm64ecfex.dll" : "libwow64fex.dll");
-                    String activeFEXCorePreset = container.getFEXCorePreset();
-                    if (shortcut != null) {
-                        activeFEXCorePreset = shortcut.getExtra("fexcorePreset", shortcut.container.getFEXCorePreset());
-                    }
-                    if (!isArm64ECWine)
-                        FEXCorePresetManager.applyPreset(activeFEXCorePreset, envVars);
-                }
-                else
-                    envVars.put("HODLL", "wowbox64.dll");
             }
             else
                 command = imageFs.getBinDir() + "/box64 " + guestExecutable;

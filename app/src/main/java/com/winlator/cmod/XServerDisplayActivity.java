@@ -39,9 +39,9 @@ import android.view.ViewGroup;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.view.animation.AnimationUtils;
 import android.view.animation.LayoutAnimationController;
-import android.widget.ArrayAdapter;
 import android.widget.CheckBox;
 import android.widget.FrameLayout;
+import android.widget.SeekBar;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -96,6 +96,7 @@ import com.winlator.cmod.fexcore.FEXCoreManager;
 import com.winlator.cmod.inputcontrols.ControllerManager;
 import com.winlator.cmod.inputcontrols.ControlsProfile;
 import com.winlator.cmod.inputcontrols.ExternalController;
+import com.winlator.cmod.inputcontrols.GamepadState;
 import com.winlator.cmod.inputcontrols.InputControlsManager;
 import com.winlator.cmod.inputcontrols.MotionControls;
 import com.winlator.cmod.math.Mathf;
@@ -108,7 +109,9 @@ import com.winlator.cmod.renderer.effects.ColorEffect;
 import com.winlator.cmod.renderer.effects.FXAAEffect;
 import com.winlator.cmod.renderer.effects.NTSCCombinedEffect;
 import com.winlator.cmod.renderer.effects.ToonEffect;
-import com.winlator.cmod.widget.FrameRating;
+import com.winlator.cmod.widget.HudDataSource;
+import com.winlator.cmod.widget.ThemedSpinnerAdapter;
+import com.winlator.cmod.widget.WinlatorHUD;
 import com.winlator.cmod.widget.InputControlsView;
 import com.winlator.cmod.widget.LogView;
 import com.winlator.cmod.widget.MagnifierView;
@@ -157,6 +160,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Locale;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
@@ -173,7 +177,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     private XServer xServer;
     private InputControlsManager inputControlsManager;
     private ImageFs imageFs;
-    private FrameRating frameRating = null;
+    private WinlatorHUD frameRating = null;
+    private HudDataSource hudDataSource = null;
     private Runnable editInputControlsCallback;
     private Shortcut shortcut;
     private String graphicsDriver = Container.DEFAULT_GRAPHICS_DRIVER;
@@ -248,13 +253,14 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     private AudioDeviceCallback audioDeviceCallback;
     private AudioManager audioManager;
 
+    private static final String APP_DATA_DIR = "/data/data/" + BuildConfig.APPLICATION_ID;
     private static final String[] MEDIACONV_ENV_VARS = {
-            "MEDIACONV_AUDIO_DUMP_FILE=/data/data/com.winlator.cmod/files/imagefs/home/xuser/audio.dmp",
-            "MEDIACONV_VIDEO_DUMP_FILE=/data/data/com.winlator.cmod/files/imagefs/home/xuser/video.dmp",
-            "MEDIACONV_VIDEO_TRANSCODED_FILE=/data/data/com.winlator.cmod/files/imagefs/home/xuser/transcoded.mkv",
-            "MEDIACONV_AUDIO_TRANSCODED_FILE=/data/data/com.winlator.cmod/files/imagefs/home/xuser/transcoded.wav",
-            "MEDIACONV_BLANK_AUDIO_FILE=/data/data/com.winlator.cmod/files/imagefs/home/xuser/blank.wav",
-            "MEDIACONV_BLANK_VIDEO_FILE=/data/data/com.winlator.cmod/files/imagefs/home/xuser/blank.mkv",
+            "MEDIACONV_AUDIO_DUMP_FILE=" + APP_DATA_DIR + "/files/imagefs/home/xuser/audio.dmp",
+            "MEDIACONV_VIDEO_DUMP_FILE=" + APP_DATA_DIR + "/files/imagefs/home/xuser/video.dmp",
+            "MEDIACONV_VIDEO_TRANSCODED_FILE=" + APP_DATA_DIR + "/files/imagefs/home/xuser/transcoded.mkv",
+            "MEDIACONV_AUDIO_TRANSCODED_FILE=" + APP_DATA_DIR + "/files/imagefs/home/xuser/transcoded.wav",
+            "MEDIACONV_BLANK_AUDIO_FILE=" + APP_DATA_DIR + "/files/imagefs/home/xuser/blank.wav",
+            "MEDIACONV_BLANK_VIDEO_FILE=" + APP_DATA_DIR + "/files/imagefs/home/xuser/blank.mkv",
     };
 
 
@@ -288,6 +294,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        SharedPreferences themePreferences = PreferenceManager.getDefaultSharedPreferences(this);
+        isDarkMode = themePreferences.getBoolean("dark_mode", false);
+        setTheme(isDarkMode ? R.style.AppThemeFullscreen_Dark : R.style.AppThemeFullscreen);
         super.onCreate(savedInstanceState);
         AppUtils.hideSystemUI(this);
         AppUtils.keepScreenOn(this);
@@ -402,6 +411,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         enableLogs = preferences.getBoolean("enable_wine_debug", false)
                 || preferences.getBoolean("enable_box86_64_logs", false);
         Menu menu = navigationView.getMenu();
+        markNestedMenuItems(menu, INPUT_IDS);
+        markNestedMenuItems(menu, DISPLAY_IDS);
         menu.findItem(R.id.main_menu_logs).setVisible(enableLogs);
         menu.findItem(R.id.main_menu_logs).setEnabled(enableLogs);
         allowMagnifier = !XrActivity.isEnabled(this);
@@ -417,11 +428,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         // restore persisted states (default collapsed = false)
         expInput   = preferences.getBoolean(PREF_EXP_INPUT,   false);
         expDisplay = preferences.getBoolean(PREF_EXP_DISPLAY, false);
-        expSystem  = preferences.getBoolean(PREF_EXP_SYSTEM,  false);
 
         applyGroup(menu, R.id.group_input,   R.id.header_input,   expInput);
         applyGroup(menu, R.id.group_display, R.id.header_display, expDisplay);
-        applyGroup(menu, R.id.group_system,  R.id.header_system,  expSystem);
 
         // tune RV
         RecyclerView rv = navRecycler();
@@ -434,6 +443,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         }
 
         imageFs = ImageFs.find(this);
+        File fakeInputDir = new File(imageFs.getRootDir(), "dev/input");
+        if (!fakeInputDir.isDirectory()) fakeInputDir.mkdirs();
+        winHandler.setFakeInputPath(fakeInputDir.getAbsolutePath());
 
         String screenSize = Container.DEFAULT_SCREEN_SIZE;
 //        if (!isGenerateWineprefix()) {
@@ -575,6 +587,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         if (dxwrapper.equals("dxvk") || dxwrapper.equals("vkd3d")) {
             this.dxwrapperConfig = DXVKConfigDialog.parseConfig(dxwrapperConfig);
+            // Older containers used a separate VKD3D wrapper. Migrate them to
+            // the combined DXVK + VKD3D pipeline without changing their JSON.
+            if (dxwrapper.equals("vkd3d")) this.dxwrapper = "dxvk";
         }
 
 
@@ -691,7 +706,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
                 setupWineSystemFiles();
                 extractArm64ecInputDLLs(); // REQUIRED: Uses updated xinput1_3 main.c from x86_64 build, prevents crashes with 3+ players, avoids need for input shim dlls.
-//                extractx86_64InputDlls(); // Not needed but just in case.
                 extractGraphicsDriverFiles();
                 changeWineAudioDriver();
 
@@ -962,6 +976,10 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     @Override
     protected void onDestroy() {
+        if (hudDataSource != null) {
+            hudDataSource.stop();
+            hudDataSource = null;
+        }
         super.onDestroy();
     }
 
@@ -1046,11 +1064,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     // Fields
     private static final String PREF_EXP_INPUT   = "drawer_exp_input";
     private static final String PREF_EXP_DISPLAY = "drawer_exp_display";
-    private static final String PREF_EXP_SYSTEM  = "drawer_exp_system";
 
     private boolean expInput   = false;
     private boolean expDisplay = false;
-    private boolean expSystem  = false;
 
     private NavigationView navigationView;
 
@@ -1167,6 +1183,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     }
 
     private static final int[] INPUT_IDS = {
+            R.id.main_menu_relative_mouse,
+            R.id.main_menu_keyboard,
             R.id.main_menu_input_controls,
             R.id.main_menu_controller_assignment,
             R.id.main_menu_motion_controls
@@ -1179,10 +1197,14 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             R.id.main_menu_pip_mode
     };
 
-    private static final int[] SYSTEM_IDS = {
-            R.id.main_menu_task_manager,
-            R.id.main_menu_terminal
-    };
+    private void markNestedMenuItems(Menu menu, int[] itemIds) {
+        for (int id : itemIds) {
+            MenuItem item = menu.findItem(id);
+            if (item == null || item.getTitle() == null) continue;
+            String title = item.getTitle().toString();
+            if (!title.startsWith("↳")) item.setTitle("↳  " + title);
+        }
+    }
 
 
     @Nullable
@@ -1321,19 +1343,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 return true;
             }
 
-            case R.id.header_system: {
-                boolean wasExpanded = expSystem;
-                expSystem = !expSystem;
-                persistSection(PREF_EXP_SYSTEM, expSystem);
-                if (wasExpanded) {
-                    collapseGroup(menu, R.id.group_system, R.id.header_system, SYSTEM_IDS);
-                } else {
-                    expandGroup(menu, R.id.group_system, R.id.header_system, SYSTEM_IDS);
-                }
-                return true;
-            }
-
-
             // ---- Top-level quick actions ----
             case R.id.main_menu_relative_mouse:
                 isRelativeMouseMovement = !isRelativeMouseMovement;
@@ -1352,6 +1361,21 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
             case R.id.main_menu_keyboard:
                 AppUtils.showKeyboard(this);
+                drawerLayout.closeDrawers();
+                return true;
+
+            case R.id.main_menu_task_manager:
+                new TaskManagerDialog(this).show();
+                drawerLayout.closeDrawers();
+                return true;
+
+            case R.id.main_menu_hud:
+                showHUDConfigDialog();
+                drawerLayout.closeDrawers();
+                return true;
+
+            case R.id.main_menu_terminal:
+                openTerminal();
                 drawerLayout.closeDrawers();
                 return true;
 
@@ -1441,18 +1465,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 drawerLayout.closeDrawers();
                 return true;
 
-            // ---- SYSTEM group ----
-            case R.id.main_menu_task_manager:
-                new TaskManagerDialog(this).show();
-                drawerLayout.closeDrawers();
-                return true;
-
-
-            case R.id.main_menu_terminal:
-                openTerminal();
-                drawerLayout.closeDrawers();
-                return true;
-
             case R.id.main_menu_exit:
                 exitApp();
                 return true;
@@ -1487,34 +1499,23 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     private void extractArm64ecInputDLLs() {
         String inputAsset = "arm64ec_input_dlls.tzst";
         String wineVersion = container.getWineVersion();
-        Log.d("XServerDisplayActivity", "arm64ec Input DLL Extraction Verification: Container Wine version: " + wineVersion);
+        Log.d("XServerDisplayActivity", "ARM64EC input DLL check: " + wineVersion);
 
-        // Check if the wineVersion string is not null and contains "arm64ec"
-        if (wineVersion != null && wineVersion.contains("proton-9.0-arm64ec")) {
-            // ensureProton9Arm64EcRuntime(); disabled: Proton 9 ARM64EC is bundled, do not relink to contents Wine 10
+        // These DLLs belong to the bundled Proton 9 build. Injecting them into
+        // arbitrary Proton 10/11 packages can mix incompatible Wine DLLs and
+        // cause a black screen. External runtimes use Mali's fake-input layer.
+        if (wineInfo != null && wineInfo.isArm64EC()
+                && WineInfo.MAIN_WINE_VERSION.identifier().equals(wineVersion)) {
             File wineFolder = new File(imageFs.getWinePath() + "/lib/wine/");
-            Log.d("XServerDisplayActivity", "Wine version contains arm64ec. Extracting input dlls to " + wineFolder.getPath());
+            Log.d("XServerDisplayActivity", "Extracting ARM64EC input DLLs to " + wineFolder.getPath());
             boolean success = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, inputAsset, wineFolder);
             if (!success) {
                 Log.d("XServerDisplayActivity", "Failed to extract input dlls");
             }
         }
         else {
-            // Updated log message for clarity
-            Log.d("XServerDisplayActivity", "Wine version is not arm64ec, skipping input dlls extraction.");
+            Log.d("XServerDisplayActivity", "Runtime is not ARM64EC; skipping ARM64EC input DLLs.");
         }
-    }
-
-    private void extractx86_64InputDlls() {
-        String inputAsset = "x86_64_input_dlls.tzst";
-        String wineVersion = container.getWineVersion();
-        Log.d("XServerDisplayActivity", "x86_64 Input DLL Extraction Verification: Container Wine version: " + wineVersion);
-        if ("proton-9.0-x86_64".equals(wineVersion)) {
-            File wineFolder = new File(imageFs.getWinePath() + "/lib/wine/");
-            Log.d("XServerDisplayActivity", "Extracting input dlls to " + wineFolder.getPath());
-        }
-        else
-            Log.d("XServerDisplayActivity", "Wine version is not proton-9.0-x86_64, skipping input dlls extraction");
     }
 
     private void setupWineSystemFiles() {
@@ -1530,14 +1531,29 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         }
 
         String dxwrapper = this.dxwrapper;
-        if (dxwrapper.equals("dxvk"))
-            dxwrapper = "dxvk-"+dxwrapperConfig.get("version");
-        else if (dxwrapper.equals("vkd3d"))
-            dxwrapper = "vkd3d-"+dxwrapperConfig.get("vkd3dVersion");
+        String resolvedWrapper = dxwrapper;
+        if (dxwrapper.equals("dxvk")) {
+            String dxvkEntry = "dxvk-" + dxwrapperConfig.get("version", DefaultVersion.DXVK);
+            String vkd3dVersion = dxwrapperConfig.get("vkd3dVersion", DefaultVersion.VKD3D);
+            boolean disableVkd3d = "none".equalsIgnoreCase(vkd3dVersion);
+            String vkd3dEntry = disableVkd3d ? null : "vkd3d-" + vkd3dVersion;
+            resolvedWrapper = disableVkd3d ? dxvkEntry : dxvkEntry + "+" + vkd3dEntry;
+            if (!resolvedWrapper.equals(container.getExtra("dxwrapper"))) {
+                if (disableVkd3d) {
+                    // "None" must only undo VKD3D. Restoring the whole D3D stack here
+                    // mixes Wine and DXVK DLLs and changes the original cmod renderer.
+                    restoreOriginalDllFiles("d3d12.dll", "d3d12core.dll");
+                    removeStaleVkd3dDlls();
+                }
+                extractDXWrapperFiles(dxvkEntry);
+                if (!disableVkd3d) extractDXWrapperFiles(vkd3dEntry);
+            }
+        } else if (!resolvedWrapper.equals(container.getExtra("dxwrapper"))) {
+            extractDXWrapperFiles(resolvedWrapper);
+        }
 
-        if (!dxwrapper.equals(container.getExtra("dxwrapper"))) {
-            extractDXWrapperFiles(dxwrapper);
-            container.putExtra("dxwrapper", dxwrapper);
+        if (!resolvedWrapper.equals(container.getExtra("dxwrapper"))) {
+            container.putExtra("dxwrapper", resolvedWrapper);
             containerDataChanged = true;
         }
 
@@ -1789,7 +1805,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         // Determine if the container is using a contents profile Wine version
         ContentProfile profile = contentsManager.getProfileByEntryName(container.getWineVersion());
-        if (profile != null && profile.type == ContentProfile.ContentType.CONTENT_TYPE_WINE) {
+        if (profile != null && (profile.type == ContentProfile.ContentType.CONTENT_TYPE_WINE
+                || profile.type == ContentProfile.ContentType.CONTENT_TYPE_PROTON)) {
             File profileInstallDir = contentsManager.getInstallDir(this, profile);
             wineBinPath = profileInstallDir.getPath() + "/" + profile.wineBinPath;
             wineLibPath = profileInstallDir.getPath() + "/" + profile.wineLibPath;
@@ -1905,9 +1922,14 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             startTouchscreenTimeout();
         }
 
-        if (container != null && container.isShowFPS()) {
-            frameRating = new FrameRating(this, container);
-            frameRating.setVisibility(View.GONE);
+        if (container != null && container.isShowFPS()
+                && "winlator".equals(container.getHudMode())) {
+            hudDataSource = new HudDataSource(this);
+            frameRating = new WinlatorHUD(this);
+            frameRating.setDataSource(hudDataSource);
+            frameRating.setWrapperName(graphicsDriver);
+            frameRating.onRendererDetected(getHudApiName());
+            frameRating.enableByUser();
             rootView.addView(frameRating);
         }
 
@@ -1975,19 +1997,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         return shortcutName;
     }
 
-    private void setTextColorForDialog(ViewGroup viewGroup, int color) {
-        for (int i = 0; i < viewGroup.getChildCount(); i++) {
-            View child = viewGroup.getChildAt(i);
-            if (child instanceof ViewGroup) {
-                // If the child is a ViewGroup, recursively apply the color
-                setTextColorForDialog((ViewGroup) child, color);
-            } else if (child instanceof TextView) {
-                // If the child is a TextView, set its text color
-                ((TextView) child).setTextColor(color);
-            }
-        }
-    }
-
     private void showInputControlsDialog() {
         final ContentDialog dialog = new ContentDialog(this, R.layout.input_controls_dialog);
         dialog.setTitle(R.string.input_controls);
@@ -1997,11 +2006,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         dialog.getWindow().setBackgroundDrawableResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
         sProfile.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
-
-        // Set text color for all TextViews in the dialog to white or black based on dark mode
-        int textColor = ContextCompat.getColor(this, isDarkMode ? R.color.white : R.color.black);
-        ViewGroup dialogViewGroup = (ViewGroup) dialog.getWindow().getDecorView().findViewById(android.R.id.content);
-        setTextColorForDialog(dialogViewGroup, textColor);
 
         Runnable loadProfileSpinner = () -> {
             ArrayList<ControlsProfile> profiles = inputControlsManager.getProfiles(true);
@@ -2015,7 +2019,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 profileItems.add(profile.getName());
             }
 
-            sProfile.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, profileItems));
+            sProfile.setAdapter(new ThemedSpinnerAdapter<>(dialog.getContext(), profileItems));
             sProfile.setSelection(selectedPosition);
         };
         loadProfileSpinner.run();
@@ -2092,6 +2096,118 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         dialog.setCanceledOnTouchOutside(false);
         dialog.show();
+    }
+
+    private void showHUDConfigDialog() {
+        if (container != null && !"winlator".equals(container.getHudMode())) {
+            AppUtils.showToast(this, "Select Winlator HUD in the container settings to customize it here.");
+            return;
+        }
+        if (frameRating == null) {
+            FrameLayout rootView = findViewById(R.id.FLXServerDisplay);
+            hudDataSource = new HudDataSource(this);
+            frameRating = new WinlatorHUD(this);
+            frameRating.setDataSource(hudDataSource);
+            frameRating.setWrapperName(graphicsDriver);
+            frameRating.onRendererDetected(getHudApiName());
+            rootView.addView(frameRating);
+            if (container != null && !container.isShowFPS()) frameRating.disableByUser();
+        }
+
+        final ContentDialog dialog = new ContentDialog(this, R.layout.hud_config_dialog);
+        dialog.setTitle("HUD Settings");
+        dialog.setIcon(R.drawable.ic_hud);
+
+        CheckBox cbEnable = dialog.findViewById(R.id.CBHudEnable);
+        CheckBox cbFps = dialog.findViewById(R.id.CBHudFPS);
+        CheckBox cbGpu = dialog.findViewById(R.id.CBHudGPU);
+        CheckBox cbCpu = dialog.findViewById(R.id.CBHudCPU);
+        CheckBox cbRam = dialog.findViewById(R.id.CBHudRAM);
+        CheckBox cbBatt = dialog.findViewById(R.id.CBHudBattery);
+        CheckBox cbBattPct = dialog.findViewById(R.id.CBHudBatteryPct);
+        CheckBox cbRend = dialog.findViewById(R.id.CBHudRenderer);
+        CheckBox cbGraph = dialog.findViewById(R.id.CBHudGraph);
+        CheckBox cbVert = dialog.findViewById(R.id.CBHudVertical);
+        CheckBox cbMono = dialog.findViewById(R.id.CBHudMono);
+        CheckBox cbBorder = dialog.findViewById(R.id.CBHudBorder);
+        CheckBox cbCompact = dialog.findViewById(R.id.CBHudCompact);
+        CheckBox cbWrapper = dialog.findViewById(R.id.CBHudWrapper);
+        CheckBox cbLocked = dialog.findViewById(R.id.CBHudLocked);
+        CheckBox cbCpuTemp = dialog.findViewById(R.id.CBHudCPUTemp);
+        SeekBar sbAlpha = dialog.findViewById(R.id.SBHudAlpha);
+        SeekBar sbScale = dialog.findViewById(R.id.SBHudScale);
+        TextView tvAlpha = dialog.findViewById(R.id.TVHudAlpha);
+        TextView tvScale = dialog.findViewById(R.id.TVHudScale);
+        Spinner spPreset = dialog.findViewById(R.id.SPHudPreset);
+
+        frameRating.syncCheckboxes(cbFps, cbGpu, cbCpu, cbBatt, cbGraph, cbRend,
+                cbRam, cbBattPct, cbMono, cbBorder, cbCompact, cbWrapper, cbLocked, cbCpuTemp);
+        cbEnable.setChecked(frameRating.isUserEnabled());
+        cbVert.setChecked(frameRating.isVertical());
+
+        int initialAlpha = Math.round(frameRating.getHudAlpha() * 100);
+        sbAlpha.setProgress(initialAlpha);
+        tvAlpha.setText(initialAlpha + "%");
+        float initialScale = frameRating.getHudScale();
+        sbScale.setProgress(Math.round((initialScale - 0.5f) / 1.5f * 100));
+        tvScale.setText(String.format(Locale.US, "%.1fx", initialScale));
+
+        String[] presets = {"Custom", "Top Left", "Top Center", "Top Right", "Middle Left",
+                "Center", "Middle Right", "Bottom Left", "Bottom Center", "Bottom Right"};
+        spPreset.setAdapter(new ThemedSpinnerAdapter<>(dialog.getContext(), presets));
+
+        cbEnable.setOnCheckedChangeListener((button, checked) -> {
+            if (checked) frameRating.enableByUser(); else frameRating.disableByUser();
+            if (container != null) {
+                container.setShowFPS(checked);
+                container.saveData();
+            }
+        });
+        cbFps.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(0, checked));
+        cbGpu.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(2, checked));
+        cbCpu.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(3, checked));
+        cbBatt.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(4, checked));
+        cbGraph.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(5, checked));
+        cbRend.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(6, checked));
+        cbRam.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(7, checked));
+        cbBattPct.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(8, checked));
+        cbMono.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(9, checked));
+        cbBorder.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(10, checked));
+        cbCompact.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(11, checked));
+        cbWrapper.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(12, checked));
+        cbLocked.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(13, checked));
+        cbCpuTemp.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(14, checked));
+        cbVert.setOnCheckedChangeListener((v, checked) -> frameRating.setVertical(checked));
+
+        sbAlpha.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                if (fromUser) frameRating.setHudAlpha(progress / 100f);
+                tvAlpha.setText(progress + "%");
+            }
+            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
+            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
+        sbScale.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                float scale = 0.5f + progress / 100f * 1.5f;
+                if (fromUser) frameRating.setHudScale(scale);
+                tvScale.setText(String.format(Locale.US, "%.1fx", scale));
+            }
+            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
+            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
+        spPreset.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+                if (position > 0) frameRating.setPositionPreset(position - 1);
+            }
+            @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
+        });
+        dialog.findViewById(R.id.BTHudReset).setOnClickListener(v -> frameRating.forceReset());
+        dialog.show();
+    }
+
+    public void showInputControlsFromControllerManager() {
+        showInputControlsDialog();
     }
 
     private void simulateConfirmInputControlsDialog() {
@@ -2191,11 +2307,17 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             // Update its internal state.
             if (winHandler != null) {
                 winHandler.refreshControllerMappings();
+                winHandler.sendVirtualGamepadState(profile.getGamepadState());
+                winHandler.sendGamepadState();
             }
         }
     }
 
     private void hideInputControls() {
+        ControlsProfile hiddenProfile = inputControlsView.getProfile();
+        if (hiddenProfile != null && hiddenProfile.isVirtualGamepad() && winHandler != null) {
+            winHandler.sendVirtualGamepadState(new GamepadState());
+        }
         inputControlsView.setShowTouchscreenControls(true);
         inputControlsView.setVisibility(View.GONE);
         inputControlsView.setProfile(null);
@@ -2204,7 +2326,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         touchpadView.setPointerButtonLeftEnabled(true);
         touchpadView.setPointerButtonRightEnabled(true);
 
-        ControlsProfile hiddenProfile = inputControlsView.getProfile();
         // If the profile we are hiding was a virtual gamepad...
         if (hiddenProfile != null && hiddenProfile.isVirtualGamepad()) {
             ControllerManager controllerManager = ControllerManager.getInstance();
@@ -2219,37 +2340,37 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     }
 
     private void extractGraphicsDriverFiles() {
-        String adrenoToolsDriverId = "";
-        String selectedDriverVersion;
-
         String currentWrapperVersion = graphicsDriverConfig.getOrDefault("version", DefaultVersion.WRAPPER);
-        String isAdrenotoolsTurnip = graphicsDriverConfig.getOrDefault("adrenotoolsTurnip", "1"); // Default to "1"
-
-        selectedDriverVersion = currentWrapperVersion;
-
+        String selectedDriverVersion = currentWrapperVersion;
         if (shortcut != null) {
-            currentWrapperVersion = shortcut.getExtra("wrapperGraphicsDriverVersion", graphicsDriverConfig.get("version"));
+            currentWrapperVersion = shortcut.getExtra("wrapperGraphicsDriverVersion", currentWrapperVersion);
             selectedDriverVersion = currentWrapperVersion;
         }
-
-        adrenoToolsDriverId = (selectedDriverVersion.contains(DefaultVersion.WRAPPER)) ? DefaultVersion.WRAPPER : selectedDriverVersion;
+        String adrenoToolsDriverId = selectedDriverVersion.contains(DefaultVersion.WRAPPER)
+                ? DefaultVersion.WRAPPER : selectedDriverVersion;
         Log.d("GraphicsDriverExtraction", "Adrenotools DriverID: " + adrenoToolsDriverId);
 
         File rootDir = imageFs.getRootDir();
-
         if (dxwrapper.equals("dxvk")) {
             DXVKConfigDialog.setEnvVars(this, dxwrapperConfig, envVars);
-        } else if (dxwrapper.equals("vkd3d")) {
-            VKD3DConfigDialog.setEnvVars(this, dxwrapperConfig, envVars);
         }
 
-
+        boolean showFps = container != null && container.isShowFPS();
+        String hudMode = container != null ? container.getHudMode() : "winlator";
+        boolean useMangoHud = showFps && "mangohud".equals(hudMode);
+        boolean useDxvkHud = showFps && "dxvk".equals(hudMode);
+        envVars.put("MANGOHUD", useMangoHud ? "1" : "0");
+        envVars.put("DXVK_HUD", useDxvkHud
+                ? "devinfo,fps,frametimes,gpuload,version,api" : "0");
+        if (useMangoHud) {
+            envVars.put("MANGOHUD_CONFIG",
+                    "fps,frametime,gpu_stats,cpu_stats,ram,vram,engine_version");
+        }
 
         boolean useDRI3 = preferences.getBoolean("use_dri3", true);
-        if (!useDRI3) {
-            envVars.put("MESA_VK_WSI_DEBUG", "sw");
-        }
+        if (!useDRI3) envVars.put("MESA_VK_WSI_DEBUG", "sw");
 
+        String isAdrenotoolsTurnip = graphicsDriverConfig.getOrDefault("adrenotoolsTurnip", "1");
         if (currentWrapperVersion.toLowerCase().contains("turnip") && isAdrenotoolsTurnip.equals("0"))
             envVars.put("VK_ICD_FILENAMES", imageFs.getShareDir() + "/vulkan/icd.d/freedreno_icd.aarch64.json");
         else
@@ -2257,58 +2378,98 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         envVars.put("GALLIUM_DRIVER", "zink");
         envVars.put("LIBGL_KOPPER_DISABLE", "true");
 
-//        if (firstTimeBoot) {
-//            Log.d("XServerDisplayActivity", "First time container boot, re-extracting wrapper");
-//            TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "graphics_driver/wrapper" + ".tzst", rootDir);
-//            TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "graphics_driver/extra_libs" + ".tzst", rootDir);
-//        }
-
-        // 1. Get the main WRAPPER selection (e.g., "Wrapper-v2") from the class field.
         String mainWrapperSelection = this.graphicsDriver;
-
-        // 2. Get the WRAPPER that was last saved to the container's settings.
         String lastInstalledMainWrapper = container.getExtra("lastInstalledMainWrapper");
-
-        // 3. Check if we need to extract a new wrapper file.
         if (firstTimeBoot || !mainWrapperSelection.equals(lastInstalledMainWrapper)) {
-            // We only extract if the selection is actually a wrapper file.
             if (mainWrapperSelection.toLowerCase().startsWith("wrapper")) {
                 String assetPath = "graphics_driver/" + mainWrapperSelection.toLowerCase() + ".tzst";
                 Log.d("GraphicsDriverExtraction", "WRAPPER selection changed or first boot. Extracting: " + assetPath);
                 boolean success = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, assetPath, rootDir);
                 if (success) {
-                    // After success, save the new version so we don't re-extract next time.
                     container.putExtra("lastInstalledMainWrapper", mainWrapperSelection);
                     container.saveData();
                 }
-            }
-
-            // 4. Extract common libraries, but only when the container is first created.
-            if (firstTimeBoot) {
-                Log.d("XServerDisplayActivity", "First time container boot, extracting extra_libs.tzst");
-                TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "graphics_driver/extra_libs.tzst", rootDir);
+                else Log.e("GraphicsDriverExtraction", "Unable to extract wrapper asset: " + assetPath);
             }
         }
 
-        if (adrenoToolsDriverId != "System") {
+        boolean astcTranscode = "1".equals(graphicsDriverConfig.getOrDefault("astcTranscode", "1"));
+        boolean etc2Transcode = "1".equals(graphicsDriverConfig.getOrDefault("etc2Transcode", "0"));
+        boolean transcodeEnabled = astcTranscode || etc2Transcode;
+        boolean previousTranscodeEnabled = "1".equals(container.getExtra("transcodeEnabled", "0"));
+        if (firstTimeBoot || transcodeEnabled != previousTranscodeEnabled) {
+            Log.d("GraphicsDriverExtraction", "Refreshing graphics layers; transcode=" + transcodeEnabled);
+            TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "graphics_driver/extra_libs.tzst", rootDir);
+            TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "layers.tzst", rootDir);
+            if (transcodeEnabled) {
+                TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "graphics_driver/leegao_bcn.tzst", rootDir);
+            }
+            container.putExtra("transcodeEnabled", transcodeEnabled ? "1" : "0");
+            container.saveData();
+        }
+
+        if (!DefaultVersion.WRAPPER.equals(adrenoToolsDriverId)) {
             AdrenotoolsManager adrenotoolsManager = new AdrenotoolsManager(this);
             adrenotoolsManager.setDriverById(envVars, imageFs, adrenoToolsDriverId);
         }
-        String blacklistedExtensions = graphicsDriverConfig.get("blacklistedExtensions");
-        envVars.put("WRAPPER_EXTENSION_BLACKLIST", blacklistedExtensions);
 
-        String maxDeviceMemory = graphicsDriverConfig.get("maxDeviceMemory");
-        if (maxDeviceMemory != null && Integer.parseInt(maxDeviceMemory) > 0)
-            envVars.put("UTIL_LAYER_VMEM_MAX_SIZE", maxDeviceMemory);
+        envVars.put("WRAPPER_VK_VERSION",
+                graphicsDriverConfig.getOrDefault("vulkanVersion", "1.3"));
+        envVars.put("WRAPPER_EXTENSION_BLACKLIST", graphicsDriverConfig.getOrDefault("blacklistedExtensions", ""));
 
-        String frameSync = graphicsDriverConfig.getOrDefault("frameSync","Normal");
-        if (frameSync.equals("Always") && useDRI3) {
-            envVars.put("MESA_VK_WSI_DEBUG", "forcesync");
+        String gpuName = graphicsDriverConfig.getOrDefault("gpuName", "Device");
+        if (!"Device".equals(gpuName)) envVars.put("WRAPPER_DEVICE_NAME", gpuName);
+
+        String maxDeviceMemory = graphicsDriverConfig.getOrDefault("maxDeviceMemory", "0");
+        try {
+            if (Integer.parseInt(maxDeviceMemory) > 0) {
+                envVars.put("WRAPPER_VMEM_MAX_SIZE", maxDeviceMemory);
+                envVars.put("UTIL_LAYER_VMEM_MAX_SIZE", maxDeviceMemory);
+            }
         }
-        else if (frameSync.equals("Never")) {
-            envVars.put("WRAPPER_DISABLE_PRESENT_WAIT", "1");
+        catch (NumberFormatException e) {
+            Log.w("GraphicsDriverExtraction", "Invalid max device memory: " + maxDeviceMemory);
         }
-        envVars.put("MESA_VK_WSI_PRESENT_MODE", "mailbox");
+
+        String presentMode = graphicsDriverConfig.getOrDefault("presentMode", "mailbox");
+        envVars.put("MESA_VK_WSI_PRESENT_MODE", presentMode);
+        envVars.put("WRAPPER_MAX_IMAGE_COUNT", presentMode.contains("immediate") ? "1" : "0");
+        envVars.put("WRAPPER_RESOURCE_TYPE", graphicsDriverConfig.getOrDefault("resourceType", "auto"));
+
+        String legacyFrameSync = graphicsDriverConfig.getOrDefault("frameSync", "Normal");
+        boolean syncFrame = "1".equals(graphicsDriverConfig.getOrDefault("syncFrame", "0"))
+                || "Always".equals(legacyFrameSync);
+        if (syncFrame && useDRI3) envVars.put("MESA_VK_WSI_DEBUG", "forcesync");
+        String disablePresentWait = graphicsDriverConfig.getOrDefault("disablePresentWait",
+                "Never".equals(legacyFrameSync) ? "1" : "0");
+        envVars.put("WRAPPER_DISABLE_PRESENT_WAIT", disablePresentWait);
+
+        String bcnEmulation = graphicsDriverConfig.getOrDefault("bcnEmulation", "auto");
+        String bcnEmulationType = graphicsDriverConfig.getOrDefault("bcnEmulationType", "compute");
+        if ("compute".equals(bcnEmulationType)
+                && ("auto".equals(bcnEmulation) || "full".equals(bcnEmulation))) {
+            envVars.put("ENABLE_BCN_COMPUTE", "1");
+            envVars.put("BCN_COMPUTE_AUTO", "auto".equals(bcnEmulation) ? "1" : "0");
+        }
+        switch (bcnEmulation) {
+            case "none":
+                envVars.put("WRAPPER_EMULATE_BCN", "0");
+                break;
+            case "full":
+                envVars.put("WRAPPER_EMULATE_BCN", "2");
+                break;
+            case "auto":
+                envVars.put("WRAPPER_EMULATE_BCN", "3");
+                break;
+            default:
+                envVars.put("WRAPPER_EMULATE_BCN", "1");
+                break;
+        }
+        envVars.put("WRAPPER_USE_BCN_CACHE",
+                graphicsDriverConfig.getOrDefault("bcnEmulationCache", "0"));
+        if (astcTranscode) envVars.put("BCN_TRANSCODE_TO_ASTC", "1");
+        if (etc2Transcode) envVars.put("BCN_TRANSCODE_TO_ETC2", "1");
+
         if (!vkbasaltConfig.isEmpty()) {
             envVars.put("ENABLE_VKBASALT", "1");
             envVars.put("VKBASALT_CONFIG", vkbasaltConfig);
@@ -2350,10 +2511,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             return handledByWinHandler || super.dispatchGenericMotionEvent(event);
         }
 
-        boolean handledByWinHandler = winHandler != null && winHandler.onGenericMotionEvent(event);
-        boolean handledByTouchpadView = touchpadView != null && touchpadView.onExternalMouseEvent(event);
-        boolean handledBySuper = super.dispatchGenericMotionEvent(event);
-        return handledByWinHandler || handledByTouchpadView || handledBySuper;
+        if (winHandler != null && winHandler.onGenericMotionEvent(event)) return true;
+        if (touchpadView != null && touchpadView.onExternalMouseEvent(event)) return true;
+        return super.dispatchGenericMotionEvent(event);
     }
 
 
@@ -2409,9 +2569,11 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 //            }
 //        }
 
-        // Fallback to existing input handling
-        return (!inputControlsView.onKeyEvent(event) && !winHandler.onKeyEvent(event) && xServer.keyboard.onKeyEvent(event)) ||
-                (!ExternalController.isGameController(event.getDevice()) && super.dispatchKeyEvent(event));
+        if (inputControlsView != null && inputControlsView.onKeyEvent(event)) return true;
+        if (winHandler != null && winHandler.onKeyEvent(event)) return true;
+        if (xServer != null && xServer.keyboard.onKeyEvent(event)) return true;
+        return !ExternalController.isGameController(event.getDevice())
+                && super.dispatchKeyEvent(event);
     }
 
 
@@ -2491,8 +2653,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         if (dxwrapper.contains("vkd3d")) {
             ContentProfile profile = contentsManager.getProfileByEntryName(dxwrapper);
-            Log.d(TAG, "Extracting DXVK 2.4.1");
-            TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "dxwrapper/dxvk-2.4.1" + ".tzst", windowsDir, onExtractFileListener);
             if (profile != null) {
                 Log.d(TAG, "Applying user-defined VKD3D content profile: " + dxwrapper);
                 contentsManager.applyContent(profile);
@@ -2750,24 +2910,58 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         if (frameRating == null) return;
 
         if (property != null) {
-            if (frameRatingWindowId == -1 && (property.nameAsString().contains("_UTIL_LAYER") || property.nameAsString().contains("_MESA_DRV"))) {
+            String propertyName = property.nameAsString();
+            if (frameRatingWindowId == -1 && (propertyName.contains("_UTIL_LAYER") || propertyName.contains("_MESA_DRV"))) {
                 frameRatingWindowId = window.id;
                 Log.d("XServerDisplayActivity", "Showing hud for Window " + window.getName());
+                frameRating.onRendererDetected(getHudApiName());
                 frameRating.update();
             }
-            if (property.nameAsString().contains("_UTIL_LAYER_ENGINE_NAME")) {
-                frameRating.setRenderer(property.toString());
-            }
-            if (property.nameAsString().contains("_UTIL_LAYER_GPU_NAME")) {
+            if (propertyName.contains("_UTIL_LAYER_ENGINE_NAME")
+                    || propertyName.contains("_MESA_DRV_ENGINE_NAME"))
+                frameRating.onRendererDetected(normalizeHudApi(property.toString()));
+            if (propertyName.contains("_UTIL_LAYER_GPU_NAME")) {
                 frameRating.setGpuName(property.toString());
             }
         }
-        else if (frameRatingWindowId != -1) {
+        else if (frameRatingWindowId == window.id) {
             frameRatingWindowId = -1;
             Log.d("XServerDisplayActivity", "Hiding hud for Window " + window.getName());
-            runOnUiThread(() -> frameRating.setVisibility(View.GONE));
+            frameRating.onRendererGone();
             frameRating.reset();
         }
+    }
+
+    private void removeStaleVkd3dDlls() {
+        File windowsDir = new File(imageFs.getRootDir(), ImageFs.WINEPREFIX + "/drive_c/windows");
+        File systemSource = new File(imageFs.getWinePath() + "/lib/wine/"
+                + (wineInfo.isArm64EC() ? "aarch64-windows" : "x86_64-windows"));
+        File wow64Source = new File(imageFs.getWinePath() + "/lib/wine/i386-windows");
+        for (String dll : new String[]{"d3d12.dll", "d3d12core.dll"}) {
+            if (!new File(systemSource, dll).exists())
+                FileUtils.delete(new File(windowsDir, "system32/" + dll));
+            if (!new File(wow64Source, dll).exists())
+                FileUtils.delete(new File(windowsDir, "syswow64/" + dll));
+        }
+    }
+
+    private String getHudApiName() {
+        String wrapper = dxwrapper == null ? "" : dxwrapper.toLowerCase(Locale.US);
+        if (wrapper.contains("vkd3d")) return "VKD3D";
+        if (wrapper.contains("dxvk")) return "DXVK";
+        if (wrapper.contains("wined3d")) return "WineD3D";
+        return wrapper.isEmpty() ? "OpenGL" : normalizeHudApi(wrapper);
+    }
+
+    private String normalizeHudApi(String value) {
+        if (value == null) return getHudApiName();
+        String clean = value.replace("\u0000", "").trim();
+        String lower = clean.toLowerCase(Locale.US);
+        if (lower.contains("vkd3d") || lower.contains("d3d12")) return "VKD3D";
+        if (lower.contains("dxvk")) return "DXVK";
+        if (lower.contains("wined3d")) return "WineD3D";
+        if (lower.contains("opengl")) return "OpenGL";
+        return clean.isEmpty() ? "OpenGL" : clean;
     }
 
     private void scheduleSecondaryExecution(String secondaryExec, int delaySeconds) {

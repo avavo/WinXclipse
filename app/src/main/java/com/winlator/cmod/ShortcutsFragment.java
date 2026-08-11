@@ -36,6 +36,7 @@ import androidx.documentfile.provider.DocumentFile;
 import androidx.fragment.app.Fragment;
 import androidx.preference.PreferenceManager;
 import androidx.recyclerview.widget.DividerItemDecoration;
+import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -165,8 +166,7 @@ public class ShortcutsFragment extends Fragment {
         FrameLayout frameLayout = (FrameLayout)inflater.inflate(R.layout.shortcuts_fragment, container, false);
         recyclerView = frameLayout.findViewById(R.id.RecyclerView);
         emptyTextView = frameLayout.findViewById(R.id.TVEmptyText);
-        recyclerView.setLayoutManager(new LinearLayoutManager(recyclerView.getContext()));
-        recyclerView.addItemDecoration(new DividerItemDecoration(recyclerView.getContext(), DividerItemDecoration.VERTICAL));
+        recyclerView.setLayoutManager(new GridLayoutManager(recyclerView.getContext(), 2));
         return frameLayout;
     }
 
@@ -420,7 +420,7 @@ public class ShortcutsFragment extends Fragment {
 
         private class ViewHolder extends RecyclerView.ViewHolder {
             private final ImageButton menuButton;
-            private final ImageButton imageView;
+            private final ImageView imageView;
             private final TextView title;
             private final TextView subtitle;
             private final View innerArea;
@@ -449,6 +449,7 @@ public class ShortcutsFragment extends Fragment {
         public void onViewRecycled(@NonNull ViewHolder holder) {
             holder.menuButton.setOnClickListener(null);
             holder.innerArea.setOnClickListener(null);
+            holder.imageView.setOnLongClickListener(null);
             super.onViewRecycled(holder);
         }
 
@@ -461,7 +462,11 @@ public class ShortcutsFragment extends Fragment {
                 // Set a default icon if none exists
                 holder.imageView.setImageResource(R.mipmap.ic_launcher_foreground); // Create a default icon drawable
             }
-            holder.imageView.setOnClickListener(v -> showIconPickerConfirmation(item));            holder.title.setText(item.name);
+            holder.imageView.setOnLongClickListener(v -> {
+                showIconPickerConfirmation(item);
+                return true;
+            });
+            holder.title.setText(item.name);
             holder.subtitle.setText(item.container.getName());
             holder.menuButton.setOnClickListener((v) -> showListItemMenu(v, item));
             holder.innerArea.setOnClickListener((v) -> runFromShortcut(item));
@@ -630,8 +635,17 @@ public class ShortcutsFragment extends Fragment {
                     return;
                 }
 
-                // Convert DocumentFile to a File object for further processing
-                frontendDir = new File(FileUtils.getFilePathFromUri(getContext(), folderUri));
+                // Frontend export creates several regular files, so it requires
+                // a storage-provider URI that can also be resolved to a public
+                // filesystem path.
+                String folderPath = FileUtils.getFilePathFromUri(getContext(), folderUri);
+                if (folderPath == null) {
+                    Toast.makeText(getContext(),
+                            "The selected folder is not available as a filesystem path. Enable storage access or choose a local/USB storage folder.",
+                            Toast.LENGTH_LONG).show();
+                    return;
+                }
+                frontendDir = new File(folderPath);
             } else {
                 // Default to Downloads\Winlator\Frontend if no custom URI is set
                 frontendDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Winlator/Frontend");

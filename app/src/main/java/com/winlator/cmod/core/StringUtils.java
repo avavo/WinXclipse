@@ -81,4 +81,8 @@ public class StringUtils {
 
         return escapedPath;
     }
+    public static String escapeFileDOSPath(String path) {
+        if (path == null || path.isEmpty()) return "";
+        return path.replace("\\", "\\\\\\\\").replace(" ", "\\ ");
+    }
 }

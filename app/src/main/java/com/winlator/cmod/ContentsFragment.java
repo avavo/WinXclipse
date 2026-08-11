@@ -44,6 +44,7 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class ContentsFragment extends Fragment {
     private RecyclerView recyclerView;
@@ -51,6 +52,8 @@ public class ContentsFragment extends Fragment {
     private ContentsManager manager;
     private ContentProfile.ContentType currentContentType = ContentProfile.ContentType.CONTENT_TYPE_WINE;
     private Spinner sContentType;
+    private final ConcurrentHashMap<String, ContentProfile> pendingRemoteProfiles =
+            new ConcurrentHashMap<>();
 
     private boolean isDarkMode;
 
@@ -77,11 +80,14 @@ public class ContentsFragment extends Fragment {
         super.onResume();
 
         new Thread(() -> {
-            String json = FileUtils.readString(getActivity(), ContentsManager.REMOTE_PROFILES);
-            if (json == null)
-                return;
-            getActivity().runOnUiThread(() -> {
-                manager.setRemoteProfiles(json);
+            Activity activity = getActivity();
+            if (activity == null) return;
+            String bundledJson = FileUtils.readString(activity, ContentsManager.REMOTE_PROFILES);
+            if (bundledJson == null) return;
+            String refreshedJson = manager.refreshRemoteProfiles(bundledJson);
+            activity.runOnUiThread(() -> {
+                if (!isAdded()) return;
+                manager.setRemoteProfiles(refreshedJson);
                 loadContentList();
             });
         }).start();
@@ -138,7 +144,7 @@ public class ContentsFragment extends Fragment {
         List<String> typeList = new ArrayList<>();
         for (ContentProfile.ContentType type : ContentProfile.ContentType.values())
             typeList.add(type.toString());
-        spinner.setAdapter(new ArrayAdapter<>(getContext(), android.R.layout.simple_spinner_dropdown_item, typeList));
+        spinner.setAdapter(new com.winlator.cmod.widget.ThemedSpinnerAdapter<>(spinner.getContext(), typeList));
 
         // Set the popup background based on the theme
         spinner.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
@@ -168,8 +174,12 @@ public class ContentsFragment extends Fragment {
     @Override
     public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         if (requestCode == MainActivity.OPEN_FILE_REQUEST_CODE && resultCode == Activity.RESULT_OK) {
+            if (data == null || data.getData() == null) return;
+            Uri contentUri = data.getData();
+            ContentProfile expectedProfile = pendingRemoteProfiles.remove(contentUri.toString());
             PreloaderDialog preloaderDialog = new PreloaderDialog(getActivity());
             preloaderDialog.showOnUiThread(R.string.installing_content);
+            preloaderDialog.setProgress(1);
             try {
                 ContentsManager.OnInstallFinishedCallback callback = new ContentsManager.OnInstallFinishedCallback() {
                     private boolean isExtracting = true;
@@ -193,6 +203,10 @@ public class ContentsFragment extends Fragment {
                         if (isExtracting) {
                             ContentsManager.OnInstallFinishedCallback callback1 = this;
                             requireActivity().runOnUiThread(() -> {
+                                // The preloader is a fullscreen dialog. Keeping it open here
+                                // placed the required content confirmation behind it, making
+                                // installation look frozen forever after extraction.
+                                preloaderDialog.close();
                                 ContentInfoDialog dialog = new ContentInfoDialog(getContext(), profile);
                                 ((TextView) dialog.findViewById(R.id.BTConfirm)).setText(R.string._continue);
                                 dialog.setOnConfirmCallback(() -> {
@@ -201,9 +215,17 @@ public class ContentsFragment extends Fragment {
                                     if (!untrustedFiles.isEmpty()) {
                                         ContentUntrustedDialog untrustedDialog = new ContentUntrustedDialog(getContext(), untrustedFiles);
                                         untrustedDialog.setOnCancelCallback(preloaderDialog::closeOnUiThread);
-                                        untrustedDialog.setOnConfirmCallback(() -> manager.finishInstallContent(profile, callback1));
+                                        untrustedDialog.setOnConfirmCallback(() -> {
+                                            preloaderDialog.show(R.string.installing_content);
+                                            preloaderDialog.setProgress(98);
+                                            manager.finishInstallContent(profile, callback1);
+                                        });
                                         untrustedDialog.show();
-                                    } else manager.finishInstallContent(profile, callback1);
+                                    } else {
+                                        preloaderDialog.show(R.string.installing_content);
+                                        preloaderDialog.setProgress(98);
+                                        manager.finishInstallContent(profile, callback1);
+                                    }
                                 });
                                 dialog.setOnCancelCallback(preloaderDialog::closeOnUiThread);
                                 dialog.show();
@@ -223,7 +245,8 @@ public class ContentsFragment extends Fragment {
                     }
                 };
                 Executors.newSingleThreadExecutor().execute(() -> {
-                    manager.extraContentFile(data.getData(), callback);
+                    manager.extraContentFile(contentUri, expectedProfile, callback,
+                            preloaderDialog::setProgress);
                 });
             } catch (Exception e) {
                 preloaderDialog.closeOnUiThread();
@@ -293,7 +316,8 @@ public class ContentsFragment extends Fragment {
                 case CONTENT_TYPE_PROTON -> R.drawable.icon_wine;
                 default -> R.drawable.icon_settings;
             };
-            holder.ivIcon.setBackground(getContext().getDrawable(iconId));
+            holder.ivIcon.setBackground(null);
+            holder.ivIcon.setImageResource(iconId);
 
             holder.tvVersionName.setText(getContext().getString(R.string.version) + ": " + profile.verName);
             holder.tvVersionCode.setText(getContext().getString(R.string.version_code) + ": " + profile.verCode);
@@ -330,19 +354,37 @@ public class ContentsFragment extends Fragment {
             holder.ibDownload.setOnClickListener(v -> {
                 holder.ibDownload.setVisibility(View.GONE);
                 holder.progressBar.setVisibility(View.VISIBLE);
+                holder.progressBar.setProgress(0);
+
+                PreloaderDialog downloadDialog = new PreloaderDialog(requireActivity());
+                downloadDialog.show(R.string.downloading_content);
+                downloadDialog.setProgress(0);
 
                 Intent intent = new Intent();
-                intent.setData(Uri.parse(profile.remoteUrl));
                 new Thread(() -> {
                     long timestamp = System.currentTimeMillis();
                     File output = new File(getContext().getCacheDir(), "temp_" + timestamp);
-                    if (Downloader.downloadFile(profile.remoteUrl, output)) {
+                    boolean downloaded = Downloader.downloadFile(profile.remoteUrl, output, progress -> {
+                        downloadDialog.setProgress(progress);
+                        if (getActivity() != null) {
+                            getActivity().runOnUiThread(() -> holder.progressBar.setProgress(progress));
+                        }
+                    });
+                    if (downloaded) {
                         intent.setData(Uri.parse(output.getAbsolutePath()));
+                        pendingRemoteProfiles.put(intent.getData().toString(), profile);
+                    } else {
+                        FileUtils.delete(output);
                     }
                     getActivity().runOnUiThread(() -> {
+                        downloadDialog.close();
                         holder.progressBar.setVisibility(View.GONE);
                         holder.ibDownload.setVisibility(View.VISIBLE);
-                        onActivityResult(MainActivity.OPEN_FILE_REQUEST_CODE, Activity.RESULT_OK, intent);
+                        if (downloaded) {
+                            onActivityResult(MainActivity.OPEN_FILE_REQUEST_CODE, Activity.RESULT_OK, intent);
+                        } else {
+                            ContentDialog.alert(getContext(), R.string.download_failed, null);
+                        }
                     });
                 }).start();
             });

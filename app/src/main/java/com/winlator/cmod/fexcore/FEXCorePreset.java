@@ -1,10 +1,11 @@
 package com.winlator.cmod.fexcore;
 
 public class FEXCorePreset {
-    public static final String STABILITY = "stability";
-    public static final String COMPATIBILITY = "compatibility";
-    public static final String INTERMEDIATE = "intermediate";
-    public static final String PERFORMANCE = "performance";
+    public static final String STABILITY = "STABILITY";
+    public static final String COMPATIBILITY = "COMPATIBILITY";
+    public static final String INTERMEDIATE = "INTERMEDIATE";
+    public static final String PERFORMANCE = "PERFORMANCE";
+    public static final String CUSTOM = "CUSTOM";
 
     public final String id;
     public final String name;
@@ -12,6 +13,10 @@ public class FEXCorePreset {
     public FEXCorePreset(String id, String name) {
         this.id = id;
         this.name = name;
+    }
+
+    public boolean isCustom() {
+        return id.startsWith(CUSTOM + "-");
     }
 
     @Override

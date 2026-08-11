@@ -23,7 +23,7 @@
                 android:id="@+id/IVIcon"
                 android:layout_width="28dp"
                 android:layout_height="28dp"
-                app:tint="@color/colorPrimary"
+                app:tint="?colorAccent"
                 android:layout_marginRight="8dp"
                 android:visibility="gone" />
 
@@ -31,7 +31,7 @@
                 android:id="@+id/TVTitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textColor="@color/colorPrimary"
+                android:textColor="?colorAccent"
                 android:textStyle="bold"
                 android:textSize="18sp" />
         </LinearLayout>
@@ -96,7 +96,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:textColor="@color/colorPrimary"
+                android:textColor="?colorAccent"
                 android:textStyle="bold"
                 android:visibility="gone" />
 
@@ -133,13 +133,17 @@
 
                 <Button
                     style="@style/ButtonNeutral"
-                    android:layout_weight="1"
+                    android:layout_width="112dp"
+                    android:layout_height="44dp"
+                    android:layout_marginStart="8dp"
                     android:text="@string/cancel"
                     android:id="@+id/BTCancel" />
 
                 <Button
                     style="@style/ButtonNeutral"
-                    android:layout_weight="1"
+                    android:layout_width="112dp"
+                    android:layout_height="44dp"
+                    android:layout_marginStart="8dp"
                     android:text="@string/ok"
                     android:id="@+id/BTConfirm" />
             </LinearLayout>

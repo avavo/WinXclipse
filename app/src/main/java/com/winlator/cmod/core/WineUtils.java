@@ -2,6 +2,7 @@ package com.winlator.cmod.core;
 
 import android.content.Context;
 import android.net.Uri;
+import android.util.Log;
 
 import com.winlator.cmod.container.Container;
 import com.winlator.cmod.xenvironment.ImageFs;
@@ -21,6 +22,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public abstract class WineUtils {
+    private static final String TAG = "WineUtils";
+
     public static void createDosdevicesSymlinks(Container container) {
         String dosdevicesPath = (new File(container.getRootDir(), ".wine/dosdevices")).getPath();
         File[] files = (new File(dosdevicesPath)).listFiles();
@@ -32,9 +35,13 @@ public abstract class WineUtils {
         for (String[] drive : container.drivesIterator()) {
             File linkTarget = new File(drive[1]);
             String path = linkTarget.getAbsolutePath();
-            if (!linkTarget.isDirectory() && path.endsWith("/com.winlator.cmod/storage")) {
+            if (!linkTarget.isDirectory() && path.endsWith("/storage")) {
                 linkTarget.mkdirs();
                 FileUtils.chmod(linkTarget, 0771);
+            }
+            if (!linkTarget.isDirectory() || !linkTarget.canRead()) {
+                Log.w(TAG, "Skipping unavailable drive " + drive[0] + ": " + path);
+                continue;
             }
             FileUtils.symlink(path, dosdevicesPath+"/"+drive[0].toLowerCase(Locale.ENGLISH)+":");
         }

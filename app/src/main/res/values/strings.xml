@@ -348,6 +348,20 @@
     <string name="select_graphics_driver_version">Select Graphics Driver Version:</string>
     <string name="graphics_driver_version">Graphics Driver Version</string>
     <string name="graphics_driver_available_extensions">Available Extensions</string>
+    <string name="graphics_driver_vulkan_version">Vulkan Version</string>
+    <string name="graphics_driver_present_modes">Present Modes</string>
+    <string name="graphics_driver_resource_type">Memory Resource Type</string>
+    <string name="graphics_driver_bcn_emulation">BCn Emulation</string>
+    <string name="graphics_driver_bcn_emulation_type">BCn Emulation Type</string>
+    <string name="graphics_driver_bcn_emulation_cache">BCn Emulation Cache</string>
+    <string name="graphics_driver_sync_frame">Sync Every Frame</string>
+    <string name="graphics_driver_disable_present_wait">Disable KHR_present_wait</string>
+    <string name="graphics_driver_astc_transcode">ASTC Transcode</string>
+    <string name="graphics_driver_etc2_transcode">ETC2 Transcode</string>
+    <string name="texture_transcoding">Texture Transcoding</string>
+    <string name="texture_transcoding_help"><![CDATA[<b>ASTC &amp; ETC2 Transcode</b><br/><br/>These settings utilize a custom <b>leegao BCN layer</b> to transcode BCN (BC1-BC7) textures directly into ASTC and ETC2 formats natively supported by mobile GPUs.<br/><br/><b>Trade-offs:</b><br/>Enabling this can slightly reduce visual quality due to compression. ETC2 generally offers lower quality, while ASTC maintains normal to high quality closer to the original.<br/><br/><b>Why it matters:</b><br/>Without this, BCN textures are typically decompressed to RGBA8, which consumes 4x more Video Memory than the original texture.<br/><br/><b>Benefits:</b><br/>- <b>VRAM Savings:</b> Significantly lowers VRAM usage by keeping textures compressed.<br/>- <b>RAM Savings:</b> Reduces system RAM pressure during texture-heavy games.<br/>- <b>Stability:</b> Prevents out-of-memory crashes on devices with limited memory.]]></string>
+    <string name="transcode_requires_compute">Transcode options require BCn Emulation Type to be set to Compute</string>
+    <string name="transcode_mutually_exclusive">ASTC and ETC2 are mutually exclusive</string>
     <string name="add_to_homescreen">Add to Homescreen</string>
     <string name="add_save">Add Save</string>
     <string name="saves">Saves</string>
@@ -480,6 +494,7 @@
     <string name="reset">Reset</string>
 
     <string name="screen_effect">Screen Effects</string>
+    <string name="open_screen_effects">Open Screen Effects</string>
 
     <string name="enable_toon_shader">Enable Toon Shader</string>
     <string name="enable_ntsc_effect">Enable NTSC Effect</string>
@@ -617,7 +632,7 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="fexcore_multiblock">MultiBlock</string>
     <string name="adrenotools_gpu_drivers">Xclipse GPU Drivers</string>
     <string name="install_drivers">Install Drivers</string>
-    <string name="install_drivers_message">You will now be prompted to pick a driver package. Use only compatible WinXclipse/Xclipse driver packages. Download MdiEx/Xclipse drivers here: https://github.com/avavo/MdiEx/releases/tag/V3.2</string>
+    <string name="install_drivers_message">You will now be prompted to pick a driver package. Use only compatible WinXclipse/Xclipse driver packages. Download MdiEx/Xclipse drivers here: https://github.com/avavo/MdiEx/releases</string>
     <string name="install_drivers_warning">Use only compatible driver packages for your device. Some drivers may not work correctly on unsupported GPUs.</string>
     <string name="enable_vulkan_api_dump">Enable dumping of Vulkan api calls to file.</string>
     <string name="dll_emulator">32bit Emulator</string>
@@ -719,7 +734,49 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="backend_logs">Backend Logs</string>
     <string name="app_name_winxclipse">WinXclipse</string>
     <string name="winxclipse_credits">WinXclipse Based on Winlator/Cmod/Ludashi Exynos/Xclipse adaptation by Álvaro</string>
-    <string name="xclipse_driver_download_hint">Download compatible drivers from MdiEx v3.2: https://github.com/avavo/MdiEx/releases/tag/V3.2</string>
+    <string name="xclipse_driver_download_hint">Download compatible drivers from the MdiEx releases page: https://github.com/avavo/MdiEx/releases</string>
 
     <string name="fexcore_preset">FEXCore Preset</string>
+    <string name="import_preset">Import Preset</string>
+    <string name="cannot_export_builtin_preset">Built-in presets cannot be exported. Duplicate the preset first.</string>
+    <string name="fexcore_preset_imported">FEXCore preset imported</string>
+    <string name="fexcore_preset_exported">FEXCore preset exported</string>
+    <string name="fexcore_preset_import_failed">Unable to import the FEXCore preset</string>
+    <string name="fexcore_preset_export_failed">Unable to export the FEXCore preset</string>
+
+    <string name="fexcore_env_var_help__tsoenabled">Enables TSO IR operations required by many multithreaded applications.</string>
+    <string name="fexcore_env_var_help__vectortsoenabled">Makes vector loads and stores atomic when TSO is enabled.</string>
+    <string name="fexcore_env_var_help__halfbarriertsoenabled">Uses half-barrier atomics for unaligned loads and stores under TSO.</string>
+    <string name="fexcore_env_var_help__memcpysettsoenabled">Makes REP MOVS and REP STOS atomic under TSO.</string>
+    <string name="fexcore_env_var_help__x87reducedprecision">Emulates X87 floating point with 64-bit precision. This may improve speed but reduce accuracy.</string>
+    <string name="fexcore_env_var_help__multiblock">Enables multiblock compilation. It can improve performance but increase JIT compilation pauses.</string>
+    <string name="fexcore_env_var_help__maxinst">Sets the maximum instruction count used when compiling a block.</string>
+    <string name="fexcore_env_var_help__hostfeatures">Controls which host CPU features FEXCore exposes or disables.</string>
+    <string name="fexcore_env_var_help__smalltscscale">Scales the time-stamp counter on low-frequency systems.</string>
+    <string name="fexcore_env_var_help__smc_checks">Selects the level of self-modifying-code checks.</string>
+    <string name="fexcore_env_var_help__volatilemetadata">Uses volatile metadata from PE files for TSO when available.</string>
+    <string name="fexcore_env_var_help__monohacks">Enables special self-modifying-code and JIT block handling for Mono.</string>
+    <string name="fexcore_env_var_help__hidehypervisorbit">Hides the CPUID hypervisor bit for applications that reject it.</string>
+    <string name="fexcore_env_var_help__disablel2cache">Disables the FEXCore JIT L2 cache, saving memory at the cost of more stutter.</string>
+    <string name="fexcore_env_var_help__dynamicl1cache">Uses a dynamically sized JIT L1 cache, saving memory at the cost of more stutter.</string>
+    <string name="settings_tools">Tools</string>
+    <string name="dxvk_version">DXVK Version</string>
+    <string name="vkd3d_version">VKD3D Version</string>
+    <string name="downloading_content">Downloading Content…</string>
+    <string name="download_failed">Download failed</string>
+    <string name="hud_mode">FPS HUD</string>
+    <string name="file_manager">File Manager</string>
+    <string name="rename">Rename</string>
+    <string name="cut">Cut</string>
+    <string name="size">Size</string>
+    <string name="properties">Properties</string>
+    <string name="sort">Sort</string>
+    <string name="by_name">By Name</string>
+    <string name="by_date">By Date</string>
+    <string name="by_size">By Size</string>
+    <string name="num_items">%1$d items</string>
+    <string name="new_folder">New Folder</string>
+    <string name="copying_file">Copying file…</string>
+    <string name="moving_file">Moving file…</string>
+    <string name="deleting_file">Deleting file…</string>
 </resources>

@@ -1,7 +1,9 @@
 package com.winlator.cmod.core;
 
 import android.content.Context;
+import android.database.Cursor;
 import android.net.Uri;
+import android.provider.OpenableColumns;
 import android.util.Log;
 
 import org.apache.commons.compress.archivers.ArchiveInputStream;
@@ -21,16 +23,24 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
 public abstract class TarCompressorUtils {
-    public enum Type {XZ, ZSTD}
+    public enum Type {XZ, ZSTD, NONE}
+
+    private static final byte[] XZ_MAGIC = {(byte) 0xFD, 0x37, 0x7A, 0x58, 0x5A, 0x00};
+    private static final byte[] ZSTD_MAGIC = {0x28, (byte) 0xB5, 0x2F, (byte) 0xFD};
 
     // Interface to define the exclusion filter
     public interface ExclusionFilter {
         boolean shouldInclude(File file);
+    }
+
+    public interface OnReadProgressListener {
+        void onProgress(long bytesRead, long totalBytes);
     }
 
 
@@ -126,13 +136,23 @@ public abstract class TarCompressorUtils {
     }
 
     public static boolean extract(Type type, Context context, Uri source, File destination, OnExtractFileListener onExtractFileListener) {
+        return extract(type, context, source, destination, onExtractFileListener, null);
+    }
+
+    public static boolean extract(Type type, Context context, Uri source, File destination,
+                                  OnExtractFileListener onExtractFileListener,
+                                  OnReadProgressListener progressListener) {
         if (source == null) return false;
         try {
+            long totalBytes = getSourceSize(context, source);
+            InputStream input;
             if (source.toString().startsWith("/")) {
-                return extract(type, new FileInputStream(source.toString()), destination, onExtractFileListener);
+                input = new FileInputStream(source.toString());
             } else {
-                return extract(type, context.getContentResolver().openInputStream(source), destination, onExtractFileListener);
+                input = context.getContentResolver().openInputStream(source);
             }
+            return extract(type, new ProgressInputStream(input, totalBytes, progressListener),
+                    destination, onExtractFileListener);
         }
         catch (FileNotFoundException e) {
             return false;
@@ -161,14 +181,19 @@ public abstract class TarCompressorUtils {
         if (source == null) return false;
         try (InputStream inStream = getCompressorInputStream(type, source);
              ArchiveInputStream tar = new TarArchiveInputStream(inStream)) {
+            File destinationRoot = destination.getCanonicalFile();
+            if (!destinationRoot.isDirectory() && !destinationRoot.mkdirs()) return false;
             TarArchiveEntry entry;
             while ((entry = (TarArchiveEntry)tar.getNextEntry()) != null) {
                 if (!tar.canReadEntryData(entry)) continue;
-                File file = new File(destination, entry.getName());
+                File file = getSafeArchivePath(destinationRoot, entry.getName());
+                if (file == null) return false;
 
                 if (onExtractFileListener != null) {
                     file = onExtractFileListener.onExtractFile(file, entry.getSize());
                     if (file == null) continue;
+                    file = file.getCanonicalFile();
+                    if (!isInside(destinationRoot, file)) return false;
                 }
 
                 if (entry.isDirectory()) {
@@ -179,6 +204,8 @@ public abstract class TarCompressorUtils {
                         FileUtils.symlink(entry.getLinkName(), file.getAbsolutePath());
                     }
                     else {
+                        File parent = file.getParentFile();
+                        if (parent != null && !parent.isDirectory() && !parent.mkdirs()) return false;
                         try (BufferedOutputStream outStream = new BufferedOutputStream(new FileOutputStream(file), StreamUtils.BUFFER_SIZE)) {
                             if (!StreamUtils.copy(tar, outStream)) return false;
                         }
@@ -195,6 +222,144 @@ public abstract class TarCompressorUtils {
         }
     }
 
+    public static boolean extractZip(File source, File destination) {
+        if (source == null || !source.isFile()) return false;
+        try (java.util.zip.ZipInputStream zip = new java.util.zip.ZipInputStream(
+                new BufferedInputStream(new FileInputStream(source)))) {
+            File destinationRoot = destination.getCanonicalFile();
+            if (!destinationRoot.isDirectory() && !destinationRoot.mkdirs()) return false;
+            java.util.zip.ZipEntry entry;
+            while ((entry = zip.getNextEntry()) != null) {
+                File file = getSafeArchivePath(destinationRoot, entry.getName());
+                if (file == null) return false;
+                if (entry.isDirectory()) {
+                    if (!file.isDirectory() && !file.mkdirs()) return false;
+                }
+                else {
+                    File parent = file.getParentFile();
+                    if (parent != null && !parent.isDirectory() && !parent.mkdirs()) return false;
+                    try (BufferedOutputStream output = new BufferedOutputStream(
+                            new FileOutputStream(file), StreamUtils.BUFFER_SIZE)) {
+                        if (!StreamUtils.copy(zip, output)) return false;
+                    }
+                }
+                zip.closeEntry();
+                FileUtils.chmod(file, 0771);
+            }
+            return true;
+        }
+        catch (IOException e) {
+            return false;
+        }
+    }
+
+    private static long getSourceSize(Context context, Uri source) {
+        if (source.toString().startsWith("/")) return new File(source.toString()).length();
+        try (Cursor cursor = context.getContentResolver().query(source,
+                new String[]{OpenableColumns.SIZE}, null, null, null)) {
+            if (cursor != null && cursor.moveToFirst()) {
+                int index = cursor.getColumnIndex(OpenableColumns.SIZE);
+                if (index >= 0 && !cursor.isNull(index)) return cursor.getLong(index);
+            }
+        }
+        catch (Exception ignored) {}
+        return -1;
+    }
+
+    private static final class ProgressInputStream extends FilterInputStream {
+        private final long totalBytes;
+        private final OnReadProgressListener listener;
+        private long bytesRead;
+        private int lastPercent = -1;
+
+        ProgressInputStream(InputStream input, long totalBytes, OnReadProgressListener listener) {
+            super(input);
+            this.totalBytes = totalBytes;
+            this.listener = listener;
+        }
+
+        @Override
+        public int read() throws IOException {
+            int value = super.read();
+            if (value >= 0) report(1);
+            return value;
+        }
+
+        @Override
+        public int read(byte[] buffer, int offset, int length) throws IOException {
+            int count = super.read(buffer, offset, length);
+            if (count > 0) report(count);
+            return count;
+        }
+
+        private void report(int count) {
+            bytesRead += count;
+            if (listener == null || totalBytes <= 0) return;
+            int percent = (int)Math.min(100, bytesRead * 100L / totalBytes);
+            if (percent != lastPercent) {
+                lastPercent = percent;
+                listener.onProgress(bytesRead, totalBytes);
+            }
+        }
+    }
+
+    /**
+     * Determines the real compression from the stream header. Content packages
+     * are intentionally not classified by their extension: .wcp, .wcp.xz and
+     * .xz files found in the wild do not consistently match their suffix.
+     */
+    public static Type detectType(Context context, Uri source) {
+        if (source == null) return null;
+        try (InputStream input = source.toString().startsWith("/")
+                ? new FileInputStream(source.toString())
+                : context.getContentResolver().openInputStream(source)) {
+            return detectType(input);
+        }
+        catch (IOException e) {
+            return null;
+        }
+    }
+
+    public static Type detectType(File source) {
+        if (source == null || !source.isFile()) return null;
+        try (InputStream input = new FileInputStream(source)) {
+            return detectType(input);
+        }
+        catch (IOException e) {
+            return null;
+        }
+    }
+
+    private static Type detectType(InputStream source) throws IOException {
+        if (source == null) return null;
+        byte[] header = new byte[6];
+        int read = source.read(header);
+        if (startsWith(header, read, XZ_MAGIC)) return Type.XZ;
+        if (startsWith(header, read, ZSTD_MAGIC)) return Type.ZSTD;
+        // Uncompressed tar archives have no leading magic. TarArchiveInputStream
+        // validates the header during extraction, so NONE is safe as a fallback.
+        return Type.NONE;
+    }
+
+    private static boolean startsWith(byte[] value, int length, byte[] prefix) {
+        if (length < prefix.length) return false;
+        for (int i = 0; i < prefix.length; i++) {
+            if (value[i] != prefix[i]) return false;
+        }
+        return true;
+    }
+
+    private static File getSafeArchivePath(File destinationRoot, String entryName) throws IOException {
+        File file = new File(destinationRoot, entryName).getCanonicalFile();
+        return isInside(destinationRoot, file) ? file : null;
+    }
+
+    private static boolean isInside(File destinationRoot, File file) throws IOException {
+        String rootPath = destinationRoot.getCanonicalPath();
+        String filePath = file.getCanonicalPath();
+        return filePath.equals(rootPath) || filePath.startsWith(rootPath + File.separator);
+    }
+
     private static InputStream getCompressorInputStream(Type type, InputStream source) throws IOException {
         if (type == Type.XZ) {
             return new XZCompressorInputStream(source);
@@ -202,7 +367,7 @@ public abstract class TarCompressorUtils {
         else if (type == Type.ZSTD) {
             return new ZstdCompressorInputStream(source);
         }
-        return null;
+        return source;
     }
 
     private static OutputStream getCompressorOutputStream(Type type, File destination, int level) throws IOException {
@@ -212,7 +377,7 @@ public abstract class TarCompressorUtils {
         else if (type == Type.ZSTD) {
             return new ZstdCompressorOutputStream(new BufferedOutputStream(new FileOutputStream(destination), StreamUtils.BUFFER_SIZE), level);
         }
-        return null;
+        return new BufferedOutputStream(new FileOutputStream(destination), StreamUtils.BUFFER_SIZE);
     }
 
     public static void archive(File[] files, File destination, ExclusionFilter filter) {
@@ -244,6 +409,8 @@ public abstract class TarCompressorUtils {
         if (source == null || !source.isFile()) return false;
         try (InputStream inStream = new BufferedInputStream(new FileInputStream(source), StreamUtils.BUFFER_SIZE);
              TarArchiveInputStream tar = new TarArchiveInputStream(inStream)) {
+            File destinationRoot = destination.getCanonicalFile();
+            if (!destinationRoot.isDirectory() && !destinationRoot.mkdirs()) return false;
             TarArchiveEntry entry;
             String topLevelDirectory = null;
             while ((entry = (TarArchiveEntry) tar.getNextEntry()) != null) {
@@ -266,11 +433,14 @@ public abstract class TarCompressorUtils {
 
                 // Adjust the extraction path to remove the top-level directory
                 String adjustedName = entryName.replaceFirst("^" + topLevelDirectory, "");
-                File file = new File(destination, adjustedName);
+                File file = getSafeArchivePath(destinationRoot, adjustedName);
+                if (file == null) return false;
 
                 if (onExtractFileListener != null) {
                     file = onExtractFileListener.onExtractFile(file, entry.getSize());
                     if (file == null) continue;
+                    file = file.getCanonicalFile();
+                    if (!isInside(destinationRoot, file)) return false;
                 }
 
                 if (entry.isDirectory()) {
@@ -279,6 +449,8 @@ public abstract class TarCompressorUtils {
                     if (entry.isSymbolicLink()) {
                         FileUtils.symlink(entry.getLinkName(), file.getAbsolutePath());
                     } else {
+                        File parent = file.getParentFile();
+                        if (parent != null && !parent.isDirectory() && !parent.mkdirs()) return false;
                         try (BufferedOutputStream outStream = new BufferedOutputStream(new FileOutputStream(file), StreamUtils.BUFFER_SIZE)) {
                             if (!StreamUtils.copy(tar, outStream)) return false;
                         }

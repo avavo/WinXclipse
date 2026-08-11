@@ -16,6 +16,7 @@ import android.widget.TextView;
 import androidx.preference.PreferenceManager;
 
 import com.winlator.cmod.R;
+import com.winlator.cmod.MainActivity;
 import com.winlator.cmod.XServerDisplayActivity;
 import com.winlator.cmod.inputcontrols.ControllerManager;
 import com.winlator.cmod.winhandler.WinHandler;
@@ -63,10 +64,7 @@ public class ControllerAssignmentDialog {
         boolean dark = PreferenceManager.getDefaultSharedPreferences(activity)
                 .getBoolean("dark_mode", false);
 
-        ContextThemeWrapper themed =
-                new ContextThemeWrapper(activity, dark ? R.style.ContentDialog : R.style.AppTheme);
-
-        this.dialog = new ContentDialog(themed, R.layout.controller_assignment_dialog);
+        this.dialog = new ContentDialog(activity, R.layout.controller_assignment_dialog);
         this.dialog.setTitle(R.string.controller_manager);
 
         this.controllerManager = ControllerManager.getInstance();
@@ -174,6 +172,15 @@ public class ControllerAssignmentDialog {
     }
 
     private void setupListeners() {
+        dialog.findViewById(R.id.BTInputControls).setOnClickListener(v -> {
+            dialog.dismiss();
+            if (hostActivity instanceof MainActivity) {
+                ((MainActivity) hostActivity).openInputControls();
+            } else if (hostActivity instanceof XServerDisplayActivity) {
+                ((XServerDisplayActivity) hostActivity).showInputControlsFromControllerManager();
+            }
+        });
+
         for (int i = 0; i < 4; i++) {
             final int slotIndex = i;
 

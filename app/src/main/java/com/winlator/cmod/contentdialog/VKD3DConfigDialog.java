@@ -80,7 +80,7 @@ public class VKD3DConfigDialog extends ContentDialog {
             itemList.add(new VKD3DVersionItem(displayName, versionCode));
         }
 
-        ArrayAdapter<VKD3DVersionItem> adapter = new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, itemList);
+        ArrayAdapter<VKD3DVersionItem> adapter = new com.winlator.cmod.widget.ThemedSpinnerAdapter<>(spinner.getContext(), itemList);
         spinner.setAdapter(adapter);
     }
 

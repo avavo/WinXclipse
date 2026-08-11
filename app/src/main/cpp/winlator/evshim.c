@@ -165,13 +165,16 @@ static void initialize_all_pads(void)
     int players = getenv("EVSHIM_MAX_PLAYERS") ? atoi(getenv("EVSHIM_MAX_PLAYERS")) : 1;
     if (players > MAX_GAMEPADS) players = MAX_GAMEPADS;
 
+    const char *gamepad_dir = getenv("EVSHIM_GAMEPAD_DIR");
+    if (!gamepad_dir || !*gamepad_dir) gamepad_dir = "/tmp";
+
 
     /* per-player setup */
     for (int i = 0; i < players; ++i) {
 
         char path[256];
         snprintf(path, sizeof path,
-                 "/data/data/com.winlator.cmod/files/imagefs/tmp/gamepad%s.mem",
+                 "%s/gamepad%s.mem", gamepad_dir,
                  (i == 0) ? "" : (char[2]){'0' + i, '\0'});
 
         /* open once – store for reader + writer */

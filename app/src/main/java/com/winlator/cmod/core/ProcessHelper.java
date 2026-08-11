@@ -11,14 +11,21 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.lang.reflect.Field;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public abstract class ProcessHelper {
-    public static final boolean PRINT_DEBUG = true; // FIXME change to false
-    private static final ArrayList<Callback<String>> debugCallbacks = new ArrayList<>();
+    public static final boolean PRINT_DEBUG = false;
+    private static final int MAX_RECENT_DEBUG_LINES = 2000;
+    private static final CopyOnWriteArrayList<Callback<String>> debugCallbacks = new CopyOnWriteArrayList<>();
+    private static final ArrayDeque<String> recentDebugLines = new ArrayDeque<>();
+    private static final Object recentDebugLock = new Object();
+    private static final ExecutorService debugExecutor = Executors.newCachedThreadPool();
     private static final byte SIGCONT = 18;
     private static final byte SIGSTOP = 19;
     private static final byte SIGTERM = 15;
@@ -89,12 +96,6 @@ public abstract class ProcessHelper {
             ProcessBuilder pb = new ProcessBuilder(splitCommand);
             pb.directory(workingDir);
             pb.environment().putAll(EnvironmentManager.getEnvVars());
-            if (debugCallbacks.isEmpty()) {
-                File null_file = new File("/dev/null");
-                pb.redirectError(null_file);
-                pb.redirectOutput(null_file);
-            }
-            //java.lang.Process process = Runtime.getRuntime().exec(splitCommand, envp, workingDir);
             java.lang.Process process = pb.start();
 
             // Accessing hidden field
@@ -105,10 +106,21 @@ public abstract class ProcessHelper {
             pidField.setAccessible(false);
             Log.d("ProcessHelper", "Process started with pid: " + pid);
 
-            if (!debugCallbacks.isEmpty()) {
-                createDebugThread(process.getInputStream());
-                createDebugThread(process.getErrorStream());
-            }
+            createDebugThread(process.getInputStream(), "stdout", pid);
+            createDebugThread(process.getErrorStream(), "stderr", pid);
+
+            final int processPid = pid;
+            debugExecutor.execute(() -> {
+                try {
+                    int exitCode = process.waitFor();
+                    emitDebugLine("[pid=" + processPid + "][exit] code=" + exitCode);
+                    if (terminationCallback != null) terminationCallback.call(exitCode);
+                }
+                catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    emitDebugLine("[pid=" + processPid + "][exit] wait interrupted");
+                }
+            });
 
         }
         catch (Exception e) {
@@ -117,17 +129,13 @@ public abstract class ProcessHelper {
         return pid;
     }
 
-    private static void createDebugThread(final InputStream inputStream) {
-        Executors.newSingleThreadExecutor().execute(() -> {
+    private static void createDebugThread(final InputStream inputStream, String streamName, int pid) {
+        debugExecutor.execute(() -> {
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
                 String line;
                 while ((line = reader.readLine()) != null) {
                     if (PRINT_DEBUG) System.out.println(line);
-                    synchronized (debugCallbacks) {
-                        if (!debugCallbacks.isEmpty()) {
-                            for (Callback<String> callback : debugCallbacks) callback.call(line);
-                        }
-                    }
+                    emitDebugLine("[pid=" + pid + "][" + streamName + "] " + line);
                 }
             }
             catch (IOException e) {
@@ -136,25 +144,40 @@ public abstract class ProcessHelper {
         });
     }
 
-    public static void removeAllDebugCallbacks() {
-        synchronized (debugCallbacks) {
-            debugCallbacks.clear();
-            Log.d("ProcessHelper", "All debug callbacks removed");
+    private static void emitDebugLine(String line) {
+        synchronized (recentDebugLock) {
+            recentDebugLines.addLast(line);
+            while (recentDebugLines.size() > MAX_RECENT_DEBUG_LINES) recentDebugLines.removeFirst();
         }
+        for (Callback<String> callback : debugCallbacks) {
+            try {
+                callback.call(line);
+            }
+            catch (RuntimeException e) {
+                Log.e("ProcessHelper", "Debug callback failed", e);
+            }
+        }
+    }
+
+    public static List<String> getRecentDebugLines() {
+        synchronized (recentDebugLock) {
+            return new ArrayList<>(recentDebugLines);
+        }
+    }
+
+    public static void removeAllDebugCallbacks() {
+        debugCallbacks.clear();
+        Log.d("ProcessHelper", "All debug callbacks removed");
     }
 
     public static void addDebugCallback(Callback<String> callback) {
-        synchronized (debugCallbacks) {
-            if (!debugCallbacks.contains(callback)) debugCallbacks.add(callback);
-            Log.d("ProcessHelper", "Added debug callback: " + callback.toString());
-        }
+        if (callback != null) debugCallbacks.addIfAbsent(callback);
+        Log.d("ProcessHelper", "Added debug callback: " + callback);
     }
 
     public static void removeDebugCallback(Callback<String> callback) {
-        synchronized (debugCallbacks) {
-            debugCallbacks.remove(callback);
-            Log.d("ProcessHelper", "Removed debug callback: " + callback.toString());
-        }
+        debugCallbacks.remove(callback);
+        Log.d("ProcessHelper", "Removed debug callback: " + callback);
     }
 
     public static String[] splitCommand(String command) {
@@ -252,17 +275,20 @@ public abstract class ProcessHelper {
             }
         });
 
-        for (int index = 0; index < allPids.length; index++){
+        if (allPids == null) return filteredPids;
+        for (String currentPid : allPids) {
             String data = "";
-            try {
-                FileInputStream fr = new FileInputStream(proc + "/" + allPids[index] + "/stat");
-                BufferedReader br = new BufferedReader(new InputStreamReader(fr));
-                data = br.readLine();
+            try (FileInputStream fr = new FileInputStream(proc + "/" + currentPid + "/stat");
+                 BufferedReader br = new BufferedReader(new InputStreamReader(fr))) {
+                String line = br.readLine();
+                if (line != null) data = line;
             }
-            catch (IOException e) {}
+            catch (IOException ignored) {}
             for (String filter : filterList) {
-                if (data.contains(filter))
-                    filteredPids.add(allPids[index]);
+                if (data.contains(filter)) {
+                    filteredPids.add(currentPid);
+                    break;
+                }
             }
         }
         return filteredPids;

@@ -117,7 +117,7 @@ public class MidiManager {
         for (File file : sfFiles)
             filesName.add(file.getName());
 
-        spinner.setAdapter(new ArrayAdapter<>(spinner.getContext(), android.R.layout.simple_spinner_dropdown_item, filesName));
+        spinner.setAdapter(new com.winlator.cmod.widget.ThemedSpinnerAdapter<>(spinner.getContext(), filesName));
     }
 
     public static void loadSFSpinnerWithoutDisabled(Spinner spinner) {
@@ -129,7 +129,7 @@ public class MidiManager {
         for (File file : sfFiles)
             filesName.add(file.getName());
 
-        spinner.setAdapter(new ArrayAdapter<>(spinner.getContext(), android.R.layout.simple_spinner_dropdown_item, filesName));
+        spinner.setAdapter(new com.winlator.cmod.widget.ThemedSpinnerAdapter<>(spinner.getContext(), filesName));
     }
 
 }

@@ -1,18 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- ===== Top-level quick actions ===== -->
-    <item
-        android:id="@+id/main_menu_relative_mouse"
-        android:title="@string/relative_mouse_movement"
-        android:icon="@drawable/icon_mouse"
-        android:checkable="true" />
-
-    <item
-        android:id="@+id/main_menu_keyboard"
-        android:title="@string/keyboard"
-        android:icon="@drawable/icon_keyboard" />
-
     <!-- ===== INPUT ===== -->
     <item
         android:id="@+id/header_input"
@@ -21,6 +9,15 @@
     <group
         android:id="@+id/group_input"
         android:checkableBehavior="none">
+        <item
+            android:id="@+id/main_menu_relative_mouse"
+            android:title="@string/relative_mouse_movement"
+            android:icon="@drawable/icon_mouse"
+            android:checkable="true" />
+        <item
+            android:id="@+id/main_menu_keyboard"
+            android:title="@string/keyboard"
+            android:icon="@drawable/icon_keyboard" />
         <item
             android:id="@+id/main_menu_input_controls"
             android:title="@string/input_controls"
@@ -61,25 +58,22 @@
             android:icon="@drawable/ic_picture_in_picture_alt" />
     </group>
 
-    <!-- ===== SYSTEM ===== -->
     <item
-        android:id="@+id/header_system"
-        android:title="@string/menu_section_system"
-        android:icon="@drawable/icon_settings" />
-    <group
-        android:id="@+id/group_system"
-        android:checkableBehavior="none">
-        <item
-            android:id="@+id/main_menu_task_manager"
-            android:title="@string/task_manager"
-            android:icon="@drawable/icon_task_manager" />
-        <item
-            android:id="@+id/main_menu_terminal"
-            android:title="@string/debug_terminal"
-            android:icon="@drawable/icon_env_var" />
-    </group>
+        android:id="@+id/main_menu_hud"
+        android:title="HUD Settings"
+        android:icon="@drawable/ic_hud" />
 
     <!-- ===== More quick actions at bottom ===== -->
+    <item
+        android:id="@+id/main_menu_task_manager"
+        android:title="@string/task_manager"
+        android:icon="@drawable/icon_task_manager" />
+
+    <item
+        android:id="@+id/main_menu_terminal"
+        android:title="@string/debug_terminal"
+        android:icon="@drawable/icon_env_var" />
+
     <item
         android:id="@+id/main_menu_pause"
         android:title="@string/pause_resume"

@@ -20,6 +20,7 @@ import com.winlator.cmod.core.StringUtils;
 import com.winlator.cmod.inputcontrols.ControllerManager;
 import com.winlator.cmod.inputcontrols.ControlsProfile;
 import com.winlator.cmod.inputcontrols.ExternalController;
+import com.winlator.cmod.inputcontrols.FakeInputWriter;
 import com.winlator.cmod.inputcontrols.GamepadState;
 import com.winlator.cmod.math.Mathf;
 import com.winlator.cmod.xserver.XServer;
@@ -83,6 +84,8 @@ public class WinHandler {
     private final MappedByteBuffer[] extraGamepadBuffers = new MappedByteBuffer[MAX_PLAYERS - 1]; // P2..P4
     private final ExternalController[] extraControllers   = new ExternalController[MAX_PLAYERS - 1];
     private MappedByteBuffer gamepadBuffer; // P1
+    private final FakeInputWriter[] fakeInputWriters = new FakeInputWriter[MAX_PLAYERS];
+    private File fakeInputDir;
 
     private ExternalController currentController; // P1
     private byte triggerType;                     // trigger mapping
@@ -164,7 +167,8 @@ public class WinHandler {
             localhost = InetAddress.getLocalHost();
 
             // P1
-            String p1Path = "/data/data/com.winlator.cmod/files/imagefs/tmp/gamepad.mem";
+            File gamepadDir = new File(activity.getFilesDir(), "imagefs/tmp");
+            String p1Path = new File(gamepadDir, "gamepad.mem").getAbsolutePath();
             File p1 = new File(p1Path);
             p1.getParentFile().mkdirs();
             try (RandomAccessFile raf = new RandomAccessFile(p1, "rw")) {
@@ -176,7 +180,7 @@ public class WinHandler {
 
             // P2..P4
             for (int i = 0; i < extraGamepadBuffers.length; i++) {
-                String path = "/data/data/com.winlator.cmod/files/imagefs/tmp/gamepad" + (i + 1) + ".mem";
+                String path = new File(gamepadDir, "gamepad" + (i + 1) + ".mem").getAbsolutePath();
                 File f = new File(path);
                 try (RandomAccessFile raf = new RandomAccessFile(f, "rw")) {
                     raf.setLength(64);
@@ -221,6 +225,13 @@ public class WinHandler {
     public void stop() {
         running = false;
 
+        for (int i = 0; i < fakeInputWriters.length; i++) {
+            if (fakeInputWriters[i] != null) {
+                fakeInputWriters[i].destroy();
+                fakeInputWriters[i] = null;
+            }
+        }
+
         if (socket != null) {
             socket.close();
             socket = null;
@@ -228,6 +239,17 @@ public class WinHandler {
         synchronized (actions) {
             actions.notify();
         }
+    }
+
+    public void setFakeInputPath(String path) {
+        if (path == null || path.trim().isEmpty()) return;
+        fakeInputDir = new File(path);
+        if (!fakeInputDir.isDirectory()) fakeInputDir.mkdirs();
+        for (int i = 0; i < MAX_PLAYERS; i++) {
+            File staleEvent = new File(fakeInputDir, "event" + i);
+            if (staleEvent.exists()) staleEvent.delete();
+        }
+        Log.i(TAG, "Mali fake-input path: " + fakeInputDir.getAbsolutePath());
     }
 
     // ========================== Gyro API (called by MotionControls) =========
@@ -345,6 +367,10 @@ public class WinHandler {
         if (device == null || !ControllerManager.isGameController(device)) return false;
 
         int assignedSlot = controllerManager.getSlotForDeviceOrSibling(deviceId);
+        if (assignedSlot == -1 && !isVirtualActive()) {
+            assignedSlot = controllerManager.assignToFirstEnabledFreeSlot(device);
+            if (assignedSlot >= 0) refreshControllerMappings();
+        }
 
         // If virtual is active and this device is P1, ignore to avoid conflicts
         if (virtualExclusiveP1 && isVirtualActive() && assignedSlot == 0) {
@@ -441,6 +467,10 @@ public class WinHandler {
         }
 
         int assignedSlot = controllerManager.getSlotForDeviceOrSibling(deviceId);
+        if (assignedSlot == -1 && !isVirtualActive()) {
+            assignedSlot = controllerManager.assignToFirstEnabledFreeSlot(device);
+            if (assignedSlot >= 0) refreshControllerMappings();
+        }
 
         if (virtualExclusiveP1 && isVirtualActive() && assignedSlot == 0) {
             return true; // consume quietly
@@ -857,9 +887,7 @@ public class WinHandler {
                                           MappedByteBuffer buffer,
                                           boolean isP1,
                                           int slotIndex) {
-        if (buffer == null || src == null) return;
-
-        buffer.clear();
+        if (src == null) return;
 
         // SHM writer: compute final LX/LY/RX/RY based on target
         float lx = src.thumbLX, ly = src.thumbLY;
@@ -874,11 +902,6 @@ public class WinHandler {
                 ry = Mathf.clamp(ry + gyroY, -1f, 1f);
             }
         }
-
-        buffer.putShort((short) (lx * 32767));
-        buffer.putShort((short) (ly * 32767));
-        buffer.putShort((short) (rx * 32767));
-        buffer.putShort((short) (ry * 32767));
 
         // Triggers (curved)
         float rawL = Math.max(0f, Math.min(1f, src.triggerL));
@@ -909,21 +932,66 @@ public class WinHandler {
             rawL = 0f; rawR = 0f;
         }
 
-        // Curve & write triggers after potential gating
+        // Curve triggers after potential gating
         float lCurve = (float) Math.sqrt(rawL);
         float rCurve = (float) Math.sqrt(rawR);
         int lAxis = Math.round(lCurve * 65_534f) - 32_767;
         int rAxis = Math.round(rCurve * 65_534f) - 32_767;
-        buffer.putShort((short) lAxis);
-        buffer.putShort((short) rAxis);
 
-        buffer.put(sdlButtons);
-        buffer.put((byte) 0); // HAT ignored
+        if (buffer != null) {
+            buffer.clear();
+            buffer.putShort((short) (lx * 32767));
+            buffer.putShort((short) (ly * 32767));
+            buffer.putShort((short) (rx * 32767));
+            buffer.putShort((short) (ry * 32767));
+            buffer.putShort((short) lAxis);
+            buffer.putShort((short) rAxis);
+            buffer.put(sdlButtons);
+            buffer.put((byte) 0); // HAT ignored
+        }
+
+        publishFakeInputState(src, slotIndex, lx, ly, rx, ry, rawL, rawR, sdlButtons);
+    }
+
+    private void publishFakeInputState(GamepadState source, int slot, float lx, float ly,
+                                       float rx, float ry, float triggerL, float triggerR,
+                                       byte[] buttons) {
+        if (fakeInputDir == null || slot < 0 || slot >= fakeInputWriters.length) return;
+        FakeInputWriter writer = fakeInputWriters[slot];
+        if (writer == null) {
+            writer = new FakeInputWriter(fakeInputDir, slot);
+            fakeInputWriters[slot] = writer;
+        }
+
+        GamepadState state = new GamepadState();
+        state.copy(source);
+        state.thumbLX = lx;
+        state.thumbLY = ly;
+        state.thumbRX = rx;
+        state.thumbRY = ry;
+        state.triggerL = triggerL;
+        state.triggerR = triggerR;
+        for (int i = 0; i < 10; i++) state.setPressed(i, false);
+        state.setPressed(0, buttons[0] != 0);
+        state.setPressed(1, buttons[1] != 0);
+        state.setPressed(2, buttons[2] != 0);
+        state.setPressed(3, buttons[3] != 0);
+        state.setPressed(4, buttons[9] != 0);
+        state.setPressed(5, buttons[10] != 0);
+        state.setPressed(6, buttons[4] != 0);
+        state.setPressed(7, buttons[6] != 0);
+        state.setPressed(8, buttons[7] != 0);
+        state.setPressed(9, buttons[8] != 0);
+        state.dpad[0] = buttons[11] != 0;
+        state.dpad[1] = buttons[14] != 0;
+        state.dpad[2] = buttons[12] != 0;
+        state.dpad[3] = buttons[13] != 0;
+        writer.writeGamepadState(state);
     }
 
     /** Virtual gamepad writes directly to P1 buffer, caches last state for gyro-only updates. */
     public void sendVirtualGamepadState(GamepadState state) {
-        if (gamepadBuffer == null || state == null) return;
+        if (state == null) return;
         lastVirtualState = state;
         hasVirtualState = true;
         writeStateToMappedBuffer(state, gamepadBuffer, true, /*slot*/0);

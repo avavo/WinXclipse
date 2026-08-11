@@ -114,16 +114,18 @@
                 style="@style/ButtonNeutral"
                 android:id="@+id/BTImportProfile"
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
+                android:layout_height="44dp"
                 android:layout_weight="1"
+                android:layout_marginEnd="4dp"
                 android:text="@string/import_profile" />
 
             <Button
                 style="@style/ButtonNeutral"
                 android:id="@+id/BTExportProfile"
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
+                android:layout_height="44dp"
                 android:layout_weight="1"
+                android:layout_marginStart="4dp"
                 android:text="@string/export_profile" />
         </LinearLayout>
 
@@ -132,8 +134,8 @@
         <Button
             style="@style/ButtonPositive"
             android:id="@+id/BTControlsEditor"
-            android:layout_width="240dp"
-            android:layout_height="wrap_content"
+            android:layout_width="220dp"
+            android:layout_height="44dp"
             android:layout_gravity="center_horizontal"
             android:text="@string/controls_editor" />
 

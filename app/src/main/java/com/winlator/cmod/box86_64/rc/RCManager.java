@@ -243,7 +243,7 @@ public class RCManager {
         for (RCFile rcfile : rcFiles)
             filesName.add(rcfile.getName());
 
-        spinner.setAdapter(new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, filesName));
+        spinner.setAdapter(new com.winlator.cmod.widget.ThemedSpinnerAdapter<>(spinner.getContext(), filesName));
         RCFile currentRCFile = rcManager.getRcfile(rcfileId);
 
         spinner.setSelection(currentRCFile == null ? 0 : rcFiles.indexOf(currentRCFile) + 1);

@@ -13,6 +13,7 @@ import com.winlator.cmod.contents.ContentsManager;
 import com.winlator.cmod.xenvironment.ImageFs;
 
 import java.io.File;
+import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -126,7 +127,21 @@ public class WineInfo implements Parcelable {
         ContentProfile wineProfile = contentsManager.getProfileByEntryName(identifier);
 
         if (wineProfile != null && (wineProfile.type == ContentProfile.ContentType.CONTENT_TYPE_WINE || wineProfile.type == ContentProfile.ContentType.CONTENT_TYPE_PROTON)) {
-            identifier = identifier.substring(0, identifier.length() - 2).toLowerCase();
+            String profileVersion = wineProfile.verName.toLowerCase(Locale.ENGLISH);
+            String profileArch;
+            if (profileVersion.endsWith("-arm64ec")) profileArch = "arm64ec";
+            else if (profileVersion.endsWith("-x86_64")) profileArch = "x86_64";
+            else if (profileVersion.endsWith("-x86")) profileArch = "x86";
+            else profileArch = profileVersion.contains("arm64ec") ? "arm64ec" : "x86_64";
+
+            String archSuffix = "-" + profileArch;
+            String version = profileVersion.endsWith(archSuffix)
+                    ? profileVersion.substring(0, profileVersion.length() - archSuffix.length())
+                    : profileVersion;
+            String type = wineProfile.type == ContentProfile.ContentType.CONTENT_TYPE_PROTON
+                    ? "proton" : "wine";
+            return new WineInfo(type, version, profileArch,
+                    contentsManager.getInstallDir(context, wineProfile).getPath());
         }
 
         Matcher matcher = pattern.matcher(identifier);

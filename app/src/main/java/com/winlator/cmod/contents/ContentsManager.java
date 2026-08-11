@@ -9,6 +9,7 @@ import androidx.annotation.NonNull;
 
 import com.winlator.cmod.core.EvshimPatcher;
 import com.winlator.cmod.core.FileUtils;
+import com.winlator.cmod.core.StreamUtils;
 import com.winlator.cmod.core.TarCompressorUtils;
 
 import org.json.JSONArray;
@@ -16,6 +17,10 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.File;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -26,6 +31,14 @@ import java.util.Map;
 public class ContentsManager {
     public static final String PROFILE_NAME = "profile.json";
     public static final String REMOTE_PROFILES = "contents.json";
+    private static final String REMOTE_CACHE_KEY = "github_release_contents_cache";
+    private static final String GITHUB_RELEASE_API = "https://api.github.com/repos/avavo/WinXclipse/releases/tags/";
+    private static final String[] REMOTE_RELEASE_TAGS = {
+            "runtime-fexcore-v0.8",
+            "runtime-wine-proton-v0.8",
+            "box",
+            "dxvk-and-vkd3d"
+    };
     public static final String[] DXVK_TRUST_FILES = {"${system32}/d3d8.dll", "${system32}/d3d9.dll", "${system32}/d3d10.dll", "${system32}/d3d10_1.dll",
             "${system32}/d3d10core.dll", "${system32}/d3d11.dll", "${system32}/dxgi.dll", "${syswow64}/d3d8.dll", "${syswow64}/d3d9.dll", "${syswow64}/d3d10.dll",
             "${syswow64}/d3d10_1.dll", "${syswow64}/d3d10core.dll", "${syswow64}/d3d11.dll", "${syswow64}/dxgi.dll"};
@@ -93,6 +106,10 @@ public class ContentsManager {
         void onSucceed(ContentProfile profile);
     }
 
+    public interface OnInstallProgressCallback {
+        void onProgress(int progress);
+    }
+
     public void setRemoteProfiles(String json) {
         try {
             remoteProfiles = new ArrayList<>();
@@ -114,6 +131,164 @@ public class ContentsManager {
             e.printStackTrace();
         }
         syncContents();
+    }
+
+    /**
+     * Refreshes the downloadable catalog directly from the four WinXclipse
+     * GitHub releases. The bundled JSON supplies exact metadata for known
+     * packages and is also the first-run/offline fallback. Successful results
+     * are cached so adding an asset to a release never requires a new APK.
+     * This method performs network I/O and must be called off the UI thread.
+     */
+    public String refreshRemoteProfiles(String bundledJson) {
+        JSONArray bundled = parseCatalog(bundledJson);
+        String cachedJson = preferences.getString(REMOTE_CACHE_KEY, null);
+        JSONArray catalog = parseCatalog(cachedJson);
+        if (catalog.length() == 0) catalog = parseCatalog(bundledJson);
+
+        boolean refreshedAnyRelease = false;
+        for (String tag : REMOTE_RELEASE_TAGS) {
+            JSONObject release = fetchRelease(tag);
+            if (release == null) continue;
+
+            JSONArray assets = release.optJSONArray("assets");
+            if (assets == null) continue;
+
+            removeReleaseEntries(catalog, tag);
+            for (int i = 0; i < assets.length(); i++) {
+                JSONObject asset = assets.optJSONObject(i);
+                if (asset == null) continue;
+
+                String name = asset.optString("name", "");
+                String remoteUrl = asset.optString("browser_download_url", "");
+                if (!isSupportedRemoteAsset(name) || remoteUrl.isEmpty()) continue;
+
+                JSONObject profile = findProfileByUrl(bundled, remoteUrl);
+                if (profile == null) profile = inferRemoteProfile(tag, asset, name, remoteUrl);
+                catalog.put(profile);
+            }
+            refreshedAnyRelease = true;
+        }
+
+        String result = catalog.toString();
+        if (refreshedAnyRelease) preferences.edit().putString(REMOTE_CACHE_KEY, result).apply();
+        return result;
+    }
+
+    private static JSONArray parseCatalog(String json) {
+        if (json == null || json.trim().isEmpty()) return new JSONArray();
+        try {
+            return new JSONArray(json);
+        }
+        catch (JSONException e) {
+            return new JSONArray();
+        }
+    }
+
+    private JSONObject fetchRelease(String tag) {
+        HttpURLConnection connection = null;
+        try {
+            connection = (HttpURLConnection) new URL(GITHUB_RELEASE_API + tag).openConnection();
+            connection.setConnectTimeout(7000);
+            connection.setReadTimeout(10000);
+            connection.setRequestProperty("Accept", "application/vnd.github+json");
+            connection.setRequestProperty("User-Agent", "WinXclipse-Android");
+            connection.setRequestProperty("X-GitHub-Api-Version", "2022-11-28");
+            String etag = preferences.getString("github_release_etag_" + tag, null);
+            if (etag != null) connection.setRequestProperty("If-None-Match", etag);
+            int responseCode = connection.getResponseCode();
+            if (responseCode == HttpURLConnection.HTTP_NOT_MODIFIED) {
+                String cachedRelease = preferences.getString("github_release_json_" + tag, null);
+                return cachedRelease == null ? null : new JSONObject(cachedRelease);
+            }
+            if (responseCode != HttpURLConnection.HTTP_OK) {
+                Log.w("ContentsManager", "GitHub release request failed for " + tag
+                        + ": HTTP " + responseCode);
+                return null;
+            }
+            try (InputStream input = connection.getInputStream()) {
+                String releaseJson = new String(StreamUtils.copyToByteArray(input), StandardCharsets.UTF_8);
+                JSONObject release = new JSONObject(releaseJson);
+                SharedPreferences.Editor editor = preferences.edit()
+                        .putString("github_release_json_" + tag, releaseJson);
+                String responseEtag = connection.getHeaderField("ETag");
+                if (responseEtag != null) editor.putString("github_release_etag_" + tag, responseEtag);
+                editor.apply();
+                return release;
+            }
+        }
+        catch (Exception e) {
+            Log.w("ContentsManager", "Unable to refresh GitHub release " + tag, e);
+            return null;
+        }
+        finally {
+            if (connection != null) connection.disconnect();
+        }
+    }
+
+    private static void removeReleaseEntries(JSONArray catalog, String tag) {
+        String marker = "/releases/download/" + tag + "/";
+        for (int i = catalog.length() - 1; i >= 0; i--) {
+            JSONObject profile = catalog.optJSONObject(i);
+            if (profile != null && profile.optString("remoteUrl", "").contains(marker)) catalog.remove(i);
+        }
+    }
+
+    private static JSONObject findProfileByUrl(JSONArray catalog, String remoteUrl) {
+        for (int i = 0; i < catalog.length(); i++) {
+            JSONObject profile = catalog.optJSONObject(i);
+            if (profile != null && remoteUrl.equals(profile.optString("remoteUrl", ""))) {
+                try {
+                    return new JSONObject(profile.toString());
+                }
+                catch (JSONException ignored) {
+                    return profile;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static boolean isSupportedRemoteAsset(String name) {
+        String lower = name.toLowerCase();
+        boolean contentPackage = lower.endsWith(".wcp")
+                || lower.endsWith(".wcp.xz")
+                || lower.endsWith(".xz")
+                || lower.endsWith(".tzst")
+                || lower.endsWith(".zst");
+        if (!contentPackage) return false;
+        return !lower.contains("proton.9.0-x86_64")
+                && !lower.contains("proton-9.0-x86_64")
+                && !lower.contains("dxvk-1.7.1")
+                && !lower.contains("sarek")
+                && !lower.contains("stripped");
+    }
+
+    private static JSONObject inferRemoteProfile(String tag, JSONObject asset, String name,
+                                                   String remoteUrl) {
+        String type;
+        String lower = name.toLowerCase();
+        if ("runtime-fexcore-v0.8".equals(tag)) type = "FEXCore";
+        else if ("box".equals(tag)) type = "Box64";
+        else if ("dxvk-and-vkd3d".equals(tag)) type = lower.contains("vkd3d") ? "VKD3D" : "DXVK";
+        else type = lower.contains("proton") ? "Proton" : "Wine";
+
+        String versionName = name.replaceFirst(
+                "(?i)(?:\\.wcp(?:\\.xz)?|\\.xz|\\.tzst|\\.zst)$", "");
+        long assetId = asset.optLong("id", 0);
+        int versionCode = assetId > 0 ? (int) (assetId % 2147483646L) + 1 : Math.abs(name.hashCode());
+        if (versionCode == 0) versionCode = 1;
+
+        JSONObject profile = new JSONObject();
+        try {
+            profile.put("type", type);
+            profile.put("verName", versionName);
+            profile.put("verCode", versionCode);
+            profile.put("remoteUrl", remoteUrl);
+        }
+        catch (JSONException ignored) {
+        }
+        return profile;
     }
 
     public void syncContents() {
@@ -168,18 +343,32 @@ public class ContentsManager {
     }
 
     public void extraContentFile(Uri uri, OnInstallFinishedCallback callback) {
+        extraContentFile(uri, null, callback);
+    }
+
+    public void extraContentFile(Uri uri, ContentProfile expectedProfile,
+                                 OnInstallFinishedCallback callback) {
+        extraContentFile(uri, expectedProfile, callback, null);
+    }
+
+    public void extraContentFile(Uri uri, ContentProfile expectedProfile,
+                                 OnInstallFinishedCallback callback,
+                                 OnInstallProgressCallback progressCallback) {
         cleanTmpDir(context);
+        reportInstallProgress(progressCallback, 5);
 
         File file = getTmpDir(context);
 
-        boolean ret;
-        ret = TarCompressorUtils.extract(TarCompressorUtils.Type.XZ, context, uri, file);
-        if (!ret)
-            ret = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context, uri, file);
+        TarCompressorUtils.Type compression = TarCompressorUtils.detectType(context, uri);
+        boolean ret = compression != null
+                && TarCompressorUtils.extract(compression, context, uri, file, null,
+                (read, total) -> reportInstallProgress(progressCallback,
+                        5 + (int)Math.min(65, read * 65L / total)));
         if (!ret) {
             callback.onFailed(InstallFailedReason.ERROR_BADTAR, null);
             return;
         }
+        reportInstallProgress(progressCallback, 70);
 
         File proFile = new File(file, PROFILE_NAME);
         if (!proFile.exists()) {
@@ -192,8 +381,43 @@ public class ContentsManager {
             callback.onFailed(InstallFailedReason.ERROR_BADPROFILE, null);
             return;
         }
+        reportInstallProgress(progressCallback, 78);
+
+        if (expectedProfile != null) {
+            boolean actualIsRuntime = profile.type == ContentProfile.ContentType.CONTENT_TYPE_WINE
+                    || profile.type == ContentProfile.ContentType.CONTENT_TYPE_PROTON;
+            boolean expectedIsRuntime = expectedProfile.type == ContentProfile.ContentType.CONTENT_TYPE_WINE
+                    || expectedProfile.type == ContentProfile.ContentType.CONTENT_TYPE_PROTON;
+            if (profile.type != expectedProfile.type && !(actualIsRuntime && expectedIsRuntime)) {
+                callback.onFailed(InstallFailedReason.ERROR_BADPROFILE, null);
+                return;
+            }
+
+            // The bundled remote catalog is authoritative for identity. Some
+            // older WinXclipse runtime downloads were published with Wine/0
+            // metadata even though they are catalogued as Proton. Normalize
+            // the extracted profile so it remains stable after app restart.
+            try {
+                JSONObject normalizedProfile = new JSONObject(FileUtils.readString(proFile));
+                normalizedProfile.put(ContentProfile.MARK_TYPE, expectedProfile.type.toString());
+                normalizedProfile.put(ContentProfile.MARK_VERSION_NAME, expectedProfile.verName);
+                normalizedProfile.put(ContentProfile.MARK_VERSION_CODE, expectedProfile.verCode);
+                if (!FileUtils.writeString(proFile, normalizedProfile.toString(2))) {
+                    callback.onFailed(InstallFailedReason.ERROR_BADPROFILE, null);
+                    return;
+                }
+                profile.type = expectedProfile.type;
+                profile.verName = expectedProfile.verName;
+                profile.verCode = expectedProfile.verCode;
+            }
+            catch (JSONException e) {
+                callback.onFailed(InstallFailedReason.ERROR_BADPROFILE, e);
+                return;
+            }
+        }
 
         String imagefsPath = context.getFilesDir().getAbsolutePath() + "/imagefs";
+        int checkedFiles = 0;
         for (ContentProfile.ContentFile contentFile : profile.fileList) {
             File tmpFile = new File(file, contentFile.source);
             if (!tmpFile.exists() || !tmpFile.isFile() || !isSubPath(file.getAbsolutePath(), tmpFile.getAbsolutePath())) {
@@ -206,9 +430,15 @@ public class ContentsManager {
                 callback.onFailed(InstallFailedReason.ERROR_UNTRUSTPROFILE, null);
                 return;
             }
+            checkedFiles++;
+            if (!profile.fileList.isEmpty()) {
+                reportInstallProgress(progressCallback,
+                        80 + (checkedFiles * 15 / profile.fileList.size()));
+            }
         }
 
-        if (profile.type == ContentProfile.ContentType.CONTENT_TYPE_WINE) {
+        if (profile.type == ContentProfile.ContentType.CONTENT_TYPE_WINE
+                || profile.type == ContentProfile.ContentType.CONTENT_TYPE_PROTON) {
             File bin = new File(file, profile.wineBinPath);
             File lib = new File(file, profile.wineLibPath);
             File cp = new File(file, profile.winePrefixPack);
@@ -219,18 +449,12 @@ public class ContentsManager {
             }
         }
 
-        if (profile.type == ContentProfile.ContentType.CONTENT_TYPE_PROTON) {
-            File bin = new File(file, profile.protonBinPath);
-            File lib = new File(file, profile.protonLibPath);
-            File cp = new File(file, profile.protonPrefixPack);
-
-            if (!bin.exists() || !bin.isDirectory() || !lib.exists() || !lib.isDirectory() || !cp.exists() || !cp.isFile()) {
-                callback.onFailed(InstallFailedReason.ERROR_MISSINGFILES, null);
-                return;
-            }
-        }
-
+        reportInstallProgress(progressCallback, 97);
         callback.onSucceed(profile);
+    }
+
+    private static void reportInstallProgress(OnInstallProgressCallback callback, int progress) {
+        if (callback != null) callback.onProgress(progress);
     }
 
     public void finishInstallContent(ContentProfile profile, OnInstallFinishedCallback callback) {
@@ -240,13 +464,18 @@ public class ContentsManager {
             return;
         }
 
-        if (!installPath.mkdirs()) {
+        File parent = installPath.getParentFile();
+        if (parent == null || (!parent.isDirectory() && !parent.mkdirs())) {
             callback.onFailed(InstallFailedReason.ERROR_UNKNOWN, null);
             return;
         }
 
+        // Do not create installPath first: File.renameTo() cannot replace an
+        // existing directory. This used to make every completed extraction
+        // look permanently stuck at "Installing Content".
         if (!getTmpDir(context).renameTo(installPath)) {
             callback.onFailed(InstallFailedReason.ERROR_UNKNOWN, null);
+            return;
         }
 
         callback.onSucceed(profile);
@@ -257,6 +486,8 @@ public class ContentsManager {
             ContentProfile profile = new ContentProfile();
             JSONObject profileJSONObject = new JSONObject(FileUtils.readString(file));
             String typeName = profileJSONObject.getString(ContentProfile.MARK_TYPE);
+            ContentProfile.ContentType contentType = ContentProfile.ContentType.getTypeByName(typeName);
+            if (contentType == null) return null;
             String verName = profileJSONObject.getString(ContentProfile.MARK_VERSION_NAME);
             int verCode = profileJSONObject.getInt(ContentProfile.MARK_VERSION_CODE);
             String desc = profileJSONObject.getString(ContentProfile.MARK_DESC);
@@ -270,20 +501,30 @@ public class ContentsManager {
                 contentFile.target = contentFileJSONObject.getString(ContentProfile.MARK_FILE_TARGET);
                 fileList.add(contentFile);
             }
-            if (typeName.equals(ContentProfile.ContentType.CONTENT_TYPE_WINE.toString())) {
-                JSONObject wineJSONObject = profileJSONObject.getJSONObject(ContentProfile.MARK_WINE);
-                profile.wineLibPath = wineJSONObject.getString(ContentProfile.MARK_WINE_LIBPATH);
-                profile.wineBinPath = wineJSONObject.getString(ContentProfile.MARK_WINE_BINPATH);
-                profile.winePrefixPack = wineJSONObject.getString(ContentProfile.MARK_WINE_PREFIX_PACK);
-            }
-            if (typeName.equals(ContentProfile.ContentType.CONTENT_TYPE_PROTON.toString())) {
-                JSONObject protonJSONObject = profileJSONObject.getJSONObject(ContentProfile.MARK_PROTON);
-                profile.protonLibPath = protonJSONObject.getString(ContentProfile.MARK_PROTON_LIBPATH);
-                profile.protonBinPath = protonJSONObject.getString(ContentProfile.MARK_PROTON_BINPATH);
-                profile.protonPrefixPack = protonJSONObject.getString(ContentProfile.MARK_PROTON_PREFIX_PACK);
+            if (contentType == ContentProfile.ContentType.CONTENT_TYPE_WINE
+                    || contentType == ContentProfile.ContentType.CONTENT_TYPE_PROTON) {
+                // Mali-compatible WCP packages use the "wine" block for both
+                // Wine and Proton. Keep the old WinXclipse "proton" block as a
+                // fallback so existing packages remain installable.
+                JSONObject runtimeJSONObject = profileJSONObject.optJSONObject(ContentProfile.MARK_WINE);
+                if (runtimeJSONObject == null
+                        && contentType == ContentProfile.ContentType.CONTENT_TYPE_PROTON) {
+                    runtimeJSONObject = profileJSONObject.optJSONObject(ContentProfile.MARK_PROTON);
+                }
+                if (runtimeJSONObject == null) return null;
+
+                profile.wineLibPath = runtimeJSONObject.getString(ContentProfile.MARK_WINE_LIBPATH);
+                profile.wineBinPath = runtimeJSONObject.getString(ContentProfile.MARK_WINE_BINPATH);
+                profile.winePrefixPack = runtimeJSONObject.getString(ContentProfile.MARK_WINE_PREFIX_PACK);
+
+                // Legacy aliases retained for callers or packages built around
+                // the earlier WinXclipse schema.
+                profile.protonLibPath = profile.wineLibPath;
+                profile.protonBinPath = profile.wineBinPath;
+                profile.protonPrefixPack = profile.winePrefixPack;
             }
 
-            profile.type = ContentProfile.ContentType.getTypeByName(typeName);
+            profile.type = contentType;
             profile.verName = verName;
             profile.verCode = verCode;
             profile.desc = desc;

@@ -3,6 +3,7 @@ package com.winlator.cmod.contentdialog;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
+import android.os.Build;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.ImageButton;
@@ -12,9 +13,11 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.core.content.FileProvider;
 
+import com.winlator.cmod.BuildConfig;
 import com.winlator.cmod.R;
 import com.winlator.cmod.core.AppUtils;
 import com.winlator.cmod.core.Callback;
+import com.winlator.cmod.core.ProcessHelper;
 import com.winlator.cmod.core.UnitUtils;
 import com.winlator.cmod.widget.LogView;
 
@@ -24,12 +27,20 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.List;
+import java.util.Locale;
 
 public class DebugDialog extends ContentDialog implements Callback<String> {
+    private static final int FLUSH_INTERVAL_LINES = 25;
+    private static boolean paused;
+
     private final LogView logView;
-    private static boolean paused = false;
+    private final Object writerLock = new Object();
     private BufferedWriter writer;
     private File logFile;
+    private int pendingLines;
 
     public DebugDialog(@NonNull Context context) {
         super(context, R.layout.debug_dialog);
@@ -37,104 +48,122 @@ public class DebugDialog extends ContentDialog implements Callback<String> {
         setTitle(context.getString(R.string.logs));
 
         logView = findViewById(R.id.LogView);
-        logView.getLayoutParams().width = (int) UnitUtils.dpToPx(UnitUtils.pxToDp(AppUtils.getScreenWidth()) * 0.7f);
-
+        logView.getLayoutParams().width = (int) UnitUtils.dpToPx(
+                UnitUtils.pxToDp(AppUtils.getScreenWidth()) * 0.7f);
         findViewById(R.id.BTCancel).setVisibility(View.GONE);
 
-        LinearLayout llBottomBarPanel = findViewById(R.id.LLBottomBarPanel);
-        llBottomBarPanel.setVisibility(View.VISIBLE);
-
-        View toolbarView = LayoutInflater.from(context).inflate(R.layout.debug_toolbar, llBottomBarPanel, false);
-
-        toolbarView.findViewById(R.id.BTClear).setOnClickListener((v) -> logView.clear());
-
-        toolbarView.findViewById(R.id.BTPause).setOnClickListener((v) -> {
+        LinearLayout bottomBar = findViewById(R.id.LLBottomBarPanel);
+        bottomBar.setVisibility(View.VISIBLE);
+        View toolbar = LayoutInflater.from(context).inflate(R.layout.debug_toolbar, bottomBar, false);
+        toolbar.findViewById(R.id.BTClear).setOnClickListener(v -> logView.clear());
+        toolbar.findViewById(R.id.BTPause).setOnClickListener(v -> {
             setPaused(!paused);
-            ((ImageButton) v).setImageResource(getPaused() ? R.drawable.icon_play : R.drawable.icon_pause);
+            ((ImageButton) v).setImageResource(paused ? R.drawable.icon_play : R.drawable.icon_pause);
         });
+        View shareButton = toolbar.findViewById(R.id.BTShareLog);
+        if (shareButton != null) shareButton.setOnClickListener(v -> shareLogFile(context));
+        bottomBar.addView(toolbar);
 
-        View btShare = toolbarView.findViewById(R.id.BTShareLog);
-        if (btShare != null) {
-            btShare.setOnClickListener((v) -> shareLogFile(context));
+        openLogWriter(false);
+        call("WinXclipse backend log session");
+        call("app=" + BuildConfig.APPLICATION_ID + " version=" + BuildConfig.VERSION_NAME
+                + " android=" + Build.VERSION.SDK_INT + " device=" + Build.MANUFACTURER + " " + Build.MODEL);
+
+        List<String> history = ProcessHelper.getRecentDebugLines();
+        if (!history.isEmpty()) {
+            call("Recent process output (" + history.size() + " lines)");
+            for (String line : history) call("[history] " + line);
         }
-
-        llBottomBarPanel.addView(toolbarView);
-
-        try {
-            logFile = new File(context.getCacheDir(), "winxclipse_backend_logs.txt");
-            writer = new BufferedWriter(new FileWriter(logFile, false));
-        }
-        catch (IOException e) {
-            writer = null;
-            logView.append("Log file disabled: " + e.getMessage() + "\n");
-        }
-
-        call("WinXclipse Backend Logs - logcat snapshot");
         loadInitialLogcat();
+    }
+
+    @Override
+    public void show() {
+        if (writer == null) openLogWriter(true);
+        ProcessHelper.addDebugCallback(this);
+        super.show();
     }
 
     private void loadInitialLogcat() {
         new Thread(() -> {
-            final int[] count = {0};
+            int count = 0;
             try {
-                Process process = new ProcessBuilder("logcat", "-d", "-t", "300").redirectErrorStream(true).start();
+                java.lang.Process process = new ProcessBuilder("logcat", "-d", "-t", "300",
+                        "--pid=" + android.os.Process.myPid()).redirectErrorStream(true).start();
                 try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                     String line;
                     while ((line = reader.readLine()) != null) {
-                        final String out = line;
-                        count[0]++;
-                        logView.post(() -> call(out));
+                        count++;
+                        call("[logcat] " + line);
                     }
                 }
-                process.destroy();
-
-                if (count[0] == 0) {
-                    logView.post(() -> call("logcat returned no visible lines for this app."));
-                }
+                process.waitFor();
+                if (count == 0) call("[logcat] no visible application lines");
             }
             catch (Exception e) {
-                logView.post(() -> call("Failed to read logcat: " + e.getMessage()));
+                call("[logcat] read failed: " + e.getMessage());
             }
         }, "WinXclipseLogcatLoader").start();
     }
 
     @Override
     public void call(final String line) {
-        if (!getPaused()) {
-            logView.append(line + "\n");
-        }
+        if (!paused) logView.post(() -> logView.append(line));
 
-        if (writer != null) {
+        synchronized (writerLock) {
+            if (writer == null) return;
             try {
-                writer.write(line + "\n");
-                writer.flush();
+                writer.write("[" + timestamp() + "] " + line);
+                writer.newLine();
+                if (++pendingLines >= FLUSH_INTERVAL_LINES) {
+                    writer.flush();
+                    pendingLines = 0;
+                }
+            }
+            catch (IOException e) {
+                closeWriter();
+                logView.post(() -> logView.append("Log file write disabled: " + e.getMessage()));
+            }
+        }
+    }
+
+    private void openLogWriter(boolean append) {
+        synchronized (writerLock) {
+            try {
+                if (logFile == null) {
+                    String name = "winxclipse_backend_" + new SimpleDateFormat(
+                            "yyyyMMdd_HHmmss", Locale.US).format(new Date()) + ".txt";
+                    logFile = new File(getContext().getCacheDir(), name);
+                }
+                writer = new BufferedWriter(new FileWriter(logFile, append));
+                pendingLines = 0;
             }
             catch (IOException e) {
                 writer = null;
-                logView.append("Log file write disabled: " + e.getMessage() + "\n");
+                logView.post(() -> logView.append("Log file disabled: " + e.getMessage()));
             }
         }
     }
 
     private void shareLogFile(Context context) {
         try {
-            if (writer != null) writer.flush();
-
+            synchronized (writerLock) {
+                if (writer != null) writer.flush();
+                pendingLines = 0;
+            }
             if (logFile == null || !logFile.exists() || logFile.length() == 0) {
-                call("No log file to share yet.");
                 Toast.makeText(context, "No log file to share yet", Toast.LENGTH_SHORT).show();
                 return;
             }
 
-            Uri uri = FileProvider.getUriForFile(context, context.getPackageName() + ".fileprovider", logFile);
-
+            Uri uri = FileProvider.getUriForFile(context,
+                    context.getPackageName() + ".fileprovider", logFile);
             Intent shareIntent = new Intent(Intent.ACTION_SEND);
             shareIntent.setType("text/plain");
             shareIntent.putExtra(Intent.EXTRA_STREAM, uri);
             shareIntent.putExtra(Intent.EXTRA_SUBJECT, "WinXclipse Backend Log");
             shareIntent.putExtra(Intent.EXTRA_TEXT, "Backend log from WinXclipse");
             shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-
             context.startActivity(Intent.createChooser(shareIntent, "Share log"));
         }
         catch (Exception e) {
@@ -145,17 +174,31 @@ public class DebugDialog extends ContentDialog implements Callback<String> {
 
     @Override
     public void dismiss() {
+        ProcessHelper.removeDebugCallback(this);
+        synchronized (writerLock) {
+            closeWriter();
+        }
+        super.dismiss();
+    }
+
+    private void closeWriter() {
+        if (writer == null) return;
         try {
-            if (writer != null) writer.close();
+            writer.flush();
+            writer.close();
         }
         catch (IOException ignored) {
         }
         writer = null;
-        super.dismiss();
+        pendingLines = 0;
     }
 
-    public static void setPaused(boolean cond) {
-        paused = cond;
+    private static String timestamp() {
+        return new SimpleDateFormat("HH:mm:ss.SSS", Locale.US).format(new Date());
+    }
+
+    public static void setPaused(boolean value) {
+        paused = value;
     }
 
     public static boolean getPaused() {

@@ -22,4 +22,10 @@
     <attr name="extraKeysButtonActiveTextColor" format="reference" />
     <attr name="extraKeysButtonBackgroundColor" format="reference" />
     <attr name="extraKeysButtonActiveBackgroundColor" format="reference" />
+    <attr name="winxFieldBackground" format="reference" />
+    <attr name="winxEditTextBackground" format="reference" />
+    <attr name="winxPopupBackground" format="reference" />
+    <attr name="winxPanelBackground" format="reference" />
+    <attr name="winxSurfaceColor" format="color" />
+    <attr name="winxOnSurfaceColor" format="color" />
 </resources>

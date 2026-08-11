@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="350dp"
+    android:layout_height="260dp"
+    android:orientation="vertical">
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fadeScrollbars="false"
+        android:scrollbars="vertical">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="10dp">
+
+            <CheckBox
+                android:id="@+id/CBHudEnable"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Show HUD"
+                android:textStyle="bold" />
+
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp">
+
+                <LinearLayout style="@style/FieldSet">
+                    <CheckBox android:id="@+id/CBHudFPS" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Show FPS" />
+                    <CheckBox android:id="@+id/CBHudGraph" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Show FPS Graph" />
+                    <CheckBox android:id="@+id/CBHudRenderer" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Show Renderer" />
+                    <CheckBox android:id="@+id/CBHudWrapper" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Show Wrapper Name" />
+                    <CheckBox android:id="@+id/CBHudVertical" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Vertical Layout" />
+                    <CheckBox android:id="@+id/CBHudLocked" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Lock HUD Position" />
+                </LinearLayout>
+
+                <TextView style="@style/FieldSetLabel" android:text="Performance" />
+            </FrameLayout>
+
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp">
+
+                <LinearLayout style="@style/FieldSet">
+                    <CheckBox android:id="@+id/CBHudGPU" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Show GPU Load" />
+                    <CheckBox android:id="@+id/CBHudCPU" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Show CPU Load" />
+                    <CheckBox android:id="@+id/CBHudCPUTemp" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Show CPU Temperature" />
+                    <CheckBox android:id="@+id/CBHudRAM" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Show RAM Usage" />
+                    <CheckBox android:id="@+id/CBHudBattery" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Show Battery/Power" />
+                    <CheckBox android:id="@+id/CBHudBatteryPct" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Show Battery Percentage" />
+                </LinearLayout>
+
+                <TextView style="@style/FieldSetLabel" android:text="Hardware Info" />
+            </FrameLayout>
+
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp">
+
+                <LinearLayout style="@style/FieldSet">
+                    <CheckBox android:id="@+id/CBHudMono" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Monochrome Mode" />
+                    <CheckBox android:id="@+id/CBHudBorder" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Show Border" />
+                    <CheckBox android:id="@+id/CBHudCompact" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Compact Mode" />
+
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:orientation="horizontal">
+                        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Transparency" android:textColor="?attr/winxOnSurfaceColor" />
+                        <TextView android:id="@+id/TVHudAlpha" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="100%" android:textColor="?attr/winxOnSurfaceColor" />
+                    </LinearLayout>
+                    <SeekBar android:id="@+id/SBHudAlpha" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100" />
+
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+                        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Scale" android:textColor="?attr/winxOnSurfaceColor" />
+                        <TextView android:id="@+id/TVHudScale" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="1.0x" android:textColor="?attr/winxOnSurfaceColor" />
+                    </LinearLayout>
+                    <SeekBar android:id="@+id/SBHudScale" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100" />
+
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Position Preset" android:textColor="?attr/winxOnSurfaceColor" />
+                    <Spinner android:id="@+id/SPHudPreset" style="@style/ComboBox" android:layout_width="match_parent" android:layout_height="wrap_content" />
+                </LinearLayout>
+
+                <TextView style="@style/FieldSetLabel" android:text="Appearance" />
+            </FrameLayout>
+
+            <Button
+                android:id="@+id/BTHudReset"
+                style="@style/ButtonNeutral"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="12dp"
+                android:text="Reset to Defaults" />
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

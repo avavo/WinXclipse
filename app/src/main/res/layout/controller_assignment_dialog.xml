@@ -25,6 +25,14 @@
             android:padding="8dp"
             android:visibility="gone" />
 
+        <Button
+            android:id="@+id/BTInputControls"
+            style="@style/ButtonPositive"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:text="@string/input_controls" />
+
         <!-- ===== Reusable row pattern: top (label+name), bottom (actions) ===== -->
 
         <!-- Player 1 -->

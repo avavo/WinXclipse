@@ -264,13 +264,13 @@ public class ContainerManager {
         return null;
     }
 
-    private void extractCommonDlls(WineInfo wineInfo, String srcName, String dstName, File containerDir, OnExtractFileListener onExtractFileListener) throws JSONException {
-        if (wineInfo == null || wineInfo.path == null) {
+    private void extractCommonDlls(WineInfo wineInfo, File wineLibDir, String srcName, String dstName, File containerDir, OnExtractFileListener onExtractFileListener) throws JSONException {
+        if (wineInfo == null || wineLibDir == null) {
             Log.w("ContainerManager", "Skipping common DLL extraction: missing WineInfo for " + srcName);
             return;
         }
 
-        File srcDir = new File(wineInfo.path + "/lib/wine/" + srcName);
+        File srcDir = new File(wineLibDir, srcName);
         if (!srcDir.isDirectory()) {
             Log.w("ContainerManager", "Skipping common DLL extraction: missing source dir " + srcDir.getAbsolutePath());
             return;
@@ -291,7 +291,7 @@ public class ContainerManager {
         for (File file : srcfiles) {
             String dllName = file.getName();
             if (dllName.equals("iexplore.exe") && wineInfo.isArm64EC() && srcName.equals("aarch64-windows")) {
-                File fallbackFile = new File(wineInfo.path + "/lib/wine/" + "i386-windows/iexplore.exe");
+                File fallbackFile = new File(wineLibDir, "i386-windows/iexplore.exe");
                 if (fallbackFile.isFile()) file = fallbackFile;
             }
 
@@ -309,22 +309,31 @@ public class ContainerManager {
 
     public boolean extractContainerPatternFile(Container container, String wineVersion, ContentsManager contentsManager, File containerDir, OnExtractFileListener onExtractFileListener) {
         WineInfo wineInfo = WineInfo.fromIdentifier(context, contentsManager, wineVersion);
+        ContentProfile runtimeProfile = contentsManager.getProfileByEntryName(wineVersion);
+        File runtimeRoot = wineInfo.path != null ? new File(wineInfo.path) : null;
+        File wineLibDir = runtimeProfile != null
+                ? ContentsManager.getSourceFile(context, runtimeProfile, runtimeProfile.wineLibPath)
+                : runtimeRoot != null ? new File(runtimeRoot, "lib/wine") : null;
         String containerPattern = wineVersion + "_container_pattern.tzst";
         boolean result = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context, containerPattern, containerDir, onExtractFileListener);
 
         if (!result) {
-            File containerPatternFile = new File(wineInfo.path + "/prefixPack.txz");
-            result = TarCompressorUtils.extract(TarCompressorUtils.Type.XZ, containerPatternFile, containerDir);
+            File containerPatternFile = runtimeProfile != null
+                    ? ContentsManager.getSourceFile(context, runtimeProfile, runtimeProfile.winePrefixPack)
+                    : new File(runtimeRoot, "prefixPack.txz");
+            TarCompressorUtils.Type compression = TarCompressorUtils.detectType(containerPatternFile);
+            result = compression != null
+                    && TarCompressorUtils.extract(compression, containerPatternFile, containerDir);
         }
 
         if (result) {
             try {
                 if (wineInfo.isArm64EC())
-                    extractCommonDlls(wineInfo, "aarch64-windows", "system32", containerDir, onExtractFileListener); // arm64ec only
+                    extractCommonDlls(wineInfo, wineLibDir, "aarch64-windows", "system32", containerDir, onExtractFileListener); // arm64ec only
                 else
-                    extractCommonDlls(wineInfo, "x86_64-windows", "system32", containerDir, onExtractFileListener);
+                    extractCommonDlls(wineInfo, wineLibDir, "x86_64-windows", "system32", containerDir, onExtractFileListener);
 
-                extractCommonDlls(wineInfo, "i386-windows", "syswow64", containerDir, onExtractFileListener);
+                extractCommonDlls(wineInfo, wineLibDir, "i386-windows", "syswow64", containerDir, onExtractFileListener);
             }
             catch (JSONException e) {
                 return false;

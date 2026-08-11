@@ -130,7 +130,7 @@ public class Box86_64EditPresetDialog extends ContentDialog {
                     spinner.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
                     spinner.setVisibility(View.VISIBLE);
                     spinner.setEnabled(!readonly);
-                    spinner.setAdapter(new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, values));
+                    spinner.setAdapter(new com.winlator.cmod.widget.ThemedSpinnerAdapter<>(spinner.getContext(), values));
                     AppUtils.setSpinnerSelectionFromValue(spinner, value);
                 }
 

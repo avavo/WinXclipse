@@ -19,3 +19,16 @@ wxb/
 apktool.yml
 
 *.log
+
+# Runtime/config assets required to reproduce the WinXclipse APK. The large
+# runtime archives are already configured for Git LFS in .gitattributes.
+!app/src/main/assets/
+app/src/main/assets/*
+!app/src/main/assets/fexcore_env_vars.json
+!app/src/main/assets/imagefs.txz
+!app/src/main/assets/proton-9.0-arm64ec.txz
+!app/src/main/assets/layers.tzst
+!app/src/main/assets/graphics_driver/
+app/src/main/assets/graphics_driver/*
+!app/src/main/assets/graphics_driver/leegao_bcn.tzst
+!app/src/main/assets/graphics_driver/wrapper-gamenative.tzst

@@ -1,59 +1,63 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:orientation="horizontal"
-    android:paddingLeft="16dp"
-    android:paddingRight="16dp"
-    android:gravity="center_vertical">
+    android:layout_height="220dp"
+    android:layout_margin="8dp">
 
     <LinearLayout
         android:id="@+id/LLInnerArea"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_weight="1"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/shortcut_tile_background"
         android:clickable="true"
         android:focusable="true"
-        android:layout_marginRight="12dp"
-        android:orientation="horizontal">
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="8dp">
 
-        <ImageButton
+        <ImageView
             android:id="@+id/ImageView"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:layout_marginRight="16dp"
-            android:layout_marginTop="8dp"
-            android:layout_marginBottom="8dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
+            android:layout_width="132dp"
+            android:layout_height="132dp"
+            android:contentDescription="@string/shortcuts"
             android:scaleType="fitCenter" />
 
         <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:background="@drawable/shortcut_label_background"
+            android:gravity="center"
             android:orientation="vertical"
-            android:gravity="center_vertical">
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="5dp">
 
             <TextView
                 android:id="@+id/TVTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textColor="@color/colorPrimary"
-                android:textStyle="bold"
                 android:ellipsize="end"
-                android:maxLines="1" />
+                android:gravity="center"
+                android:maxLines="1"
+                android:textColor="?attr/winxOnSurfaceColor"
+                android:textStyle="bold" />
 
             <TextView
                 android:id="@+id/TVSubtitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:ellipsize="end"
-                android:maxLines="1" />
+                android:gravity="center"
+                android:maxLines="1"
+                android:textColor="?attr/winxOnSurfaceColor"
+                android:textSize="12sp" />
         </LinearLayout>
     </LinearLayout>
 
     <ImageButton
-        style="@style/ListMenuButton"
         android:id="@+id/BTMenu"
+        style="@style/ListMenuButton"
+        android:layout_gravity="top|end"
+        android:background="?attr/selectableItemBackgroundBorderless"
         android:src="@drawable/icon_list_item_menu" />
-</LinearLayout>
+</FrameLayout>

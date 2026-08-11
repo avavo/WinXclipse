@@ -20,7 +20,7 @@
                 android:text="@string/name" />
 
             <EditText
-                style="@style/AppTheme"
+                style="@style/EditText"
                 android:id="@+id/ETName"
                 android:inputType="textCapSentences"
                 android:layout_width="match_parent"
@@ -71,7 +71,7 @@
                             android:text="@string/width" />
 
                         <EditText
-                            style="@style/AppTheme"
+                            style="@style/EditText"
                             android:layout_width="78dp"
                             android:layout_height="wrap_content"
                             android:id="@+id/ETScreenWidth"
@@ -100,7 +100,7 @@
                             android:text="@string/height" />
 
                         <EditText
-                            style="@style/AppTheme"
+                            style="@style/EditText"
                             android:layout_width="78dp"
                             android:layout_height="wrap_content"
                             android:id="@+id/ETScreenHeight"
@@ -261,7 +261,7 @@
                 android:orientation="horizontal">
 
                 <EditText
-                    style="@style/AppTheme"
+                    style="@style/EditText"
                     android:layout_gravity="center"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
@@ -281,6 +281,18 @@
                 android:layout_height="wrap_content"
                 android:text="@string/show_fps"
                 android:layout_marginTop="8dp" />
+
+            <TextView
+                android:id="@+id/TVHudMode"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/hud_mode" />
+
+            <Spinner
+                android:id="@+id/SHudMode"
+                style="@style/ComboBox"
+                android:layout_width="match_parent"
+                android:entries="@array/hud_mode_entries" />
 
             <CheckBox
                 android:id="@+id/CBFullscreenStretched"

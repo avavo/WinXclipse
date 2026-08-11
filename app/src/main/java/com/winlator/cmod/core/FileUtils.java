@@ -5,8 +5,11 @@ import android.content.res.AssetManager;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Environment;
 import android.os.StatFs;
+import android.os.storage.StorageManager;
+import android.os.storage.StorageVolume;
 import android.provider.DocumentsContract;
 import android.provider.OpenableColumns;
 import android.system.ErrnoException;
@@ -26,8 +29,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.RandomAccessFile;
-import java.io.UnsupportedEncodingException;
-import java.net.URLDecoder;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -344,32 +345,66 @@ public abstract class FileUtils {
     }
 
     public static String getFilePathFromUriUsingSAF(Context context, Uri uri) {
-        Log.d(TAG, "getFilePathFromUriUsingSAF called with URI: " + uri.toString());
+        if (context == null || uri == null || !DocumentsContract.isTreeUri(uri)
+                || !"com.android.externalstorage.documents".equals(uri.getAuthority())) {
+            return null;
+        }
 
-        String documentId;
+        final String documentId;
         try {
             documentId = DocumentsContract.getTreeDocumentId(uri);
-        } catch (IllegalArgumentException e) {
-            Log.e(TAG, "Invalid URI: " + uri.toString(), e);
+        }
+        catch (IllegalArgumentException e) {
+            Log.e(TAG, "Invalid storage tree URI: " + uri, e);
             return null;
         }
 
-        Log.d(TAG, "Document ID: " + documentId);
-        String[] split = documentId.split(":");
-        String type = split[0];
-        String path = split.length > 1 ? split[1] : "";
+        String[] parts = documentId.split(":", 2);
+        String volumeId = parts[0];
+        String relativePath = parts.length == 2 ? parts[1] : "";
+        File root = null;
+
+        if ("primary".equalsIgnoreCase(volumeId)) {
+            root = Environment.getExternalStorageDirectory();
+        }
+        else if ("home".equalsIgnoreCase(volumeId)) {
+            root = new File(Environment.getExternalStorageDirectory(),
+                    Environment.DIRECTORY_DOCUMENTS);
+        }
+        else {
+            StorageManager storageManager = context.getSystemService(StorageManager.class);
+            if (storageManager != null) {
+                for (StorageVolume volume : storageManager.getStorageVolumes()) {
+                    String uuid = volume.getUuid();
+                    if (uuid != null && volumeId.equalsIgnoreCase(uuid)) {
+                        root = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+                                ? volume.getDirectory()
+                                : new File("/storage", volumeId);
+                        break;
+                    }
+                }
+            }
+            if (root == null && volumeId.matches("[A-Za-z0-9_-]+")) {
+                File publicMount = new File("/storage", volumeId);
+                if (publicMount.isDirectory()) root = publicMount;
+            }
+        }
+
+        if (root == null) return null;
 
         try {
-            path = URLDecoder.decode(path, "UTF-8");
-        } catch (UnsupportedEncodingException e) {
-            Log.e(TAG, "Error decoding path: " + path, e);
-            return null;
+            File selected = relativePath.isEmpty() ? root : new File(root, relativePath);
+            String rootPath = root.getCanonicalPath();
+            String selectedPath = selected.getCanonicalPath();
+            if (!selectedPath.equals(rootPath)
+                    && !selectedPath.startsWith(rootPath + File.separator)) {
+                return null;
+            }
+            return selected.isDirectory() && selected.canRead() ? selectedPath : null;
         }
-
-        if ("primary".equalsIgnoreCase(type)) {
-            return Environment.getExternalStorageDirectory() + "/" + path;
-        } else {
-            return "/mnt/media_rw/" + type + "/" + path;
+        catch (IOException e) {
+            Log.e(TAG, "Unable to resolve storage tree URI: " + uri, e);
+            return null;
         }
     }
 

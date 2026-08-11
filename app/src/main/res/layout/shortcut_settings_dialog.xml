@@ -2,12 +2,14 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:gravity="center_horizontal"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <LinearLayout
         android:id="@+id/LLContent"
         android:layout_width="340dp"
         android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
         android:orientation="vertical"
         android:padding="8dp">
 
@@ -166,7 +168,7 @@
                 android:layout_height="22dp"
                 android:layout_marginLeft="4dp"
                 android:src="@drawable/icon_help"
-                app:tint="#e0e0e0" />
+                app:tint="?colorAccent" />
         </LinearLayout>
 
         <LinearLayout
@@ -363,7 +365,7 @@
 
                 <TextView
                     style="@style/FieldSetLabel"
-                    android:background="#ffffff"
+                    android:background="?attr/winxSurfaceColor"
                     android:text="@string/directx" />
             </FrameLayout>
 
@@ -378,7 +380,7 @@
 
                 <TextView
                     style="@style/FieldSetLabel"
-                    android:background="#ffffff"
+                    android:background="?attr/winxSurfaceColor"
                     android:text="@string/general" />
             </FrameLayout>
         </LinearLayout>
@@ -457,7 +459,7 @@
 
                 <TextView
                     style="@style/FieldSetLabel"
-                    android:background="#ffffff"
+                    android:background="?attr/winxSurfaceColor"
                     android:text="@string/box86_box64" />
             </FrameLayout>
             
@@ -493,7 +495,7 @@
                     
                 <TextView
                     style="@style/FieldSetLabel"
-                    android:background="#ffffff"
+                    android:background="?attr/winxSurfaceColor"
                     android:text="@string/fexcore_config" />
                     
             </FrameLayout>
@@ -576,7 +578,7 @@
 
                 <TextView
                     style="@style/FieldSetLabel"
-                    android:background="#ffffff"
+                    android:background="?attr/winxSurfaceColor"
                     android:text="@string/input_controls" />
             </FrameLayout>
 
@@ -702,7 +704,7 @@
 
                 <TextView
                     style="@style/FieldSetLabel"
-                    android:background="#ffffff"
+                    android:background="?attr/winxSurfaceColor"
                     android:text="@string/system" />
             </FrameLayout>
 
@@ -788,7 +790,7 @@
 
                 <TextView
                     style="@style/FieldSetLabel"
-                    android:background="#ffffff"
+                    android:background="?attr/winxSurfaceColor"
                     android:text="@string/vkbasalt" />
             </FrameLayout>
 

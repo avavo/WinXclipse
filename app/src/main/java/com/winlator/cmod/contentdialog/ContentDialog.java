@@ -1,6 +1,5 @@
 package com.winlator.cmod.contentdialog;
 
-import android.app.Dialog;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Color;
@@ -8,6 +7,7 @@ import android.util.SparseBooleanArray;
 import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
+import android.view.Gravity;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
@@ -20,6 +20,7 @@ import android.widget.ListView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatDialog;
 import androidx.preference.PreferenceManager;
 
 import com.winlator.cmod.R;
@@ -29,7 +30,7 @@ import com.winlator.cmod.inputcontrols.ControllerManager;
 
 import java.util.ArrayList;
 
-public class ContentDialog extends Dialog {
+public class ContentDialog extends AppCompatDialog {
     public Runnable onConfirmCallback;
     private Runnable onCancelCallback;
     private final View contentView;
@@ -54,10 +55,19 @@ public class ContentDialog extends Dialog {
 
     private View inflatedLayout;
 
+    private static int resolveDialogStyle(Context context) {
+        boolean darkMode = PreferenceManager.getDefaultSharedPreferences(context)
+                .getBoolean("dark_mode", false);
+        return darkMode ? R.style.ContentDialog_Dark : R.style.ContentDialog;
+    }
 
     public ContentDialog(@NonNull Context context, int layoutResId) {
-        super(context, R.style.ContentDialog);
-        contentView = LayoutInflater.from(context).inflate(R.layout.content_dialog, null);
+        super(context, resolveDialogStyle(context));
+        // Inflate from the dialog context.  XServerDisplayActivity deliberately uses a
+        // fullscreen theme, so using the Activity context here made child controls keep
+        // the light palette even when this dialog selected ContentDialog_Dark.
+        LayoutInflater themedInflater = LayoutInflater.from(getContext());
+        contentView = themedInflater.inflate(R.layout.content_dialog, null);
 
 
         SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context);
@@ -65,16 +75,15 @@ public class ContentDialog extends Dialog {
 
 //        contentView.setBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark: R.drawable.content_dialog_background);
 
-        if (isDarkMode) {
-            this.getContext().setTheme(R.style.ContentDialog_Dark);
-        }
-
-
         if (layoutResId > 0) {
             FrameLayout frameLayout = contentView.findViewById(R.id.FrameLayout);
             frameLayout.setVisibility(View.VISIBLE);
-            View view = LayoutInflater.from(context).inflate(layoutResId, frameLayout, false);
+            View view = themedInflater.inflate(layoutResId, frameLayout, false);
+            FrameLayout.LayoutParams layoutParams = (FrameLayout.LayoutParams) view.getLayoutParams();
+            layoutParams.gravity = Gravity.CENTER;
+            view.setLayoutParams(layoutParams);
             frameLayout.addView(view);
+            inflatedLayout = view;
         }
 
         View confirmButton = contentView.findViewById(R.id.BTConfirm);

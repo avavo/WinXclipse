@@ -1,6 +1,7 @@
 package com.winlator.cmod.widget;
 
 import android.content.Context;
+import android.content.res.Configuration;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.PointF;
@@ -22,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Date;
 
 public class LogView extends View {
+    private static final int MAX_LINES = 5000;
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final ArrayList<String> lines = new ArrayList<>();
     private final float rowHeight = UnitUtils.dpToPx(30);
@@ -85,16 +87,20 @@ public class LogView extends View {
             float rowY = -scrollPosition.y;
             
             
+            boolean darkMode = (getResources().getConfiguration().uiMode
+                    & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
             for (int i = 0, count = lines.size(); i < count; i++) {
                 if ((rowY + rowHeight) < 0 || rowY >= height) {
                     rowY += rowHeight;
                     continue;
                 }
 
-                paint.setColor((i % 2) != 0 ? 0xffe1f5fe : 0xffffffff);
+                paint.setColor(darkMode
+                        ? ((i % 2) != 0 ? 0xff050505 : 0xff000000)
+                        : ((i % 2) != 0 ? 0xffeef4f8 : 0xfff8fafc));
                 canvas.drawRect(-scrollPosition.x, rowY, width, rowY + rowHeight, paint);
 
-                paint.setColor(0xff212121);
+                paint.setColor(darkMode ? 0xfff5f5f5 : 0xff17212b);
                 float centerY = (rowY - paint.ascent()) + (rowHeight - textHeight) * 0.5f;
                 canvas.drawText(lines.get(i), -scrollPosition.x, centerY, paint);
                 rowY += rowHeight;
@@ -110,7 +116,9 @@ public class LogView extends View {
         float scrollThumbWidth = getScrollThumbWidth();
         float scrollThumbHeight = getScrollThumbHeight();
 
-        paint.setColor(0x33000000);
+        boolean darkMode = (getResources().getConfiguration().uiMode
+                & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+        paint.setColor(darkMode ? 0x66ffffff : 0x33000000);
         float radius = minScrollThumbSize * 0.5f;
 
         canvas.drawRoundRect(scrollThumbX, getHeight() - minScrollThumbSize, scrollThumbX + scrollThumbWidth, getHeight(), radius, radius, paint);
@@ -175,19 +183,28 @@ public class LogView extends View {
 
     public void append(String line) {
         synchronized (lock) {
-            lines.add("["+DateFormat.format("HH:mm:ss", System.currentTimeMillis())+"]  "+line.replace("\n", ""));
+            String safeLine = line == null ? "(null)" : line.replace("\r", "").replace("\n", "");
+            lines.add("["+DateFormat.format("HH:mm:ss", System.currentTimeMillis())+"]  "+safeLine);
+            while (lines.size() > MAX_LINES) lines.remove(0);
             computeScrollSize();
         }
+        postInvalidateOnAnimation();
     }
 
     public static void setFilename(String file) {
-        fileName = file.substring(0, file.lastIndexOf("."));
+        if (file == null || file.trim().isEmpty()) {
+            fileName = "winxclipse";
+            return;
+        }
+        int extension = file.lastIndexOf(".");
+        fileName = extension > 0 ? file.substring(0, extension) : file;
     }
 
     public static File getLogFile() {
-        File winlatorDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Winlator/logs");
+        File winlatorDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "WinXclipse/logs");
         winlatorDir.mkdirs();
-        String logFile = fileName.replaceAll("\\s", "_").toLowerCase() + "_" + DateFormat.format("yyyy-MM-dd_HH-mm-ss", new Date()) + ".txt";
+        String baseName = fileName == null ? "winxclipse" : fileName;
+        String logFile = baseName.replaceAll("\\s", "_").toLowerCase() + "_" + DateFormat.format("yyyy-MM-dd_HH-mm-ss", new Date()) + ".txt";
         return new File(winlatorDir, logFile);
     }
     

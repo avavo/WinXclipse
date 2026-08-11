@@ -4,7 +4,6 @@ import android.app.ActivityManager;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.os.Build;
-import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
@@ -12,6 +11,7 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.PopupMenu;
 import android.widget.TextView;
+import android.util.TypedValue;
 
 import com.winlator.cmod.R;
 import com.winlator.cmod.XServerDisplayActivity;
@@ -19,8 +19,8 @@ import com.winlator.cmod.contentdialog.ContentDialog;
 import com.winlator.cmod.core.CPUStatus;
 import com.winlator.cmod.core.FileUtils;
 import com.winlator.cmod.core.ProcessHelper;
-import com.winlator.cmod.core.StringUtils;
 import com.winlator.cmod.widget.CPUListView;
+import com.winlator.cmod.widget.MemoryUsageBarView;
 import com.winlator.cmod.xenvironment.ImageFs;
 import com.winlator.cmod.xserver.Window;
 import com.winlator.cmod.xserver.XLock;
@@ -60,7 +60,7 @@ public class TaskManagerDialog extends ContentDialog implements OnGetProcessInfo
         });
 
         FileUtils.clear(getIconDir(activity));
-        inflater = LayoutInflater.from(activity);
+        inflater = LayoutInflater.from(getContext());
     }
 
     private void update() {
@@ -76,7 +76,7 @@ public class TaskManagerDialog extends ContentDialog implements OnGetProcessInfo
     }
 
     private void showListItemMenu(final View anchorView, final ProcessInfo processInfo) {
-        PopupMenu listItemMenu = new PopupMenu(activity, anchorView);
+        PopupMenu listItemMenu = new PopupMenu(getContext(), anchorView);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) listItemMenu.setForceShowIcon(true);
 
         listItemMenu.inflate(R.menu.process_popup_menu);
@@ -181,26 +181,42 @@ public class TaskManagerDialog extends ContentDialog implements OnGetProcessInfo
     }
 
     private void updateCPUInfoView() {
-        LinearLayout llCPUInfo = findViewById(R.id.LLCPUInfo);
-        llCPUInfo.removeAllViews();
         short[] clockSpeeds = CPUStatus.getCurrentClockSpeeds();
         int totalClockSpeed = 0;
-        short maxClockSpeed = 0;
+        int totalMaxClockSpeed = 0;
+        final LinearLayout cpuInfo = findViewById(R.id.LLCPUInfo);
 
-        for (int i = 0; i < clockSpeeds.length; i++) {
-            TextView textView = new TextView(activity);
-            textView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
-            short clockSpeed = CPUStatus.getMaxClockSpeed(i);
-            textView.setText(clockSpeeds[i]+"/"+clockSpeed+" MHz");
-            llCPUInfo.addView(textView);
-            totalClockSpeed += clockSpeeds[i];
-            maxClockSpeed = (short)Math.max(maxClockSpeed, clockSpeed);
+        while (cpuInfo.getChildCount() < clockSpeeds.length) {
+            TextView coreView = new TextView(getContext());
+            coreView.setTextColor(resolveThemeColor(R.attr.winxOnSurfaceColor));
+            coreView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
+            coreView.setSingleLine(true);
+            coreView.setPadding(0, 1, 0, 1);
+            cpuInfo.addView(coreView);
+        }
+        while (cpuInfo.getChildCount() > clockSpeeds.length) {
+            cpuInfo.removeViewAt(cpuInfo.getChildCount() - 1);
         }
 
-        int avgClockSpeed = totalClockSpeed / clockSpeeds.length;
+        for (int i = 0; i < clockSpeeds.length; i++) {
+            int current = Math.max(0, clockSpeeds[i]);
+            int maximum = Math.max(0, CPUStatus.getMaxClockSpeed(i));
+            totalClockSpeed += current;
+            totalMaxClockSpeed += maximum;
+            ((TextView)cpuInfo.getChildAt(i)).setText("Core " + (i + 1) + "   "
+                    + current + " / " + maximum + " MHz");
+        }
+
+        int cpuCount = clockSpeeds.length;
+        int avgClockSpeed = cpuCount > 0 ? totalClockSpeed / cpuCount : 0;
+        int avgMaxClockSpeed = cpuCount > 0 ? totalMaxClockSpeed / cpuCount : 0;
+        int cpuUsagePercent = avgMaxClockSpeed > 0
+                ? Math.min(100, Math.max(0, Math.round((avgClockSpeed * 100.0f) / avgMaxClockSpeed)))
+                : 0;
+
         TextView tvCPUTitle = findViewById(R.id.TVCPUTitle);
-        byte cpuUsagePercent = (byte)(((float)avgClockSpeed / maxClockSpeed) * 100.0f);
         tvCPUTitle.setText("CPU ("+cpuUsagePercent+"%)");
+
     }
 
     private void updateMemoryInfoView() {
@@ -208,12 +224,17 @@ public class TaskManagerDialog extends ContentDialog implements OnGetProcessInfo
         ActivityManager.MemoryInfo memoryInfo = new ActivityManager.MemoryInfo();
         activityManager.getMemoryInfo(memoryInfo);
         long usedMem = memoryInfo.totalMem - memoryInfo.availMem;
-        byte memUsagePercent = (byte)(((double)usedMem / memoryInfo.totalMem) * 100.0f);
+        int memUsagePercent = memoryInfo.totalMem > 0
+                ? Math.min(100, Math.max(0, (int)Math.round(((double)usedMem / memoryInfo.totalMem) * 100.0d)))
+                : 0;
 
-        TextView tvMemoryTitle = findViewById(R.id.TVMemoryTitle);
-        tvMemoryTitle.setText(activity.getString(R.string.memory)+" ("+memUsagePercent+"%)");
+        MemoryUsageBarView memoryBar = findViewById(R.id.MemoryUsageBar);
+        memoryBar.setMemoryUsage(memUsagePercent, usedMem, memoryInfo.totalMem);
+    }
 
-        TextView tvMemoryInfo = findViewById(R.id.TVMemoryInfo);
-        tvMemoryInfo.setText(StringUtils.formatBytes(usedMem, false)+"/"+StringUtils.formatBytes(memoryInfo.totalMem));
+    private int resolveThemeColor(int attr) {
+        TypedValue value = new TypedValue();
+        getContext().getTheme().resolveAttribute(attr, value, true);
+        return value.resourceId != 0 ? getContext().getColor(value.resourceId) : value.data;
     }
 }

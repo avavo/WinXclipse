@@ -5,11 +5,28 @@
     android:layout_height="wrap_content"
     android:gravity="center_vertical">
 
-    <Spinner
-        style="@style/ComboBox"
-        android:id="@+id/Spinner"
+    <FrameLayout
         android:layout_width="100dp"
-        android:layout_marginRight="4dp" />
+        android:layout_height="48dp"
+        android:layout_marginRight="4dp">
+
+        <TextView
+            android:id="@+id/TVDriveLetter"
+            style="@style/ComboBox"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="start|center_vertical"
+            android:importantForAccessibility="yes" />
+
+        <Spinner
+            android:id="@+id/Spinner"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:alpha="0.01"
+            android:background="@android:color/transparent"
+            android:dropDownWidth="100dp"
+            android:spinnerMode="dropdown" />
+    </FrameLayout>
 
     <EditText
         style="@style/EditText"

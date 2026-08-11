@@ -202,7 +202,7 @@ public class ExternalControllerBindingsActivity extends AppCompatActivity {
                         break;
                 }
 
-                holder.binding.setAdapter(new ArrayAdapter<>($this, android.R.layout.simple_spinner_dropdown_item, bindingEntries));
+                holder.binding.setAdapter(new com.winlator.cmod.widget.ThemedSpinnerAdapter<>(holder.binding.getContext(), bindingEntries));
                 AppUtils.setSpinnerSelectionFromValue(holder.binding, item.getBinding().toString());
             };
 

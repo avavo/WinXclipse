@@ -1,76 +1,211 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content">
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:fillViewport="true"
+    android:gravity="center_horizontal">
 
     <LinearLayout
         android:layout_width="300dp"
         android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
         android:orientation="vertical"
         android:padding="16dp">
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:paddingBottom="8dp"
+            android:text="@string/graphics_driver_vulkan_version"
+            android:textAppearance="?android:attr/textAppearanceMedium" />
+
+        <Spinner
+            android:id="@+id/SGraphicsDriverVulkanVersion"
+            style="@style/ComboBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:entries="@array/vulkan_version_entries"
+            android:spinnerMode="dialog" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingBottom="8dp"
             android:text="@string/graphics_driver_version"
-            android:textAppearance="?android:attr/textAppearanceMedium"
-            android:paddingBottom="8dp"/>
+            android:textAppearance="?android:attr/textAppearanceMedium" />
 
         <Spinner
-            style="@style/ComboBox"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
             android:id="@+id/SGraphicsDriverVersion"
-            android:spinnerMode="dialog"/>
+            style="@style/ComboBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:spinnerMode="dialog" />
+
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:paddingBottom="8dp"
             android:text="@string/graphics_driver_available_extensions"
-            android:textAppearance="?android:attr/textAppearanceMedium"
-            android:paddingBottom="8dp"/>
+            android:textAppearance="?android:attr/textAppearanceMedium" />
 
-        <Spinner
-            style="@style/ComboBox"
+        <com.winlator.cmod.widget.MultiSelectionComboBox
+            android:id="@+id/MSCAvailableExtensions"
+            style="@style/MultiSelectionComboBox"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:id="@+id/SGraphicsDriverAvailableExtensions"
-            android:spinnerMode="dialog"/>
+            android:layout_height="wrap_content" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:paddingBottom="8dp"
+            android:text="@string/gpu_name"
+            android:textAppearance="?android:attr/textAppearanceMedium" />
+
+        <Spinner
+            android:id="@+id/SGraphicsDriverGPUName"
+            style="@style/ComboBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:spinnerMode="dialog" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingBottom="8dp"
             android:text="@string/graphics_driver_max_device_memory"
-            android:textAppearance="?android:attr/textAppearanceMedium"
-            android:paddingBottom="8dp"/>
+            android:textAppearance="?android:attr/textAppearanceMedium" />
 
         <Spinner
+            android:id="@+id/SGraphicsDriverMaxDeviceMemory"
             style="@style/ComboBox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:id="@+id/SGraphicsDriverMaxDeviceMemory"
             android:entries="@array/device_memory_entries"
-            android:spinnerMode="dialog"/>
-
+            android:spinnerMode="dialog" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/graphics_driver_frame_sync"
-            android:textAppearance="?android:attr/textAppearanceMedium"
-            android:paddingBottom="8dp"/>
+            android:paddingBottom="8dp"
+            android:text="@string/graphics_driver_present_modes"
+            android:textAppearance="?android:attr/textAppearanceMedium" />
 
         <Spinner
+            android:id="@+id/SGraphicsDriverPresentMode"
             style="@style/ComboBox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:id="@+id/SGraphicsDriverFrameSync"
-            android:entries="@array/frame_sync_entries"
-            android:spinnerMode="dialog"/>
+            android:entries="@array/present_mode_entries"
+            android:spinnerMode="dialog" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingBottom="8dp"
+            android:text="@string/graphics_driver_resource_type"
+            android:textAppearance="?android:attr/textAppearanceMedium" />
+
+        <Spinner
+            android:id="@+id/SGraphicsDriverResourceType"
+            style="@style/ComboBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:entries="@array/resource_type_entries"
+            android:spinnerMode="dialog" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingBottom="8dp"
+            android:text="@string/graphics_driver_bcn_emulation"
+            android:textAppearance="?android:attr/textAppearanceMedium" />
+
+        <Spinner
+            android:id="@+id/SGraphicsDriverBCnEmulation"
+            style="@style/ComboBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:entries="@array/bcn_emulation_entries"
+            android:spinnerMode="dialog" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingBottom="8dp"
+            android:text="@string/graphics_driver_bcn_emulation_type"
+            android:textAppearance="?android:attr/textAppearanceMedium" />
+
+        <Spinner
+            android:id="@+id/SGraphicsDriverBCnEmulationType"
+            style="@style/ComboBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:entries="@array/bcn_emulation_type_entries"
+            android:spinnerMode="dialog" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingBottom="8dp"
+            android:text="@string/graphics_driver_bcn_emulation_cache"
+            android:textAppearance="?android:attr/textAppearanceMedium" />
+
+        <Spinner
+            android:id="@+id/SGraphicsDriverBCnEmulationCache"
+            style="@style/ComboBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:entries="@array/bcn_emulation_cache_entries"
+            android:spinnerMode="dialog" />
 
         <CheckBox
+            android:id="@+id/CBSyncFrame"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/graphics_driver_sync_frame" />
+
+        <CheckBox
+            android:id="@+id/CBDisablePresentWait"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/graphics_driver_disable_present_wait" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <CheckBox
+                android:id="@+id/CBASTCTranscode"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/graphics_driver_astc_transcode" />
+
+            <ImageButton
+                android:id="@+id/BTHelpTextureTranscoding"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/texture_transcoding"
+                android:padding="8dp"
+                android:src="@drawable/icon_help"
+                app:tint="?colorAccent" />
+        </LinearLayout>
+
+        <CheckBox
+            android:id="@+id/CBETC2Transcode"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/graphics_driver_etc2_transcode" />
+
+        <CheckBox
             android:id="@+id/CBAdrenotoolsTurnip"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:checked="true"
             android:text="@string/graphics_driver_adrenotools_turnip" />
     </LinearLayout>

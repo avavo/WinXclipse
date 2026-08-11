@@ -215,7 +215,7 @@ public abstract class Box86_64PresetManager {
             }
         }
 
-        spinner.setAdapter(new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, presets));
+        spinner.setAdapter(new com.winlator.cmod.widget.ThemedSpinnerAdapter<>(spinner.getContext(), presets));
         spinner.setSelection(selectedPosition);
     }
 

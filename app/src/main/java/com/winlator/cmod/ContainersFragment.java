@@ -243,7 +243,7 @@ public class ContainersFragment extends Fragment {
         // Use requireActivity() or getActivity() to get the context
         android.content.res.AssetManager assetManager = requireActivity().getAssets();
         String sourceDir = "devLibs";
-        String destDir = "/data/data/com.winlator.cmod/files/imagefs/opt/proton-9.0-arm64ec/lib/wine/aarch64-unix/";
+        String destDir = new java.io.File(requireActivity().getFilesDir(), "imagefs/opt/proton-9.0-arm64ec/lib/wine/aarch64-unix").getAbsolutePath();
 
         try {
             // Create the destination directory if it doesn't exist

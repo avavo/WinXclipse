@@ -237,9 +237,9 @@ public final class FEXCoreManager {
         x87modePresets = new ArrayList<>(Arrays.asList(ctx.getResources().getStringArray(R.array.x87mode_preset_entries)));
         multiblockValues = new ArrayList<>(Arrays.asList(ctx.getResources().getStringArray(R.array.multiblock_values)));
         
-        fexcoreTSOSpinner.setAdapter(new ArrayAdapter<>(ctx, android.R.layout.simple_spinner_dropdown_item, tsoPresets));
-        fexcoreMultiblockSpinner.setAdapter(new ArrayAdapter<>(ctx, android.R.layout.simple_spinner_dropdown_item, multiblockValues));
-        fexcoreX87ModeSpinner.setAdapter(new ArrayAdapter<>(ctx, android.R.layout.simple_spinner_dropdown_item, x87modePresets));
+        fexcoreTSOSpinner.setAdapter(new com.winlator.cmod.widget.ThemedSpinnerAdapter<>(fexcoreTSOSpinner.getContext(), tsoPresets));
+        fexcoreMultiblockSpinner.setAdapter(new com.winlator.cmod.widget.ThemedSpinnerAdapter<>(fexcoreMultiblockSpinner.getContext(), multiblockValues));
+        fexcoreX87ModeSpinner.setAdapter(new com.winlator.cmod.widget.ThemedSpinnerAdapter<>(fexcoreX87ModeSpinner.getContext(), x87modePresets));
         
         if (container != null) 
             configFile = new File(imageFS.home_path + "-" + container.id + "/.fex-emu/Config.json");
@@ -261,9 +261,9 @@ public final class FEXCoreManager {
         x87modePresets = new ArrayList<>(Arrays.asList(ctx.getResources().getStringArray(R.array.x87mode_preset_entries)));
         multiblockValues = new ArrayList<>(Arrays.asList(ctx.getResources().getStringArray(R.array.multiblock_values)));
         
-        fexcoreTSOSpinner.setAdapter(new ArrayAdapter<>(ctx, android.R.layout.simple_spinner_dropdown_item, tsoPresets));
-        fexcoreMultiblockSpinner.setAdapter(new ArrayAdapter<>(ctx, android.R.layout.simple_spinner_dropdown_item, multiblockValues));
-        fexcoreX87ModeSpinner.setAdapter(new ArrayAdapter<>(ctx, android.R.layout.simple_spinner_dropdown_item, x87modePresets));
+        fexcoreTSOSpinner.setAdapter(new com.winlator.cmod.widget.ThemedSpinnerAdapter<>(fexcoreTSOSpinner.getContext(), tsoPresets));
+        fexcoreMultiblockSpinner.setAdapter(new com.winlator.cmod.widget.ThemedSpinnerAdapter<>(fexcoreMultiblockSpinner.getContext(), multiblockValues));
+        fexcoreX87ModeSpinner.setAdapter(new com.winlator.cmod.widget.ThemedSpinnerAdapter<>(fexcoreX87ModeSpinner.getContext(), x87modePresets));
         
          configFile = new File(imageFS.home_path + "-" + shortcut.container.id + "/.fex-emu/AppConfig/" + shortcut.getExecutable() + ".json");
         
@@ -290,7 +290,7 @@ public final class FEXCoreManager {
             int firstDashIndex = entryName.indexOf('-');
             itemList.add(entryName.substring(firstDashIndex + 1));
         }
-        spinner.setAdapter(new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, itemList));
+        spinner.setAdapter(new com.winlator.cmod.widget.ThemedSpinnerAdapter<>(spinner.getContext(), itemList));
         if (container != null)
             AppUtils.setSpinnerSelectionFromValue(spinner, container.getFEXCoreVersion());
         else
@@ -305,7 +305,7 @@ public final class FEXCoreManager {
             int firstDashIndex = entryName.indexOf('-');
             itemList.add(entryName.substring(firstDashIndex + 1));
         }
-        spinner.setAdapter(new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, itemList));
+        spinner.setAdapter(new com.winlator.cmod.widget.ThemedSpinnerAdapter<>(spinner.getContext(), itemList));
         AppUtils.setSpinnerSelectionFromValue(spinner, shortcut.getExtra("fexcoreVersion", shortcut.container.getFEXCoreVersion()));
     }
 

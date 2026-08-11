@@ -191,7 +191,7 @@ public class EnvVarsView extends FrameLayout {
             case "SELECT":
                 String[] items = Arrays.copyOfRange(knownEnvVar, 2, knownEnvVar.length);
                 final Spinner spinner = itemView.findViewById(R.id.Spinner);
-                spinner.setAdapter(new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, items));
+                spinner.setAdapter(new ThemedSpinnerAdapter<>(spinner.getContext(), items));
                 AppUtils.setSpinnerSelectionFromValue(spinner, value);
                 spinner.setVisibility(VISIBLE);
                 applyDarkTheme(spinner);

@@ -16,6 +16,9 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.winlator.cmod.R;
 
 import java.io.File;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class CustomFilePickerActivity extends AppCompatActivity {
 
@@ -24,6 +27,8 @@ public class CustomFilePickerActivity extends AppCompatActivity {
     private FileAdapter fileAdapter;
     private Button confirmButton;
     private Button upButton;  // New Up button
+    private final ExecutorService fileLoader = Executors.newSingleThreadExecutor();
+    private final AtomicInteger loadGeneration = new AtomicInteger();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -98,12 +103,33 @@ public class CustomFilePickerActivity extends AppCompatActivity {
 
 
     private void loadFiles(File directory) {
-        File[] files = directory.listFiles();
-        if (files != null) {
-            fileAdapter = new FileAdapter(files, this::onFileClicked);
-            recyclerView.setAdapter(fileAdapter);
-        }
         upButton.setEnabled(directory.getParentFile() != null);
+        final int generation = loadGeneration.incrementAndGet();
+        final File requestedDirectory = directory;
+        recyclerView.setEnabled(false);
+        recyclerView.setAdapter(new FileAdapter(new File[0], this::onFileClicked));
+        fileLoader.execute(() -> {
+            File[] files = requestedDirectory.listFiles();
+            if (files == null) files = new File[0];
+            final File[] result = files;
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()
+                        || generation != loadGeneration.get()
+                        || !requestedDirectory.equals(currentDirectory)) {
+                    return;
+                }
+                fileAdapter = new FileAdapter(result, this::onFileClicked);
+                recyclerView.setAdapter(fileAdapter);
+                recyclerView.setEnabled(true);
+            });
+        });
+    }
+
+    @Override
+    protected void onDestroy() {
+        loadGeneration.incrementAndGet();
+        fileLoader.shutdownNow();
+        super.onDestroy();
     }
 
     private void onFileClicked(File file) {

@@ -18,8 +18,9 @@ import com.winlator.cmod.core.UnitUtils;
 import java.util.Collections;
 
 public class MultiSelectionComboBox extends AppCompatTextView {
-    private String[] items;
+    private String[] items = new String[0];
     private final ArraySet<String> selectedItemSet = new ArraySet<>();
+    private String displayTitle = "Items";
 
     public MultiSelectionComboBox(@NonNull Context context) {
         this(context, null);
@@ -38,31 +39,61 @@ public class MultiSelectionComboBox extends AppCompatTextView {
     }
 
     public void setItems(String[] items) {
-        this.items = items;
-        setText(getSelectedItemsAsString());
+        setItems(items, "Items");
+    }
+
+    public void setItems(String[] items, String displayTitle) {
+        this.items = items != null ? items : new String[0];
+        this.displayTitle = displayTitle;
+        selectedItemSet.clear();
+        updateDisplayText();
     }
 
     public void setSelectedItems(String[] selectedItems) {
-        Collections.addAll(selectedItemSet, selectedItems);
-        setText(getSelectedItemsAsString());
+        selectedItemSet.clear();
+        if (selectedItems != null) Collections.addAll(selectedItemSet, selectedItems);
+        updateDisplayText();
+    }
+
+    public void unsetSelectedItem(String item) {
+        selectedItemSet.remove(item);
+        updateDisplayText();
     }
 
     public String getSelectedItemsAsString() {
         String result = "";
-        for (String item : items) if (selectedItemSet.contains(item)) result += (!result.isEmpty() ? "," : "")+item;
+        for (String item : items) {
+            if (selectedItemSet.contains(item)) {
+                result += (!result.isEmpty() ? "," : "") + item;
+            }
+        }
         return result;
+    }
+
+    public String getUnSelectedItemsAsString() {
+        String result = "";
+        for (String item : items) {
+            if (!selectedItemSet.contains(item)) {
+                result += (!result.isEmpty() ? "," : "") + item;
+            }
+        }
+        return result;
+    }
+
+    private void updateDisplayText() {
+        setText(selectedItemSet.size() + " " + displayTitle);
     }
 
     @Override
     public boolean performClick() {
-        if (items == null || items.length == 0) return true;
-        final ArrayAdapter<String> adapter = new ArrayAdapter<String>(getContext(), android.R.layout.simple_list_item_multiple_choice, items) {
+        if (items.length == 0) return true;
+        final ArrayAdapter<String> adapter = new ArrayAdapter<String>(getContext(),
+                android.R.layout.simple_list_item_multiple_choice, items) {
             @NonNull
             @Override
             public View getView(int position, @Nullable View convertView, @NonNull ViewGroup parent) {
-                CheckedTextView checkedTextView = (CheckedTextView)super.getView(position, convertView, parent);
+                CheckedTextView checkedTextView = (CheckedTextView) super.getView(position, convertView, parent);
                 checkedTextView.setChecked(selectedItemSet.contains(items[position]));
-                setText(getSelectedItemsAsString());
                 return checkedTextView;
             }
         };
@@ -70,17 +101,14 @@ public class MultiSelectionComboBox extends AppCompatTextView {
         ListPopupWindow popupWindow = new ListPopupWindow(getContext());
         popupWindow.setAdapter(adapter);
         popupWindow.setAnchorView(this);
-        popupWindow.setWidth((int)UnitUtils.dpToPx(260));
-
+        popupWindow.setWidth((int) UnitUtils.dpToPx(260));
         popupWindow.setOnItemClickListener((parent, view, position, id) -> {
             String item = items[position];
-            if (selectedItemSet.contains(item)) {
-                selectedItemSet.remove(item);
-            }
+            if (selectedItemSet.contains(item)) selectedItemSet.remove(item);
             else selectedItemSet.add(item);
+            updateDisplayText();
             adapter.notifyDataSetChanged();
         });
-
         popupWindow.show();
         return true;
     }

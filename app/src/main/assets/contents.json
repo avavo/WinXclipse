@@ -1,27 +1,69 @@
 [
   {
-    "type": "DXVK",
-    "verName": "0.96",
+    "type": "FEXCore",
+    "verName": "2509",
     "verCode": 1,
-    "remoteUrl": "https://github.com/longjunyu2/winlator/releases/download/v7.1.2/dxvk-0.96.wcp"
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-fexcore-v0.8/2509.1.wcp"
   },
   {
-    "type": "DXVK",
-    "verName": "1.10.3",
-    "verCode": 1,
-    "remoteUrl": "https://github.com/longjunyu2/winlator/releases/download/v7.1.2/dxvk-1.10.3.wcp"
+    "type": "FEXCore",
+    "verName": "2510.1",
+    "verCode": 0,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-fexcore-v0.8/2510.1.wcp"
+  },
+  {
+    "type": "FEXCore",
+    "verName": "2511",
+    "verCode": 0,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-fexcore-v0.8/2511.wcp"
+  },
+  {
+    "type": "FEXCore",
+    "verName": "2512",
+    "verCode": 0,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-fexcore-v0.8/2512.wcp"
+  },
+  {
+    "type": "FEXCore",
+    "verName": "2601-aabdded",
+    "verCode": 0,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-fexcore-v0.8/FEXCore-2601-aabdded.wcp"
+  },
+  {
+    "type": "FEXCore",
+    "verName": "2603",
+    "verCode": 0,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-fexcore-v0.8/2603.wcp"
+  },
+  {
+    "type": "FEXCore",
+    "verName": "2604",
+    "verCode": 0,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-fexcore-v0.8/2604.wcp"
   },
   {
     "type": "FEXCore",
     "verName": "2605",
-    "verCode": 2605,
+    "verCode": 0,
     "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-fexcore-v0.8/FEX-2605.wcp"
   },
   {
     "type": "FEXCore",
-    "verName": "2601",
-    "verCode": 2601,
-    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-fexcore-v0.8/FEXCore-2601-aabdded.wcp"
+    "verName": "2607",
+    "verCode": 0,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-fexcore-v0.8/2607.1.wcp"
+  },
+  {
+    "type": "FEXCore",
+    "verName": "2608",
+    "verCode": 0,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-fexcore-v0.8/2608.1.wcp"
+  },
+  {
+    "type": "Proton",
+    "verName": "11.0-1-arm64ec",
+    "verCode": 2,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-wine-proton-v0.8/GE-Proton-11.0-1-FULL-arm64ec-bionic.wcp"
   },
   {
     "type": "Proton",
@@ -31,14 +73,98 @@
   },
   {
     "type": "Proton",
-    "verName": "11.0-1-arm64ec",
-    "verCode": 1101,
-    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-wine-proton-v0.8/proton-wine-11.0-1-arm64ec.wcp.xz"
-  },
-  {
-    "type": "Proton",
     "verName": "bleeding-edge-20260408-arm64ec",
     "verCode": 20260408,
-    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-wine-proton-v0.8/proton-wine-proton-bleeding-edge-20260408-8de17ab-arm64ec.wcp.xz"
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-wine-proton-v0.8/proton-proton-bleeding-edge-20260408-8de17ab-arm64ec.wcp"
+  },
+  {
+    "type": "Wine",
+    "verName": "9.20-x86_64",
+    "verCode": 0,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-wine-proton-v0.8/wine-9.20.wcp"
+  },
+  {
+    "type": "Box64",
+    "verName": "0.3.5",
+    "verCode": 0,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/box/box64-0.3.5.wcp"
+  },
+  {
+    "type": "Box64",
+    "verName": "0.3.6-fix",
+    "verCode": 1,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/box/box64-036fix.wcp"
+  },
+  {
+    "type": "Box64",
+    "verName": "0.3.8",
+    "verCode": 1,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/box/box64-0.3.8.wcp"
+  },
+  {
+    "type": "Box64",
+    "verName": "0.3.9-056999e",
+    "verCode": 1,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/box/box64-0.3.9.wcp"
+  },
+  {
+    "type": "Box64",
+    "verName": "0.4.1-fix",
+    "verCode": 0,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/box/box64-0.4.1-fix.wcp"
+  },
+  {
+    "type": "Box64",
+    "verName": "0.4.2-fix",
+    "verCode": 1,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/box/box64-0.4.2-fix.wcp"
+  },
+  {
+    "type": "Box64",
+    "verName": "0.4.3-260519-024717c",
+    "verCode": 0,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/box/box64-bionic-0.4.3-260519-024717c.wcp"
+  },
+  {
+    "type": "DXVK",
+    "verName": "0.96",
+    "verCode": 1,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/dxvk-and-vkd3d/dxvk-0.96.wcp"
+  },
+  {
+    "type": "DXVK",
+    "verName": "1.7.2",
+    "verCode": 0,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/dxvk-and-vkd3d/dxvk-1.7.2.wcp"
+  },
+  {
+    "type": "VKD3D",
+    "verName": "2.7",
+    "verCode": 0,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/dxvk-and-vkd3d/vkd3d-proton-2.7.wcp"
+  },
+  {
+    "type": "VKD3D",
+    "verName": "2.9",
+    "verCode": 0,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/dxvk-and-vkd3d/vkd3d-proton-2.9.wcp"
+  },
+  {
+    "type": "VKD3D",
+    "verName": "arm64ec-3.0a",
+    "verCode": 0,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/dxvk-and-vkd3d/vkd3d-arm64ec-3.0a.wcp"
+  },
+  {
+    "type": "VKD3D",
+    "verName": "3.0b-71095c7b",
+    "verCode": 1,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/dxvk-and-vkd3d/VKD3D-Proton-3.0b-71095c7b.1.wcp"
+  },
+  {
+    "type": "VKD3D",
+    "verName": "3.0.1-arm64ec",
+    "verCode": 0,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/dxvk-and-vkd3d/vkd3d-proton-arm64ec-3.0.1.wcp"
   }
 ]

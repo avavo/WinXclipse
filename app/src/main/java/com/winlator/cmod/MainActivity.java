@@ -47,6 +47,7 @@ import com.winlator.cmod.contents.ContentProfile;
 import com.winlator.cmod.contents.ContentsManager;
 import com.winlator.cmod.core.Callback;
 import com.winlator.cmod.core.PreloaderDialog;
+import com.winlator.cmod.core.UpdateChecker;
 import com.winlator.cmod.container.ContainerManager;
 import com.winlator.cmod.inputcontrols.ControllerManager;
 import com.winlator.cmod.saves.Save;
@@ -63,6 +64,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executors;
@@ -95,6 +97,9 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        SharedPreferences themePreferences = PreferenceManager.getDefaultSharedPreferences(this);
+        isDarkMode = themePreferences.getBoolean("dark_mode", false);
+        setTheme(isDarkMode ? R.style.AppTheme_Dark : R.style.AppTheme);
         super.onCreate(savedInstanceState);
 
         // Initialize the controller management system
@@ -114,15 +119,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         }
 
         // Load the user's preferred theme
-        sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
-        isDarkMode = sharedPreferences.getBoolean("dark_mode", false);
-
-        // Apply the theme based on the preference
-        if (isDarkMode) {
-            setTheme(R.style.AppTheme_Dark);
-        } else {
-            setTheme(R.style.AppTheme);
-        }
+        sharedPreferences = themePreferences;
 
 
         setContentView(R.layout.main_activity);
@@ -152,8 +149,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         if (editInputControls) {
             selectedProfileId = intent.getIntExtra("selected_profile_id", 0);
             actionBar.setHomeAsUpIndicator(R.drawable.icon_action_bar_back);
-            onNavigationItemSelected(navigationView.getMenu().findItem(R.id.main_menu_input_controls));
-            navigationView.setCheckedItem(R.id.main_menu_input_controls);
+            openInputControls();
         } else {
             int selectedMenuItemId = intent.getIntExtra("selected_menu_item_id", 0);
             int menuItemId = selectedMenuItemId > 0 ? selectedMenuItemId : R.id.main_menu_containers;
@@ -162,19 +158,10 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             onNavigationItemSelected(navigationView.getMenu().findItem(menuItemId));
             navigationView.setCheckedItem(menuItemId);
 
-            // onCreate(), replace the two blocks with this single block
-            boolean waitingForPerms = requestAppPermissions();
-            if (!waitingForPerms) {
-                ImageFsInstaller.installIfNeeded(this, () ->
-                        checkForAndInstallAssetContents(() -> {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
-                                    && !Environment.isExternalStorageManager()) {
-                                showAllFilesAccessDialog();
-                            }
-                        }));
-            }
+            if (!requestLegacyStoragePermissions()) continueStartup();
 
         }
+        UpdateChecker.check(this);
     }
 
     /**
@@ -250,9 +237,14 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 List<String> toInstall = new ArrayList<>();
 
                 for (String asset : assetNames) {
-                    if (!asset.endsWith(".wcp")) continue;
+                    String lowerAsset = asset.toLowerCase(Locale.ENGLISH);
+                    final int suffixLength;
+                    if (lowerAsset.endsWith(".wcp.xz")) suffixLength = 7;
+                    else if (lowerAsset.endsWith(".wcp.zst")) suffixLength = 8;
+                    else if (lowerAsset.endsWith(".wcp")) suffixLength = 4;
+                    else continue;
 
-                    String base = asset.substring(0, asset.length() - 4);   // strip ".wcp"
+                    String base = asset.substring(0, asset.length() - suffixLength);
                     int sep = Math.min(
                             base.indexOf('-') == -1 ? Integer.MAX_VALUE : base.indexOf('-'),
                             base.indexOf('_') == -1 ? Integer.MAX_VALUE : base.indexOf('_'));
@@ -287,7 +279,6 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 }
 
                 if (toInstall.isEmpty()) {
-                    if (onCompletion != null) runOnUiThread(onCompletion);
                     return;
                 }
 
@@ -344,6 +335,8 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     }
 
     private void showAllFilesAccessDialog() {
+        if (allAccessFilesDialogDismissed || isFinishing()) return;
+        allAccessFilesDialogDismissed = true;
         new AlertDialog.Builder(this)
                 .setTitle("USB Storage Access")
                 .setMessage("In order to grant access to additional storage devices such as USB storage device, the All Files Access permission must be granted. You can leave this disabled, or you can enable it for USB storage support.")
@@ -351,26 +344,28 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                     Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
                     intent.setData(Uri.parse("package:" + getPackageName()));
                     startActivity(intent);
-                    allAccessFilesDialogDismissed = true;
                 })
                 .setNegativeButton("Cancel", null)
                 .show();
+    }
+
+    private void continueStartup() {
+        ImageFsInstaller.installIfNeeded(this, () ->
+                checkForAndInstallAssetContents(() -> {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+                            && !Environment.isExternalStorageManager()) {
+                        showAllFilesAccessDialog();
+                    }
+                }));
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == PERMISSION_WRITE_EXTERNAL_STORAGE_REQUEST_CODE) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                ImageFsInstaller.installIfNeeded(this, () -> {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
-                            && !Environment.isExternalStorageManager()) {
-                        showAllFilesAccessDialog();
-                    }
-                });
-            } else {
-                finish();
-            }
+            // The app remains useful with internal storage even if legacy external
+            // storage access was denied. USB access is handled separately on R+.
+            continueStartup();
         }
     }
 
@@ -437,12 +432,11 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         this.openFileCallback = openFileCallback;
     }
 
-    private boolean requestAppPermissions() {
+    private boolean requestLegacyStoragePermissions() {
         boolean hasWritePermission = ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
         boolean hasReadPermission = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
-        boolean hasManageStoragePermission = Build.VERSION.SDK_INT < Build.VERSION_CODES.R || Environment.isExternalStorageManager();
 
-        if (hasWritePermission && hasReadPermission && hasManageStoragePermission) {
+        if (hasWritePermission && hasReadPermission) {
             return false; // All permissions are granted
         }
 
@@ -524,11 +518,11 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 ControllerAssignmentDialog.show(this);
                 drawerLayout.closeDrawers();
                 break;
-            case R.id.main_menu_box_rc:
-                show(new Box86_64RCFragment(), false);  // Forward animation
-                break;
             case R.id.main_menu_contents:
                 show(new ContentsFragment(), false);  // Forward animation
+                break;
+            case R.id.main_menu_file_manager:
+                show(new FileManagerFragment(), false);
                 break;
             case R.id.main_menu_adrenotools_gpu_drivers:
                 show(new AdrenotoolsFragment(), false);
@@ -536,9 +530,6 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             case R.id.main_menu_logs:
                 new DebugDialog(this).show();
                 drawerLayout.closeDrawers();
-                break;
-            case R.id.main_menu_saves:
-                show(new SavesFragment(), false);  // Forward animation
                 break;
             case R.id.main_menu_settings:
                 show(new SettingsFragment(), false);  // Forward animation
@@ -568,6 +559,23 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         drawerLayout.closeDrawer(GravityCompat.START);
     }
 
+    public void openInputControls() {
+        show(new InputControlsFragment(selectedProfileId), false);
+    }
+
+    public void openSaves() {
+        show(new SavesFragment(), false);
+    }
+
+    public void openBox64RCFile() {
+        show(new Box86_64RCFragment(), false);
+    }
+
+    public void openBackendLogs() {
+        new DebugDialog(this).show();
+        drawerLayout.closeDrawers();
+    }
+
     private void showAboutDialog() {
         ContentDialog dialog = new ContentDialog(this, R.layout.about_dialog);
         dialog.findViewById(R.id.LLBottomBar).setVisibility(View.GONE);
@@ -591,6 +599,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                     "WinXclipse Exynos/Xclipse adaptation by Álvaro (<a href=\"https://github.com/avavo\">GitHub</a>)",
                     "Based on Winlator by Brunodev85 (<a href=\"https://github.com/brunodev85\">Git</a>)",
                     "Based on Winlator CMod by <a href=\"https://github.com/coffincolors/winlator\">coffincolors</a> and <a href=\"https://github.com/Pipetto-crypto/winlator\">Pipetto-crypto</a>",
+                    "Ports from Winlator Mali (<a href=\"https://github.com/GunaCharanTeja/WinlatorMali\">Git</a>)",
                     "Winlator Glibc by longjunyu2 (<a href=\"https://github.com/longjunyu2/winlator/\">Fork</a>)",
                     "Winlator OpenXR by lvonasek (<a href=\"https://github.com/lvonasek\">Git</a>)",
                     "Big Picture Mode Music by Fumer",

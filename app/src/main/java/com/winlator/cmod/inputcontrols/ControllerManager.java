@@ -275,6 +275,23 @@ public class ControllerManager {
         saveAssignments(); // Persist the change immediately.
     }
 
+    /** Matches Winlator Mali's plug-and-play behavior while retaining explicit
+     * multi-player assignments: the first unassigned enabled slot accepts a new
+     * controller automatically. */
+    public int assignToFirstEnabledFreeSlot(InputDevice device) {
+        if (device == null || !isGameController(device)) return -1;
+        scanForDevices();
+        int existing = getSlotForDevice(device.getId());
+        if (existing >= 0) return existing;
+        for (int slot = 0; slot < enabledSlots.length; slot++) {
+            if (enabledSlots[slot] && getAssignedDeviceForSlot(slot) == null) {
+                assignDeviceToSlot(slot, device);
+                return slot;
+            }
+        }
+        return -1;
+    }
+
     public boolean hasEnabledUnassignedSlot() {
         for (int i = 0; i < 4; i++) {
             if (enabledSlots[i] && getAssignedDeviceForSlot(i) == null) {

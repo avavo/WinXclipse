@@ -61,12 +61,14 @@ import com.winlator.cmod.core.WineRegistryEditor;
 import com.winlator.cmod.core.WineThemeManager;
 import com.winlator.cmod.core.WineUtils;
 import com.winlator.cmod.fexcore.FEXCoreManager;
+import com.winlator.cmod.fexcore.FEXCorePreset;
 import com.winlator.cmod.fexcore.FEXCorePresetManager;
 import com.winlator.cmod.midi.MidiManager;
 import com.winlator.cmod.widget.CPUListView;
 import com.winlator.cmod.widget.ColorPickerView;
 import com.winlator.cmod.widget.EnvVarsView;
 import com.winlator.cmod.widget.ImagePickerView;
+import com.winlator.cmod.widget.ThemedSpinnerAdapter;
 import com.winlator.cmod.winhandler.WinHandler;
 import com.winlator.cmod.xenvironment.ImageFs;
 import com.winlator.cmod.xserver.XKeycode;
@@ -130,16 +132,12 @@ public class ContainerDetailFragment extends Fragment {
     }
 
     private static void applyFieldSetLabelStyle(TextView textView, boolean isDarkMode) {
-//        Context context = textView.getContext();
-
         if (isDarkMode) {
-            // Apply dark mode-specific attributes
-            textView.setTextColor(Color.parseColor("#cccccc")); // Set text color to #cccccc
-            textView.setBackgroundResource(R.color.window_background_color_dark); // Set dark background color
+            textView.setTextColor(Color.WHITE);
+            textView.setBackgroundColor(Color.BLACK);
         } else {
-            // Apply light mode-specific attributes (original FieldSetLabel)
-            textView.setTextColor(Color.parseColor("#bdbdbd")); // Set text color to #bdbdbd
-            textView.setBackgroundResource(R.color.window_background_color); // Set light background color
+            textView.setTextColor(Color.BLACK);
+            textView.setBackgroundResource(R.color.window_background_color);
         }
     }
 
@@ -252,6 +250,16 @@ public class ContainerDetailFragment extends Fragment {
         if (requestCode == MainActivity.OPEN_DIRECTORY_REQUEST_CODE && resultCode == Activity.RESULT_OK) {
             if (data != null) {
                 Uri uri = data.getData();
+                if (uri == null) {
+                    openDirectoryCallback = null;
+                    return;
+                }
+                int grantFlags = data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+                try {
+                    requireContext().getContentResolver().takePersistableUriPermission(uri, grantFlags);
+                }
+                catch (SecurityException ignored) {}
                 Log.d(TAG, "URI obtained in onActivityResult: " + uri.toString());
                 String path = FileUtils.getFilePathFromUri(getContext(), uri);
                 Log.d(TAG, "File path in onActivityResult: " + path);
@@ -260,7 +268,7 @@ public class ContainerDetailFragment extends Fragment {
                         openDirectoryCallback.call(path);
                     }
                 } else {
-                    Toast.makeText(getContext(), "Invalid directory selected", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(getContext(), "The selected storage is unavailable. For USB drives, enable All Files Access and reconnect the drive.", Toast.LENGTH_LONG).show();
                 }
             }
             openDirectoryCallback = null;
@@ -314,7 +322,7 @@ public class ContainerDetailFragment extends Fragment {
         final View view = inflater.inflate(R.layout.container_detail_fragment, root, false);
 
         // Determine if dark mode is enabled
-        isDarkMode = preferences.getBoolean("dark_mode", true); // Adjust this based on how you store theme info
+        isDarkMode = preferences.getBoolean("dark_mode", false);
 
         // Apply dynamic styles
         applyDynamicStyles(view, isDarkMode);
@@ -388,6 +396,13 @@ public class ContainerDetailFragment extends Fragment {
 
         final CheckBox cbShowFPS = view.findViewById(R.id.CBShowFPS);
         cbShowFPS.setChecked(isEditMode() && container.isShowFPS());
+        final Spinner sHudMode = view.findViewById(R.id.SHudMode);
+        int hudModeSelection = 0;
+        if (isEditMode() && "mangohud".equals(container.getHudMode())) hudModeSelection = 1;
+        else if (isEditMode() && "dxvk".equals(container.getHudMode())) hudModeSelection = 2;
+        sHudMode.setSelection(hudModeSelection);
+        sHudMode.setEnabled(cbShowFPS.isChecked());
+        cbShowFPS.setOnCheckedChangeListener((button, checked) -> sHudMode.setEnabled(checked));
 
         final CheckBox cbFullscreenStretched = view.findViewById(R.id.CBFullscreenStretched);
         cbFullscreenStretched.setChecked(isEditMode() && container.isFullscreenStretched());
@@ -495,11 +510,13 @@ public class ContainerDetailFragment extends Fragment {
         final Spinner sFEXCoreVersion = view.findViewById(R.id.SFEXCoreVersion);
         FEXCoreManager.loadFEXCoreVersion(context, contentsManager, sFEXCoreVersion, container);
         final Spinner sFEXCorePreset = view.findViewById(R.id.SFEXCorePreset);
-        FEXCorePresetManager.loadSpinner(sFEXCorePreset, container != null ? container.getFEXCorePreset() : "intermediate");
+        FEXCorePresetManager.loadSpinner(sFEXCorePreset, container != null
+                ? container.getFEXCorePreset()
+                : preferences.getString("fexcore_preset", FEXCorePreset.INTERMEDIATE));
 
         String selectedDriver = sGraphicsDriver.getSelectedItem().toString();
         List<String> sGraphicsItemsList = new ArrayList<>(Arrays.asList(context.getResources().getStringArray(R.array.graphics_driver_entries)));
-        sGraphicsDriver.setAdapter(new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, sGraphicsItemsList));
+        sGraphicsDriver.setAdapter(new ThemedSpinnerAdapter<>(context, sGraphicsItemsList));
         AppUtils.setSpinnerSelectionFromValue(sGraphicsDriver, selectedDriver);
 
         final Spinner sRCFile = view.findViewById(R.id.SRCFile);
@@ -550,7 +567,7 @@ public class ContainerDetailFragment extends Fragment {
                 String envVars = envVarsView.getEnvVars();
                 String graphicsDriver = StringUtils.parseIdentifier(sGraphicsDriver.getSelectedItem());
                 String graphicsDriverConfig = vGraphicsDriverConfig.getTag().toString();
-                String dxwrapper = StringUtils.parseIdentifier(sDXWrapper.getSelectedItem());
+                String dxwrapper = getDXWrapperIdentifier(sDXWrapper.getSelectedItem());
                 String ddrawrapper = StringUtils.parseIdentifier(sDDrawrapper.getSelectedItem());
                 String dxwrapperConfig = vDXWrapperConfig.getTag().toString();
                 String audioDriver = StringUtils.parseIdentifier(sAudioDriver.getSelectedItem());
@@ -558,6 +575,9 @@ public class ContainerDetailFragment extends Fragment {
                 String wincomponents = getWinComponents(view);
                 String drives = getDrives(view);
                 boolean showFPS = cbShowFPS.isChecked();
+                int hudModePosition = sHudMode.getSelectedItemPosition();
+                String hudMode = hudModePosition == 1 ? "mangohud"
+                        : hudModePosition == 2 ? "dxvk" : "winlator";
                 boolean fullscreenStretched = cbFullscreenStretched.isChecked();
 
                 String cpuList = cpuListView.getCheckedCPUListAsString();
@@ -619,6 +639,7 @@ public class ContainerDetailFragment extends Fragment {
                     container.setWinComponents(wincomponents);
                     container.setDrives(drives);
                     container.setShowFPS(showFPS);
+                    container.setHudMode(hudMode);
                     container.setFullscreenStretched(fullscreenStretched);
 //                    container.setInputType(finalInputType);
                     container.setWoW64Mode(wow64Mode);
@@ -627,6 +648,7 @@ public class ContainerDetailFragment extends Fragment {
                     container.setBox64Version(box64Version);
                     container.setBox64Preset(box64Preset);
                     container.setFEXCoreVersion(fexcoreVersion);
+                    container.setFEXCorePreset(FEXCorePresetManager.getSpinnerSelectedId(sFEXCorePreset));
                     container.setDesktopTheme(desktopTheme);
                     container.setRcfileId(rcfileId);
                     container.setMidiSoundFont(midiSoundFont);
@@ -636,7 +658,6 @@ public class ContainerDetailFragment extends Fragment {
                     container.setGstreamerWorkaround(gstreamerWorkaround);
                     container.saveData();
                     saveWineRegistryKeys(view);
-                    container.setFEXCorePreset(FEXCorePresetManager.getSpinnerSelectedId(sFEXCorePreset));
                     getActivity().onBackPressed();
                 } else {
                     // Create new container with specified properties
@@ -656,6 +677,7 @@ public class ContainerDetailFragment extends Fragment {
                     data.put("wincomponents", wincomponents);
                     data.put("drives", drives);
                     data.put("showFPS", showFPS);
+                    data.put("hudMode", hudMode);
 //                    data.put("relativeMouseMovement", isRelativeMouseMovement);
                     data.put("fullscreenStretched", fullscreenStretched);
 //                    data.put("inputType", finalInputType);
@@ -685,7 +707,6 @@ public class ContainerDetailFragment extends Fragment {
                         if (container != null) {
                             this.container = container;
                             saveWineRegistryKeys(view);
-                            container.setFEXCorePreset(FEXCorePresetManager.getSpinnerSelectedId(sFEXCorePreset));
                         }
                         preloaderDialog.close();
                         getActivity().onBackPressed();
@@ -772,12 +793,12 @@ public class ContainerDetailFragment extends Fragment {
 
             List<String> rendererList = Arrays.asList(context.getString(R.string.gl), context.getString(R.string.vulkan), context.getString(R.string.gdi));
             Spinner sRenderer = view.findViewById(R.id.SRenderer);
-            sRenderer.setAdapter(new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, rendererList));
+            sRenderer.setAdapter(new ThemedSpinnerAdapter<>(context, rendererList));
             AppUtils.setSpinnerSelectionFromValue(sRenderer, registryEditor.getStringValue("Software\\Wine\\Direct3D", "renderer", "vulkan"));
 
             List<String> stateList = Arrays.asList(context.getString(R.string.disable), context.getString(R.string.enable));
             Spinner sCSMT = view.findViewById(R.id.SCSMT);
-            sCSMT.setAdapter(new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, stateList));
+            sCSMT.setAdapter(new ThemedSpinnerAdapter<>(context, stateList));
             sCSMT.setSelection(registryEditor.getDwordValue("Software\\Wine\\Direct3D", "csmt", 3) != 0 ? 1 : 0);
 
             Spinner sGPUName = view.findViewById(R.id.SGPUName);
@@ -785,11 +806,11 @@ public class ContainerDetailFragment extends Fragment {
 
             List<String> offscreenRenderingModeList = Arrays.asList("Backbuffer", "FBO");
             Spinner sOffscreenRenderingMode = view.findViewById(R.id.SOffscreenRenderingMode);
-            sOffscreenRenderingMode.setAdapter(new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, offscreenRenderingModeList));
+            sOffscreenRenderingMode.setAdapter(new ThemedSpinnerAdapter<>(context, offscreenRenderingModeList));
             AppUtils.setSpinnerSelectionFromValue(sOffscreenRenderingMode, registryEditor.getStringValue("Software\\Wine\\Direct3D", "OffScreenRenderingMode", "fbo"));
 
             Spinner sStrictShaderMath = view.findViewById(R.id.SStrictShaderMath);
-            sStrictShaderMath.setAdapter(new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, stateList));
+            sStrictShaderMath.setAdapter(new ThemedSpinnerAdapter<>(context, stateList));
             sStrictShaderMath.setSelection(Math.min(registryEditor.getDwordValue("Software\\Wine\\Direct3D", "strict_shader_math", 1), 1));
 
             Spinner sVideoMemorySize = view.findViewById(R.id.SVideoMemorySize);
@@ -798,7 +819,7 @@ public class ContainerDetailFragment extends Fragment {
 
             List<String> mouseWarpOverrideList = Arrays.asList(context.getString(R.string.disable), context.getString(R.string.enable), context.getString(R.string.force));
             Spinner sMouseWarpOverride = view.findViewById(R.id.SMouseWarpOverride);
-            sMouseWarpOverride.setAdapter(new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, mouseWarpOverrideList));
+            sMouseWarpOverride.setAdapter(new ThemedSpinnerAdapter<>(context, mouseWarpOverrideList));
             AppUtils.setSpinnerSelectionFromValue(sMouseWarpOverride, registryEditor.getStringValue("Software\\Wine\\DirectInput", "MouseWarpOverride", "disable"));
         }
     }
@@ -816,7 +837,7 @@ public class ContainerDetailFragment extends Fragment {
         }
         catch (JSONException e) {}
 
-        spinner.setAdapter(new ArrayAdapter<>(getContext(), android.R.layout.simple_spinner_dropdown_item, values));
+        spinner.setAdapter(new ThemedSpinnerAdapter<>(spinner.getContext(), values));
         spinner.setSelection(selectedPosition);
     }
 
@@ -891,8 +912,8 @@ public class ContainerDetailFragment extends Fragment {
             for (String value : context.getResources().getStringArray(R.array.dxwrapper_entries)) {
                 items.add(value);
             }
-            sDXWrapper.setAdapter(new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, items.toArray()));
-            AppUtils.setSpinnerSelectionFromIdentifier(sDXWrapper, selectedDXWrapper);
+            sDXWrapper.setAdapter(new ThemedSpinnerAdapter<>(context, items));
+            setDXWrapperSelection(sDXWrapper, selectedDXWrapper);
 
             vGraphicsDriverConfig.setOnClickListener((v) -> {
                 new GraphicsDriverConfigDialog(vGraphicsDriverConfig, graphicsDriver, null).show();
@@ -919,20 +940,34 @@ public class ContainerDetailFragment extends Fragment {
         sDXWrapper.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                String dxwrapper = StringUtils.parseIdentifier(sDXWrapper.getSelectedItem());
+                String dxwrapper = getDXWrapperIdentifier(sDXWrapper.getSelectedItem());
                 if (dxwrapper.equals("dxvk")) {
                     vDXWrapperConfig.setOnClickListener((v) -> (new DXVKConfigDialog(vDXWrapperConfig)).show());
                     vDXWrapperConfig.setVisibility(View.VISIBLE);
                 }
-                else if (dxwrapper.equals("vkd3d")) {
-                    vDXWrapperConfig.setOnClickListener((v) -> (new VKD3DConfigDialog(vDXWrapperConfig)).show());
-                    vDXWrapperConfig.setVisibility(View.VISIBLE);
-                } else vDXWrapperConfig.setVisibility(View.GONE);
+                else vDXWrapperConfig.setVisibility(View.GONE);
             }
 
             @Override
             public void onNothingSelected(AdapterView<?> parent) {}
         });
+    }
+
+    public static String getDXWrapperIdentifier(Object selectedItem) {
+        String value = selectedItem != null ? selectedItem.toString().toLowerCase() : "";
+        return value.startsWith("dxvk") ? "dxvk" : StringUtils.parseIdentifier(selectedItem);
+    }
+
+    public static void setDXWrapperSelection(Spinner spinner, String identifier) {
+        if ("dxvk".equals(identifier) || "vkd3d".equals(identifier)) {
+            for (int i = 0; i < spinner.getCount(); i++) {
+                if (spinner.getItemAtPosition(i).toString().toLowerCase().startsWith("dxvk")) {
+                    spinner.setSelection(i);
+                    return;
+                }
+            }
+        }
+        AppUtils.setSpinnerSelectionFromIdentifier(spinner, identifier);
     }
 
     public static void setupDDrawSpinner(final Spinner sDDrawspinner, String selectedDDrawrapper) {
@@ -941,7 +976,7 @@ public class ContainerDetailFragment extends Fragment {
         for (String value : context.getResources().getStringArray(R.array.ddrawrapper_entries)) {
             items.add(value);
         }
-        sDDrawspinner.setAdapter(new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, items.toArray(new String[0])));
+        sDDrawspinner.setAdapter(new ThemedSpinnerAdapter<>(context, items));
         AppUtils.setSpinnerSelectionFromIdentifier(sDDrawspinner, selectedDDrawrapper);
     }
 
@@ -1046,8 +1081,23 @@ public class ContainerDetailFragment extends Fragment {
         Callback<String[]> addItem = (drive) -> {
             final View itemView = inflater.inflate(R.layout.drive_list_item, parent, false);
             Spinner spinner = itemView.findViewById(R.id.Spinner);
-            spinner.setAdapter(new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, driveLetters));
+            spinner.setAdapter(new ThemedSpinnerAdapter<>(context, driveLetters));
             AppUtils.setSpinnerSelectionFromValue(spinner, drive[0]+":");
+
+            final TextView driveLetterView = itemView.findViewById(R.id.TVDriveLetter);
+            driveLetterView.setText(drive[0] + ":");
+            driveLetterView.setTextColor(isDarkMode ? Color.WHITE : Color.BLACK);
+            driveLetterView.setOnClickListener(v -> spinner.performClick());
+            spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+                @Override
+                public void onItemSelected(AdapterView<?> parent, View selectedView, int position, long id) {
+                    Object selected = parent.getItemAtPosition(position);
+                    driveLetterView.setText(selected == null ? "" : selected.toString());
+                }
+
+                @Override
+                public void onNothingSelected(AdapterView<?> parent) {}
+            });
 
             // Apply dark theme to the spinner popup background
             spinner.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
@@ -1068,7 +1118,10 @@ public class ContainerDetailFragment extends Fragment {
                     editText.setText(path);
                 };
                 Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
-                intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, Uri.fromFile(Environment.getExternalStorageDirectory()));
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                        | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+                        | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION);
                 getActivity().startActivityFromFragment(this, intent, MainActivity.OPEN_DIRECTORY_REQUEST_CODE);
             });
 
@@ -1171,7 +1224,7 @@ public class ContainerDetailFragment extends Fragment {
             wineVersions.add(ContentsManager.getEntryName(profile));
         for (ContentProfile profile : contentsManager.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_PROTON))
             wineVersions.add(ContentsManager.getEntryName(profile));
-        sWineVersion.setAdapter(new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, wineVersions));
+        sWineVersion.setAdapter(new ThemedSpinnerAdapter<>(context, wineVersions));
         if (isEditMode()) AppUtils.setSpinnerSelectionFromValue(sWineVersion, container.getWineVersion());
     }
 
@@ -1196,8 +1249,7 @@ public class ContainerDetailFragment extends Fragment {
         for (XKeycode value : values) {
             array.add(value.name());
         }
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(spinner.getContext(), android.R.layout.simple_spinner_dropdown_item, array);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        ArrayAdapter<String> adapter = new ThemedSpinnerAdapter<>(spinner.getContext(), array);
         spinner.setAdapter(adapter);
 
         byte keycode = isEditMode() ? container.getControllerMapping(mapping) : (byte) defaultValue;
@@ -1216,7 +1268,7 @@ public class ContainerDetailFragment extends Fragment {
         List<String> itemList = new ArrayList<>(Arrays.asList(originalItems));
         
         // Set the adapter with the combined list
-        spinner.setAdapter(new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, itemList));
+        spinner.setAdapter(new ThemedSpinnerAdapter<>(context, itemList));
     }
 
     public static void loadBox64VersionSpinner(Context context, Container container, ContentsManager manager, Spinner spinner, boolean isArm64EC) {
@@ -1242,7 +1294,7 @@ public class ContainerDetailFragment extends Fragment {
                 itemList.add(entryName.substring(firstDashIndex + 1));
             }
         }
-        spinner.setAdapter(new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, itemList));
+        spinner.setAdapter(new ThemedSpinnerAdapter<>(context, itemList));
         if (container != null)
             AppUtils.setSpinnerSelectionFromValue(spinner, container.getBox64Version());
         else

@@ -38,7 +38,7 @@ public class ImportGroupDialog extends ContentDialog {
         List<String> rcfilesName = new ArrayList<>();
         for (RCFile rcfile : rcfiles)
             rcfilesName.add(rcfile.getName());
-        sProfile.setAdapter(new ArrayAdapter<>(anchor.getContext(), android.R.layout.simple_spinner_dropdown_item, rcfilesName));
+        sProfile.setAdapter(new com.winlator.cmod.widget.ThemedSpinnerAdapter<>(sProfile.getContext(), rcfilesName));
         sProfile.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {

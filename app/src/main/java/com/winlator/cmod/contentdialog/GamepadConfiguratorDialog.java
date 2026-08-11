@@ -339,7 +339,7 @@ public class GamepadConfiguratorDialog {
             items.add("-- No Profiles --");
         }
 
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, items);
+        ArrayAdapter<String> adapter = new com.winlator.cmod.widget.ThemedSpinnerAdapter<>(profileSpinner.getContext(), items);
         profileSpinner.setAdapter(adapter);
     }
 

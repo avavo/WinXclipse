@@ -9,6 +9,11 @@ public class VKD3DVersionItem {
         this.displayName = verName; // Display only the version name
     }
 
+    public VKD3DVersionItem(String identifier, String displayName) {
+        this.identifier = identifier;
+        this.displayName = displayName;
+    }
+
     public String getIdentifier() {
         return identifier;
     }

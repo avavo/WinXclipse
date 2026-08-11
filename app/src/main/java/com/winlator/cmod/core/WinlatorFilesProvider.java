@@ -20,9 +20,13 @@ import com.winlator.cmod.R;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.util.Collections;
+import java.nio.file.Files;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.HashSet;
 import java.util.LinkedList;
+import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 
 public class WinlatorFilesProvider extends DocumentsProvider {
     private static final String ALL_MIME_TYPES = "*/*";
@@ -49,7 +53,7 @@ public class WinlatorFilesProvider extends DocumentsProvider {
         if (!source.exists())
             throw new FileNotFoundException("Source file not found: " + sourceDocumentId);
 
-        if (Objects.equals(source.getParentFile(), sourceParent))
+        if (!Objects.equals(source.getParentFile(), sourceParent))
             throw new FileNotFoundException("Source has wrong parent: " + sourceDocumentId + " " + sourceParentDocumentId);
 
         if (!targetParent.exists())
@@ -135,10 +139,16 @@ public class WinlatorFilesProvider extends DocumentsProvider {
 
     @Override
     public Cursor queryChildDocuments(String parentDocumentId, String[] projection, String sortOrder) throws FileNotFoundException {
-        final MatrixCursor result = new MatrixCursor(projection != null ? projection : DEFAULT_DOCUMENT_PROJECTION);
         final File parent = getFileForDocId(parentDocumentId);
-        for (File file : parent.listFiles()) {
-            includeFile(result, null, file);
+        final File[] children = parent.listFiles();
+        final MatrixCursor result = new MatrixCursor(
+                projection != null ? projection : DEFAULT_DOCUMENT_PROJECTION,
+                children != null ? children.length : 0);
+        if (children == null) return result;
+
+        final boolean parentWritable = parent.canWrite();
+        for (File file : children) {
+            includeFile(result, null, file, parentWritable);
         }
         return result;
     }
@@ -201,29 +211,52 @@ public class WinlatorFilesProvider extends DocumentsProvider {
 
     @Override
     public Cursor querySearchDocuments(String rootId, String query, String[] projection) throws FileNotFoundException {
+        return querySearchDocumentsInternal(rootId, query, projection, null);
+    }
+
+    private Cursor querySearchDocumentsInternal(String rootId, String query, String[] projection,
+                                                CancellationSignal signal) throws FileNotFoundException {
         final MatrixCursor result = new MatrixCursor(projection != null ? projection : DEFAULT_DOCUMENT_PROJECTION);
         final File parent = getFileForDocId(rootId);
+        final String normalizedQuery = query != null ? query.toLowerCase(Locale.ROOT) : "";
+        final String basePath;
+        try {
+            basePath = BASE_DIR.getCanonicalPath();
+        }
+        catch (IOException e) {
+            throw new FileNotFoundException("Unable to resolve provider root");
+        }
 
         final LinkedList<File> pending = new LinkedList<>();
+        final Set<String> visited = new HashSet<>();
         pending.add(parent);
 
         final int MAX_SEARCH_RESULTS = 50;
         while (!pending.isEmpty() && result.getCount() < MAX_SEARCH_RESULTS) {
+            if (signal != null) signal.throwIfCanceled();
             final File file = pending.removeFirst();
-            boolean isInsideHome;
+            final String canonicalPath;
             try {
-                isInsideHome = file.getCanonicalPath().startsWith(BASE_DIR.getAbsolutePath());
-            } catch (IOException e) {
-                isInsideHome = true;
+                canonicalPath = file.getCanonicalPath();
             }
-            if (isInsideHome) {
-                if (file.isDirectory()) {
-                    Collections.addAll(pending, file.listFiles());
-                } else {
-                    if (file.getName().toLowerCase().contains(query)) {
-                        includeFile(result, null, file);
-                    }
+            catch (IOException e) {
+                continue;
+            }
+
+            if ((!canonicalPath.equals(basePath)
+                    && !canonicalPath.startsWith(basePath + File.separator))
+                    || !visited.add(canonicalPath)) {
+                continue;
+            }
+
+            if (file.isDirectory()) {
+                File[] children = file.listFiles();
+                if (children != null) {
+                    for (File child : children) pending.addLast(child);
                 }
+            }
+            else if (file.getName().toLowerCase(Locale.ROOT).contains(normalizedQuery)) {
+                includeFile(result, null, file);
             }
         }
 
@@ -232,7 +265,15 @@ public class WinlatorFilesProvider extends DocumentsProvider {
 
     @Override
     public boolean isChildDocument(String parentDocumentId, String documentId) {
-        return documentId.startsWith(parentDocumentId);
+        try {
+            String parentPath = new File(parentDocumentId).getCanonicalPath();
+            String childPath = new File(documentId).getCanonicalPath();
+            return !childPath.equals(parentPath)
+                    && childPath.startsWith(parentPath + File.separator);
+        }
+        catch (IOException e) {
+            return false;
+        }
     }
 
     private static String getDocIdForFile(File file) {
@@ -248,16 +289,18 @@ public class WinlatorFilesProvider extends DocumentsProvider {
     private static String getMimeType(File file) {
         if (file.isDirectory()) {
             return Document.MIME_TYPE_DIR;
-        } else {
-            final String name = file.getName();
-            final int lastDot = name.lastIndexOf('.');
-            if (lastDot >= 0) {
-                final String extension = name.substring(lastDot + 1).toLowerCase();
-                final String mime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension);
-                if (mime != null) return mime;
-            }
-            return "application/octet-stream";
         }
+        return getMimeTypeFromName(file.getName());
+    }
+
+    private static String getMimeTypeFromName(String name) {
+        final int lastDot = name.lastIndexOf('.');
+        if (lastDot >= 0) {
+            final String extension = name.substring(lastDot + 1).toLowerCase(Locale.ROOT);
+            final String mime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension);
+            if (mime != null) return mime;
+        }
+        return "application/octet-stream";
     }
 
     @Override
@@ -279,6 +322,11 @@ public class WinlatorFilesProvider extends DocumentsProvider {
     }
 
     private void includeFile(MatrixCursor result, String docId, File file) throws FileNotFoundException {
+        includeFile(result, docId, file, null);
+    }
+
+    private void includeFile(MatrixCursor result, String docId, File file,
+                             Boolean knownParentWritable) throws FileNotFoundException {
         if (!enabled)
             throw new FileNotFoundException();
 
@@ -288,31 +336,55 @@ public class WinlatorFilesProvider extends DocumentsProvider {
             file = getFileForDocId(docId);
         }
 
+        boolean directory;
+        long size;
+        long lastModified;
+        try {
+            BasicFileAttributes attributes = Files.readAttributes(
+                    file.toPath(), BasicFileAttributes.class);
+            directory = attributes.isDirectory();
+            size = directory ? 0 : attributes.size();
+            lastModified = attributes.lastModifiedTime().toMillis();
+        }
+        catch (IOException e) {
+            directory = file.isDirectory();
+            size = directory ? 0 : file.length();
+            lastModified = file.lastModified();
+        }
+        final boolean writable = file.canWrite();
+        final File parent = file.getParentFile();
+        final boolean parentWritable = knownParentWritable != null
+                ? knownParentWritable
+                : parent != null && parent.canWrite();
+
         int flags = 0;
-        if (file.isDirectory()) {
-            if (file.canWrite()) flags |= Document.FLAG_DIR_SUPPORTS_CREATE;
-        } else if (file.canWrite()) {
+        if (directory) {
+            if (writable) flags |= Document.FLAG_DIR_SUPPORTS_CREATE;
+        }
+        else if (writable) {
             flags |= Document.FLAG_SUPPORTS_WRITE;
         }
-        if (file.getParentFile().canWrite()) flags |= Document.FLAG_SUPPORTS_DELETE;
+        if (parentWritable) flags |= Document.FLAG_SUPPORTS_DELETE;
 
         // Add support for renaming files and directories
-        if (file.canWrite()) {
+        if (writable) {
             flags |= Document.FLAG_SUPPORTS_RENAME;
         }
 
         final String displayName = file.getName();
-        final String mimeType = getMimeType(file);
+        final String mimeType = directory ? Document.MIME_TYPE_DIR : getMimeTypeFromName(file.getName());
         if (mimeType.startsWith("image/")) flags |= Document.FLAG_SUPPORTS_THUMBNAIL;
 
         final MatrixCursor.RowBuilder row = result.newRow();
         row.add(Document.COLUMN_DOCUMENT_ID, docId);
         row.add(Document.COLUMN_DISPLAY_NAME, displayName);
-        row.add(Document.COLUMN_SIZE, file.length());
+        row.add(Document.COLUMN_SIZE, size);
         row.add(Document.COLUMN_MIME_TYPE, mimeType);
-        row.add(Document.COLUMN_LAST_MODIFIED, file.lastModified());
+        row.add(Document.COLUMN_LAST_MODIFIED, lastModified);
         row.add(Document.COLUMN_FLAGS, flags);
-        row.add(Document.COLUMN_ICON, R.mipmap.ic_launcher);
+        if (result.getColumnIndex(Document.COLUMN_ICON) >= 0) {
+            row.add(Document.COLUMN_ICON, R.mipmap.ic_launcher);
+        }
     }
 
 }

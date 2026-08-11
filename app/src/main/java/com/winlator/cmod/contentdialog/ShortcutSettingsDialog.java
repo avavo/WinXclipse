@@ -23,6 +23,7 @@ import android.widget.TextView;
 import androidx.preference.PreferenceManager;
 
 import com.google.android.material.tabs.TabLayout;
+import com.winlator.cmod.BuildConfig;
 import com.winlator.cmod.ContainerDetailFragment;
 import com.winlator.cmod.R;
 import com.winlator.cmod.ShortcutsFragment;
@@ -44,6 +45,7 @@ import com.winlator.cmod.inputcontrols.InputControlsManager;
 import com.winlator.cmod.midi.MidiManager;
 import com.winlator.cmod.widget.CPUListView;
 import com.winlator.cmod.widget.EnvVarsView;
+import com.winlator.cmod.widget.ThemedSpinnerAdapter;
 import com.winlator.cmod.winhandler.WinHandler;
 
 import java.io.File;
@@ -61,13 +63,14 @@ public class ShortcutSettingsDialog extends ContentDialog {
     private TextView tvGraphicsDriverVersion;
     private String box64Version;
 
+    private static final String APP_DATA_DIR = "/data/data/" + BuildConfig.APPLICATION_ID;
     private static final String[] MEDIACONV_ENV_VARS = {
-            "MEDIACONV_AUDIO_DUMP_FILE=/data/data/com.winlator.cmod/files/imagefs/home/xuser/audio.dmp",
-            "MEDIACONV_VIDEO_DUMP_FILE=/data/data/com.winlator.cmod/files/imagefs/home/xuser/video.dmp",
-            "MEDIACONV_VIDEO_TRANSCODED_FILE=/data/data/com.winlator.cmod/files/imagefs/home/xuser/transcoded.mkv",
-            "MEDIACONV_AUDIO_TRANSCODED_FILE=/data/data/com.winlator.cmod/files/imagefs/home/xuser/transcoded.wav",
-            "MEDIACONV_BLANK_AUDIO_FILE=/data/data/com.winlator.cmod/files/imagefs/home/xuser/blank.wav",
-            "MEDIACONV_BLANK_VIDEO_FILE=/data/data/com.winlator.cmod/files/imagefs/home/xuser/blank.mkv",
+            "MEDIACONV_AUDIO_DUMP_FILE=" + APP_DATA_DIR + "/files/imagefs/home/xuser/audio.dmp",
+            "MEDIACONV_VIDEO_DUMP_FILE=" + APP_DATA_DIR + "/files/imagefs/home/xuser/video.dmp",
+            "MEDIACONV_VIDEO_TRANSCODED_FILE=" + APP_DATA_DIR + "/files/imagefs/home/xuser/transcoded.mkv",
+            "MEDIACONV_AUDIO_TRANSCODED_FILE=" + APP_DATA_DIR + "/files/imagefs/home/xuser/transcoded.wav",
+            "MEDIACONV_BLANK_AUDIO_FILE=" + APP_DATA_DIR + "/files/imagefs/home/xuser/blank.wav",
+            "MEDIACONV_BLANK_VIDEO_FILE=" + APP_DATA_DIR + "/files/imagefs/home/xuser/blank.mkv",
     };
 
 
@@ -93,7 +96,10 @@ public class ShortcutSettingsDialog extends ContentDialog {
     }
 
     private void createContentView() {
-        final Context context = fragment.getContext();
+        // Use ContentDialog's themed context for adapters and popups as well as the
+        // already-inflated layout.  Otherwise dropdown rows remain light-themed in
+        // a dark shortcut dialog and their text becomes unreadable.
+        final Context context = getContext();
         inputControlsManager = new InputControlsManager(context);
         LinearLayout llContent = findViewById(R.id.LLContent);
         llContent.getLayoutParams().width = AppUtils.getPreferredDialogWidth(context);
@@ -350,7 +356,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
 
         String selectedDriver = sGraphicsDriver.getSelectedItem().toString();
         List<String> sGraphicsItemsList = new ArrayList<>(Arrays.asList(context.getResources().getStringArray(R.array.graphics_driver_entries)));
-        sGraphicsDriver.setAdapter(new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, sGraphicsItemsList));
+        sGraphicsDriver.setAdapter(new ThemedSpinnerAdapter<>(context, sGraphicsItemsList));
         AppUtils.setSpinnerSelectionFromValue(sGraphicsDriver, selectedDriver);
 
         final Spinner sStartupSelection = findViewById(R.id.SStartupSelection);
@@ -422,7 +428,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
             if (renamingSuccess) {
                 String graphicsDriver = StringUtils.parseIdentifier(sGraphicsDriver.getSelectedItem());
                 String graphicsDriverConfig = vGraphicsDriverConfig.getTag().toString();
-                String dxwrapper = StringUtils.parseIdentifier(sDXWrapper.getSelectedItem());
+                String dxwrapper = ContainerDetailFragment.getDXWrapperIdentifier(sDXWrapper.getSelectedItem());
                 String ddrawrapper = StringUtils.parseIdentifier(sDDrawrapper.getSelectedItem());
                 String dxwrapperConfig = vDXWrapperConfig.getTag().toString();
                 String audioDriver = StringUtils.parseIdentifier(sAudioDriver.getSelectedItem());
@@ -492,6 +498,10 @@ public class ShortcutSettingsDialog extends ContentDialog {
                 String fexcoreVersion = sFEXCoreVersion.getSelectedItem().toString();
                 shortcut.putExtra("fexcoreVersion", !fexcoreVersion.equals(shortcut.container.getFEXCoreVersion()) ? fexcoreVersion : null);
 
+                String fexcorePreset = FEXCorePresetManager.getSpinnerSelectedId(sFEXCorePreset);
+                shortcut.putExtra("fexcorePreset",
+                        !fexcorePreset.equals(shortcut.container.getFEXCorePreset()) ? fexcorePreset : null);
+
                 byte startupSelection = (byte)sStartupSelection.getSelectedItemPosition();
                 shortcut.putExtra("startupSelection", (startupSelection != shortcut.container.getStartupSelection()) ? String.valueOf(startupSelection) : null);
 
@@ -514,8 +524,6 @@ public class ShortcutSettingsDialog extends ContentDialog {
 
                 // Save all changes to the shortcut
                 shortcut.saveData();
-//
-                shortcut.putExtra("fexcorePreset", FEXCorePresetManager.getSpinnerSelectedId(sFEXCorePreset)); 
             }
         });
     }
@@ -631,13 +639,11 @@ public class ShortcutSettingsDialog extends ContentDialog {
 
     private void applyFieldSetLabelStyle(TextView textView, boolean isDarkMode) {
         if (isDarkMode) {
-            // Apply dark mode-specific attributes
-            textView.setTextColor(Color.parseColor("#cccccc")); // Set text color to #cccccc
-            textView.setBackgroundColor(Color.parseColor("#424242")); // Set dark background color
+            textView.setTextColor(Color.WHITE);
+            textView.setBackgroundColor(Color.BLACK);
         } else {
-            // Apply light mode-specific attributes
-            textView.setTextColor(Color.parseColor("#bdbdbd")); // Set text color to #bdbdbd
-            textView.setBackgroundResource(R.color.window_background_color); // Set light background color
+            textView.setTextColor(Color.BLACK);
+            textView.setBackgroundResource(R.color.window_background_color);
         }
     }
 
@@ -744,7 +750,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
             values.add(profile.getName());
         }
 
-        spinner.setAdapter(new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, values));
+        spinner.setAdapter(new ThemedSpinnerAdapter<>(context, values));
         spinner.setSelection(selectedPosition, false);
     }
 
@@ -772,7 +778,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
                 itemList.add(entryName.substring(firstDashIndex + 1));
             }
         }
-        spinner.setAdapter(new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, itemList));
+        spinner.setAdapter(new ThemedSpinnerAdapter<>(context, itemList));
     }
     
     public void loadGraphicsDriverSpinner(final Spinner sGraphicsDriver, final Spinner sDXWrapper, final View vGraphicsDriverConfig, String selectedGraphicsDriver, String selectedDXWrapper) {
@@ -796,8 +802,8 @@ public class ShortcutSettingsDialog extends ContentDialog {
             for (String value : dxwrapperEntries) {
                     items.add(value);
             }
-            sDXWrapper.setAdapter(new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, items.toArray(new String[0])));
-            AppUtils.setSpinnerSelectionFromIdentifier(sDXWrapper, selectedDXWrapper);
+            sDXWrapper.setAdapter(new ThemedSpinnerAdapter<>(context, items));
+            ContainerDetailFragment.setDXWrapperSelection(sDXWrapper, selectedDXWrapper);
         };
 
         sGraphicsDriver.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
