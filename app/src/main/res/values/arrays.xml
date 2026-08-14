@@ -20,6 +20,7 @@
     </string-array>
     <string-array name="graphics_driver_entries">
         <item>Wrapper</item>
+        <item>Wrapper-BCN</item>
         <item>Wrapper-v2</item>
         <item>Wrapper-Leegao</item>
         <item>Wrapper-EV1</item>
@@ -112,12 +113,6 @@
         <item>0</item>
         <item>1</item>
     </string-array>
-    <string-array name="bcn_quality_preset_entries">
-        <item>auto</item>
-        <item>fast</item>
-        <item>balanced</item>
-        <item>high</item>
-    </string-array>
     <string-array name="frame_sync_entries">
         <item>Never</item>
         <item>Normal</item>
@@ -157,10 +152,6 @@
     </string-array>
     <string-array name="box64_version_entries">
         <item>0.4.3-260519-024717c-0</item>
-    </string-array>
-    <string-array name="wowbox64_version_entries">
-        <item>0.3.4</item>
-        <item>0.3.7</item>
     </string-array>
     <string-array name="fexcore_version_entries">
         <item>2608</item>

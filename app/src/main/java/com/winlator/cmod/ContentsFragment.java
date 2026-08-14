@@ -425,14 +425,28 @@ public class ContentsFragment extends Fragment {
                 preloader.close();
                 if (id == null || id.isEmpty())
                     ContentDialog.alert(requireContext(), R.string.unable_to_install_driver, null);
-                else ContentDialog.alert(requireContext(), R.string.content_installed_success, null);
+                else {
+                    ContentDialog.alert(requireContext(), R.string.content_installed_success, null);
+                    loadContentList();
+                }
             });
         }).start();
     }
 
     private void loadContentList() {
         if (selectedCategory == CATEGORY_XCLIPSE_DRIVERS) {
-            showExternalItems(remoteDrivers, false);
+            List<ExternalDownloadCatalog.Item> drivers = new ArrayList<>();
+            for (String id : driverManager.enumerateInstalledDrivers()) {
+                String name = driverManager.getDriverName(id);
+                String version = driverManager.getDriverVersion(id);
+                if (name == null || name.isEmpty()) name = id;
+                if (version != null && !version.isEmpty() && !name.contains(version)) {
+                    name += " " + version;
+                }
+                drivers.add(new ExternalDownloadCatalog.Item(name, id, null));
+            }
+            if (remoteDrivers != null) drivers.addAll(remoteDrivers);
+            showExternalItems(drivers);
             return;
         }
         if (selectedCategory == CATEGORY_WRAPPERS) {
@@ -441,7 +455,7 @@ public class ContentsFragment extends Fragment {
                 installed.add(new ExternalDownloadCatalog.Item(
                         CustomWrapperManager.toDisplayName(id), id, null));
             }
-            showExternalItems(installed, true);
+            showExternalItems(installed);
             return;
         }
         List<ContentProfile> profiles = manager.getProfiles(currentContentType);
@@ -455,7 +469,7 @@ public class ContentsFragment extends Fragment {
         }
     }
 
-    private void showExternalItems(List<ExternalDownloadCatalog.Item> items, boolean installedWrappers) {
+    private void showExternalItems(List<ExternalDownloadCatalog.Item> items) {
         if (items == null || items.isEmpty()) {
             emptyText.setVisibility(View.VISIBLE);
             recyclerView.setVisibility(View.GONE);
@@ -463,13 +477,12 @@ public class ContentsFragment extends Fragment {
         else {
             emptyText.setVisibility(View.GONE);
             recyclerView.setVisibility(View.VISIBLE);
-            recyclerView.setAdapter(new ExternalItemAdapter(items, installedWrappers));
+            recyclerView.setAdapter(new ExternalItemAdapter(items));
         }
     }
 
     private class ExternalItemAdapter extends RecyclerView.Adapter<ExternalItemAdapter.ViewHolder> {
         private final List<ExternalDownloadCatalog.Item> data;
-        private final boolean installedWrappers;
 
         private class ViewHolder extends RecyclerView.ViewHolder {
             final ImageView icon;
@@ -490,9 +503,8 @@ public class ContentsFragment extends Fragment {
             }
         }
 
-        ExternalItemAdapter(List<ExternalDownloadCatalog.Item> data, boolean installedWrappers) {
+        ExternalItemAdapter(List<ExternalDownloadCatalog.Item> data) {
             this.data = data;
-            this.installedWrappers = installedWrappers;
         }
 
         @NonNull
@@ -505,17 +517,20 @@ public class ContentsFragment extends Fragment {
         @Override
         public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
             ExternalDownloadCatalog.Item item = data.get(position);
+            boolean installed = item.url == null;
             holder.icon.setBackground(null);
-            holder.icon.setImageResource(installedWrappers ? R.drawable.icon_settings : R.drawable.icon_debug);
+            holder.icon.setImageResource(selectedCategory == CATEGORY_WRAPPERS
+                    ? R.drawable.icon_settings : R.drawable.icon_debug);
             holder.title.setText(item.name);
             holder.detail.setText(item.detail);
             holder.detail.setVisibility(item.detail == null || item.detail.isEmpty() ? View.GONE : View.VISIBLE);
             holder.progress.setVisibility(View.GONE);
-            holder.menu.setVisibility(installedWrappers ? View.VISIBLE : View.GONE);
-            holder.download.setVisibility(installedWrappers ? View.GONE : View.VISIBLE);
+            holder.menu.setVisibility(installed ? View.VISIBLE : View.GONE);
+            holder.download.setVisibility(installed ? View.GONE : View.VISIBLE);
             holder.menu.setOnClickListener(v -> ContentDialog.confirm(requireContext(),
                     R.string.do_you_want_to_remove_this_content, () -> {
-                        wrapperManager.remove(item.detail);
+                        if (selectedCategory == CATEGORY_WRAPPERS) wrapperManager.remove(item.detail);
+                        else driverManager.removeDriver(item.detail);
                         loadContentList();
                     }));
             holder.download.setOnClickListener(v -> {

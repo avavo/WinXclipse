@@ -2649,17 +2649,24 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         String mainWrapperSelection = this.graphicsDriver;
         String lastInstalledMainWrapper = container.getExtra("lastInstalledMainWrapper");
-        if (firstTimeBoot || !mainWrapperSelection.equals(lastInstalledMainWrapper)) {
+        CustomWrapperManager customWrapperManager = new CustomWrapperManager(this);
+        String wrapperRevision = BuildConfig.VERSION_CODE + ":"
+                + customWrapperManager.getRevision(mainWrapperSelection);
+        String lastInstalledMainWrapperRevision =
+                container.getExtra("lastInstalledMainWrapperRevision", "");
+        if (firstTimeBoot || !mainWrapperSelection.equals(lastInstalledMainWrapper)
+                || !wrapperRevision.equals(lastInstalledMainWrapperRevision)) {
             if (mainWrapperSelection.toLowerCase().startsWith("wrapper")) {
                 String assetPath = "graphics_driver/" + mainWrapperSelection.toLowerCase() + ".tzst";
                 Log.d("GraphicsDriverExtraction", "WRAPPER selection changed or first boot. Extracting: " + assetPath);
                 boolean success = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, assetPath, rootDir);
                 if (!success) {
-                    success = new CustomWrapperManager(this).apply(mainWrapperSelection, rootDir);
+                    success = customWrapperManager.apply(mainWrapperSelection, rootDir);
                     Log.d("GraphicsDriverExtraction", "Custom wrapper extracted=" + success);
                 }
                 if (success) {
                     container.putExtra("lastInstalledMainWrapper", mainWrapperSelection);
+                    container.putExtra("lastInstalledMainWrapperRevision", wrapperRevision);
                     container.saveData();
                 }
                 else Log.e("GraphicsDriverExtraction", "Unable to extract wrapper asset: " + assetPath);
@@ -2670,9 +2677,22 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         boolean etc2Transcode = "1".equals(graphicsDriverConfig.getOrDefault("etc2Transcode", "0"));
         String bcnEmulation = graphicsDriverConfig.getOrDefault("bcnEmulation", "auto");
         String bcnEmulationType = graphicsDriverConfig.getOrDefault("bcnEmulationType", "compute");
+        boolean nativeBcnWrapper = GraphicsDriverConfigDialog.supportsNativeBcn(mainWrapperSelection);
+        if ("wrapper-kirimu".equalsIgnoreCase(mainWrapperSelection)) {
+            bcnEmulationType = "compute";
+        }
+        else if (!nativeBcnWrapper && "software".equals(bcnEmulationType)) {
+            // Keep BCN available for every wrapper. Non-native wrappers are routed
+            // through the shared Leegao compute layer instead of ignoring the mode.
+            bcnEmulationType = "compute";
+        }
         boolean computeBcnEnabled = "compute".equals(bcnEmulationType)
                 && ("auto".equals(bcnEmulation) || "full".equals(bcnEmulation));
-        boolean bcnLayerEnabled = astcTranscode || etc2Transcode || computeBcnEnabled;
+        // Native-capable wrappers handle base BCN themselves. Every other wrapper
+        // receives base BCN through the shared Leegao compute layer. The same layer
+        // also owns ASTC/ETC2 transcoding for all compatible wrappers.
+        boolean bcnLayerEnabled = astcTranscode || etc2Transcode
+                || (computeBcnEnabled && !nativeBcnWrapper);
         final String bcnLayerVersion = "leegao-winmali-2";
         File bcnLayerLibrary = new File(rootDir, "usr/lib/libbcn_layer.so");
         File bcnLayerManifest = new File(rootDir,
@@ -2699,6 +2719,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 }
                 else {
                     Log.e("GraphicsDriverExtraction", "BCN layer extraction or verification failed");
+                    if (bcnLayerManifest.isFile() && !bcnLayerManifest.delete()) {
+                        Log.w("GraphicsDriverExtraction", "Unable to remove incomplete BCN layer manifest");
+                    }
+                    if (bcnLayerLibrary.isFile() && !bcnLayerLibrary.delete()) {
+                        Log.w("GraphicsDriverExtraction", "Unable to remove incomplete BCN layer library");
+                    }
                 }
             }
             else {
@@ -2709,6 +2735,18 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             container.putExtra("bcnLayerVersion",
                     bcnLayerEnabled && bcnLayerReady ? bcnLayerVersion : "");
             container.saveData();
+        }
+        if (!bcnLayerEnabled) {
+            // ENABLE_BCN_COMPUTE is also used by the native wrapper path. Remove a
+            // previously extracted implicit layer so that base BCN compute does not
+            // accidentally reactivate the Leegao transcoder after ASTC/ETC2 is off.
+            if (bcnLayerManifest.isFile() && !bcnLayerManifest.delete()) {
+                Log.w("GraphicsDriverExtraction", "Unable to remove inactive BCN layer manifest");
+            }
+            if (bcnLayerLibrary.isFile() && !bcnLayerLibrary.delete()) {
+                Log.w("GraphicsDriverExtraction", "Unable to remove inactive BCN layer library");
+            }
+            bcnLayerReady = false;
         }
         boolean activeBcnLayer = bcnLayerEnabled && bcnLayerReady;
 
@@ -2748,17 +2786,14 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 "Never".equals(legacyFrameSync) ? "1" : "0");
         envVars.put("WRAPPER_DISABLE_PRESENT_WAIT", disablePresentWait);
 
-        if (activeBcnLayer) {
-            envVars.remove("DISABLE_BCN_COMPUTE");
+        envVars.remove("ENABLE_BCN_COMPUTE");
+        envVars.remove("DISABLE_BCN_COMPUTE");
+        envVars.remove("BCN_COMPUTE_AUTO");
+        envVars.remove("BCN_TRANSCODE_TO_ASTC");
+        envVars.remove("BCN_TRANSCODE_TO_ETC2");
+        if (computeBcnEnabled || activeBcnLayer) {
             envVars.put("ENABLE_BCN_COMPUTE", "1");
             envVars.put("BCN_COMPUTE_AUTO", "auto".equals(bcnEmulation) ? "1" : "0");
-        }
-        else {
-            envVars.remove("ENABLE_BCN_COMPUTE");
-            envVars.remove("BCN_COMPUTE_AUTO");
-            envVars.remove("BCN_TRANSCODE_TO_ASTC");
-            envVars.remove("BCN_TRANSCODE_TO_ETC2");
-            envVars.put("DISABLE_BCN_COMPUTE", "1");
         }
         switch (bcnEmulation) {
             case "none":
@@ -2776,12 +2811,15 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         }
         envVars.put("WRAPPER_USE_BCN_CACHE",
                 graphicsDriverConfig.getOrDefault("bcnEmulationCache", "0"));
-        envVars.put("BCN_DISABLE_DISK_CACHE",
-                "0".equals(graphicsDriverConfig.getOrDefault("bcnEmulationCache", "0")) ? "1" : "0");
         if (activeBcnLayer && astcTranscode) envVars.put("BCN_TRANSCODE_TO_ASTC", "1");
         if (activeBcnLayer && etc2Transcode) envVars.put("BCN_TRANSCODE_TO_ETC2", "1");
-        String bcnQualityPreset = graphicsDriverConfig.getOrDefault("bcnQualityPreset", "auto");
-        if (!"auto".equals(bcnQualityPreset)) envVars.put("BCN_QUALITY_PRESET", bcnQualityPreset);
+        Log.i("GraphicsDriverExtraction", "BCN route: emulation=" + bcnEmulation
+                + ", type=" + bcnEmulationType
+                + ", nativeWrapper=" + nativeBcnWrapper
+                + ", compute=" + computeBcnEnabled
+                + ", astc=" + astcTranscode
+                + ", etc2=" + etc2Transcode
+                + ", leegaoLayer=" + activeBcnLayer);
 
         if (!vkbasaltConfig.isEmpty()) {
             envVars.put("ENABLE_VKBASALT", "1");

@@ -7,7 +7,6 @@
         <item android:icon="@drawable/icon_gamepad" android:id="@+id/main_menu_controller_assignment" android:title="@string/controller_manager" />
         <item android:icon="@drawable/icon_open" android:id="@+id/main_menu_contents" android:title="@string/contents" />
         <item android:icon="@drawable/icon_menu_file_manager" android:id="@+id/main_menu_file_manager" android:title="@string/file_manager" />
-        <item android:icon="@drawable/ic_xclipse_gpu_drivers" android:id="@+id/main_menu_xclipse_gpu_drivers" android:title="@string/xclipse_gpu_drivers" />
         <item android:icon="@drawable/icon_settings" android:id="@+id/main_menu_settings" android:title="@string/settings" />
         <item android:icon="@drawable/icon_about" android:id="@+id/main_menu_about" android:title="@string/about" />
     </group>

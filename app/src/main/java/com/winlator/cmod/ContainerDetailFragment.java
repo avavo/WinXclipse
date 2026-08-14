@@ -517,12 +517,11 @@ public class ContainerDetailFragment extends Fragment {
         final Spinner sFEXCorePreset = view.findViewById(R.id.SFEXCorePreset);
         FEXCorePresetManager.loadSpinner(sFEXCorePreset, container != null
                 ? container.getFEXCorePreset()
-                : preferences.getString("fexcore_preset", FEXCorePreset.STABILITY));
+                : FEXCorePresetManager.getConfiguredDefault(context));
 
-        String selectedDriver = sGraphicsDriver.getSelectedItem().toString();
-        List<String> sGraphicsItemsList = new ArrayList<>(Arrays.asList(context.getResources().getStringArray(R.array.graphics_driver_entries)));
-        sGraphicsDriver.setAdapter(new ThemedSpinnerAdapter<>(context, sGraphicsItemsList));
-        AppUtils.setSpinnerSelectionFromValue(sGraphicsDriver, selectedDriver);
+        // Keep user-installed wrappers in the list. Replacing this adapter with
+        // the static resource array here used to discard them after setup.
+        updateGraphicsDriverSpinner(context, sGraphicsDriver);
 
         final Spinner sRCFile = view.findViewById(R.id.SRCFile);
         final int[] rcfileIds = {0};
@@ -918,6 +917,10 @@ public class ContainerDetailFragment extends Fragment {
 
         Runnable update = () -> {
             String graphicsDriver = StringUtils.parseIdentifier(sGraphicsDriver.getSelectedItem());
+            String currentConfig = String.valueOf(vGraphicsDriverConfig.getTag());
+            String safeConfig = GraphicsDriverConfigDialog.applyDriverSafetyDefaults(
+                    graphicsDriver, currentConfig);
+            if (!safeConfig.equals(currentConfig)) vGraphicsDriverConfig.setTag(safeConfig);
 
             // Update the DXWrapper spinner
             ArrayList<String> items = new ArrayList<>();
@@ -1276,6 +1279,8 @@ public class ContainerDetailFragment extends Fragment {
     }
 
     public static void updateGraphicsDriverSpinner(Context context, Spinner spinner) {
+        Object previousItem = spinner.getSelectedItem();
+        String previousId = StringUtils.parseIdentifier(previousItem);
         String[] originalItems = context.getResources().getStringArray(R.array.graphics_driver_entries);
         List<String> itemList = new ArrayList<>(Arrays.asList(originalItems));
         for (String label : new CustomWrapperManager(context).getInstalledLabels()) {
@@ -1283,31 +1288,18 @@ public class ContainerDetailFragment extends Fragment {
         }
         
         // Set the adapter with the combined list
-        spinner.setAdapter(new ThemedSpinnerAdapter<>(context, itemList));
+        spinner.setAdapter(new ThemedSpinnerAdapter<>(spinner.getContext(), itemList));
+        if (!previousId.isEmpty()) AppUtils.setSpinnerSelectionFromIdentifier(spinner, previousId);
     }
 
     public static void loadBox64VersionSpinner(Context context, Container container, ContentsManager manager, Spinner spinner, boolean isArm64EC) {
-        List<String> itemList;
-        if (isArm64EC) {
-            String[] originalItems = context.getResources().getStringArray(R.array.wowbox64_version_entries);
-            itemList = new ArrayList<>(Arrays.asList(originalItems));
-        }
-        else {
-            String[] originalItems = context.getResources().getStringArray(R.array.box64_version_entries);
-            itemList = new ArrayList<>(Arrays.asList(originalItems));
-        }
-        if (!isArm64EC) {
-            for (ContentProfile profile : manager.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_BOX64)) {
-                String entryName = ContentsManager.getEntryName(profile);
-                int firstDashIndex = entryName.indexOf('-');
-                itemList.add(entryName.substring(firstDashIndex + 1));
-            }
-        } else {
-            for (ContentProfile profile : manager.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_WOWBOX64)) {
-                String entryName = ContentsManager.getEntryName(profile);
-                int firstDashIndex = entryName.indexOf('-');
-                itemList.add(entryName.substring(firstDashIndex + 1));
-            }
+        String[] originalItems = context.getResources().getStringArray(R.array.box64_version_entries);
+        List<String> itemList = new ArrayList<>(Arrays.asList(originalItems));
+        for (ContentProfile profile : manager.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_BOX64)) {
+            String entryName = ContentsManager.getEntryName(profile);
+            int firstDashIndex = entryName.indexOf('-');
+            String version = entryName.substring(firstDashIndex + 1);
+            if (!itemList.contains(version)) itemList.add(version);
         }
         spinner.setAdapter(new ThemedSpinnerAdapter<>(context, itemList));
         if (container != null)

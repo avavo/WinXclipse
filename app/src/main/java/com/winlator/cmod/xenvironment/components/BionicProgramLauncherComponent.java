@@ -119,31 +119,18 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         File system32dir = new File(rootDir + "/home/xuser/.wine/drive_c/windows/system32");
         boolean containerDataChanged = false;
 
-        String wowbox64Version = container.getBox64Version();
         String fexcoreVersion = container.getFEXCoreVersion();
 
         if (shortcut != null) {
-            wowbox64Version = shortcut.getExtra("box64Version", shortcut.container.getBox64Version());
             fexcoreVersion = shortcut.getExtra("fexcoreVersion", shortcut.container.getFEXCoreVersion());
         }
 
-        Log.d("BionicProgramLauncherComponent", "box64Version in use: " + wowbox64Version);
         String fexcorePreset = container.getFEXCorePreset();
         if (shortcut != null) {
             fexcorePreset = shortcut.getExtra("fexcorePreset", shortcut.container.getFEXCorePreset());
         }
         Log.d("BionicProgramLauncherComponent", "fexcoreVersion in use: " + fexcoreVersion);
         Log.d("BionicProgramLauncherComponent", "fexcorePreset in use: " + fexcorePreset);
-
-        if (!wowbox64Version.equals(container.getExtra("box64Version"))) {
-            ContentProfile profile = contentsManager.getProfileByEntryName("wowbox64-" + wowbox64Version);
-            if (profile != null)
-                contentsManager.applyContent(profile);
-            else
-                TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, environment.getContext(), "wowbox64/wowbox64-" + wowbox64Version + ".tzst", system32dir);
-            container.putExtra("box64Version", wowbox64Version);
-            containerDataChanged = true;
-        }
 
         File fexDll = new File(system32dir, "libwow64fex.dll");
         if (!fexcoreVersion.equals(container.getExtra("fexcoreVersion")) || !fexDll.isFile()) {
@@ -315,7 +302,7 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         // User-installed ARM64EC Wine/Proton packages follow the proven Mali
         // launcher path. They are always started through FEXCore; this avoids
         // interpreting a newer package with an incompatible WOWBox runtime.
-        if (wineInfo.isArm64EC() && wineProfile != null) emulator = "fexcore";
+        if (wineInfo.isArm64EC()) emulator = "fexcore";
 
         if (wineInfo.isArm64EC()) {
             if (emulator.equalsIgnoreCase("fexcore")) {

@@ -26,12 +26,28 @@ import java.util.Locale;
 public final class FEXCorePresetManager {
     private static final String CUSTOM_PRESETS_KEY = "fexcore_custom_presets";
     private static final String NEXT_CUSTOM_PRESET_ID_KEY = "fexcore_next_custom_preset_id";
+    private static final String COMPATIBILITY_DEFAULT_MIGRATED_KEY =
+            "fexcore_compatibility_default_migrated_v086";
 
     private FEXCorePresetManager() {}
 
     public static String normalizePresetId(String id) {
-        if (id == null || id.trim().isEmpty()) return FEXCorePreset.STABILITY;
+        if (id == null || id.trim().isEmpty()) return FEXCorePreset.COMPATIBILITY;
         return id.trim().toUpperCase(Locale.ENGLISH);
+    }
+
+    public static String getConfiguredDefault(Context context) {
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
+        String selected = normalizePresetId(preferences.getString(
+                "fexcore_preset", FEXCorePreset.COMPATIBILITY));
+        if (!preferences.getBoolean(COMPATIBILITY_DEFAULT_MIGRATED_KEY, false)) {
+            if (FEXCorePreset.STABILITY.equals(selected)) selected = FEXCorePreset.COMPATIBILITY;
+            preferences.edit()
+                    .putString("fexcore_preset", selected)
+                    .putBoolean(COMPATIBILITY_DEFAULT_MIGRATED_KEY, true)
+                    .apply();
+        }
+        return selected;
     }
 
     public static EnvVars getEnvVars(Context context, String id) {
@@ -301,25 +317,25 @@ public final class FEXCorePresetManager {
         ArrayList<FEXCorePreset> presets = getPresets(context);
         String normalizedId = normalizePresetId(selectedId);
         int selectedPosition = -1;
-        int stabilityPosition = 0;
+        int compatibilityPosition = 0;
         for (int i = 0; i < presets.size(); i++) {
-            if (presets.get(i).id.equals(FEXCorePreset.STABILITY)) stabilityPosition = i;
+            if (presets.get(i).id.equals(FEXCorePreset.COMPATIBILITY)) compatibilityPosition = i;
             if (presets.get(i).id.equals(normalizedId)) selectedPosition = i;
         }
-        if (selectedPosition < 0) selectedPosition = stabilityPosition;
+        if (selectedPosition < 0) selectedPosition = compatibilityPosition;
         spinner.setAdapter(new com.winlator.cmod.widget.ThemedSpinnerAdapter<>(
                 spinner.getContext(), presets, 18f));
         spinner.setSelection(selectedPosition);
     }
 
     public static String getSpinnerSelectedId(Spinner spinner) {
-        if (spinner == null) return FEXCorePreset.STABILITY;
+        if (spinner == null) return FEXCorePreset.COMPATIBILITY;
         SpinnerAdapter adapter = spinner.getAdapter();
         int position = spinner.getSelectedItemPosition();
         if (adapter != null && position >= 0 && position < adapter.getCount()) {
             Object item = adapter.getItem(position);
             if (item instanceof FEXCorePreset) return ((FEXCorePreset) item).id;
         }
-        return FEXCorePreset.STABILITY;
+        return FEXCorePreset.COMPATIBILITY;
     }
 }

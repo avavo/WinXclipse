@@ -32,6 +32,7 @@ app/src/main/assets/*
 !app/src/main/assets/graphics_driver/
 app/src/main/assets/graphics_driver/*
 !app/src/main/assets/graphics_driver/leegao_bcn.tzst
+!app/src/main/assets/graphics_driver/wrapper-bcn.tzst
 !app/src/main/assets/graphics_driver/wrapper-gamenative.tzst
 !app/src/main/assets/contents/
 app/src/main/assets/contents/*

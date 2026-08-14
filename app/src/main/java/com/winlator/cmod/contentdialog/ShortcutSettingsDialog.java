@@ -361,10 +361,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
             popupMenu.show();
         });
 
-        String selectedDriver = sGraphicsDriver.getSelectedItem().toString();
-        List<String> sGraphicsItemsList = new ArrayList<>(Arrays.asList(context.getResources().getStringArray(R.array.graphics_driver_entries)));
-        sGraphicsDriver.setAdapter(new ThemedSpinnerAdapter<>(context, sGraphicsItemsList));
-        AppUtils.setSpinnerSelectionFromValue(sGraphicsDriver, selectedDriver);
+        ContainerDetailFragment.updateGraphicsDriverSpinner(context, sGraphicsDriver);
 
         final Spinner sStartupSelection = findViewById(R.id.SStartupSelection);
         sStartupSelection.setSelection(Integer.parseInt(shortcut.getExtra("startupSelection", String.valueOf(shortcut.container.getStartupSelection()))));
@@ -772,23 +769,13 @@ public class ShortcutSettingsDialog extends ContentDialog {
     }
 
     public static void loadBox64VersionSpinner(Context context, ContentsManager manager, Spinner spinner, boolean isArm64EC) {
-        List<String> itemList;
-        if (isArm64EC)
-            itemList = new ArrayList<>(Arrays.asList(context.getResources().getStringArray(R.array.wowbox64_version_entries)));
-        else
-            itemList = new ArrayList<>(Arrays.asList(context.getResources().getStringArray(R.array.box64_version_entries)));
-        if (!isArm64EC) {
-            for (ContentProfile profile : manager.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_BOX64)) {
-                String entryName = ContentsManager.getEntryName(profile);
-                int firstDashIndex = entryName.indexOf('-');
-                itemList.add(entryName.substring(firstDashIndex + 1));
-            }
-        } else {
-            for (ContentProfile profile : manager.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_WOWBOX64)) {
-                String entryName = ContentsManager.getEntryName(profile);
-                int firstDashIndex = entryName.indexOf('-');
-                itemList.add(entryName.substring(firstDashIndex + 1));
-            }
+        List<String> itemList = new ArrayList<>(Arrays.asList(
+                context.getResources().getStringArray(R.array.box64_version_entries)));
+        for (ContentProfile profile : manager.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_BOX64)) {
+            String entryName = ContentsManager.getEntryName(profile);
+            int firstDashIndex = entryName.indexOf('-');
+            String version = entryName.substring(firstDashIndex + 1);
+            if (!itemList.contains(version)) itemList.add(version);
         }
         spinner.setAdapter(new ThemedSpinnerAdapter<>(context, itemList));
     }
@@ -803,6 +790,12 @@ public class ShortcutSettingsDialog extends ContentDialog {
         Runnable update = () -> {
             String graphicsDriver = StringUtils.parseIdentifier(sGraphicsDriver.getSelectedItem());
             String graphicsDriverConfig = vGraphicsDriverConfig.getTag().toString();
+            String safeConfig = GraphicsDriverConfigDialog.applyDriverSafetyDefaults(
+                    graphicsDriver, graphicsDriverConfig);
+            if (!safeConfig.equals(graphicsDriverConfig)) {
+                graphicsDriverConfig = safeConfig;
+                vGraphicsDriverConfig.setTag(safeConfig);
+            }
 
             tvGraphicsDriverVersion.setText(GraphicsDriverConfigDialog.getVersion(graphicsDriverConfig));
 

@@ -524,9 +524,6 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             case R.id.main_menu_file_manager:
                 show(new FileManagerFragment(), false);
                 break;
-            case R.id.main_menu_xclipse_gpu_drivers:
-                show(new XclipseDriversFragment(), false);
-                break;
             case R.id.main_menu_logs:
                 new DebugDialog(this).show();
                 drawerLayout.closeDrawers();

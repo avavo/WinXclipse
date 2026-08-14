@@ -108,10 +108,13 @@ public class XclipseDriverManager {
 
     private void reloadContainers(String driverId) {
         ContainerManager containerManager = new ContainerManager(context);
+        String driverName = getDriverName(driverId);
+        if (driverName == null || driverName.isEmpty()) driverName = driverId;
         for (Container container : containerManager.getContainers()) {
             HashMap<String, String> config = GraphicsDriverConfigDialog.parseGraphicsDriverConfig(container.getGraphicsDriverConfig());
-            Log.d("XclipseDriverManager", "Checking if container driver version " + config.get("version") + " matches " + getDriverName(driverId));
-            if (config.get("version").contains(getDriverName(driverId))) {
+            String selectedVersion = config.getOrDefault("version", "");
+            Log.d("XclipseDriverManager", "Checking if container driver version " + selectedVersion + " matches " + driverName);
+            if (selectedVersion.toLowerCase(Locale.ENGLISH).contains(driverName.toLowerCase(Locale.ENGLISH))) {
                 Log.d("XclipseDriverManager", "Found a match for container " + container.getName());
                 config.put("version", DefaultVersion.WRAPPER);
                 container.setGraphicsDriverConfig(GraphicsDriverConfigDialog.toGraphicsDriverConfig(config));
@@ -120,8 +123,9 @@ public class XclipseDriverManager {
         }
         for (Shortcut shortcut : containerManager.loadShortcuts()) {
             HashMap<String, String> config = GraphicsDriverConfigDialog.parseGraphicsDriverConfig(shortcut.getExtra("graphicsDriverConfig", shortcut.container.getGraphicsDriverConfig()));
-            Log.d("XclipseDriverManager", "Checking if shortcut driver version " + config.get("version") + " matches " + getDriverName(driverId));
-            if (config.get("version").contains(getDriverName(driverId))) {
+            String selectedVersion = config.getOrDefault("version", "");
+            Log.d("XclipseDriverManager", "Checking if shortcut driver version " + selectedVersion + " matches " + driverName);
+            if (selectedVersion.toLowerCase(Locale.ENGLISH).contains(driverName.toLowerCase(Locale.ENGLISH))) {
                 Log.d("XclipseDriverManager", "Found a match for shortcut " + shortcut.name);
                 config.put("version", DefaultVersion.WRAPPER);
                 shortcut.putExtra("graphicsDriverConfig", GraphicsDriverConfigDialog.toGraphicsDriverConfig(config));

@@ -35,7 +35,7 @@ Version 0.8.6 builds on the large runtime and interface foundation introduced in
 - Set FEXCore 2608 as the default and removed the bundled FEXCore 2505 and 2507 packages.
 - Added DXVK `1.11.1-sarek`.
 - Removed DXVK `2.2.116` and the bundled GPLAsync variants.
-- New containers and shortcuts start with the **Stability** FEXCore preset.
+- Settings, new containers, and new shortcuts start with the **Compatibility** FEXCore preset.
 - VKD3D now starts as **None**, while remaining selectable from the combined DXVK + VKD3D configuration.
 - **Show FPS** is enabled by default.
 - ASTC and ETC2 transcoding start disabled, so texture transcoding is opt-in.
@@ -45,9 +45,14 @@ Version 0.8.6 builds on the large runtime and interface foundation introduced in
 - Added real GPU renderer detection with recognition for the Xclipse family, including Xclipse 920, 940, and 950.
 - Replaced Qualcomm-specific wording in the visible driver workflow with Xclipse-oriented naming while preserving the underlying package-management compatibility.
 - Replaced the BCN runtime layer with the custom Leegao BCN layer.
-- Ported the complete BCN activation flow used by the reference implementation, including compute mode, automatic mode, software/full emulation, cache control, ASTC transcoding, ETC2 transcoding, and quality presets.
-- The BCN environment is enabled only after both the layer library and Vulkan manifest are verified inside the runtime filesystem.
-- Failed or incomplete BCN extraction now disables the layer instead of exposing configuration options that do not affect the runtime.
+- Added the Mali reference wrapper as a separate **Wrapper-BCN** option without replacing the existing **Wrapper**.
+- Native BCN controls are used by compatible wrappers, including Wrapper-BCN, GameNative, Kirimu, and Ref4ik-v6.
+- Wrappers without native BCN controls are routed through the shared Leegao compute layer, so BCN is not tied to one wrapper.
+- Ported the BCN activation flow used by the reference implementations, including automatic/full emulation, compute/software selection, cache control, ASTC transcoding, and ETC2 transcoding.
+- Kirimu uses its working compute path. ASTC and ETC2 use the Mali-compatible Leegao layer independently of the selected wrapper.
+- The Leegao layer is enabled only after both its library and Vulkan manifest are verified inside the runtime filesystem.
+- Stale or incomplete layer files are removed so they cannot silently interfere with native wrapper BCN handling.
+- Bundled wrappers are re-extracted after an application update, and a replaced user-installed wrapper is re-applied on its next launch.
 
 #### In-session sidebar and controls
 
@@ -116,6 +121,7 @@ Version 0.8.5 was the major foundation for the current WinXclipse line. It intro
 The built-in graphics-driver list includes:
 
 - Wrapper
+- Wrapper-BCN
 - Wrapper-v2
 - Wrapper-Leegao
 - Wrapper-EV1
@@ -125,7 +131,7 @@ The built-in graphics-driver list includes:
 - Wrapper-Ref4ik-v6
 - Wrapper-GameNative
 
-Additional wrappers installed from **Downloads** appear alongside the built-in entries. Availability and compatibility depend on the device and selected container configuration.
+Additional wrappers installed from **Downloads** appear immediately alongside the built-in entries and can also be removed there. Availability and compatibility depend on the device and selected container configuration.
 
 ## Downloads and runtime sources
 

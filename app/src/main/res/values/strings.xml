@@ -357,7 +357,6 @@
     <string name="graphics_driver_bcn_emulation">BCn Emulation</string>
     <string name="graphics_driver_bcn_emulation_type">BCn Emulation Type</string>
     <string name="graphics_driver_bcn_emulation_cache">BCn Emulation Cache</string>
-    <string name="graphics_driver_bcn_quality_preset">BCn Shader Quality</string>
     <string name="graphics_driver_sync_frame">Sync Every Frame</string>
     <string name="graphics_driver_disable_present_wait">Disable KHR_present_wait</string>
     <string name="graphics_driver_astc_transcode">ASTC Transcode</string>

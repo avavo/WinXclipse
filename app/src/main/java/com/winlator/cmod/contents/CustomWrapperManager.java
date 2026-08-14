@@ -109,6 +109,18 @@ public final class CustomWrapperManager {
         return false;
     }
 
+    /** Changes whenever an installed wrapper file is replaced. */
+    public String getRevision(String wrapperId) {
+        String id = toIdentifier(wrapperId);
+        for (String extension : new String[]{".tzst", ".so"}) {
+            File file = new File(wrapperDir, id + extension);
+            if (file.isFile()) {
+                return file.getName() + ':' + file.length() + ':' + file.lastModified();
+            }
+        }
+        return "bundled";
+    }
+
     public void remove(String wrapperId) {
         String id = toIdentifier(wrapperId);
         FileUtils.delete(new File(wrapperDir, id + ".tzst"));
