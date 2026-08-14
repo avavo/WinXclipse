@@ -2679,7 +2679,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         String bcnEmulationType = graphicsDriverConfig.getOrDefault("bcnEmulationType", "compute");
         boolean nativeBcnWrapper = GraphicsDriverConfigDialog.supportsNativeBcn(mainWrapperSelection);
         if ("wrapper-kirimu".equalsIgnoreCase(mainWrapperSelection)) {
-            bcnEmulationType = "compute";
+            bcnEmulationType = "software";
         }
         else if (!nativeBcnWrapper && "software".equals(bcnEmulationType)) {
             // Keep BCN available for every wrapper. Non-native wrappers are routed

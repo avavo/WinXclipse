@@ -49,7 +49,7 @@ Version 0.8.6 builds on the large runtime and interface foundation introduced in
 - Native BCN controls are used by compatible wrappers, including Wrapper-BCN, GameNative, Kirimu, and Ref4ik-v6.
 - Wrappers without native BCN controls are routed through the shared Leegao compute layer, so BCN is not tied to one wrapper.
 - Ported the BCN activation flow used by the reference implementations, including automatic/full emulation, compute/software selection, cache control, ASTC transcoding, and ETC2 transcoding.
-- Kirimu uses its working compute path. ASTC and ETC2 use the Mali-compatible Leegao layer independently of the selected wrapper.
+- Kirimu uses its working software BCN path. ASTC and ETC2 use the Mali-compatible Leegao layer independently of the selected wrapper.
 - The Leegao layer is enabled only after both its library and Vulkan manifest are verified inside the runtime filesystem.
 - Stale or incomplete layer files are removed so they cannot silently interfere with native wrapper BCN handling.
 - Bundled wrappers are re-extracted after an application update, and a replaced user-installed wrapper is re-applied on its next launch.

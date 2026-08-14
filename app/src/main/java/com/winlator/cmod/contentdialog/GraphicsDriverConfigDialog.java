@@ -133,10 +133,10 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
         HashMap<String, String> config = parseGraphicsDriverConfig(graphicsDriverConfig);
         boolean changed = false;
         if ("wrapper-kirimu".equals(driverId)
-                && !"compute".equals(config.getOrDefault("bcnEmulationType", "compute"))) {
-            // Kirimu's native BCN path is the compute implementation. ASTC/ETC2
+                && !"software".equals(config.getOrDefault("bcnEmulationType", "compute"))) {
+            // Kirimu's working native BCN path is the software implementation. ASTC/ETC2
             // remain independent and are handled by the Mali-compatible layer.
-            config.put("bcnEmulationType", "compute");
+            config.put("bcnEmulationType", "software");
             changed = true;
         }
         else if (!supportsNativeBcn(driverId)

@@ -30,7 +30,7 @@ BCN, ASTC, and ETC2
 - Added the Mali reference wrapper as a separate Wrapper-BCN option while preserving the existing Wrapper.
 - Compatible wrappers use their native BCN controls; other bundled and user-installed wrappers use the shared Leegao compute layer.
 - Added automatic/full emulation, compute/software selection, cache control, ASTC transcoding, and ETC2 transcoding.
-- Kirimu uses its compute BCN path, while ASTC and ETC2 use the Mali-compatible Leegao layer independently of the selected wrapper.
+- Kirimu uses its software BCN path, while ASTC and ETC2 use the Mali-compatible Leegao layer independently of the selected wrapper.
 - The Leegao layer is activated only after its library and Vulkan manifest are verified.
 - Stale or incomplete layer files are removed so they cannot interfere with native wrapper BCN handling.
 - Bundled and user-installed wrapper replacements are re-applied when their revision changes.
