@@ -30,7 +30,7 @@ public final class FEXCorePresetManager {
     private FEXCorePresetManager() {}
 
     public static String normalizePresetId(String id) {
-        if (id == null || id.trim().isEmpty()) return FEXCorePreset.INTERMEDIATE;
+        if (id == null || id.trim().isEmpty()) return FEXCorePreset.STABILITY;
         return id.trim().toUpperCase(Locale.ENGLISH);
     }
 
@@ -301,24 +301,25 @@ public final class FEXCorePresetManager {
         ArrayList<FEXCorePreset> presets = getPresets(context);
         String normalizedId = normalizePresetId(selectedId);
         int selectedPosition = -1;
-        int intermediatePosition = 0;
+        int stabilityPosition = 0;
         for (int i = 0; i < presets.size(); i++) {
-            if (presets.get(i).id.equals(FEXCorePreset.INTERMEDIATE)) intermediatePosition = i;
+            if (presets.get(i).id.equals(FEXCorePreset.STABILITY)) stabilityPosition = i;
             if (presets.get(i).id.equals(normalizedId)) selectedPosition = i;
         }
-        if (selectedPosition < 0) selectedPosition = intermediatePosition;
-        spinner.setAdapter(new com.winlator.cmod.widget.ThemedSpinnerAdapter<>(spinner.getContext(), presets));
+        if (selectedPosition < 0) selectedPosition = stabilityPosition;
+        spinner.setAdapter(new com.winlator.cmod.widget.ThemedSpinnerAdapter<>(
+                spinner.getContext(), presets, 18f));
         spinner.setSelection(selectedPosition);
     }
 
     public static String getSpinnerSelectedId(Spinner spinner) {
-        if (spinner == null) return FEXCorePreset.INTERMEDIATE;
+        if (spinner == null) return FEXCorePreset.STABILITY;
         SpinnerAdapter adapter = spinner.getAdapter();
         int position = spinner.getSelectedItemPosition();
         if (adapter != null && position >= 0 && position < adapter.getCount()) {
             Object item = adapter.getItem(position);
             if (item instanceof FEXCorePreset) return ((FEXCorePreset) item).id;
         }
-        return FEXCorePreset.INTERMEDIATE;
+        return FEXCorePreset.STABILITY;
     }
 }

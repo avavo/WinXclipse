@@ -47,6 +47,7 @@ import com.winlator.cmod.contentdialog.ShortcutSettingsDialog;
 import com.winlator.cmod.contentdialog.VKD3DConfigDialog;
 import com.winlator.cmod.contents.ContentProfile;
 import com.winlator.cmod.contents.ContentsManager;
+import com.winlator.cmod.contents.CustomWrapperManager;
 import com.winlator.cmod.core.AppUtils;
 import com.winlator.cmod.core.Callback;
 import com.winlator.cmod.core.DefaultVersion;
@@ -395,7 +396,7 @@ public class ContainerDetailFragment extends Fragment {
         AppUtils.setSpinnerSelectionFromValue(sMIDISoundFont, isEditMode() ? container.getMIDISoundFont() : "");
 
         final CheckBox cbShowFPS = view.findViewById(R.id.CBShowFPS);
-        cbShowFPS.setChecked(isEditMode() && container.isShowFPS());
+        cbShowFPS.setChecked(!isEditMode() || container.isShowFPS());
         final Spinner sHudMode = view.findViewById(R.id.SHudMode);
         int hudModeSelection = 0;
         if (isEditMode() && "mangohud".equals(container.getHudMode())) hudModeSelection = 1;
@@ -477,6 +478,10 @@ public class ContainerDetailFragment extends Fragment {
                     showGStreamerWorkaroundWarning.run();
             });
 
+        final CheckBox cbExperimentalPerformance = view.findViewById(R.id.CBExperimentalPerformance);
+        cbExperimentalPerformance.setChecked(isEditMode()
+                && "1".equals(container.getExtra("experimentalPerformance", "0")));
+
         final EditText etLC_ALL = view.findViewById(R.id.ETlcall);
         Locale systemLocal = Locale.getDefault();
         etLC_ALL.setText(isEditMode() ? container.getLC_ALL() : systemLocal.getLanguage() + '_' + systemLocal.getCountry() + ".UTF-8");
@@ -512,7 +517,7 @@ public class ContainerDetailFragment extends Fragment {
         final Spinner sFEXCorePreset = view.findViewById(R.id.SFEXCorePreset);
         FEXCorePresetManager.loadSpinner(sFEXCorePreset, container != null
                 ? container.getFEXCorePreset()
-                : preferences.getString("fexcore_preset", FEXCorePreset.INTERMEDIATE));
+                : preferences.getString("fexcore_preset", FEXCorePreset.STABILITY));
 
         String selectedDriver = sGraphicsDriver.getSelectedItem().toString();
         List<String> sGraphicsItemsList = new ArrayList<>(Arrays.asList(context.getResources().getStringArray(R.array.graphics_driver_entries)));
@@ -619,6 +624,7 @@ public class ContainerDetailFragment extends Fragment {
 
                 // Handle GStreamer Workaround environment variables based on the toggle state
                 boolean gstreamerWorkaround = cbGStreamerWorkaroundToggle.isChecked();
+                boolean experimentalPerformance = cbExperimentalPerformance.isChecked();
 
 
 
@@ -656,6 +662,7 @@ public class ContainerDetailFragment extends Fragment {
                     container.setPrimaryController(primaryController);
                     container.setControllerMapping(controllerMapping);
                     container.setGstreamerWorkaround(gstreamerWorkaround);
+                    container.putExtra("experimentalPerformance", experimentalPerformance ? "1" : null);
                     container.saveData();
                     saveWineRegistryKeys(view);
                     getActivity().onBackPressed();
@@ -695,6 +702,11 @@ public class ContainerDetailFragment extends Fragment {
                     data.put("primaryController", primaryController);
                     data.put("controllerMapping", controllerMapping);
                     data.put("gstreamerWorkaround", gstreamerWorkaround);
+                    if (experimentalPerformance) {
+                        JSONObject extraData = new JSONObject();
+                        extraData.put("experimentalPerformance", "1");
+                        data.put("extraData", extraData);
+                    }
 
                     preloaderDialog.show(R.string.creating_container);
 
@@ -1266,6 +1278,9 @@ public class ContainerDetailFragment extends Fragment {
     public static void updateGraphicsDriverSpinner(Context context, Spinner spinner) {
         String[] originalItems = context.getResources().getStringArray(R.array.graphics_driver_entries);
         List<String> itemList = new ArrayList<>(Arrays.asList(originalItems));
+        for (String label : new CustomWrapperManager(context).getInstalledLabels()) {
+            if (!itemList.contains(label)) itemList.add(label);
+        }
         
         // Set the adapter with the combined list
         spinner.setAdapter(new ThemedSpinnerAdapter<>(context, itemList));

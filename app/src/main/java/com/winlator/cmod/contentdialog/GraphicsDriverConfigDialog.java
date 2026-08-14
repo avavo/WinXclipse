@@ -15,7 +15,7 @@ import androidx.annotation.Nullable;
 import androidx.preference.PreferenceManager;
 
 import com.winlator.cmod.R;
-import com.winlator.cmod.contents.AdrenotoolsManager;
+import com.winlator.cmod.contents.XclipseDriverManager;
 import com.winlator.cmod.contents.ContentsManager;
 import com.winlator.cmod.core.AppUtils;
 import com.winlator.cmod.core.DefaultVersion;
@@ -47,11 +47,11 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
     private final Spinner bcnEmulationSpinner;
     private final Spinner bcnEmulationTypeSpinner;
     private final Spinner bcnEmulationCacheSpinner;
+    private final Spinner bcnQualityPresetSpinner;
     private final CheckBox syncFrameCheckBox;
     private final CheckBox disablePresentWaitCheckBox;
     private final CheckBox astcTranscodeCheckBox;
     private final CheckBox etc2TranscodeCheckBox;
-    private final CheckBox adrenotoolsTurnipCheckBox;
 
     private final String initialVersion;
     private final String initialExtensionBlacklist;
@@ -72,11 +72,11 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
         bcnEmulationSpinner = findViewById(R.id.SGraphicsDriverBCnEmulation);
         bcnEmulationTypeSpinner = findViewById(R.id.SGraphicsDriverBCnEmulationType);
         bcnEmulationCacheSpinner = findViewById(R.id.SGraphicsDriverBCnEmulationCache);
+        bcnQualityPresetSpinner = findViewById(R.id.SGraphicsDriverBCnQualityPreset);
         syncFrameCheckBox = findViewById(R.id.CBSyncFrame);
         disablePresentWaitCheckBox = findViewById(R.id.CBDisablePresentWait);
         astcTranscodeCheckBox = findViewById(R.id.CBASTCTranscode);
         etc2TranscodeCheckBox = findViewById(R.id.CBETC2Transcode);
-        adrenotoolsTurnipCheckBox = findViewById(R.id.CBAdrenotoolsTurnip);
 
         HashMap<String, String> config = parseGraphicsDriverConfig(String.valueOf(anchor.getTag()));
         initialVersion = config.getOrDefault("version", DefaultVersion.WRAPPER);
@@ -135,7 +135,7 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
 
         LinkedHashSet<String> versions = new LinkedHashSet<>(Arrays.asList(
                 context.getResources().getStringArray(R.array.wrapper_graphics_driver_version_entries)));
-        versions.addAll(new AdrenotoolsManager(context).enumarateInstalledDrivers());
+        versions.addAll(new XclipseDriverManager(context).enumerateInstalledDrivers());
         versionSpinner.setAdapter(new ThemedSpinnerAdapter<>(context, new ArrayList<>(versions)));
         setSpinnerSelectionWithFallback(versionSpinner, initialVersion, graphicsDriver);
     }
@@ -173,14 +173,15 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
                 config.getOrDefault("bcnEmulationType", "compute"));
         AppUtils.setSpinnerSelectionFromValue(bcnEmulationCacheSpinner,
                 config.getOrDefault("bcnEmulationCache", "0"));
+        AppUtils.setSpinnerSelectionFromValue(bcnQualityPresetSpinner,
+                config.getOrDefault("bcnQualityPreset", "auto"));
 
         syncFrameCheckBox.setChecked("1".equals(config.getOrDefault("syncFrame", "0"))
                 || "Always".equals(config.get("frameSync")));
         disablePresentWaitCheckBox.setChecked("1".equals(config.getOrDefault("disablePresentWait", "0"))
                 || "Never".equals(config.get("frameSync")));
-        astcTranscodeCheckBox.setChecked("1".equals(config.getOrDefault("astcTranscode", "1")));
+        astcTranscodeCheckBox.setChecked("1".equals(config.getOrDefault("astcTranscode", "0")));
         etc2TranscodeCheckBox.setChecked("1".equals(config.getOrDefault("etc2Transcode", "0")));
-        adrenotoolsTurnipCheckBox.setChecked("1".equals(config.getOrDefault("adrenotoolsTurnip", "1")));
         refreshExtensions(initialVersion);
         updateTranscodeCheckboxes(false);
     }
@@ -269,6 +270,11 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
         etc2TranscodeCheckBox.setEnabled(!software && !astcTranscodeCheckBox.isChecked());
         astcTranscodeCheckBox.setAlpha(astcTranscodeCheckBox.isEnabled() ? 1.0f : 0.5f);
         etc2TranscodeCheckBox.setAlpha(etc2TranscodeCheckBox.isEnabled() ? 1.0f : 0.5f);
+        boolean qualityEnabled = !software
+                && (astcTranscodeCheckBox.isChecked() || etc2TranscodeCheckBox.isChecked());
+        if (!qualityEnabled) AppUtils.setSpinnerSelectionFromValue(bcnQualityPresetSpinner, "auto");
+        bcnQualityPresetSpinner.setEnabled(qualityEnabled);
+        bcnQualityPresetSpinner.setAlpha(qualityEnabled ? 1.0f : 0.5f);
         updatingTranscodeState = false;
     }
 
@@ -290,8 +296,8 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
                 + ";bcnEmulation=" + selectedValue(bcnEmulationSpinner)
                 + ";bcnEmulationType=" + selectedValue(bcnEmulationTypeSpinner)
                 + ";bcnEmulationCache=" + selectedValue(bcnEmulationCacheSpinner)
-                + ";gpuName=" + selectedValue(gpuNameSpinner)
-                + ";adrenotoolsTurnip=" + boolValue(adrenotoolsTurnipCheckBox);
+                + ";bcnQualityPreset=" + selectedValue(bcnQualityPresetSpinner)
+                + ";gpuName=" + selectedValue(gpuNameSpinner);
     }
 
     private static String boolValue(CheckBox checkBox) {
@@ -323,7 +329,8 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
         int textColor = dark ? Color.WHITE : Color.BLACK;
         Spinner[] spinners = {versionSpinner, vulkanVersionSpinner, gpuNameSpinner,
                 maxDeviceMemorySpinner, presentModeSpinner, resourceTypeSpinner,
-                bcnEmulationSpinner, bcnEmulationTypeSpinner, bcnEmulationCacheSpinner};
+                bcnEmulationSpinner, bcnEmulationTypeSpinner, bcnEmulationCacheSpinner,
+                bcnQualityPresetSpinner};
         for (Spinner spinner : spinners) {
             spinner.setBackgroundResource(background);
         }

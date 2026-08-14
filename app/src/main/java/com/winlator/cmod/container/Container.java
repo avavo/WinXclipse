@@ -28,14 +28,14 @@ public class Container {
         BUTTON_A, BUTTON_B, BUTTON_X, BUTTON_Y, BUTTON_GRIP, BUTTON_TRIGGER,
         THUMBSTICK_UP, THUMBSTICK_DOWN, THUMBSTICK_LEFT, THUMBSTICK_RIGHT
     }
-    public static final String DEFAULT_ENV_VARS = "ZINK_DESCRIPTORS=lazy ZINK_DEBUG=compact MESA_SHADER_CACHE_DISABLE=false MESA_SHADER_CACHE_MAX_SIZE=512MB mesa_glthread=true WINEESYNC=1 TU_DEBUG=noconform,sysmem DXVK_HUD=0 MANGOHUD=0 MANGOHUD_CONFIG=engine_version,gpu_stats=0";
+    public static final String DEFAULT_ENV_VARS = "ZINK_DESCRIPTORS=lazy ZINK_DEBUG=compact MESA_SHADER_CACHE_DISABLE=false MESA_SHADER_CACHE_MAX_SIZE=512MB mesa_glthread=true WINEESYNC=1 DXVK_HUD=0 MANGOHUD=0 MANGOHUD_CONFIG=engine_version,gpu_stats=0";
     public static final String DEFAULT_SCREEN_SIZE = "1280x720";
     public static final String DEFAULT_GRAPHICS_DRIVER = "wrapper";
     public static final String DEFAULT_AUDIO_DRIVER = "alsa-reflector";
     public static final String DEFAULT_EMULATOR = "FEXCore";
     public static final String DEFAULT_DXWRAPPER = "dxvk";
     public static final String DEFAULT_DXWRAPPERCONFIG = "version=" + DefaultVersion.DXVK + ",framerate=0,maxDeviceMemory=0,async=0,asyncCache=0" + ",vkd3dVersion=" + DefaultVersion.VKD3D + ",vkd3dLevel=12_1";
-    public static final String DEFAULT_GRAPHICSDRIVERCONFIG = "vulkanVersion=1.3;version=" + DefaultVersion.WRAPPER + ";blacklistedExtensions=;maxDeviceMemory=0;presentMode=mailbox;syncFrame=0;disablePresentWait=0;astcTranscode=1;etc2Transcode=0;resourceType=auto;bcnEmulation=auto;bcnEmulationType=compute;bcnEmulationCache=0;gpuName=Device;adrenotoolsTurnip=1";
+    public static final String DEFAULT_GRAPHICSDRIVERCONFIG = "vulkanVersion=1.3;version=" + DefaultVersion.WRAPPER + ";blacklistedExtensions=;maxDeviceMemory=0;presentMode=mailbox;syncFrame=0;disablePresentWait=0;astcTranscode=0;etc2Transcode=0;resourceType=auto;bcnEmulation=auto;bcnEmulationType=compute;bcnEmulationCache=0;bcnQualityPreset=auto;gpuName=Device";
     public static final String DEFAULT_DDRAWRAPPER = "wined3d";
     public static final String DEFAULT_WINCOMPONENTS = "direct3d=1,directsound=0,directmusic=0,directshow=0,directplay=0,xaudio=0,vcrun2010=1,opengl=0";
     public static final String FALLBACK_WINCOMPONENTS = "direct3d=1,directsound=1,directmusic=1,directshow=1,directplay=1,xaudio=1,vcrun2010=1,opengl=0";
@@ -67,7 +67,7 @@ public class Container {
     private String audioDriver = DEFAULT_AUDIO_DRIVER;
     private String drives = DEFAULT_DRIVES;
     private String wineVersion = WineInfo.MAIN_WINE_VERSION.identifier();
-    private boolean showFPS;
+    private boolean showFPS = true;
     private String hudMode = "winlator";
     private boolean fullscreenStretched;
     private boolean wow64Mode = true;
@@ -85,7 +85,7 @@ public class Container {
     private int primaryController = 1;
     private String controllerMapping = new String(new char[XrControllerMapping.values().length]);
     private String fexcoreVersion = DefaultVersion.FEXCORE;
-    private String fexcorePreset = FEXCorePreset.INTERMEDIATE;
+    private String fexcorePreset = FEXCorePreset.STABILITY;
     private String box64Version = DefaultVersion.BOX64;
     private String emulator;
     private boolean isRelativeMouseMovement;
@@ -140,7 +140,16 @@ public class Container {
     }
 
     public void setGraphicsDriver(String graphicsDriver) {
-        this.graphicsDriver = graphicsDriver;
+        this.graphicsDriver = normalizeGraphicsDriver(graphicsDriver);
+    }
+
+    public static String normalizeGraphicsDriver(String graphicsDriver) {
+        if (graphicsDriver == null || graphicsDriver.trim().isEmpty()) {
+            return DEFAULT_GRAPHICS_DRIVER;
+        }
+        // Preserve updates from the legacy 2.4 identifier without exposing the old label.
+        if ("wrapper-ludashi-2-4".equalsIgnoreCase(graphicsDriver)) return "wrapper-ld24";
+        return graphicsDriver;
     }
 
     public String getGraphicsDriverConfig() { return this.graphicsDriverConfig; }
@@ -623,10 +632,7 @@ data.put("desktopTheme", desktopTheme);
 
             if (data.has("graphicsDriver")) {
                 String graphicsDriver = data.getString("graphicsDriver");
-                if (graphicsDriver.equals("turnip-zink") || graphicsDriver.equals("turnip")) {
-                    data.put("graphicsDriver", "wrapper");
-                }
-                else if (graphicsDriver.equals("llvmpipe")) {
+                if (graphicsDriver.equals("llvmpipe")) {
                     data.put("graphicsDriver", "wrapper");
                 }
             }

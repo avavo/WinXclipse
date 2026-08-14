@@ -5,6 +5,7 @@ import static com.winlator.cmod.xserver.XClientRequestHandler.RESPONSE_CODE_SUCC
 import android.util.SparseArray;
 
 import com.winlator.cmod.renderer.GPUImage;
+import com.winlator.cmod.renderer.GLRenderer;
 import com.winlator.cmod.renderer.Texture;
 import com.winlator.cmod.xconnector.XInputStream;
 import com.winlator.cmod.xconnector.XOutputStream;
@@ -33,6 +34,13 @@ public class PresentExtension implements Extension {
     public enum Mode {COPY, FLIP, SKIP}
     private final SparseArray<Event> events = new SparseArray<>();
     private SyncExtension syncExtension;
+    private long nextFrameTimeNs;
+    private volatile int frameRateLimit;
+
+    public void setFrameRateLimit(int limit) {
+        frameRateLimit = Math.max(0, limit);
+        if (frameRateLimit == 0) nextFrameTimeNs = 0;
+    }
 
     private static abstract class ClientOpcodes {
         private static final byte QUERY_VERSION = 0;
@@ -171,6 +179,36 @@ public class PresentExtension implements Extension {
         }
     }
 
+    /** Mali-style Present pacing. This throttles the guest's Present request,
+     * not the Android GL renderer, so the compositor remains responsive. */
+    private void enforceFrameRate(GLRenderer renderer) {
+        int targetFps = frameRateLimit > 0 ? frameRateLimit
+                : renderer != null ? renderer.getFpsLimit() : 0;
+        if (targetFps <= 0) {
+            nextFrameTimeNs = 0;
+            return;
+        }
+
+        long frameNs = 1_000_000_000L / targetFps;
+        long now = System.nanoTime();
+        if (nextFrameTimeNs == 0 || now > nextFrameTimeNs + frameNs)
+            nextFrameTimeNs = now + frameNs;
+
+        long remaining = nextFrameTimeNs - now;
+        if (remaining > 1_500_000L) {
+            long sleepNs = remaining - 700_000L;
+            try {
+                Thread.sleep(sleepNs / 1_000_000L, (int)(sleepNs % 1_000_000L));
+            }
+            catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        while (!Thread.currentThread().isInterrupted() && System.nanoTime() < nextFrameTimeNs)
+            Thread.yield();
+        nextFrameTimeNs += frameNs;
+    }
+
     @Override
     public void handleRequest(XClient client, XInputStream inputStream, XOutputStream outputStream) throws IOException, XRequestError {
         int opcode = client.getRequestData();
@@ -184,6 +222,8 @@ public class PresentExtension implements Extension {
                 try (XLock lock = client.xServer.lock(XServer.Lockable.WINDOW_MANAGER, XServer.Lockable.PIXMAP_MANAGER)) {
                     presentPixmap(client, inputStream, outputStream);
                 }
+                if (client.xServer.getRenderer() instanceof GLRenderer)
+                    enforceFrameRate((GLRenderer)client.xServer.getRenderer());
                 break;
             case ClientOpcodes.SELECT_INPUT:
                 try (XLock lock = client.xServer.lock(XServer.Lockable.WINDOW_MANAGER)) {

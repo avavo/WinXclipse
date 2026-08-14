@@ -524,8 +524,8 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             case R.id.main_menu_file_manager:
                 show(new FileManagerFragment(), false);
                 break;
-            case R.id.main_menu_adrenotools_gpu_drivers:
-                show(new AdrenotoolsFragment(), false);
+            case R.id.main_menu_xclipse_gpu_drivers:
+                show(new XclipseDriversFragment(), false);
                 break;
             case R.id.main_menu_logs:
                 new DebugDialog(this).show();
@@ -608,7 +608,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                     "Wine (<a href=\"https://www.winehq.org\">winehq.org</a>)",
                     "Box86/Box64 by <a href=\"https://github.com/ptitSeb\">ptitseb</a>",
                     "PRoot (<a href=\"https://proot-me.github.io\">proot-me.github.io</a>)",
-                    "Mesa (Turnip/Zink/VirGL) (<a href=\"https://www.mesa3d.org\">mesa3d.org</a>)",
+                    "Mesa (Zink/VirGL) (<a href=\"https://www.mesa3d.org\">mesa3d.org</a>)",
                     "DXVK (<a href=\"https://github.com/doitsujin/dxvk\">github.com/doitsujin/dxvk</a>)",
                     "VKD3D (<a href=\"https://gitlab.winehq.org/wine/vkd3d\">gitlab.winehq.org/wine/vkd3d</a>)",
                     "D8VK (<a href=\"https://github.com/AlpyneDreams/d8vk\">github.com/AlpyneDreams/d8vk</a>)",

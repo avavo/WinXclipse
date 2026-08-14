@@ -54,6 +54,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
     public int surfaceWidth;
     public int surfaceHeight;
     private final EffectComposer effectComposer;
+    private volatile int fpsLimit;
 
     public GLRenderer(XServerView xServerView, XServer xServer) {
         this.xServerView = xServerView;
@@ -464,6 +465,20 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
 
     public int getSurfaceHeight() {
         return surfaceHeight;
+    }
+
+    public int getFpsLimit() {
+        return fpsLimit;
+    }
+
+    /**
+     * The actual pacing happens in PresentExtension, before Wine receives the
+     * idle notification for its submitted frame.  Keeping it there avoids
+     * sleeping the Android GL compositor thread and the regressions caused by
+     * the former onDrawFrame limiter.
+     */
+    public void setFpsLimit(int fpsLimit) {
+        this.fpsLimit = Math.max(0, fpsLimit);
     }
 
     public boolean isViewportNeedsUpdate() {

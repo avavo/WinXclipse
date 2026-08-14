@@ -403,6 +403,11 @@ public class GlibcProgramLauncherComponent extends GuestProgramLauncherComponent
 
         if (!box64Version.equals(currentBox64Version)) {
             ContentProfile profile = contentsManager.getProfileByEntryName("box64-" + box64Version);
+            if (profile == null && !DefaultVersion.BOX64.equals(box64Version)) {
+                Log.w("GlibcProgramLauncherComponent", "Selected Box64 is no longer bundled; migrating to " + DefaultVersion.BOX64);
+                box64Version = DefaultVersion.BOX64;
+                profile = contentsManager.getProfileByEntryName("box64-" + box64Version);
+            }
             if (profile != null)
                 contentsManager.applyContent(profile);
             else

@@ -1,0 +1,348 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="380dp"
+    android:layout_height="match_parent"
+    android:background="#000000"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/TVSidebarTime"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center_vertical"
+            android:text="00:00"
+            android:textColor="#F8FAFC"
+            android:textSize="22sp"
+            android:textStyle="bold" />
+
+        <ImageButton
+            android:id="@+id/BTCloseTaskManager"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/close"
+            android:padding="12dp"
+            android:src="@drawable/ic_nav_close"
+            android:visibility="gone"
+            app:tint="@color/colorAccent" />
+
+        <TextView
+            android:id="@+id/TVSidebarBattery"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:gravity="center_vertical|end"
+            android:text="--%"
+            android:textColor="#F8FAFC"
+            android:textSize="17sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="2dp"
+        android:layout_marginBottom="12dp"
+        android:background="@color/colorAccent" />
+
+    <LinearLayout
+        android:id="@+id/LLSidebarMain"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:id="@+id/BTSidebarInput"
+            android:layout_width="match_parent"
+            android:layout_height="62dp"
+            android:background="@drawable/bordered_panel_dark"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:paddingStart="14dp">
+
+            <ImageView
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:contentDescription="@null"
+                android:src="@drawable/icon_input_controls"
+                app:tint="@color/colorAccent" />
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_marginStart="14dp"
+                android:layout_weight="1"
+                android:gravity="center_vertical"
+                android:text="@string/menu_section_input"
+                android:textColor="#F8FAFC"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+            <ImageButton
+                android:id="@+id/BTSidebarInputMore"
+                android:layout_width="54dp"
+                android:layout_height="match_parent"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/settings"
+                android:src="@drawable/icon_list_item_menu"
+                app:tint="@color/colorAccent" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/BTSidebarController"
+            android:layout_width="match_parent"
+            android:layout_height="66dp"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bordered_panel_dark"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:paddingStart="14dp">
+            <ImageView
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:contentDescription="@null"
+                android:src="@drawable/icon_gamepad"
+                app:tint="@color/colorAccent" />
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_marginStart="14dp"
+                android:layout_weight="1"
+                android:gravity="center_vertical"
+                android:orientation="vertical">
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Controller"
+                    android:textColor="#F8FAFC"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+                <TextView
+                    android:id="@+id/TVSidebarControllerProfile"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:singleLine="true"
+                    android:text="Virtual Gamepad"
+                    android:textColor="#A8A8B3"
+                    android:textSize="12sp" />
+            </LinearLayout>
+            <ImageButton
+                android:id="@+id/BTSidebarControllerMore"
+                android:layout_width="54dp"
+                android:layout_height="match_parent"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/settings"
+                android:src="@drawable/icon_list_item_menu"
+                app:tint="@color/colorAccent" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="66dp"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal">
+            <LinearLayout
+                android:id="@+id/BTSidebarFpsLimiter"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_marginEnd="8dp"
+                android:layout_weight="1"
+                android:background="@drawable/bordered_panel_dark"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:orientation="vertical">
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="FPS Limiter"
+                    android:textColor="#F8FAFC"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+                <TextView
+                    android:id="@+id/TVSidebarFpsLimit"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Unlimited"
+                    android:textColor="@color/colorAccent"
+                    android:textSize="12sp" />
+            </LinearLayout>
+            <LinearLayout
+                android:id="@+id/BTSidebarDisplay"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="2"
+                android:background="@drawable/bordered_panel_dark"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_vertical"
+                android:paddingStart="16dp">
+                <ImageView
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:contentDescription="@null"
+                    android:src="@drawable/ic_big_picture_mode"
+                    app:tint="@color/colorAccent" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="match_parent"
+                    android:layout_marginStart="14dp"
+                    android:gravity="center_vertical"
+                    android:text="@string/menu_section_display"
+                    android:textColor="#F8FAFC"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/BTSidebarHud"
+            android:layout_width="match_parent"
+            android:layout_height="62dp"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bordered_panel_dark"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:paddingStart="14dp">
+            <ImageView
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:contentDescription="@null"
+                android:src="@drawable/ic_hud"
+                app:tint="@color/colorAccent" />
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_marginStart="14dp"
+                android:layout_weight="1"
+                android:gravity="center_vertical"
+                android:text="HUD"
+                android:textColor="#F8FAFC"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+            <ImageButton
+                android:id="@+id/BTSidebarHudMore"
+                android:layout_width="54dp"
+                android:layout_height="match_parent"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/settings"
+                android:src="@drawable/icon_list_item_menu"
+                app:tint="@color/colorAccent" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/BTSidebarTaskManager"
+            android:layout_width="match_parent"
+            android:layout_height="62dp"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bordered_panel_dark"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:paddingStart="14dp">
+            <ImageView
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:contentDescription="@null"
+                android:src="@drawable/icon_task_manager"
+                app:tint="@color/colorAccent" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_marginStart="14dp"
+                android:gravity="center_vertical"
+                android:text="@string/task_manager"
+                android:textColor="#F8FAFC"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/BTSidebarTerminal"
+            android:layout_width="match_parent"
+            android:layout_height="58dp"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bordered_panel_dark"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:paddingStart="14dp">
+            <ImageView
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:contentDescription="@null"
+                android:src="@drawable/icon_env_var"
+                app:tint="@color/colorAccent" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_marginStart="14dp"
+                android:gravity="center_vertical"
+                android:text="@string/debug_terminal"
+                android:textColor="#F8FAFC"
+                android:textSize="17sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <FrameLayout
+        android:id="@+id/FLSidebarTaskManager"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:visibility="gone" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="2dp"
+        android:layout_marginTop="10dp"
+        android:layout_marginBottom="8dp"
+        android:background="#241058" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:gravity="center"
+        android:orientation="horizontal">
+        <ImageButton
+            android:id="@+id/BTSidebarExit"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/exit"
+            android:padding="14dp"
+            android:src="@drawable/icon_exit"
+            app:tint="#EF5350" />
+        <ImageButton
+            android:id="@+id/BTSidebarPause"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/pause_resume"
+            android:padding="14dp"
+            android:src="@drawable/icon_pause"
+            app:tint="@color/colorAccent" />
+        <ImageButton
+            android:id="@+id/BTSidebarHelp"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/touchpad_help"
+            android:padding="14dp"
+            android:src="@drawable/icon_help"
+            app:tint="@color/colorAccent" />
+    </LinearLayout>
+</LinearLayout>

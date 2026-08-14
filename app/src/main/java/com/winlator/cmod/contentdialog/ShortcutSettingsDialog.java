@@ -29,6 +29,7 @@ import com.winlator.cmod.R;
 import com.winlator.cmod.ShortcutsFragment;
 import com.winlator.cmod.box86_64.Box86_64PresetManager;
 import com.winlator.cmod.box86_64.rc.RCManager;
+import com.winlator.cmod.container.Container;
 import com.winlator.cmod.container.ContainerManager;
 import com.winlator.cmod.container.Shortcut;
 import com.winlator.cmod.contents.ContentProfile;
@@ -86,7 +87,6 @@ public class ShortcutSettingsDialog extends ContentDialog {
 
 //        if (containerManager != null) {
 //            this.contentsManager = new ContentsManager(containerManager.getContext());
-//            this.contentsManager.syncTurnipContents();
 //        } else {
 //            Toast.makeText(fragment.getContext(), "Failed to initialize container manager. Please try again.", Toast.LENGTH_SHORT).show();
 //            return;
@@ -109,7 +109,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
 
         applyDynamicStyles(findViewById(R.id.LLContent), isDarkMode);
 
-        // Initialize the turnip version TextView
+        // Initialize the graphics-driver version TextView
         tvGraphicsDriverVersion = findViewById(R.id.TVGraphicsDriverVersion);
 
         // Get the shared preferences and check the legacy mode status
@@ -148,7 +148,8 @@ public class ShortcutSettingsDialog extends ContentDialog {
 
         ContainerDetailFragment.setupDXWrapperSpinner(sDXWrapper, vDXWrapperConfig);
         ContainerDetailFragment.setupDDrawSpinner(sDDrawrapper, shortcut.getExtra("ddrawrapper", shortcut.container.getDDrawWrapper()));
-        loadGraphicsDriverSpinner(sGraphicsDriver, sDXWrapper, vGraphicsDriverConfig, shortcut.getExtra("graphicsDriver", shortcut.container.getGraphicsDriver()),
+        loadGraphicsDriverSpinner(sGraphicsDriver, sDXWrapper, vGraphicsDriverConfig,
+                Container.normalizeGraphicsDriver(shortcut.getExtra("graphicsDriver", shortcut.container.getGraphicsDriver())),
             shortcut.getExtra("dxwrapper", shortcut.container.getDXWrapper()));
 
         findViewById(R.id.BTHelpDXWrapper).setOnClickListener((v) -> AppUtils.showHelpBox(context, v, R.string.dxwrapper_help_content));
@@ -318,6 +319,12 @@ public class ShortcutSettingsDialog extends ContentDialog {
                 showGStreamerWorkaroundWarning.run();
         });
 
+        final CheckBox cbExperimentalPerformance = findViewById(R.id.CBExperimentalPerformance);
+        final boolean containerExperimentalPerformance = "1".equals(
+                shortcut.container.getExtra("experimentalPerformance", "0"));
+        cbExperimentalPerformance.setChecked("1".equals(shortcut.getExtra(
+                "experimentalPerformance", containerExperimentalPerformance ? "1" : "0")));
+
 
 //        final CheckBox cbRelativeMouseMovement = findViewById(R.id.CBRelativeMouseMovement);
 //        String isRelativeMouseMovement = shortcut.getExtra("relativeMouseMovement", shortcut.container.isRelativeMouseMovement() ? "1" : "0");
@@ -452,6 +459,11 @@ public class ShortcutSettingsDialog extends ContentDialog {
 
                 boolean gstreamerWorkaround = cbGStreamerWorkaroundToggle.isChecked();
                 shortcut.putExtra("gstreamerWorkaround", gstreamerWorkaround ? "1" : "0");
+
+                boolean experimentalPerformance = cbExperimentalPerformance.isChecked();
+                shortcut.putExtra("experimentalPerformance",
+                        experimentalPerformance == containerExperimentalPerformance
+                                ? null : (experimentalPerformance ? "1" : "0"));
 
                 boolean touchscreenMode = cbSimTouchScreen.isChecked();
                 shortcut.putExtra("simTouchScreen", touchscreenMode ? "1" : "0");

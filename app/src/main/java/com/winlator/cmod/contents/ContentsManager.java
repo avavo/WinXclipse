@@ -165,6 +165,12 @@ public class ContentsManager {
 
                 JSONObject profile = findProfileByUrl(bundled, remoteUrl);
                 if (profile == null) profile = inferRemoteProfile(tag, asset, name, remoteUrl);
+                else {
+                    try {
+                        profile.put("verName", ExternalDownloadCatalog.stripPackageSuffix(name));
+                    }
+                    catch (JSONException ignored) {}
+                }
                 catalog.put(profile);
             }
             refreshedAnyRelease = true;
@@ -260,7 +266,6 @@ public class ContentsManager {
         return !lower.contains("proton.9.0-x86_64")
                 && !lower.contains("proton-9.0-x86_64")
                 && !lower.contains("dxvk-1.7.1")
-                && !lower.contains("sarek")
                 && !lower.contains("stripped");
     }
 
@@ -654,6 +659,25 @@ public class ContentsManager {
         }
 
         return null;
+    }
+
+    /**
+     * Finds an installed profile by its content type and visible version name.
+     * This is intentionally independent from the entry-name version code so a
+     * runtime such as FEXCore can be selected as "2608" in every screen.
+     */
+    public ContentProfile getProfile(ContentProfile.ContentType type, String versionName) {
+        ContentProfile bestMatch = null;
+        List<ContentProfile> profiles = profilesMap.get(type);
+        if (profiles == null || versionName == null) return null;
+
+        for (ContentProfile profile : profiles) {
+            if (versionName.equalsIgnoreCase(profile.verName)
+                    && (bestMatch == null || profile.verCode > bestMatch.verCode)) {
+                bestMatch = profile;
+            }
+        }
+        return bestMatch;
     }
 
     public boolean applyContent(ContentProfile profile) {

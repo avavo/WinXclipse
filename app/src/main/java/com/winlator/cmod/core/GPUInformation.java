@@ -4,16 +4,25 @@ import java.util.Locale;
 
 public abstract class GPUInformation {
 
-    public static boolean isAdreno6xx() {
-        return getRenderer().toLowerCase(Locale.ENGLISH).matches(".*adreno[^6]+6[0-9]{2}.*");
+    public static String getRendererName() {
+        String renderer = getRenderer();
+        return renderer == null || renderer.trim().isEmpty() ? "Unknown GPU" : renderer.trim();
     }
 
-    public static boolean isAdreno7xx() {
-        return getRenderer().toLowerCase(Locale.ENGLISH).matches(".*adreno[^7]+7[0-9]{2}.*");
+    public static boolean isXclipse() {
+        return getRendererName().toLowerCase(Locale.ENGLISH).contains("xclipse");
     }
 
-    public static boolean isAdreno8xx() {
-        return getRenderer().toLowerCase(Locale.ENGLISH).matches(".*adreno[^8]+8[0-9]{2}.*");
+    public static boolean isXclipse920() {
+        return getRendererName().toLowerCase(Locale.ENGLISH).matches(".*xclipse[ _-]?920.*");
+    }
+
+    public static boolean isXclipse940() {
+        return getRendererName().toLowerCase(Locale.ENGLISH).matches(".*xclipse[ _-]?940.*");
+    }
+
+    public static boolean isXclipse950() {
+        return getRendererName().toLowerCase(Locale.ENGLISH).matches(".*xclipse[ _-]?950.*");
     }
 
     public native static String getVersion();

@@ -2,6 +2,7 @@ package com.winlator.cmod;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
@@ -11,6 +12,8 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
+import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.PopupMenu;
@@ -21,6 +24,7 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.Fragment;
 import androidx.preference.PreferenceManager;
 import androidx.recyclerview.widget.DividerItemDecoration;
@@ -36,6 +40,9 @@ import com.winlator.cmod.contentdialog.ContentUntrustedDialog;
 import com.winlator.cmod.contents.ContentProfile;
 import com.winlator.cmod.contents.ContentsManager;
 import com.winlator.cmod.contents.Downloader;
+import com.winlator.cmod.contents.XclipseDriverManager;
+import com.winlator.cmod.contents.CustomWrapperManager;
+import com.winlator.cmod.contents.ExternalDownloadCatalog;
 import com.winlator.cmod.core.AppUtils;
 import com.winlator.cmod.core.FileUtils;
 import com.winlator.cmod.core.PreloaderDialog;
@@ -47,11 +54,23 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class ContentsFragment extends Fragment {
+    private static final int CATEGORY_XCLIPSE_DRIVERS = 100;
+    private static final int CATEGORY_WRAPPERS = 101;
+    private static final int IMPORT_CONTENT = 0;
+    private static final int IMPORT_DRIVER = 1;
+    private static final int IMPORT_WRAPPER = 2;
     private RecyclerView recyclerView;
     private View emptyText;
     private ContentsManager manager;
     private ContentProfile.ContentType currentContentType = ContentProfile.ContentType.CONTENT_TYPE_WINE;
     private Spinner sContentType;
+    private Button installButton;
+    private int selectedCategory;
+    private int importMode = IMPORT_CONTENT;
+    private XclipseDriverManager driverManager;
+    private CustomWrapperManager wrapperManager;
+    private ExternalDownloadCatalog externalCatalog;
+    private volatile List<ExternalDownloadCatalog.Item> remoteDrivers = new ArrayList<>();
     private final ConcurrentHashMap<String, ContentProfile> pendingRemoteProfiles =
             new ConcurrentHashMap<>();
 
@@ -63,6 +82,10 @@ public class ContentsFragment extends Fragment {
         setHasOptionsMenu(false);
         manager = new ContentsManager(getContext());
         manager.syncContents();
+        driverManager = new XclipseDriverManager(requireContext());
+        wrapperManager = new CustomWrapperManager(requireContext());
+        externalCatalog = new ExternalDownloadCatalog(requireContext());
+        remoteDrivers = externalCatalog.getCachedDrivers();
 
         // Initialize isDarkMode based on shared preferences or theme
         isDarkMode = PreferenceManager.getDefaultSharedPreferences(getContext())
@@ -91,6 +114,15 @@ public class ContentsFragment extends Fragment {
                 loadContentList();
             });
         }).start();
+        new Thread(() -> {
+            List<ExternalDownloadCatalog.Item> refreshed = externalCatalog.refreshDrivers();
+            Activity activity = getActivity();
+            if (activity == null) return;
+            remoteDrivers = refreshed;
+            activity.runOnUiThread(() -> {
+                if (isAdded() && selectedCategory == CATEGORY_XCLIPSE_DRIVERS) loadContentList();
+            });
+        }).start();
     }
 
     @Override
@@ -106,31 +138,10 @@ public class ContentsFragment extends Fragment {
 
         sContentType = layout.findViewById(R.id.SContentType);
         updateContentTypeSpinner(sContentType);
-        sContentType.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                currentContentType = ContentProfile.ContentType.values()[position];
-                loadContentList();
-            }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {
-
-            }
-        });
-
         emptyText = layout.findViewById(R.id.TVEmptyText);
 
-        View btInstallContent = layout.findViewById(R.id.BTInstallContent);
-        btInstallContent.setOnClickListener(v -> {
-            ContentDialog.confirm(getContext(), getString(R.string.do_you_want_to_install_content) + " " + getString(R.string.pls_make_sure_content_trustworthy) + " "
-                    + getString(R.string.content_suffix_is_wcp_packed_xz_zst) + '\n' + getString(R.string.get_more_contents_form_github), () -> {
-                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-                intent.addCategory(Intent.CATEGORY_OPENABLE);
-                intent.setType("*/*");
-                getActivity().startActivityFromFragment(this, intent, MainActivity.OPEN_FILE_REQUEST_CODE);
-            });
-        });
+        installButton = layout.findViewById(R.id.BTInstallContent);
+        installButton.setOnClickListener(v -> handleInstallButton());
 
         recyclerView = layout.findViewById(R.id.RecyclerView);
         recyclerView.setLayoutManager(new LinearLayoutManager(recyclerView.getContext()));
@@ -144,6 +155,8 @@ public class ContentsFragment extends Fragment {
         List<String> typeList = new ArrayList<>();
         for (ContentProfile.ContentType type : ContentProfile.ContentType.values())
             typeList.add(type.toString());
+        typeList.add(getString(R.string.xclipse_drivers));
+        typeList.add(getString(R.string.wrappers));
         spinner.setAdapter(new com.winlator.cmod.widget.ThemedSpinnerAdapter<>(spinner.getContext(), typeList));
 
         // Set the popup background based on the theme
@@ -152,8 +165,21 @@ public class ContentsFragment extends Fragment {
         spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                currentContentType = ContentProfile.ContentType.values()[position];
-                updateContentsListView();
+                int contentTypeCount = ContentProfile.ContentType.values().length;
+                if (position < contentTypeCount) {
+                    selectedCategory = position;
+                    currentContentType = ContentProfile.ContentType.values()[position];
+                    if (installButton != null) installButton.setText(R.string.install_content);
+                }
+                else if (position == contentTypeCount) {
+                    selectedCategory = CATEGORY_XCLIPSE_DRIVERS;
+                    if (installButton != null) installButton.setText(R.string.install_driver);
+                }
+                else {
+                    selectedCategory = CATEGORY_WRAPPERS;
+                    if (installButton != null) installButton.setText(R.string.install_wrapper);
+                }
+                loadContentList();
             }
 
             @Override
@@ -176,6 +202,16 @@ public class ContentsFragment extends Fragment {
         if (requestCode == MainActivity.OPEN_FILE_REQUEST_CODE && resultCode == Activity.RESULT_OK) {
             if (data == null || data.getData() == null) return;
             Uri contentUri = data.getData();
+            if (importMode == IMPORT_DRIVER) {
+                importMode = IMPORT_CONTENT;
+                installDriver(contentUri, null);
+                return;
+            }
+            if (importMode == IMPORT_WRAPPER) {
+                importMode = IMPORT_CONTENT;
+                promptAndInstallWrapper(contentUri, null);
+                return;
+            }
             ContentProfile expectedProfile = pendingRemoteProfiles.remove(contentUri.toString());
             PreloaderDialog preloaderDialog = new PreloaderDialog(getActivity());
             preloaderDialog.showOnUiThread(R.string.installing_content);
@@ -255,7 +291,159 @@ public class ContentsFragment extends Fragment {
         }
     }
 
+    private void handleInstallButton() {
+        if (selectedCategory == CATEGORY_XCLIPSE_DRIVERS) {
+            importMode = IMPORT_DRIVER;
+            openDocument(new String[]{"application/zip", "application/octet-stream"});
+            return;
+        }
+        if (selectedCategory == CATEGORY_WRAPPERS) {
+            new AlertDialog.Builder(requireContext())
+                    .setTitle(R.string.install_wrapper)
+                    .setItems(new String[]{getString(R.string.select_file), getString(R.string.download_from_url)},
+                            (dialog, which) -> {
+                                if (which == 0) {
+                                    importMode = IMPORT_WRAPPER;
+                                    openDocument(new String[]{"application/octet-stream", "application/x-zstd", "application/zstd"});
+                                }
+                                else promptWrapperUrl();
+                            })
+                    .show();
+            return;
+        }
+        importMode = IMPORT_CONTENT;
+        openDocument(new String[]{"application/octet-stream", "application/x-xz", "application/x-zstd"});
+    }
+
+    private void openDocument(String[] mimeTypes) {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("*/*");
+        intent.putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes);
+        startActivityForResult(intent, MainActivity.OPEN_FILE_REQUEST_CODE);
+    }
+
+    private void promptWrapperUrl() {
+        EditText input = new EditText(requireContext());
+        input.setHint("https://example.com/wrapper.tzst");
+        input.setSingleLine(true);
+        AlertDialog dialog = new AlertDialog.Builder(requireContext())
+                .setTitle(R.string.remote_url)
+                .setView(input)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(android.R.string.ok, null)
+                .create();
+        dialog.setOnShowListener(ignored -> dialog.getButton(DialogInterface.BUTTON_POSITIVE)
+                .setOnClickListener(v -> {
+                    String url = input.getText().toString().trim();
+                    if (!url.matches("(?i)^https?://.+\\.(?:tzst|tstz|tzts|zst|so)(?:\\?.*)?$")) {
+                        input.setError(getString(R.string.invalid_url));
+                        return;
+                    }
+                    dialog.dismiss();
+                    downloadWrapperFromUrl(url);
+                }));
+        dialog.show();
+    }
+
+    private void downloadWrapperFromUrl(String url) {
+        PreloaderDialog preloader = new PreloaderDialog(requireActivity());
+        preloader.show(R.string.downloading_content);
+        preloader.setProgress(0);
+        new Thread(() -> {
+            String rawName = Uri.parse(url).getLastPathSegment();
+            if (rawName == null || rawName.isEmpty()) rawName = "wrapper.tzst";
+            int query = rawName.indexOf('?');
+            if (query >= 0) rawName = rawName.substring(0, query);
+            File output = new File(requireContext().getCacheDir(),
+                    "remote-wrapper-" + System.currentTimeMillis() + "-" + rawName.replaceAll("[^A-Za-z0-9._-]", "_"));
+            boolean downloaded = Downloader.downloadFile(url, output, preloader::setProgress);
+            requireActivity().runOnUiThread(() -> {
+                preloader.close();
+                if (downloaded) promptAndInstallWrapper(Uri.fromFile(output), output);
+                else {
+                    FileUtils.delete(output);
+                    ContentDialog.alert(requireContext(), R.string.download_failed, null);
+                }
+            });
+        }).start();
+    }
+
+    private void promptAndInstallWrapper(Uri source, @Nullable File temporaryFile) {
+        String sourceName = source.getLastPathSegment();
+        if (sourceName == null) sourceName = "Wrapper";
+        String initialName = ExternalDownloadCatalog.stripPackageSuffix(new File(sourceName).getName())
+                .replaceFirst("(?i)^wrapper[-_ ]*", "");
+        EditText input = new EditText(requireContext());
+        input.setHint(R.string.wrapper_name);
+        input.setSingleLine(true);
+        input.setText(initialName);
+        input.selectAll();
+        AlertDialog dialog = new AlertDialog.Builder(requireContext())
+                .setTitle(R.string.wrapper_name)
+                .setView(input)
+                .setNegativeButton(android.R.string.cancel, (d, w) -> {
+                    if (temporaryFile != null) FileUtils.delete(temporaryFile);
+                })
+                .setPositiveButton(android.R.string.ok, null)
+                .create();
+        dialog.setOnShowListener(ignored -> dialog.getButton(DialogInterface.BUTTON_POSITIVE)
+                .setOnClickListener(v -> {
+                    String name = input.getText().toString().trim();
+                    if (name.isEmpty()) {
+                        input.setError(getString(R.string.wrapper_name));
+                        return;
+                    }
+                    dialog.dismiss();
+                    PreloaderDialog preloader = new PreloaderDialog(requireActivity());
+                    preloader.show(R.string.installing_content);
+                    preloader.setIndeterminate();
+                    new Thread(() -> {
+                        String id = wrapperManager.install(source, name);
+                        if (temporaryFile != null) FileUtils.delete(temporaryFile);
+                        requireActivity().runOnUiThread(() -> {
+                            preloader.close();
+                            if (id == null) ContentDialog.alert(requireContext(), R.string.unable_to_install_wrapper, null);
+                            else {
+                                ContentDialog.alert(requireContext(), R.string.content_installed_success, null);
+                                loadContentList();
+                            }
+                        });
+                    }).start();
+                }));
+        dialog.show();
+    }
+
+    private void installDriver(Uri source, @Nullable File temporaryFile) {
+        PreloaderDialog preloader = new PreloaderDialog(requireActivity());
+        preloader.show(R.string.installing_content);
+        preloader.setIndeterminate();
+        new Thread(() -> {
+            String id = driverManager.installDriver(source);
+            if (temporaryFile != null) FileUtils.delete(temporaryFile);
+            requireActivity().runOnUiThread(() -> {
+                preloader.close();
+                if (id == null || id.isEmpty())
+                    ContentDialog.alert(requireContext(), R.string.unable_to_install_driver, null);
+                else ContentDialog.alert(requireContext(), R.string.content_installed_success, null);
+            });
+        }).start();
+    }
+
     private void loadContentList() {
+        if (selectedCategory == CATEGORY_XCLIPSE_DRIVERS) {
+            showExternalItems(remoteDrivers, false);
+            return;
+        }
+        if (selectedCategory == CATEGORY_WRAPPERS) {
+            List<ExternalDownloadCatalog.Item> installed = new ArrayList<>();
+            for (String id : wrapperManager.getInstalledIds()) {
+                installed.add(new ExternalDownloadCatalog.Item(
+                        CustomWrapperManager.toDisplayName(id), id, null));
+            }
+            showExternalItems(installed, true);
+            return;
+        }
         List<ContentProfile> profiles = manager.getProfiles(currentContentType);
         if (profiles.isEmpty()) {
             emptyText.setVisibility(View.VISIBLE);
@@ -264,6 +452,103 @@ public class ContentsFragment extends Fragment {
             emptyText.setVisibility(View.GONE);
             recyclerView.setVisibility(View.VISIBLE);
             recyclerView.setAdapter(new ContentItemAdapter(profiles));
+        }
+    }
+
+    private void showExternalItems(List<ExternalDownloadCatalog.Item> items, boolean installedWrappers) {
+        if (items == null || items.isEmpty()) {
+            emptyText.setVisibility(View.VISIBLE);
+            recyclerView.setVisibility(View.GONE);
+        }
+        else {
+            emptyText.setVisibility(View.GONE);
+            recyclerView.setVisibility(View.VISIBLE);
+            recyclerView.setAdapter(new ExternalItemAdapter(items, installedWrappers));
+        }
+    }
+
+    private class ExternalItemAdapter extends RecyclerView.Adapter<ExternalItemAdapter.ViewHolder> {
+        private final List<ExternalDownloadCatalog.Item> data;
+        private final boolean installedWrappers;
+
+        private class ViewHolder extends RecyclerView.ViewHolder {
+            final ImageView icon;
+            final TextView title;
+            final TextView detail;
+            final ImageButton menu;
+            final ImageButton download;
+            final ProgressBar progress;
+
+            ViewHolder(@NonNull View view) {
+                super(view);
+                icon = view.findViewById(R.id.IVIcon);
+                title = view.findViewById(R.id.TVVersionName);
+                detail = view.findViewById(R.id.TVVersionCode);
+                menu = view.findViewById(R.id.BTMenu);
+                download = view.findViewById(R.id.BTDownload);
+                progress = view.findViewById(R.id.Progress);
+            }
+        }
+
+        ExternalItemAdapter(List<ExternalDownloadCatalog.Item> data, boolean installedWrappers) {
+            this.data = data;
+            this.installedWrappers = installedWrappers;
+        }
+
+        @NonNull
+        @Override
+        public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            return new ViewHolder(LayoutInflater.from(parent.getContext())
+                    .inflate(R.layout.content_list_item, parent, false));
+        }
+
+        @Override
+        public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
+            ExternalDownloadCatalog.Item item = data.get(position);
+            holder.icon.setBackground(null);
+            holder.icon.setImageResource(installedWrappers ? R.drawable.icon_settings : R.drawable.icon_debug);
+            holder.title.setText(item.name);
+            holder.detail.setText(item.detail);
+            holder.detail.setVisibility(item.detail == null || item.detail.isEmpty() ? View.GONE : View.VISIBLE);
+            holder.progress.setVisibility(View.GONE);
+            holder.menu.setVisibility(installedWrappers ? View.VISIBLE : View.GONE);
+            holder.download.setVisibility(installedWrappers ? View.GONE : View.VISIBLE);
+            holder.menu.setOnClickListener(v -> ContentDialog.confirm(requireContext(),
+                    R.string.do_you_want_to_remove_this_content, () -> {
+                        wrapperManager.remove(item.detail);
+                        loadContentList();
+                    }));
+            holder.download.setOnClickListener(v -> {
+                holder.download.setVisibility(View.GONE);
+                holder.progress.setVisibility(View.VISIBLE);
+                holder.progress.setProgress(0);
+                PreloaderDialog preloader = new PreloaderDialog(requireActivity());
+                preloader.show(R.string.downloading_content);
+                preloader.setProgress(0);
+                new Thread(() -> {
+                    File output = new File(requireContext().getCacheDir(),
+                            "xclipse-driver-" + System.currentTimeMillis() + ".zip");
+                    boolean downloaded = Downloader.downloadFile(item.url, output, progress -> {
+                        preloader.setProgress(progress);
+                        if (getActivity() != null) getActivity().runOnUiThread(() -> holder.progress.setProgress(progress));
+                    });
+                    requireActivity().runOnUiThread(() -> {
+                        preloader.close();
+                        holder.progress.setVisibility(View.GONE);
+                        holder.download.setVisibility(View.VISIBLE);
+                        if (downloaded) installDriver(Uri.fromFile(output), output);
+                        else {
+                            FileUtils.delete(output);
+                            ContentDialog.alert(requireContext(), R.string.download_failed, null);
+                        }
+                    });
+                }).start();
+            });
+        }
+
+        @Override
+        public int getItemCount() {
+            return data.size();
         }
     }
 

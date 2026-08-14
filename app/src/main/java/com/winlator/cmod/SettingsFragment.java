@@ -658,7 +658,7 @@ public class SettingsFragment extends Fragment {
     private void loadFEXCorePresetSpinner(View view, Spinner spinner) {
         final Context context = requireContext();
         final Runnable reload = () -> FEXCorePresetManager.loadSpinner(spinner,
-                preferences.getString("fexcore_preset", FEXCorePreset.INTERMEDIATE));
+                preferences.getString("fexcore_preset", FEXCorePreset.STABILITY));
 
         reload.run();
 

@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="112dp"
+        android:background="@drawable/bordered_panel_dark"
+        android:orientation="vertical"
+        android:padding="8dp">
+
+        <TextView
+            android:id="@+id/TVInlineCPUTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="CPU (0%)"
+            android:textColor="@color/colorAccent"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginTop="3dp"
+            android:layout_weight="1"
+            android:fadeScrollbars="false"
+            android:scrollbars="vertical">
+
+            <LinearLayout
+                android:id="@+id/LLInlineCPUInfo"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+        </ScrollView>
+    </LinearLayout>
+
+    <com.winlator.cmod.widget.MemoryUsageBarView
+        android:id="@+id/InlineMemoryUsageBar"
+        android:layout_width="match_parent"
+        android:layout_height="68dp"
+        android:layout_marginTop="7dp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="34dp"
+        android:layout_marginTop="7dp"
+        android:background="@drawable/task_manager_table_header"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="8dp"
+        android:paddingEnd="4dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/process_name"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="43dp"
+            android:layout_height="wrap_content"
+            android:text="@string/pid"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="76dp"
+            android:layout_height="wrap_content"
+            android:text="@string/memory"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <View
+            android:layout_width="36dp"
+            android:layout_height="1dp" />
+    </LinearLayout>
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="#000000">
+
+        <ScrollView
+            android:id="@+id/SVInlineProcessList"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:fadeScrollbars="false"
+            android:fillViewport="false"
+            android:overScrollMode="always"
+            android:scrollbars="vertical">
+
+            <LinearLayout
+                android:id="@+id/LLInlineProcessList"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+        </ScrollView>
+
+        <TextView
+            android:id="@+id/TVInlineEmptyText"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="@string/no_items_to_display_taskmgr"
+            android:textColor="#F8FAFC"
+            android:visibility="gone" />
+    </FrameLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:layout_marginTop="6dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/TVInlineProcessCount"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center_vertical"
+            android:text="Processes: 0"
+            android:textColor="@color/colorAccent"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/BTInlineNewTask"
+            style="@style/ButtonNeutral"
+            android:layout_width="116dp"
+            android:layout_height="44dp"
+            android:text="@string/new_task" />
+    </LinearLayout>
+</LinearLayout>

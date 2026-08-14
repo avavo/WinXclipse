@@ -18,6 +18,7 @@ import com.winlator.cmod.xenvironment.ImageFs;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -284,12 +285,11 @@ public final class FEXCoreManager {
 
     public static void loadFEXCoreVersion(Context context, ContentsManager contentsManager, Spinner spinner, Container container) {
         String[] originalItems = context.getResources().getStringArray(R.array.fexcore_version_entries);
-        List<String> itemList = new ArrayList<>(Arrays.asList(originalItems));
+        LinkedHashSet<String> versions = new LinkedHashSet<>(Arrays.asList(originalItems));
         for (ContentProfile profile : contentsManager.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_FEXCORE)) {
-            String entryName = ContentsManager.getEntryName(profile);
-            int firstDashIndex = entryName.indexOf('-');
-            itemList.add(entryName.substring(firstDashIndex + 1));
+            versions.add(profile.verName);
         }
+        List<String> itemList = new ArrayList<>(versions);
         spinner.setAdapter(new com.winlator.cmod.widget.ThemedSpinnerAdapter<>(spinner.getContext(), itemList));
         if (container != null)
             AppUtils.setSpinnerSelectionFromValue(spinner, container.getFEXCoreVersion());
@@ -299,12 +299,11 @@ public final class FEXCoreManager {
 
     public static void loadFEXCoreVersion(Context context, ContentsManager contentsManager, Spinner spinner, Shortcut shortcut) {
         String[] originalItems = context.getResources().getStringArray(R.array.fexcore_version_entries);
-        List<String> itemList = new ArrayList<>(Arrays.asList(originalItems));
+        LinkedHashSet<String> versions = new LinkedHashSet<>(Arrays.asList(originalItems));
         for (ContentProfile profile : contentsManager.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_FEXCORE)) {
-            String entryName = ContentsManager.getEntryName(profile);
-            int firstDashIndex = entryName.indexOf('-');
-            itemList.add(entryName.substring(firstDashIndex + 1));
+            versions.add(profile.verName);
         }
+        List<String> itemList = new ArrayList<>(versions);
         spinner.setAdapter(new com.winlator.cmod.widget.ThemedSpinnerAdapter<>(spinner.getContext(), itemList));
         AppUtils.setSpinnerSelectionFromValue(spinner, shortcut.getExtra("fexcoreVersion", shortcut.container.getFEXCoreVersion()));
     }

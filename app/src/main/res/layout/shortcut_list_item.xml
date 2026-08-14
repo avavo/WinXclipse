@@ -57,7 +57,10 @@
     <ImageButton
         android:id="@+id/BTMenu"
         style="@style/ListMenuButton"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
         android:layout_gravity="top|end"
         android:background="?attr/selectableItemBackgroundBorderless"
+        android:padding="7dp"
         android:src="@drawable/icon_list_item_menu" />
 </FrameLayout>

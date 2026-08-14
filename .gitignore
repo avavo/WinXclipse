@@ -19,6 +19,7 @@ wxb/
 apktool.yml
 
 *.log
+.idea/
 
 # Runtime/config assets required to reproduce the WinXclipse APK. The large
 # runtime archives are already configured for Git LFS in .gitattributes.

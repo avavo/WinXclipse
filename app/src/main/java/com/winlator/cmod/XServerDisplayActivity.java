@@ -11,6 +11,7 @@ import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
@@ -24,6 +25,7 @@ import android.media.AudioDeviceCallback;
 import android.media.AudioDeviceInfo;
 import android.media.AudioManager;
 import android.os.Bundle;
+import android.os.BatteryManager;
 import android.os.FileObserver;
 import android.os.Handler;
 import android.os.Looper;
@@ -41,6 +43,9 @@ import android.view.animation.AnimationUtils;
 import android.view.animation.LayoutAnimationController;
 import android.widget.CheckBox;
 import android.widget.FrameLayout;
+import android.widget.ImageButton;
+import android.widget.LinearLayout;
+import android.widget.PopupMenu;
 import android.widget.SeekBar;
 import android.widget.Spinner;
 import android.widget.TextView;
@@ -73,7 +78,8 @@ import com.winlator.cmod.contentdialog.ScreenEffectDialog;
 import com.winlator.cmod.contentdialog.VKD3DConfigDialog;
 import com.winlator.cmod.contents.ContentProfile;
 import com.winlator.cmod.contents.ContentsManager;
-import com.winlator.cmod.contents.AdrenotoolsManager;
+import com.winlator.cmod.contents.XclipseDriverManager;
+import com.winlator.cmod.contents.CustomWrapperManager;
 import com.winlator.cmod.core.AppUtils;
 import com.winlator.cmod.core.DefaultVersion;
 import com.winlator.cmod.core.EnvVars;
@@ -119,6 +125,7 @@ import com.winlator.cmod.widget.TouchpadView;
 import com.winlator.cmod.widget.WinetricksFloatingView;
 import com.winlator.cmod.widget.XServerView;
 import com.winlator.cmod.winhandler.MouseEventFlags;
+import com.winlator.cmod.winhandler.InlineTaskManagerPanel;
 import com.winlator.cmod.winhandler.TaskManagerDialog;
 import com.winlator.cmod.winhandler.WinHandler;
 import com.winlator.cmod.xconnector.UnixSocketConfig;
@@ -154,6 +161,8 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -214,6 +223,29 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     private Runnable configChangedCallback = null;
     private boolean isPaused = false;
     private boolean isRelativeMouseMovement;
+    private InlineTaskManagerPanel inlineTaskManagerPanel;
+    private final Handler sidebarHandler = new Handler(Looper.getMainLooper());
+    private TextView sidebarTimeView;
+    private TextView sidebarBatteryView;
+    private TextView sidebarControllerProfileView;
+    private TextView sidebarFpsLimitView;
+    private ImageButton sidebarPauseButton;
+    private final Runnable sidebarStatusRunnable = new Runnable() {
+        @Override public void run() {
+            if (sidebarTimeView != null)
+                sidebarTimeView.setText(new SimpleDateFormat("HH:mm", Locale.getDefault()).format(new Date()));
+            if (sidebarBatteryView != null) {
+                Intent battery = registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+                if (battery != null) {
+                    int level = battery.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
+                    int scale = battery.getIntExtra(BatteryManager.EXTRA_SCALE, 100);
+                    int percent = level >= 0 && scale > 0 ? Math.round(level * 100f / scale) : -1;
+                    sidebarBatteryView.setText(percent >= 0 ? percent + "%" : "--%");
+                }
+            }
+            sidebarHandler.postDelayed(this, 30_000);
+        }
+    };
 
     // Inside the XServerDisplayActivity class
     private SensorManager sensorManager;
@@ -432,6 +464,10 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         applyGroup(menu, R.id.group_input,   R.id.header_input,   expInput);
         applyGroup(menu, R.id.group_display, R.id.header_display, expDisplay);
 
+        // The redesigned full-height header owns the in-session navigation.
+        // Keep the old menu objects as action dispatchers, but do not render them.
+        for (int i = 0; i < menu.size(); i++) menu.getItem(i).setVisible(false);
+
         // tune RV
         RecyclerView rv = navRecycler();
         if (rv != null) {
@@ -582,6 +618,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             }
             Log.d("XServerDisplayActivity", "XInput Disabled from Shortcut: " + xinputDisabledFromShortcut);
         }
+
+        graphicsDriver = Container.normalizeGraphicsDriver(graphicsDriver);
 
         this.graphicsDriverConfig = GraphicsDriverConfigDialog.parseGraphicsDriverConfig(graphicsDriverConfig);
 
@@ -976,6 +1014,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     @Override
     protected void onDestroy() {
+        sidebarHandler.removeCallbacks(sidebarStatusRunnable);
+        if (inlineTaskManagerPanel != null) inlineTaskManagerPanel.stop();
         if (hudDataSource != null) {
             hudDataSource.stop();
             hudDataSource = null;
@@ -1480,6 +1520,22 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         startActivity(intent);
     }
 
+    private void setFpsLimit(GLRenderer renderer, int limit, boolean persist) {
+        int safeLimit = Math.max(0, limit);
+        renderer.setFpsLimit(safeLimit);
+        com.winlator.cmod.xserver.extensions.PresentExtension present =
+                xServer.getExtension(com.winlator.cmod.xserver.extensions.PresentExtension.MAJOR_OPCODE);
+        if (present != null) present.setFrameRateLimit(safeLimit);
+        if (persist && container != null) {
+            container.putExtra("fpsLimit", String.valueOf(safeLimit));
+            container.saveData();
+            if (shortcut != null) {
+                shortcut.putExtra("fpsLimit", String.valueOf(safeLimit));
+                shortcut.saveData();
+            }
+        }
+    }
+
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
@@ -1699,6 +1755,18 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             }
         }
 
+        boolean experimentalPerformance = "1".equals(
+                container.getExtra("experimentalPerformance", "0"));
+        if (shortcut != null && shortcut.hasExtra("experimentalPerformance")) {
+            experimentalPerformance = "1".equals(shortcut.getExtra("experimentalPerformance"));
+        }
+        if (experimentalPerformance) {
+            // Opt-in and fully reversible runtime defaults.
+            envVars.put("WRAPPER_MAX_IMAGE_COUNT", "0");
+            envVars.put("DXVK_DISABLE_TIMELINE_SEMAPHORES", "1");
+            envVars.put("VKD3D_SHADER_MODEL", "6_6");
+        }
+
         // Create our overall XEnvironment with various components
         environment = new XEnvironment(this, imageFs);
         environment.addComponent(
@@ -1887,6 +1955,15 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         xServerView = new XServerView(this, xServer);
         final GLRenderer renderer = xServerView.getRenderer();
         renderer.setCursorVisible(false);
+        int savedFpsLimit = 0;
+        try {
+            String value = shortcut != null
+                    ? shortcut.getExtra("fpsLimit", container.getExtra("fpsLimit", "0"))
+                    : container.getExtra("fpsLimit", "0");
+            savedFpsLimit = Integer.parseInt(value);
+        }
+        catch (Exception ignored) {}
+        setFpsLimit(renderer, savedFpsLimit, false);
 
         if (shortcut != null) {
             if (shortcut.getExtra("forceFullscreen", "0").equals("1")) renderer.setForceFullscreenWMClass(shortcut.wmClass);
@@ -1965,6 +2042,191 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         }
 
         AppUtils.observeSoftKeyboardVisibility(drawerLayout, renderer::setScreenOffsetYRelativeToCursor);
+        setupModernSidebar(renderer);
+    }
+
+    private void setupModernSidebar(GLRenderer renderer) {
+        if (navigationView == null || navigationView.getHeaderCount() == 0) return;
+        View sidebar = navigationView.getHeaderView(0);
+        sidebarTimeView = sidebar.findViewById(R.id.TVSidebarTime);
+        sidebarBatteryView = sidebar.findViewById(R.id.TVSidebarBattery);
+        sidebarControllerProfileView = sidebar.findViewById(R.id.TVSidebarControllerProfile);
+        sidebarFpsLimitView = sidebar.findViewById(R.id.TVSidebarFpsLimit);
+        sidebarPauseButton = sidebar.findViewById(R.id.BTSidebarPause);
+
+        updateSidebarFpsLabel(renderer.getFpsLimit());
+        ControlsProfile defaultProfile = getSidebarControllerProfile();
+        updateSidebarControllerLabel(defaultProfile);
+        if (inputControlsView.getProfile() == null
+                && preferences.getBoolean("sidebar_controller_enabled", true)
+                && defaultProfile != null) {
+            showInputControls(defaultProfile);
+        }
+
+        View input = sidebar.findViewById(R.id.BTSidebarInput);
+        View inputMore = sidebar.findViewById(R.id.BTSidebarInputMore);
+        input.setOnClickListener(this::showSidebarInputMenu);
+        inputMore.setOnClickListener(this::showSidebarInputMenu);
+
+        sidebar.findViewById(R.id.BTSidebarController).setOnClickListener(v -> {
+            if (inputControlsView.getProfile() != null) {
+                hideInputControls();
+                preferences.edit().putBoolean("sidebar_controller_enabled", false).apply();
+            } else {
+                ControlsProfile profile = getSidebarControllerProfile();
+                if (profile != null) {
+                    showInputControls(profile);
+                    preferences.edit().putBoolean("sidebar_controller_enabled", true).apply();
+                }
+            }
+            updateSidebarControllerLabel(inputControlsView.getProfile() != null
+                    ? inputControlsView.getProfile() : getSidebarControllerProfile());
+        });
+        sidebar.findViewById(R.id.BTSidebarControllerMore).setOnClickListener(v ->
+                showInputControlsDialog());
+
+        sidebar.findViewById(R.id.BTSidebarFpsLimiter).setOnClickListener(v ->
+                showSidebarFpsLimiter(renderer));
+        sidebar.findViewById(R.id.BTSidebarDisplay).setOnClickListener(this::showSidebarDisplayMenu);
+
+        sidebar.findViewById(R.id.BTSidebarHud).setOnClickListener(v -> toggleSidebarHud());
+        sidebar.findViewById(R.id.BTSidebarHudMore).setOnClickListener(v -> showHUDConfigDialog());
+        sidebar.findViewById(R.id.BTSidebarTaskManager).setOnClickListener(v -> openInlineTaskManager());
+        sidebar.findViewById(R.id.BTCloseTaskManager).setOnClickListener(v -> closeInlineTaskManager(false));
+        sidebar.findViewById(R.id.BTSidebarTerminal).setOnClickListener(v -> {
+            openTerminal();
+            drawerLayout.closeDrawers();
+        });
+        sidebar.findViewById(R.id.BTSidebarExit).setOnClickListener(v -> exitApp());
+        sidebarPauseButton.setOnClickListener(v -> toggleSidebarPause());
+        sidebar.findViewById(R.id.BTSidebarHelp).setOnClickListener(v -> showTouchpadHelpDialog());
+
+        sidebarHandler.removeCallbacks(sidebarStatusRunnable);
+        sidebarHandler.post(sidebarStatusRunnable);
+    }
+
+    private void showSidebarInputMenu(View anchor) {
+        PopupMenu popup = new PopupMenu(this, anchor);
+        popup.getMenu().add(0, R.id.main_menu_relative_mouse, 0, R.string.relative_mouse_movement)
+                .setCheckable(true).setChecked(isRelativeMouseMovement);
+        popup.getMenu().add(0, R.id.main_menu_keyboard, 1, R.string.keyboard);
+        popup.getMenu().add(0, R.id.main_menu_input_controls, 2, R.string.input_controls);
+        popup.getMenu().add(0, R.id.main_menu_controller_assignment, 3, R.string.controller_manager);
+        popup.getMenu().add(0, R.id.main_menu_motion_controls, 4, R.string.motion_controls);
+        popup.setOnMenuItemClickListener(this::onNavigationItemSelected);
+        popup.show();
+    }
+
+    private void showSidebarDisplayMenu(View anchor) {
+        PopupMenu popup = new PopupMenu(this, anchor);
+        popup.getMenu().add(0, R.id.main_menu_screen_effects, 0, R.string.screen_effect);
+        popup.getMenu().add(0, R.id.main_menu_toggle_fullscreen, 1, R.string.toggle_fullscreen);
+        popup.getMenu().add(0, R.id.main_menu_magnifier, 2, R.string.magnifier);
+        popup.getMenu().add(0, R.id.main_menu_pip_mode, 3, R.string.pip_mode);
+        popup.setOnMenuItemClickListener(this::onNavigationItemSelected);
+        popup.show();
+    }
+
+    private void showSidebarFpsLimiter(GLRenderer renderer) {
+        final int[] values = {0, 30, 45, 60, 90, 120};
+        String[] labels = {"Unlimited", "30 FPS", "45 FPS", "60 FPS", "90 FPS", "120 FPS"};
+        int checked = 0;
+        for (int i = 0; i < values.length; i++) if (values[i] == renderer.getFpsLimit()) checked = i;
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("FPS Limiter")
+                .setSingleChoiceItems(labels, checked, (dialog, which) -> {
+                    setFpsLimit(renderer, values[which], true);
+                    updateSidebarFpsLabel(values[which]);
+                    dialog.dismiss();
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    private void updateSidebarFpsLabel(int limit) {
+        if (sidebarFpsLimitView != null)
+            sidebarFpsLimitView.setText(limit > 0 ? limit + " FPS" : "Unlimited");
+    }
+
+    private ControlsProfile getSidebarControllerProfile() {
+        ArrayList<ControlsProfile> profiles = inputControlsManager.getProfiles(true);
+        int preferredId = preferences.getInt("sidebar_controller_profile_id", -1);
+        ControlsProfile fallback = null;
+        for (ControlsProfile profile : profiles) {
+            if (profile.id == preferredId) return profile;
+            if ("Virtual Gamepad".equalsIgnoreCase(profile.getName())) fallback = profile;
+        }
+        return fallback != null ? fallback : (profiles.isEmpty() ? null : profiles.get(0));
+    }
+
+    private void updateSidebarControllerLabel(ControlsProfile profile) {
+        if (sidebarControllerProfileView != null)
+            sidebarControllerProfileView.setText(profile != null ? profile.getName() : getString(R.string.disabled));
+    }
+
+    private void ensureWinlatorHud() {
+        if (frameRating != null) return;
+        FrameLayout root = findViewById(R.id.FLXServerDisplay);
+        hudDataSource = new HudDataSource(this);
+        frameRating = new WinlatorHUD(this);
+        frameRating.setDataSource(hudDataSource);
+        frameRating.setWrapperName(graphicsDriver);
+        frameRating.onRendererDetected(getHudApiName());
+        root.addView(frameRating);
+    }
+
+    private void toggleSidebarHud() {
+        if (container == null) return;
+        boolean enabled = !container.isShowFPS();
+        container.setShowFPS(enabled);
+        container.saveData();
+        if ("winlator".equals(container.getHudMode())) {
+            ensureWinlatorHud();
+            if (enabled) frameRating.enableByUser(); else frameRating.disableByUser();
+        } else {
+            AppUtils.showToast(this, enabled
+                    ? "HUD enabled for the next launch."
+                    : "HUD disabled for the next launch.");
+        }
+    }
+
+    private void toggleSidebarPause() {
+        if (isPaused) {
+            ProcessHelper.resumeAllWineProcesses();
+            sidebarPauseButton.setImageResource(R.drawable.icon_pause);
+        } else {
+            ProcessHelper.pauseAllWineProcesses();
+            sidebarPauseButton.setImageResource(R.drawable.icon_play);
+        }
+        isPaused = !isPaused;
+    }
+
+    private void openInlineTaskManager() {
+        View sidebar = navigationView.getHeaderView(0);
+        LinearLayout main = sidebar.findViewById(R.id.LLSidebarMain);
+        FrameLayout host = sidebar.findViewById(R.id.FLSidebarTaskManager);
+        ImageButton close = sidebar.findViewById(R.id.BTCloseTaskManager);
+        main.setVisibility(View.GONE);
+        sidebarTimeView.setVisibility(View.GONE);
+        close.setVisibility(View.VISIBLE);
+        host.setVisibility(View.VISIBLE);
+        if (inlineTaskManagerPanel == null) inlineTaskManagerPanel = new InlineTaskManagerPanel(this);
+        if (inlineTaskManagerPanel.getParent() == null) host.addView(inlineTaskManagerPanel,
+                new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT));
+        inlineTaskManagerPanel.start();
+    }
+
+    public void closeInlineTaskManager(boolean closeDrawer) {
+        if (inlineTaskManagerPanel != null) inlineTaskManagerPanel.stop();
+        if (navigationView != null && navigationView.getHeaderCount() > 0) {
+            View sidebar = navigationView.getHeaderView(0);
+            sidebar.findViewById(R.id.LLSidebarMain).setVisibility(View.VISIBLE);
+            sidebar.findViewById(R.id.FLSidebarTaskManager).setVisibility(View.GONE);
+            sidebar.findViewById(R.id.BTCloseTaskManager).setVisibility(View.GONE);
+            if (sidebarTimeView != null) sidebarTimeView.setVisibility(View.VISIBLE);
+        }
+        if (closeDrawer && drawerLayout != null) drawerLayout.closeDrawers();
     }
 
 
@@ -2085,9 +2347,19 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
             int position = sProfile.getSelectedItemPosition();
             if (position > 0) {
-                showInputControls(inputControlsManager.getProfiles().get(position - 1));
+                ControlsProfile selected = inputControlsManager.getProfiles(true).get(position - 1);
+                preferences.edit()
+                        .putInt("sidebar_controller_profile_id", selected.id)
+                        .putBoolean("sidebar_controller_enabled", true)
+                        .apply();
+                showInputControls(selected);
+                updateSidebarControllerLabel(selected);
             }
-            else hideInputControls();
+            else {
+                preferences.edit().putBoolean("sidebar_controller_enabled", false).apply();
+                hideInputControls();
+                updateSidebarControllerLabel(getSidebarControllerProfile());
+            }
             touchpadView.setSimTouchScreen(cbSimTouchScreen.isChecked());
             updateProfile.run();
         });
@@ -2311,6 +2583,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 winHandler.sendGamepadState();
             }
         }
+
     }
 
     private void hideInputControls() {
@@ -2346,9 +2619,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             currentWrapperVersion = shortcut.getExtra("wrapperGraphicsDriverVersion", currentWrapperVersion);
             selectedDriverVersion = currentWrapperVersion;
         }
-        String adrenoToolsDriverId = selectedDriverVersion.contains(DefaultVersion.WRAPPER)
+        String xclipseDriverId = selectedDriverVersion.contains(DefaultVersion.WRAPPER)
                 ? DefaultVersion.WRAPPER : selectedDriverVersion;
-        Log.d("GraphicsDriverExtraction", "Adrenotools DriverID: " + adrenoToolsDriverId);
+        Log.d("GraphicsDriverExtraction", "Xclipse driver ID: " + xclipseDriverId);
 
         File rootDir = imageFs.getRootDir();
         if (dxwrapper.equals("dxvk")) {
@@ -2370,11 +2643,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         boolean useDRI3 = preferences.getBoolean("use_dri3", true);
         if (!useDRI3) envVars.put("MESA_VK_WSI_DEBUG", "sw");
 
-        String isAdrenotoolsTurnip = graphicsDriverConfig.getOrDefault("adrenotoolsTurnip", "1");
-        if (currentWrapperVersion.toLowerCase().contains("turnip") && isAdrenotoolsTurnip.equals("0"))
-            envVars.put("VK_ICD_FILENAMES", imageFs.getShareDir() + "/vulkan/icd.d/freedreno_icd.aarch64.json");
-        else
-            envVars.put("VK_ICD_FILENAMES", imageFs.getShareDir() + "/vulkan/icd.d/wrapper_icd.aarch64.json");
+        envVars.put("VK_ICD_FILENAMES", imageFs.getShareDir() + "/vulkan/icd.d/wrapper_icd.aarch64.json");
         envVars.put("GALLIUM_DRIVER", "zink");
         envVars.put("LIBGL_KOPPER_DISABLE", "true");
 
@@ -2385,6 +2654,10 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 String assetPath = "graphics_driver/" + mainWrapperSelection.toLowerCase() + ".tzst";
                 Log.d("GraphicsDriverExtraction", "WRAPPER selection changed or first boot. Extracting: " + assetPath);
                 boolean success = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, assetPath, rootDir);
+                if (!success) {
+                    success = new CustomWrapperManager(this).apply(mainWrapperSelection, rootDir);
+                    Log.d("GraphicsDriverExtraction", "Custom wrapper extracted=" + success);
+                }
                 if (success) {
                     container.putExtra("lastInstalledMainWrapper", mainWrapperSelection);
                     container.saveData();
@@ -2393,24 +2666,55 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             }
         }
 
-        boolean astcTranscode = "1".equals(graphicsDriverConfig.getOrDefault("astcTranscode", "1"));
+        boolean astcTranscode = "1".equals(graphicsDriverConfig.getOrDefault("astcTranscode", "0"));
         boolean etc2Transcode = "1".equals(graphicsDriverConfig.getOrDefault("etc2Transcode", "0"));
-        boolean transcodeEnabled = astcTranscode || etc2Transcode;
-        boolean previousTranscodeEnabled = "1".equals(container.getExtra("transcodeEnabled", "0"));
-        if (firstTimeBoot || transcodeEnabled != previousTranscodeEnabled) {
-            Log.d("GraphicsDriverExtraction", "Refreshing graphics layers; transcode=" + transcodeEnabled);
+        String bcnEmulation = graphicsDriverConfig.getOrDefault("bcnEmulation", "auto");
+        String bcnEmulationType = graphicsDriverConfig.getOrDefault("bcnEmulationType", "compute");
+        boolean computeBcnEnabled = "compute".equals(bcnEmulationType)
+                && ("auto".equals(bcnEmulation) || "full".equals(bcnEmulation));
+        boolean bcnLayerEnabled = astcTranscode || etc2Transcode || computeBcnEnabled;
+        final String bcnLayerVersion = "leegao-winmali-2";
+        File bcnLayerLibrary = new File(rootDir, "usr/lib/libbcn_layer.so");
+        File bcnLayerManifest = new File(rootDir,
+                "usr/share/vulkan/implicit_layer.d/libbcn_layer.json");
+        boolean bcnLayerReady = bcnLayerLibrary.isFile() && bcnLayerManifest.isFile();
+        boolean previousBcnLayerEnabled = "1".equals(container.getExtra("bcnLayerEnabled",
+                container.getExtra("transcodeEnabled", "0")));
+        boolean bcnLayerNeedsUpdate = bcnLayerEnabled
+                && (!bcnLayerVersion.equals(container.getExtra("bcnLayerVersion", ""))
+                || !bcnLayerReady);
+        if (firstTimeBoot || bcnLayerEnabled != previousBcnLayerEnabled || bcnLayerNeedsUpdate) {
+            Log.d("GraphicsDriverExtraction", "Refreshing graphics layers; BCN layer=" + bcnLayerEnabled);
             TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "graphics_driver/extra_libs.tzst", rootDir);
             TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "layers.tzst", rootDir);
-            if (transcodeEnabled) {
-                TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "graphics_driver/leegao_bcn.tzst", rootDir);
+            if (bcnLayerEnabled) {
+                File internalBcnLayer = new File(getFilesDir(), "graphics_driver/leegao_bcn.tzst");
+                boolean extracted = internalBcnLayer.isFile()
+                        ? TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, internalBcnLayer, rootDir)
+                        : TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this,
+                                "graphics_driver/leegao_bcn.tzst", rootDir);
+                bcnLayerReady = extracted && bcnLayerLibrary.isFile() && bcnLayerManifest.isFile();
+                if (bcnLayerReady) {
+                    Log.d("GraphicsDriverExtraction", "BCN layer extracted and verified");
+                }
+                else {
+                    Log.e("GraphicsDriverExtraction", "BCN layer extraction or verification failed");
+                }
             }
-            container.putExtra("transcodeEnabled", transcodeEnabled ? "1" : "0");
+            else {
+                bcnLayerReady = false;
+            }
+            container.putExtra("transcodeEnabled", (astcTranscode || etc2Transcode) ? "1" : "0");
+            container.putExtra("bcnLayerEnabled", bcnLayerEnabled && bcnLayerReady ? "1" : "0");
+            container.putExtra("bcnLayerVersion",
+                    bcnLayerEnabled && bcnLayerReady ? bcnLayerVersion : "");
             container.saveData();
         }
+        boolean activeBcnLayer = bcnLayerEnabled && bcnLayerReady;
 
-        if (!DefaultVersion.WRAPPER.equals(adrenoToolsDriverId)) {
-            AdrenotoolsManager adrenotoolsManager = new AdrenotoolsManager(this);
-            adrenotoolsManager.setDriverById(envVars, imageFs, adrenoToolsDriverId);
+        if (!DefaultVersion.WRAPPER.equals(xclipseDriverId)) {
+            XclipseDriverManager driverManager = new XclipseDriverManager(this);
+            driverManager.setDriverById(envVars, xclipseDriverId);
         }
 
         envVars.put("WRAPPER_VK_VERSION",
@@ -2444,12 +2748,17 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 "Never".equals(legacyFrameSync) ? "1" : "0");
         envVars.put("WRAPPER_DISABLE_PRESENT_WAIT", disablePresentWait);
 
-        String bcnEmulation = graphicsDriverConfig.getOrDefault("bcnEmulation", "auto");
-        String bcnEmulationType = graphicsDriverConfig.getOrDefault("bcnEmulationType", "compute");
-        if ("compute".equals(bcnEmulationType)
-                && ("auto".equals(bcnEmulation) || "full".equals(bcnEmulation))) {
+        if (activeBcnLayer) {
+            envVars.remove("DISABLE_BCN_COMPUTE");
             envVars.put("ENABLE_BCN_COMPUTE", "1");
             envVars.put("BCN_COMPUTE_AUTO", "auto".equals(bcnEmulation) ? "1" : "0");
+        }
+        else {
+            envVars.remove("ENABLE_BCN_COMPUTE");
+            envVars.remove("BCN_COMPUTE_AUTO");
+            envVars.remove("BCN_TRANSCODE_TO_ASTC");
+            envVars.remove("BCN_TRANSCODE_TO_ETC2");
+            envVars.put("DISABLE_BCN_COMPUTE", "1");
         }
         switch (bcnEmulation) {
             case "none":
@@ -2467,8 +2776,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         }
         envVars.put("WRAPPER_USE_BCN_CACHE",
                 graphicsDriverConfig.getOrDefault("bcnEmulationCache", "0"));
-        if (astcTranscode) envVars.put("BCN_TRANSCODE_TO_ASTC", "1");
-        if (etc2Transcode) envVars.put("BCN_TRANSCODE_TO_ETC2", "1");
+        envVars.put("BCN_DISABLE_DISK_CACHE",
+                "0".equals(graphicsDriverConfig.getOrDefault("bcnEmulationCache", "0")) ? "1" : "0");
+        if (activeBcnLayer && astcTranscode) envVars.put("BCN_TRANSCODE_TO_ASTC", "1");
+        if (activeBcnLayer && etc2Transcode) envVars.put("BCN_TRANSCODE_TO_ETC2", "1");
+        String bcnQualityPreset = graphicsDriverConfig.getOrDefault("bcnQualityPreset", "auto");
+        if (!"auto".equals(bcnQualityPreset)) envVars.put("BCN_QUALITY_PRESET", bcnQualityPreset);
 
         if (!vkbasaltConfig.isEmpty()) {
             envVars.put("ENABLE_VKBASALT", "1");

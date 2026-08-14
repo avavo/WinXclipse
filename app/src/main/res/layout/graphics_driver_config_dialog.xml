@@ -159,6 +159,21 @@
             android:entries="@array/bcn_emulation_cache_entries"
             android:spinnerMode="dialog" />
 
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingBottom="8dp"
+            android:text="@string/graphics_driver_bcn_quality_preset"
+            android:textAppearance="?android:attr/textAppearanceMedium" />
+
+        <Spinner
+            android:id="@+id/SGraphicsDriverBCnQualityPreset"
+            style="@style/ComboBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:entries="@array/bcn_quality_preset_entries"
+            android:spinnerMode="dialog" />
+
         <CheckBox
             android:id="@+id/CBSyncFrame"
             android:layout_width="wrap_content"
@@ -202,11 +217,5 @@
             android:layout_height="wrap_content"
             android:text="@string/graphics_driver_etc2_transcode" />
 
-        <CheckBox
-            android:id="@+id/CBAdrenotoolsTurnip"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:checked="true"
-            android:text="@string/graphics_driver_adrenotools_turnip" />
     </LinearLayout>
 </ScrollView>

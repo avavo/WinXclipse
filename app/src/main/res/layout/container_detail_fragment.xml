@@ -733,6 +733,21 @@
                             android:layout_height="wrap_content"
                             android:text="@string/enable_gstreamer_workaround" />
 
+                        <CheckBox
+                            android:id="@+id/CBExperimentalPerformance"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="@string/experimental_performance" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="40dp"
+                            android:text="@string/experimental_performance_description"
+                            android:textSize="12sp"
+                            android:textColor="?android:attr/textColorSecondary" />
+
 <!--                        <CheckBox-->
 <!--                            android:id="@+id/CBRelativeMouseMovement"-->
 <!--                            android:layout_width="wrap_content"-->

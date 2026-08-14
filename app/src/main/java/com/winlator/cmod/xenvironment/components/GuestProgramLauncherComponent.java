@@ -13,6 +13,8 @@ import com.winlator.cmod.core.DefaultVersion;
 import com.winlator.cmod.core.EnvVars;
 import com.winlator.cmod.core.ProcessHelper;
 import com.winlator.cmod.core.TarCompressorUtils;
+import com.winlator.cmod.contents.ContentProfile;
+import com.winlator.cmod.contents.ContentsManager;
 import com.winlator.cmod.xconnector.UnixSocketConfig;
 import com.winlator.cmod.xenvironment.EnvironmentComponent;
 import com.winlator.cmod.xenvironment.ImageFs;
@@ -190,7 +192,18 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
         }
 
         if (!box64Version.equals(currentBox64Version)) {
-            TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context, "box86_64/box64-"+box64Version+".tzst", rootDir);
+            ContentsManager contentsManager = new ContentsManager(context);
+            contentsManager.syncContents();
+            ContentProfile profile = contentsManager.getProfileByEntryName("box64-" + box64Version);
+            if (profile == null && !DefaultVersion.BOX64.equals(box64Version)) {
+                box64Version = DefaultVersion.BOX64;
+                profile = contentsManager.getProfileByEntryName("box64-" + box64Version);
+            }
+            if (profile != null) {
+                contentsManager.applyContent(profile);
+            } else {
+                TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context, "box86_64/box64-" + box64Version + ".tzst", rootDir);
+            }
             preferences.edit().putString("current_box64_version", box64Version).apply();
         }
     }

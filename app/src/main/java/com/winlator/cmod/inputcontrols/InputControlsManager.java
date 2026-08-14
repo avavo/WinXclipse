@@ -61,8 +61,9 @@ public class InputControlsManager {
 
         int newVersion = AppUtils.getVersionCode(context);
         int oldVersion = preferences.getInt("inputcontrols_app_version", 0);
-        if (oldVersion == newVersion) return;
-        preferences.edit().putInt("inputcontrols_app_version", newVersion).apply();
+        boolean appWasUpdated = oldVersion != newVersion;
+        if (appWasUpdated)
+            preferences.edit().putInt("inputcontrols_app_version", newVersion).apply();
 
         File[] files = profilesDir.listFiles();
         if (files == null) return;
@@ -84,7 +85,13 @@ public class InputControlsManager {
                 }
 
                 if (targetFile != null) {
-                    FileUtils.copy(context, assetPath, targetFile);
+                    if (appWasUpdated) FileUtils.copy(context, assetPath, targetFile);
+                }
+                else {
+                    // Install newly bundled profiles on existing installations without
+                    // clearing or renumbering any user-created control layouts.
+                    File destination = new File(profilesDir, assetFile);
+                    if (!destination.exists()) FileUtils.copy(context, assetPath, destination);
                 }
             }
         }

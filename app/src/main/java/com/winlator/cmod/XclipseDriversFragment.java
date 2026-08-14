@@ -17,27 +17,27 @@ import androidx.recyclerview.widget.DividerItemDecoration;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.winlator.cmod.contentdialog.ContentDialog;
-import com.winlator.cmod.contents.AdrenotoolsManager;
+import com.winlator.cmod.contents.XclipseDriverManager;
 import java.util.ArrayList;
 
-public class AdrenotoolsFragment extends Fragment {
+public class XclipseDriversFragment extends Fragment {
     
-    private AdrenotoolsManager adrenotoolsManager;
+    private XclipseDriverManager driverManager;
     private RecyclerView recyclerView;
     
     @Override 
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        this.adrenotoolsManager = new AdrenotoolsManager(getActivity());
+        this.driverManager = new XclipseDriverManager(getActivity());
     }
     
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-        ViewGroup layout = (ViewGroup)inflater.inflate(R.layout.adrenotools_fragment, container, false);
+        ViewGroup layout = (ViewGroup)inflater.inflate(R.layout.xclipse_drivers_fragment, container, false);
         recyclerView = layout.findViewById(R.id.RecyclerView);
         recyclerView.setLayoutManager(new LinearLayoutManager(recyclerView.getContext()));
         recyclerView.addItemDecoration(new DividerItemDecoration(recyclerView.getContext(), DividerItemDecoration.VERTICAL));
-        recyclerView.setAdapter(new DriversAdapter(adrenotoolsManager.enumarateInstalledDrivers()));
+        recyclerView.setAdapter(new DriversAdapter(driverManager.enumerateInstalledDrivers()));
         View btInstallDriver = layout.findViewById(R.id.BTInstallDriver);
         btInstallDriver.setOnClickListener((v) -> {
             ContentDialog.confirm(getContext(), getString(R.string.install_drivers_message) + " " + getString(R.string.install_drivers_warning), () -> {
@@ -53,14 +53,14 @@ public class AdrenotoolsFragment extends Fragment {
     @Override
     public void onViewCreated(View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
-        ((AppCompatActivity) getActivity()).getSupportActionBar().setTitle(R.string.adrenotools_gpu_drivers);
+        ((AppCompatActivity) getActivity()).getSupportActionBar().setTitle(R.string.xclipse_gpu_drivers);
     }
     
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode == MainActivity.OPEN_FILE_REQUEST_CODE && resultCode == Activity.RESULT_OK) {
             Uri uri = data.getData();
-            String driver = adrenotoolsManager.installDriver(uri);
+            String driver = driverManager.installDriver(uri);
             if (!driver.isEmpty())
                 ((DriversAdapter)recyclerView.getAdapter()).addItem(driver);
         }
@@ -88,14 +88,14 @@ public class AdrenotoolsFragment extends Fragment {
         
         @Override
         public ViewHolder onCreateViewHolder(ViewGroup viewGroup, int viewType) {
-            View view = LayoutInflater.from(viewGroup.getContext()).inflate(R.layout.adrenotools_list_item, viewGroup, false);
+            View view = LayoutInflater.from(viewGroup.getContext()).inflate(R.layout.xclipse_driver_list_item, viewGroup, false);
             return new ViewHolder(view);
         }
         
         @Override
         public void onBindViewHolder(ViewHolder viewHolder, final int position) {
-            viewHolder.tvName.setText(adrenotoolsManager.getDriverName(driversList.get(position)));
-            viewHolder.tvVersion.setText(adrenotoolsManager.getDriverVersion(driversList.get(position)));
+            viewHolder.tvName.setText(driverManager.getDriverName(driversList.get(position)));
+            viewHolder.tvVersion.setText(driverManager.getDriverVersion(driversList.get(position)));
             viewHolder.btMenu.setOnClickListener((v) -> {
                 removeAtIndex(position);
             });
@@ -108,7 +108,7 @@ public class AdrenotoolsFragment extends Fragment {
         
         public void removeAtIndex(int index) {
             String deletedDriver = driversList.remove(index);
-            adrenotoolsManager.removeDriver(deletedDriver);
+            driverManager.removeDriver(deletedDriver);
             notifyItemRemoved(index);
             notifyItemRangeChanged(index, getItemCount());
         }

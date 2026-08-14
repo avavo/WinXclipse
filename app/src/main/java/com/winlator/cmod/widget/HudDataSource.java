@@ -33,15 +33,11 @@ public class HudDataSource {
 
     private String gpuPath = null;
     private boolean gpuFailed = false;
-    private long prevGpuBusy = 0, prevGpuTotal = 0;
     private long lastMaliGpuInfoMs = -1;
     private long lastMaliGpuInfoWallMs = -1;
     private java.util.List<String> discoveredCpuTempPaths = null;
 
     private static final String[] GPU_PATHS = {
-        "/sys/class/kgsl/kgsl-3d0/gpu_busy_percentage",
-        "/sys/class/kgsl/kgsl-3d0/devfreq/gpu_load",
-        "/sys/class/kgsl/kgsl-3d0/devfreq/adrenoboost",
         "/sys/class/misc/mali0/device/utilisation",
         "/sys/class/misc/mali0/device/gpuinfo",
         "/sys/devices/platform/mali/utilization",
@@ -65,8 +61,6 @@ public class HudDataSource {
         "/proc/mtktscpu/mtktscpu",               // Legacy MediaTek
         "/sys/class/thermal/cpu-thermal/temp"
     };
-
-    private static final String GPU_BUSY = "/sys/class/kgsl/kgsl-3d0/gpubusy";
 
     private static final String[] CURRENT_PATHS = {
         "/sys/class/power_supply/battery/current_now",
@@ -120,7 +114,7 @@ public class HudDataSource {
         if (gpuFailed) return;
 
         if (gpuPath != null) {
-            int v = gpuPath.equals(GPU_BUSY) ? readGpuBusy() : (gpuPath.endsWith("gpuinfo") ? readGpuInfo(gpuPath) : readPercent(gpuPath));
+            int v = gpuPath.endsWith("gpuinfo") ? readGpuInfo(gpuPath) : readPercent(gpuPath);
             if (v >= 0) { gpuLoad.set(v); return; }
             gpuPath = null;
         }
@@ -128,13 +122,10 @@ public class HudDataSource {
         String path = findGpuPath();
         if (path != null) {
             gpuPath = path;
-            int v = path.equals(GPU_BUSY) ? readGpuBusy() : (path.endsWith("gpuinfo") ? readGpuInfo(path) : readPercent(path));
+            int v = path.endsWith("gpuinfo") ? readGpuInfo(path) : readPercent(path);
             gpuLoad.set(v >= 0 ? v : 0);
             return;
         }
-
-        int v = readGpuBusy();
-        if (v >= 0) { gpuPath = GPU_BUSY; gpuLoad.set(v); return; }
 
         gpuFailed = true;
         gpuLoad.set(-1);
@@ -144,7 +135,7 @@ public class HudDataSource {
         for (String p : GPU_PATHS) {
             File f = new File(p);
             if (f.exists() && f.canRead()) {
-                if (p.endsWith("gpubusy") || p.endsWith("gpuinfo")) return p;
+                if (p.endsWith("gpuinfo")) return p;
                 if (readPercent(p) >= 0) return p;
             }
         }
@@ -177,7 +168,7 @@ public class HudDataSource {
                 if (subdirs != null) {
                     for (File dir : subdirs) {
                         String nameLower = dir.getName().toLowerCase();
-                        if (dir.isDirectory() && (nameLower.contains("mali") || nameLower.contains("gpu") || nameLower.contains("kgsl"))) {
+                        if (dir.isDirectory() && (nameLower.contains("mali") || nameLower.contains("gpu"))) {
                             String[] candidates = {"utilization", "utilisation", "gpu_load", "gpu_loading", "load", "percent", "gpuinfo"};
                             for (String name : candidates) {
                                 File f = new File(dir, name);
@@ -224,19 +215,6 @@ public class HudDataSource {
             if (l == null) return -1;
             int val = Integer.parseInt(l.trim().replaceAll("[^0-9]", ""));
             return (val >= 0 && val <= 100) ? val : -1;
-        } catch (Exception e) { return -1; }
-    }
-
-    private int readGpuBusy() {
-        try (BufferedReader r = new BufferedReader(new FileReader(GPU_BUSY))) {
-            String l = r.readLine();
-            if (l == null) return -1;
-            String[] p = l.trim().split("\\s+");
-            if (p.length < 2) return -1;
-            long busy = Long.parseLong(p[0]), total = Long.parseLong(p[1]);
-            long dB = busy - prevGpuBusy, dT = total - prevGpuTotal;
-            prevGpuBusy = busy; prevGpuTotal = total;
-            return dT > 0 ? (int) Math.min(100, dB * 100L / dT) : 0;
         } catch (Exception e) { return -1; }
     }
 
@@ -302,29 +280,39 @@ public class HudDataSource {
             int status = batt.getIntExtra(BatteryManager.EXTRA_STATUS, -1);
             boolean charging = status == BatteryManager.BATTERY_STATUS_CHARGING
                             || status == BatteryManager.BATTERY_STATUS_FULL;
-            if (charging) {
-                batteryMw.set(-2);
+            int mv = batt.getIntExtra(BatteryManager.EXTRA_VOLTAGE, 0);
+            if (mv <= 0) {
+                long uv = firstNonZero(VOLTAGE_PATHS);
+                if (uv > 0) mv = (int) (uv / 1000L);
+            }
+
+            long rawCurrent = 0;
+            if (batteryManager != null)
+                rawCurrent = batteryManager.getLongProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW);
+            if (rawCurrent == Long.MIN_VALUE) rawCurrent = 0;
+            if (rawCurrent == 0) rawCurrent = firstNonZero(CURRENT_PATHS);
+
+            float amps = normalizeCurrentAmps(rawCurrent);
+            if (mv > 0 && amps > 0f) {
+                // Unlike the old CHG-only branch, keep showing real watts while
+                // charging. Samsung devices expose a signed current; abs() in
+                // Normalize the different current units exposed by Android kernels.
+                batteryMw.set(Math.round((mv / 1000f) * amps * 1000f));
             } else {
-                int mv = batt.getIntExtra(BatteryManager.EXTRA_VOLTAGE, 0);
-                if (mv <= 0) {
-                    long uv = firstNonZero(VOLTAGE_PATHS);
-                    if (uv > 0) mv = (int) (uv / 1000L);
-                }
-
-                long uA = 0;
-                if (batteryManager != null)
-                    uA = batteryManager.getLongProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW);
-                if (uA == Long.MIN_VALUE) uA = 0;
-                if (uA == 0) uA = firstNonZero(CURRENT_PATHS);
-
-                if (mv > 0 && uA != 0) {
-                    long mw = Math.abs(uA) * mv / 1_000_000L;
-                    batteryMw.set(mv > 5000 ? (int) (mw * 2) : (int) mw);
-                } else {
-                    batteryMw.set(-1);
-                }
+                batteryMw.set(charging ? -2 : -1);
             }
         } catch (Exception ignored) {}
+    }
+
+    /**
+     * BatteryManager normally reports microamps, while a number of vendor
+     * sysfs nodes (including Samsung fuel gauges) expose milliamps.  Match
+     * Detect the kernel current unit before calculating voltage x current.
+     */
+    private float normalizeCurrentAmps(long rawCurrent) {
+        if (rawCurrent == 0 || rawCurrent == Long.MIN_VALUE) return -1f;
+        long magnitude = Math.abs(rawCurrent);
+        return magnitude < 20_000L ? magnitude / 1_000f : magnitude / 1_000_000f;
     }
 
     private void pollRam() {
