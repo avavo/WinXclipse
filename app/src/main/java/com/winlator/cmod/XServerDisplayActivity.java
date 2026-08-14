@@ -1827,7 +1827,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         // Pass final envVars to the launcher
         guestProgramLauncherComponent.setEnvVars(envVars);
-        guestProgramLauncherComponent.setTerminationCallback((status) -> finish());
+        guestProgramLauncherComponent.setTerminationCallback((status) -> finishSession());
 
         // Add the launcher to our environment
         environment.addComponent(guestProgramLauncherComponent);
@@ -2043,6 +2043,25 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         AppUtils.observeSoftKeyboardVisibility(drawerLayout, renderer::setScreenOffsetYRelativeToCursor);
         setupModernSidebar(renderer);
+    }
+
+    /**
+     * Ends the current Wine session without dropping the user on the Android launcher.
+     * A pinned shortcut can start this activity as the root of its own task, so there
+     * is no MainActivity underneath it to reveal when Wine exits.
+     */
+    private void finishSession() {
+        runOnUiThread(() -> {
+            if (isFinishing() || isDestroyed()) return;
+
+            if (isTaskRoot()) {
+                Intent mainIntent = new Intent(this, MainActivity.class);
+                mainIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP
+                        | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                startActivity(mainIntent);
+            }
+            finish();
+        });
     }
 
     private void setupModernSidebar(GLRenderer renderer) {
