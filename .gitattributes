@@ -1,5 +1,6 @@
 *.tzst !text !filter !merge !diff
+*.wcp -text
 app/src/main/assets/container_pattern.tzst filter=lfs diff=lfs merge=lfs -text
 app/src/main/assets/container_pattern_bionic.tzst filter=lfs diff=lfs merge=lfs -text
-app/src/main/assets/imagefs.txz filter=lfs diff=lfs merge=lfs -text
-app/src/main/assets/proton-9.0-arm64ec.txz filter=lfs diff=lfs merge=lfs -text
+app/src/main/assets/imagefs.tzst filter=lfs diff=lfs merge=lfs -text
+app/src/main/assets/proton-9.0-arm64ec.tzst filter=lfs diff=lfs merge=lfs -text
