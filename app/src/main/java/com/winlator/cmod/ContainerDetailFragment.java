@@ -323,7 +323,7 @@ public class ContainerDetailFragment extends Fragment {
         final View view = inflater.inflate(R.layout.container_detail_fragment, root, false);
 
         // Determine if dark mode is enabled
-        isDarkMode = preferences.getBoolean("dark_mode", false);
+        isDarkMode = AppUtils.isDarkMode(context);
 
         // Apply dynamic styles
         applyDynamicStyles(view, isDarkMode);

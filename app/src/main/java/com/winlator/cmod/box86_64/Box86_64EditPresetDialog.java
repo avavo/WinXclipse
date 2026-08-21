@@ -48,8 +48,7 @@ public class Box86_64EditPresetDialog extends ContentDialog {
         setIcon(R.drawable.icon_env_var);
 
         // Load the user's preferred theme
-        SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context);
-        isDarkMode = sharedPreferences.getBoolean("dark_mode", false);
+        isDarkMode = AppUtils.isDarkMode(context);
 
         TextView environmentVariablesLabel = findViewById(R.id.TVEnvironmentVariables);
         applyFieldSetLabelStyle(environmentVariablesLabel, isDarkMode);  // Apply the dark or light mode styles

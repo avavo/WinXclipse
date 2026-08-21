@@ -31,6 +31,8 @@ import java.nio.file.Files;
         private String customCoverArtPath; // Path to custom cover art
 
         private static final String COVER_ART_DIR = "app_data/cover_arts/"; // Removed leading "/" to keep it relative
+        /** Max width (in px) for decoded cover art held in memory; height may reach 2x for portraits. */
+        private static final int COVER_ART_MAX_DIMENSION = 512;
 
         public Shortcut(Container container, File file) {
 
@@ -120,7 +122,7 @@ import java.nio.file.Files;
             if (customCoverArtPath != null && !customCoverArtPath.isEmpty()) {
                 File customCoverArtFile = new File(customCoverArtPath);
                 if (customCoverArtFile.isFile()) {
-                    this.coverArt = BitmapFactory.decodeFile(customCoverArtFile.getPath());
+                    this.coverArt = decodeSampledCoverArt(customCoverArtFile);
                     return; // Exit if custom cover art is loaded
                 }
             }
@@ -128,8 +130,28 @@ import java.nio.file.Files;
             // Fallback to standard cover art location
             File defaultCoverArtFile = getGeneratedCoverArtFile();
             if (defaultCoverArtFile.isFile()) {
-                this.coverArt = BitmapFactory.decodeFile(defaultCoverArtFile.getPath());
+                this.coverArt = decodeSampledCoverArt(defaultCoverArtFile);
             }
+        }
+
+        /**
+         * Decodes cover art with inSampleSize so list rows do not hold
+         * full-size 600x900 bitmaps (roughly 2 MB each) in memory.
+         */
+        private Bitmap decodeSampledCoverArt(File file) {
+            BitmapFactory.Options bounds = new BitmapFactory.Options();
+            bounds.inJustDecodeBounds = true;
+            BitmapFactory.decodeFile(file.getPath(), bounds);
+
+            int sampleSize = 1;
+            while ((bounds.outWidth / sampleSize) > COVER_ART_MAX_DIMENSION
+                    || (bounds.outHeight / sampleSize) > COVER_ART_MAX_DIMENSION * 2) {
+                sampleSize *= 2;
+            }
+
+            BitmapFactory.Options options = new BitmapFactory.Options();
+            options.inSampleSize = Math.max(1, sampleSize);
+            return BitmapFactory.decodeFile(file.getPath(), options);
         }
 
         // Getters and setters for coverArt and customCoverArtPath

@@ -816,7 +816,11 @@ public class WinHandler {
                     }
                 }
 
-                try { Thread.sleep(5); } catch (InterruptedException ignored) { break; }
+                try {
+                    // Idle rumble polling only needs ~60 Hz; keep a fast cadence
+                    // only while turbo is active so it stays phase-accurate.
+                    Thread.sleep(anyTurboEnabled ? 5 : 16);
+                } catch (InterruptedException ignored) { break; }
             }
         });
         rumblePollerThread.start();

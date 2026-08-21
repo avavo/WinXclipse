@@ -10,6 +10,7 @@ import android.widget.PopupMenu;
 import androidx.preference.PreferenceManager;
 
 import com.winlator.cmod.R;
+import com.winlator.cmod.core.AppUtils;
 import com.winlator.cmod.widget.EnvVarsView;
 
 public class AddEnvVarDialog extends ContentDialog {
@@ -18,8 +19,7 @@ public class AddEnvVarDialog extends ContentDialog {
         final EditText etName = findViewById(R.id.ETName);
         final EditText etValue = findViewById(R.id.ETValue);
 
-        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
-        boolean isDarkMode = prefs.getBoolean("dark_mode", false);
+        boolean isDarkMode = AppUtils.isDarkMode(context);
         applyDarkThemeToEditText(etName, isDarkMode);
         applyDarkThemeToEditText(etValue, isDarkMode);
 

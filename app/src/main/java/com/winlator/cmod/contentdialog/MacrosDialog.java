@@ -16,6 +16,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.winlator.cmod.R;
+import com.winlator.cmod.core.AppUtils;
 import com.winlator.cmod.winhandler.WinHandler;
 
 import java.util.ArrayList;
@@ -32,8 +33,7 @@ public final class MacrosDialog {
         dialog.setTitle(R.string.input_macros);
         dialog.setIcon(R.drawable.icon_gamepad);
 
-        boolean dark = PreferenceManager.getDefaultSharedPreferences(activity)
-                .getBoolean("dark_mode", false);
+        boolean dark = AppUtils.isDarkMode(activity);
 
         RecyclerView rv = dialog.findViewById(R.id.RVMacros);
         rv.setLayoutManager(new LinearLayoutManager(activity));

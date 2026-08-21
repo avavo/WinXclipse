@@ -258,7 +258,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     private String shortcutName;
     private Handler handler;
     private Runnable savePlaytimeRunnable;
-    private static final long SAVE_INTERVAL_MS = 1000;
+    private static final long SAVE_INTERVAL_MS = 30000;
 
     private Handler  timeoutHandler = new Handler(Looper.getMainLooper());
     private Runnable hideControlsRunnable;
@@ -1668,8 +1668,13 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             FileUtils.copy(this, "controllerfix/dinput.dll", new File(system32Dir, "dinput.dll"));
             FileUtils.copy(this, "controllerfix/dinput8.dll", new File(system32Dir, "dinput8.dll"));
             FileUtils.copy(this, "controllerfix/xidi.ini", new File(system32Dir, "xidi.ini"));
-            container.putExtra("controllerFixVersion", "1");
-            containerDataChanged = true;
+            // FileUtils.copy swallows IO errors; only mark as applied when the
+            // files really landed so a failed copy is retried on next launch.
+            if (new File(system32Dir, "dinput8.dll").isFile()
+                    && new File(system32Dir, "xidi.ini").isFile()) {
+                container.putExtra("controllerFixVersion", "1");
+                containerDataChanged = true;
+            }
         }
 
         if (containerDataChanged) container.saveData();

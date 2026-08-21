@@ -13,6 +13,7 @@ import com.winlator.cmod.R;
 import com.winlator.cmod.box86_64.rc.RCFile;
 import com.winlator.cmod.box86_64.rc.RCGroup;
 import com.winlator.cmod.box86_64.rc.RCManager;
+import com.winlator.cmod.core.AppUtils;
 import com.winlator.cmod.core.Callback;
 
 import java.util.ArrayList;
@@ -26,8 +27,7 @@ public class ImportGroupDialog extends ContentDialog {
 
         final Spinner sProfile = findViewById(R.id.SProfile);
 
-        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(anchor.getContext());
-        boolean isDarkMode = prefs.getBoolean("dark_mode", false);
+        boolean isDarkMode = AppUtils.isDarkMode(anchor.getContext());
         sProfile.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
 
         final ListView lvGroup = findViewById(R.id.LVGroup);

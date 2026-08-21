@@ -105,8 +105,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
         LinearLayout llContent = findViewById(R.id.LLContent);
         llContent.getLayoutParams().width = AppUtils.getPreferredDialogWidth(context);
 
-        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
-        boolean isDarkMode = prefs.getBoolean("dark_mode", false);
+        boolean isDarkMode = AppUtils.isDarkMode(context);
 
         applyDynamicStyles(findViewById(R.id.LLContent), isDarkMode);
 
@@ -241,8 +240,12 @@ public class ShortcutSettingsDialog extends ContentDialog {
         final CheckBox cbEnableXInput = findViewById(R.id.CBEnableXInput);
         final CheckBox cbEnableDInput = findViewById(R.id.CBEnableDInput);
         final CheckBox cbExclusiveXInput = findViewById(R.id.CBExclusiveXInput);
-        int inputType = Integer.parseInt(shortcut.getExtra("inputType",
-                String.valueOf(shortcut.container.getInputType())));
+        int inputType = shortcut.container.getInputType();
+        try {
+            inputType = Integer.parseInt(shortcut.getExtra("inputType",
+                    String.valueOf(shortcut.container.getInputType())));
+        }
+        catch (NumberFormatException ignored) {}
         cbEnableXInput.setChecked((inputType & WinHandler.FLAG_INPUT_TYPE_XINPUT) != 0);
         cbEnableDInput.setChecked((inputType & WinHandler.FLAG_INPUT_TYPE_DINPUT) != 0);
         cbExclusiveXInput.setChecked("1".equals(shortcut.getExtra("exclusiveXInput",
@@ -727,8 +730,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
         final EnvVarsView envVarsView = view.findViewById(R.id.EnvVarsView);
 
         // Update the dark mode setting of the existing instance
-        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
-        boolean isDarkMode = prefs.getBoolean("dark_mode", false);
+        boolean isDarkMode = AppUtils.isDarkMode(context);
         envVarsView.setDarkMode(isDarkMode);
 
         // Set the environment variables in the existing EnvVarsView

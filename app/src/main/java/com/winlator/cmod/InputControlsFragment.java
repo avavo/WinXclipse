@@ -68,8 +68,7 @@ public class InputControlsFragment extends Fragment {
         setHasOptionsMenu(false);
         manager = new InputControlsManager(getContext());
 
-        SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(getContext());
-        isDarkMode = sharedPreferences.getBoolean("dark_mode", false);
+        isDarkMode = AppUtils.isDarkMode(getContext());
     }
 
     @Override

@@ -467,6 +467,9 @@ public class ShortcutsFragment extends Fragment {
             }
             if (item.getCoverArt() == null) {
                 ShortcutArtworkManager.ensure(requireContext(), item, false, success -> {
+                    // Only rebind when artwork actually appeared; otherwise every
+                    // scroll would retry failed downloads forever.
+                    if (!success) return;
                     int adapterPosition = holder.getBindingAdapterPosition();
                     if (adapterPosition != RecyclerView.NO_POSITION) notifyItemChanged(adapterPosition);
                 });
