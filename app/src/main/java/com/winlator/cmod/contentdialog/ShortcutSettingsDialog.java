@@ -37,6 +37,7 @@ import com.winlator.cmod.contents.ContentsManager;
 import com.winlator.cmod.core.AppUtils;
 import com.winlator.cmod.core.DefaultVersion;
 import com.winlator.cmod.core.EnvVars;
+import com.winlator.cmod.core.KeyValueSet;
 import com.winlator.cmod.core.StringUtils;
 import com.winlator.cmod.core.WineInfo;
 import com.winlator.cmod.fexcore.FEXCoreManager;
@@ -148,6 +149,11 @@ public class ShortcutSettingsDialog extends ContentDialog {
 
         ContainerDetailFragment.setupDXWrapperSpinner(sDXWrapper, vDXWrapperConfig);
         ContainerDetailFragment.setupDDrawSpinner(sDDrawrapper, shortcut.getExtra("ddrawrapper", shortcut.container.getDDrawWrapper()));
+        KeyValueSet initialDXConfig = DXVKConfigDialog.parseConfig(vDXWrapperConfig.getTag());
+        if (initialDXConfig.get("ddrawrapper").isEmpty()) {
+            initialDXConfig.put("ddrawrapper", shortcut.getExtra("ddrawrapper", shortcut.container.getDDrawWrapper()));
+            vDXWrapperConfig.setTag(initialDXConfig.toString());
+        }
         loadGraphicsDriverSpinner(sGraphicsDriver, sDXWrapper, vGraphicsDriverConfig,
                 Container.normalizeGraphicsDriver(shortcut.getExtra("graphicsDriver", shortcut.container.getGraphicsDriver())),
             shortcut.getExtra("dxwrapper", shortcut.container.getDXWrapper()));
@@ -230,53 +236,41 @@ public class ShortcutSettingsDialog extends ContentDialog {
         cbFullscreenStretched.setChecked(fullscreenStretched);
 
 
-//        final Runnable showInputWarning = () -> ContentDialog.alert(context, R.string.enable_xinput_and_dinput_same_time, null);
-//        final CheckBox cbEnableXInput = findViewById(R.id.CBEnableXInput);
-//        final CheckBox cbEnableDInput = findViewById(R.id.CBEnableDInput);
-//        final View llDInputType = findViewById(R.id.LLDinputMapperType);
-//        final View btHelpXInput = findViewById(R.id.BTXInputHelp);
-//        final View btHelpDInput = findViewById(R.id.BTDInputHelp);
-//        Spinner SDInputType = findViewById(R.id.SDInputType);
-//        int inputType = Integer.parseInt(shortcut.getExtra("inputType", String.valueOf(shortcut.container.getInputType())));
+        final Runnable showInputWarning = () -> ContentDialog.alert(context,
+                R.string.enable_xinput_and_dinput_same_time, null);
+        final CheckBox cbEnableXInput = findViewById(R.id.CBEnableXInput);
+        final CheckBox cbEnableDInput = findViewById(R.id.CBEnableDInput);
+        final CheckBox cbExclusiveXInput = findViewById(R.id.CBExclusiveXInput);
+        int inputType = Integer.parseInt(shortcut.getExtra("inputType",
+                String.valueOf(shortcut.container.getInputType())));
+        cbEnableXInput.setChecked((inputType & WinHandler.FLAG_INPUT_TYPE_XINPUT) != 0);
+        cbEnableDInput.setChecked((inputType & WinHandler.FLAG_INPUT_TYPE_DINPUT) != 0);
+        cbExclusiveXInput.setChecked("1".equals(shortcut.getExtra("exclusiveXInput",
+                shortcut.container.isExclusiveXInput() ? "1" : "0")));
 
-//        if (isLegacyModeEnabled) {
-//            // Display legacy mode message and hide input controls
-//            tvLegacyInputMessage.setText("You are in 7.1.2 legacy input mode. Advanced input settings are not available.");
-//            tvLegacyInputMessage.setVisibility(View.VISIBLE);
-//            // In legacy mode, hide all input-related UI elements
-//            cbEnableXInput.setVisibility(View.GONE);
-//            cbEnableDInput.setVisibility(View.GONE);
-//            llDInputType.setVisibility(View.GONE);
-//            btHelpXInput.setVisibility(View.GONE);
-//            btHelpDInput.setVisibility(View.GONE);
-//            SDInputType.setVisibility(View.GONE);
-//        } else {
-//            cbEnableXInput.setChecked((inputType & WinHandler.FLAG_INPUT_TYPE_XINPUT) == WinHandler.FLAG_INPUT_TYPE_XINPUT);
-//            cbEnableDInput.setChecked((inputType & WinHandler.FLAG_INPUT_TYPE_DINPUT) == WinHandler.FLAG_INPUT_TYPE_DINPUT);
-//            cbEnableDInput.setOnCheckedChangeListener((buttonView, isChecked) -> {
-//                llDInputType.setVisibility(isChecked?View.VISIBLE:View.GONE);
-//                if (isChecked && cbEnableXInput.isChecked())
-//                    showInputWarning.run();
-//            });
-//            cbEnableXInput.setOnCheckedChangeListener((buttonView, isChecked) -> {
-//                if (isChecked && cbEnableDInput.isChecked())
-//                    showInputWarning.run();
-//            });
-//            btHelpXInput.setOnClickListener(v -> AppUtils.showHelpBox(context, v, R.string.help_xinput));
-//            btHelpDInput.setOnClickListener(v -> AppUtils.showHelpBox(context, v, R.string.help_dinput));
-//            SDInputType.setSelection(((inputType & WinHandler.FLAG_DINPUT_MAPPER_STANDARD) == WinHandler.FLAG_DINPUT_MAPPER_STANDARD) ? 0 : 1);
-//            llDInputType.setVisibility(cbEnableDInput.isChecked()?View.VISIBLE:View.GONE);
-//
-//            // Always show input-related UI elements when not in legacy mode
-//            cbEnableXInput.setVisibility(View.VISIBLE);
-//            cbEnableDInput.setVisibility(View.VISIBLE);
-//            llDInputType.setVisibility(View.VISIBLE);
-//            btHelpXInput.setVisibility(View.VISIBLE);
-//            btHelpDInput.setVisibility(View.VISIBLE);
-//            SDInputType.setVisibility(View.VISIBLE);
-//
-//
-//        }
+        final boolean[] changingInputOptions = {false};
+        Runnable updateExclusiveInput = () -> {
+            changingInputOptions[0] = true;
+            boolean exclusive = cbExclusiveXInput.isChecked();
+            if (!exclusive) {
+                cbEnableXInput.setChecked(true);
+                cbEnableDInput.setChecked(true);
+            }
+            cbEnableXInput.setEnabled(exclusive);
+            cbEnableDInput.setEnabled(exclusive);
+            changingInputOptions[0] = false;
+        };
+        cbEnableXInput.setOnCheckedChangeListener((buttonView, checked) -> {
+            if (!changingInputOptions[0] && checked && cbEnableDInput.isChecked()) showInputWarning.run();
+        });
+        cbEnableDInput.setOnCheckedChangeListener((buttonView, checked) -> {
+            if (!changingInputOptions[0] && checked && cbEnableXInput.isChecked()) showInputWarning.run();
+        });
+        cbExclusiveXInput.setOnCheckedChangeListener((buttonView, checked) -> updateExclusiveInput.run());
+        findViewById(R.id.BTXInputHelp).setOnClickListener(v -> AppUtils.showHelpBox(context, v, R.string.help_xinput));
+        findViewById(R.id.BTDInputHelp).setOnClickListener(v -> AppUtils.showHelpBox(context, v, R.string.help_dinput));
+        findViewById(R.id.BTExclusiveInputHelp).setOnClickListener(v -> AppUtils.showHelpBox(context, v, R.string.help_exclusive_input));
+        updateExclusiveInput.run();
 
         final CheckBox cbForceFullscreen = findViewById(R.id.CBForceFullscreen);
         cbForceFullscreen.setChecked(shortcut.getExtra("forceFullscreen", "0").equals("1"));
@@ -413,8 +407,8 @@ public class ShortcutSettingsDialog extends ContentDialog {
 
         final CPUListView cpuListView = findViewById(R.id.CPUListView);
         cpuListView.setCheckedCPUList(shortcut.getExtra("cpuList", shortcut.container.getCPUList(true)));
-//        final CPUListView cpuListViewWoW64 = findViewById(R.id.CPUListViewWoW64);
-//        cpuListViewWoW64.setCheckedCPUList(shortcut.getExtra("cpuListWoW64", shortcut.container.getCPUListWoW64(true)));
+        final CPUListView cpuListViewWoW64 = findViewById(R.id.CPUListViewWoW64);
+        cpuListViewWoW64.setCheckedCPUList(shortcut.getExtra("cpuListWoW64", shortcut.container.getCPUListWoW64(true)));
 
         setOnConfirmCallback(() -> {
             String name = etName.getText().toString().trim();
@@ -433,20 +427,23 @@ public class ShortcutSettingsDialog extends ContentDialog {
                 String graphicsDriver = StringUtils.parseIdentifier(sGraphicsDriver.getSelectedItem());
                 String graphicsDriverConfig = vGraphicsDriverConfig.getTag().toString();
                 String dxwrapper = ContainerDetailFragment.getDXWrapperIdentifier(sDXWrapper.getSelectedItem());
-                String ddrawrapper = StringUtils.parseIdentifier(sDDrawrapper.getSelectedItem());
                 String dxwrapperConfig = vDXWrapperConfig.getTag().toString();
+                String ddrawrapper = DXVKConfigDialog.parseConfig(dxwrapperConfig).get("ddrawrapper");
+                if (ddrawrapper.isEmpty()) ddrawrapper = StringUtils.parseIdentifier(sDDrawrapper.getSelectedItem());
                 String audioDriver = StringUtils.parseIdentifier(sAudioDriver.getSelectedItem());
                 String emulator = StringUtils.parseIdentifier(sEmulator.getSelectedItem());
                 String midiSoundFont = sMIDISoundFont.getSelectedItemPosition() == 0 ? "" : sMIDISoundFont.getSelectedItem().toString();
                 String screenSize = containerDetailFragment.getScreenSize(getContentView());
 
-//                int finalInputType = 0;
-//                finalInputType |= cbEnableXInput.isChecked() ? WinHandler.FLAG_INPUT_TYPE_XINPUT : 0;
-//                finalInputType |= cbEnableDInput.isChecked() ? WinHandler.FLAG_INPUT_TYPE_DINPUT : 0;
-//                finalInputType |= SDInputType.getSelectedItemPosition() == 0 ?  WinHandler.FLAG_DINPUT_MAPPER_STANDARD : WinHandler.FLAG_DINPUT_MAPPER_XINPUT;
-
-
-//                shortcut.putExtra("inputType", String.valueOf(finalInputType));
+                int finalInputType = 0;
+                finalInputType |= cbEnableXInput.isChecked() ? WinHandler.FLAG_INPUT_TYPE_XINPUT : 0;
+                finalInputType |= cbEnableDInput.isChecked() ? WinHandler.FLAG_INPUT_TYPE_DINPUT : 0;
+                shortcut.putExtra("inputType", finalInputType != shortcut.container.getInputType()
+                        ? String.valueOf(finalInputType) : null);
+                boolean exclusiveXInput = cbExclusiveXInput.isChecked();
+                shortcut.putExtra("exclusiveXInput",
+                        exclusiveXInput != shortcut.container.isExclusiveXInput()
+                                ? (exclusiveXInput ? "1" : "0") : null);
 
                 boolean disabledXInput = cbDisabledXInput.isChecked();
                 shortcut.putExtra("disableXinput", disabledXInput ? "1" : null);
@@ -528,8 +525,8 @@ public class ShortcutSettingsDialog extends ContentDialog {
                 String cpuList = cpuListView.getCheckedCPUListAsString();
                 shortcut.putExtra("cpuList", !cpuList.equals(shortcut.container.getCPUList(true)) ? cpuList : null);
 
-//                String cpuListWoW64 = cpuListViewWoW64.getCheckedCPUListAsString();
-//                shortcut.putExtra("cpuListWoW64", !cpuListWoW64.equals(shortcut.container.getCPUListWoW64(true)) ? cpuListWoW64 : null);
+                String cpuListWoW64 = cpuListViewWoW64.getCheckedCPUListAsString();
+                shortcut.putExtra("cpuListWoW64", !cpuListWoW64.equals(shortcut.container.getCPUListWoW64(true)) ? cpuListWoW64 : null);
 
                 // Save all changes to the shortcut
                 shortcut.saveData();
@@ -790,12 +787,6 @@ public class ShortcutSettingsDialog extends ContentDialog {
         Runnable update = () -> {
             String graphicsDriver = StringUtils.parseIdentifier(sGraphicsDriver.getSelectedItem());
             String graphicsDriverConfig = vGraphicsDriverConfig.getTag().toString();
-            String safeConfig = GraphicsDriverConfigDialog.applyDriverSafetyDefaults(
-                    graphicsDriver, graphicsDriverConfig);
-            if (!safeConfig.equals(graphicsDriverConfig)) {
-                graphicsDriverConfig = safeConfig;
-                vGraphicsDriverConfig.setTag(safeConfig);
-            }
 
             tvGraphicsDriverVersion.setText(GraphicsDriverConfigDialog.getVersion(graphicsDriverConfig));
 

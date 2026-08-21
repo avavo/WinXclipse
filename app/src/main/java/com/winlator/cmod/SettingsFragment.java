@@ -56,6 +56,7 @@ import com.winlator.cmod.core.DefaultVersion;
 import com.winlator.cmod.core.FileUtils;
 import com.winlator.cmod.core.PreloaderDialog;
 import com.winlator.cmod.core.StringUtils;
+import com.winlator.cmod.core.ShortcutArtworkManager;
 import com.winlator.cmod.core.TarCompressorUtils;
 import com.winlator.cmod.core.WineInfo;
 import com.winlator.cmod.core.WineUtils;
@@ -68,6 +69,7 @@ import com.winlator.cmod.inputcontrols.PreferenceKeys;
 import com.winlator.cmod.midi.MidiManager;
 import com.winlator.cmod.restore.RestoreActivity;
 import com.winlator.cmod.widget.InputControlsView;
+import com.winlator.cmod.widget.ThemedSpinnerAdapter;
 import com.winlator.cmod.xenvironment.ImageFs;
 import com.winlator.cmod.xenvironment.ImageFsInstaller;
 
@@ -110,6 +112,7 @@ public class SettingsFragment extends Fragment {
     private EditText etCustomApiKey;
 
     private CheckBox cbDarkMode;
+    private CheckBox cbFollowSystemTheme;
     boolean isDarkMode;
 
     private static final int REQUEST_CODE_FRONTEND_EXPORT_PATH = 1002;
@@ -158,23 +161,33 @@ public class SettingsFragment extends Fragment {
         final Context context = getContext();
         preferences = PreferenceManager.getDefaultSharedPreferences(context);
 
-        // Check for Dark Mode preference
-        isDarkMode = preferences.getBoolean("dark_mode", false);
+        isDarkMode = AppUtils.isDarkMode(context);
         // Apply dynamic styles
         applyDynamicStyles(view, isDarkMode);
 
         // Initialize the Dark Mode checkbox
         cbDarkMode = view.findViewById(R.id.CBDarkMode);
-        cbDarkMode.setChecked(preferences.getBoolean("dark_mode", false));
+        cbFollowSystemTheme = view.findViewById(R.id.CBFollowSystemTheme);
+        boolean followSystemTheme = preferences.getBoolean(AppUtils.PREF_FOLLOW_SYSTEM_THEME, false);
+        cbDarkMode.setChecked(preferences.getBoolean(AppUtils.PREF_DARK_MODE, true));
+        cbFollowSystemTheme.setChecked(followSystemTheme);
+        cbDarkMode.setEnabled(!followSystemTheme);
+        cbDarkMode.setAlpha(followSystemTheme ? 0.5f : 1.0f);
 
         cbDarkMode.setOnCheckedChangeListener((buttonView, isChecked) -> {
             // Save dark mode preference
             SharedPreferences.Editor editor = preferences.edit();
-            editor.putBoolean("dark_mode", isChecked);
+            editor.putBoolean(AppUtils.PREF_DARK_MODE, isChecked);
             editor.apply();
 
-            // Update the UI or activity theme if necessary
-            updateTheme(isChecked);
+            if (!cbFollowSystemTheme.isChecked()) updateTheme(isChecked);
+        });
+
+        cbFollowSystemTheme.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            preferences.edit().putBoolean(AppUtils.PREF_FOLLOW_SYSTEM_THEME, isChecked).apply();
+            cbDarkMode.setEnabled(!isChecked);
+            cbDarkMode.setAlpha(isChecked ? 0.5f : 1.0f);
+            updateTheme(AppUtils.isDarkMode(context));
         });
 
         // Initialize Big Picture Mode Checkbox
@@ -284,6 +297,14 @@ public class SettingsFragment extends Fragment {
 
         final Spinner sFEXCorePreset = view.findViewById(R.id.SFEXCorePreset);
         loadFEXCorePresetSpinner(view, sFEXCorePreset);
+
+        final Spinner sShortcutArtworkMode = view.findViewById(R.id.SShortcutArtworkMode);
+        String[] artworkModes = getResources().getStringArray(R.array.shortcut_artwork_mode_entries);
+        sShortcutArtworkMode.setAdapter(new ThemedSpinnerAdapter<>(context, artworkModes));
+        String artworkMode = preferences.getString(ShortcutArtworkManager.PREF_MODE,
+                ShortcutArtworkManager.MODE_BROWSER);
+        sShortcutArtworkMode.setSelection(ShortcutArtworkManager.MODE_EXE.equals(artworkMode) ? 1
+                : ShortcutArtworkManager.MODE_CUSTOM.equals(artworkMode) ? 2 : 0);
 
         final Spinner sMIDISoundFont = view.findViewById(R.id.SMIDISoundFont);
 
@@ -422,9 +443,16 @@ public class SettingsFragment extends Fragment {
         view.findViewById(R.id.BTConfirm).setOnClickListener((v) -> {
             SharedPreferences.Editor editor = preferences.edit();
 
-            editor.putBoolean("dark_mode", cbDarkMode.isChecked());
+            editor.putBoolean(AppUtils.PREF_DARK_MODE, cbDarkMode.isChecked());
+            editor.putBoolean(AppUtils.PREF_FOLLOW_SYSTEM_THEME, cbFollowSystemTheme.isChecked());
             editor.putString("box64_preset", Box86_64PresetManager.getSpinnerSelectedId(sBox64Preset));
             editor.putString("fexcore_preset", FEXCorePresetManager.getSpinnerSelectedId(sFEXCorePreset));
+            editor.putString(ShortcutArtworkManager.PREF_MODE,
+                    sShortcutArtworkMode.getSelectedItemPosition() == 1
+                            ? ShortcutArtworkManager.MODE_EXE
+                            : sShortcutArtworkMode.getSelectedItemPosition() == 2
+                            ? ShortcutArtworkManager.MODE_CUSTOM
+                            : ShortcutArtworkManager.MODE_BROWSER);
             editor.putBoolean("use_dri3", cbUseDRI3.isChecked());
             editor.putBoolean("use_xr", cbUseXR.isChecked());
             editor.putFloat("cursor_speed", sbCursorSpeed.getProgress() / 100.0f);

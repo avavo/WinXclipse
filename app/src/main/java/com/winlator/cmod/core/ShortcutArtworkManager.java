@@ -1,0 +1,168 @@
+package com.winlator.cmod.core;
+
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.os.Handler;
+import android.os.Looper;
+import android.util.Log;
+
+import androidx.preference.PreferenceManager;
+
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.winlator.cmod.bigpicture.steamgrid.SteamGridDBApi;
+import com.winlator.cmod.bigpicture.steamgrid.SteamGridGridsResponse;
+import com.winlator.cmod.bigpicture.steamgrid.SteamGridGridsResponseDeserializer;
+import com.winlator.cmod.bigpicture.steamgrid.SteamGridSearchResponse;
+import com.winlator.cmod.container.Shortcut;
+
+import java.io.File;
+import java.io.InputStream;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
+import retrofit2.Retrofit;
+import retrofit2.converter.gson.GsonConverterFactory;
+
+/** Centralized artwork policy used by both newly-created and existing shortcuts. */
+public final class ShortcutArtworkManager {
+    public static final String PREF_MODE = "shortcut_artwork_mode";
+    public static final String EXTRA_MODE = "artworkMode";
+    public static final String MODE_BROWSER = "browser";
+    public static final String MODE_EXE = "exe";
+    public static final String MODE_CUSTOM = "custom";
+
+    private static final String TAG = "ShortcutArtwork";
+    private static final String BASE_URL = "https://www.steamgriddb.com/api/v2/";
+    private static final String BUILT_IN_API_KEY = "0324c52513634547a7b32d6d323635d0";
+    private static final ExecutorService EXECUTOR = Executors.newFixedThreadPool(2);
+    private static final Handler MAIN = new Handler(Looper.getMainLooper());
+
+    private ShortcutArtworkManager() {}
+
+    public interface Callback {
+        void onComplete(boolean success);
+    }
+
+    public static String getMode(Context context, Shortcut shortcut) {
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
+        String global = preferences.getString(PREF_MODE, MODE_BROWSER);
+        String mode = shortcut.getExtra(EXTRA_MODE, global);
+        return MODE_EXE.equals(mode) || MODE_CUSTOM.equals(mode) ? mode : MODE_BROWSER;
+    }
+
+    public static void setMode(Shortcut shortcut, String mode) {
+        shortcut.putExtra(EXTRA_MODE, mode);
+        shortcut.saveData();
+    }
+
+    public static void deleteGeneratedArtwork(Shortcut shortcut) {
+        File file = shortcut.getGeneratedCoverArtFile();
+        if (file.isFile() && !file.delete()) Log.w(TAG, "Could not delete " + file);
+        shortcut.reloadCoverArt();
+    }
+
+    /** Resolves the configured source. Browser is default and falls back to the EXE icon. */
+    public static void ensure(Context context, Shortcut shortcut, boolean force, Callback callback) {
+        String mode = getMode(context, shortcut);
+        if (MODE_CUSTOM.equals(mode)) {
+            post(callback, shortcut.getCoverArt() != null);
+            return;
+        }
+        if (!force && shortcut.getCoverArt() != null) {
+            post(callback, true);
+            return;
+        }
+        EXECUTOR.execute(() -> {
+            boolean ok;
+            if (MODE_BROWSER.equals(mode)) {
+                ok = downloadBrowserArtwork(context.getApplicationContext(), shortcut);
+                if (!ok) ok = createExeArtwork(shortcut);
+            } else {
+                ok = createExeArtwork(shortcut);
+            }
+            shortcut.reloadCoverArt();
+            post(callback, ok);
+        });
+    }
+
+    private static boolean createExeArtwork(Shortcut shortcut) {
+        File exe = shortcut.resolveExecutableFile();
+        return exe != null && ExeIconExtractor.extractCover(exe, shortcut.getGeneratedCoverArtFile());
+    }
+
+    private static boolean downloadBrowserArtwork(Context context, Shortcut shortcut) {
+        try {
+            SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
+            String key = BUILT_IN_API_KEY;
+            if (prefs.getBoolean("enable_custom_api_key", false)) {
+                String custom = prefs.getString("custom_api_key", "");
+                if (custom != null && !custom.trim().isEmpty()) key = custom.trim();
+            }
+
+            Gson gridsGson = new GsonBuilder()
+                    .registerTypeAdapter(SteamGridGridsResponse.class,
+                            new SteamGridGridsResponseDeserializer())
+                    .create();
+            Retrofit retrofit = new Retrofit.Builder()
+                    .baseUrl(BASE_URL)
+                    .addConverterFactory(GsonConverterFactory.create(gridsGson))
+                    .build();
+            SteamGridDBApi api = retrofit.create(SteamGridDBApi.class);
+
+            String query = cleanSearchName(shortcut.name);
+            retrofit2.Response<SteamGridSearchResponse> search =
+                    api.searchGame("Bearer " + key, query).execute();
+            if (!search.isSuccessful() || search.body() == null || search.body().data == null
+                    || search.body().data.isEmpty()) return false;
+
+            int gameId = search.body().data.get(0).id;
+            retrofit2.Response<SteamGridGridsResponse> grids =
+                    api.getGridsByGameId("Bearer " + key, gameId, "alternate,blurred,material",
+                            "600x900", "static").execute();
+            if (!grids.isSuccessful() || grids.body() == null || grids.body().data == null
+                    || grids.body().data.isEmpty()) return false;
+
+            String imageUrl = firstImageUrl(grids.body().data);
+            if (imageUrl == null) return false;
+            OkHttpClient client = new OkHttpClient();
+            try (Response response = client.newCall(new Request.Builder().url(imageUrl).build()).execute()) {
+                if (!response.isSuccessful() || response.body() == null) return false;
+                try (InputStream input = response.body().byteStream()) {
+                    Bitmap bitmap = BitmapFactory.decodeStream(input);
+                    if (bitmap == null) return false;
+                    boolean saved = shortcut.saveGeneratedCoverArt(bitmap);
+                    if (!bitmap.isRecycled()) bitmap.recycle();
+                    return saved;
+                }
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Online artwork failed for " + shortcut.name, e);
+            return false;
+        }
+    }
+
+    private static String firstImageUrl(List<SteamGridGridsResponse.Grid> grids) {
+        for (SteamGridGridsResponse.Grid grid : grids) {
+            if (grid != null && grid.url != null && !grid.url.trim().isEmpty()) return grid.url;
+        }
+        return null;
+    }
+
+    private static String cleanSearchName(String name) {
+        if (name == null) return "game";
+        return name.replace('_', ' ').replace('-', ' ')
+                .replaceAll("(?i)\\.exe$", "")
+                .replaceAll("\\s+", " ").trim();
+    }
+
+    private static void post(Callback callback, boolean success) {
+        if (callback != null) MAIN.post(() -> callback.onComplete(success));
+    }
+}

@@ -287,7 +287,7 @@
     <style name="ToolButton" parent="BaseImageButton">
         <item name="android:layout_marginLeft">2dp</item>
         <item name="android:layout_marginRight">2dp</item>
-        <item name="android:tint">@color/colorPrimary</item>
+        <item name="android:tint">?attr/colorAccent</item>
     </style>
 
     <style name="ToolButton.Dark" parent="BaseImageButton">
@@ -310,7 +310,7 @@
     <style name="VerticalLine">
         <item name="android:layout_width">2dp</item>
         <item name="android:layout_height">match_parent</item>
-        <item name="android:background">#303030</item>
+        <item name="android:background">?attr/colorControlNormal</item>
         <item name="android:layout_marginTop">2dp</item>
         <item name="android:layout_marginBottom">2dp</item>
         <item name="android:layout_marginLeft">4dp</item>

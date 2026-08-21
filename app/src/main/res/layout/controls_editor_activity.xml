@@ -11,7 +11,7 @@
         android:orientation="horizontal"
         android:layout_gravity="center_horizontal"
         android:layout_marginTop="8dp"
-        android:background="@drawable/input_controls_toolbar"
+        android:background="?attr/winxPopupBackground"
         android:gravity="center_vertical"
         android:padding="4dp">
 
@@ -27,13 +27,13 @@
                 android:layout_height="wrap_content"
                 android:textStyle="bold"
                 android:textSize="14sp"
-                android:textColor="#ffffff"
+                android:textColor="?attr/winxOnSurfaceColor"
                 android:text="@string/profile" />
 
             <TextView
                 android:id="@+id/TVProfileName"
                 android:layout_width="wrap_content"
-                android:textColor="@color/colorAccent"
+                android:textColor="?attr/colorAccent"
                 android:textSize="14sp"
                 android:layout_height="wrap_content" />
         </LinearLayout>

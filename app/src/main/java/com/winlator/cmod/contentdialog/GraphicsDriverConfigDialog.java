@@ -1,18 +1,15 @@
 package com.winlator.cmod.contentdialog;
 
 import android.content.Context;
-import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.util.Log;
 import android.view.View;
 import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
 import android.widget.CheckBox;
 import android.widget.Spinner;
 import android.widget.TextView;
 
 import androidx.annotation.Nullable;
-import androidx.preference.PreferenceManager;
 
 import com.winlator.cmod.R;
 import com.winlator.cmod.contents.XclipseDriverManager;
@@ -44,17 +41,11 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
     private final Spinner maxDeviceMemorySpinner;
     private final Spinner presentModeSpinner;
     private final Spinner resourceTypeSpinner;
-    private final Spinner bcnEmulationSpinner;
-    private final Spinner bcnEmulationTypeSpinner;
-    private final Spinner bcnEmulationCacheSpinner;
     private final CheckBox syncFrameCheckBox;
     private final CheckBox disablePresentWaitCheckBox;
-    private final CheckBox astcTranscodeCheckBox;
-    private final CheckBox etc2TranscodeCheckBox;
 
     private final String initialVersion;
     private final String initialExtensionBlacklist;
-    private boolean updatingTranscodeState;
 
     public GraphicsDriverConfigDialog(View anchor, String graphicsDriver, TextView graphicsDriverVersionView) {
         super(anchor.getContext(), R.layout.graphics_driver_config_dialog);
@@ -68,16 +59,10 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
         maxDeviceMemorySpinner = findViewById(R.id.SGraphicsDriverMaxDeviceMemory);
         presentModeSpinner = findViewById(R.id.SGraphicsDriverPresentMode);
         resourceTypeSpinner = findViewById(R.id.SGraphicsDriverResourceType);
-        bcnEmulationSpinner = findViewById(R.id.SGraphicsDriverBCnEmulation);
-        bcnEmulationTypeSpinner = findViewById(R.id.SGraphicsDriverBCnEmulationType);
-        bcnEmulationCacheSpinner = findViewById(R.id.SGraphicsDriverBCnEmulationCache);
         syncFrameCheckBox = findViewById(R.id.CBSyncFrame);
         disablePresentWaitCheckBox = findViewById(R.id.CBDisablePresentWait);
-        astcTranscodeCheckBox = findViewById(R.id.CBASTCTranscode);
-        etc2TranscodeCheckBox = findViewById(R.id.CBETC2Transcode);
 
-        HashMap<String, String> config = parseGraphicsDriverConfig(
-                applyDriverSafetyDefaults(graphicsDriver, String.valueOf(anchor.getTag())));
+        HashMap<String, String> config = parseGraphicsDriverConfig(String.valueOf(anchor.getTag()));
         initialVersion = config.getOrDefault("version", DefaultVersion.WRAPPER);
         initialExtensionBlacklist = config.getOrDefault("blacklistedExtensions", "");
 
@@ -85,13 +70,10 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
         loadDriverVersions(anchor.getContext(), graphicsDriver);
         loadGpuNames(anchor.getContext());
         restoreValues(config);
-        configureListeners(anchor.getContext());
-
-        findViewById(R.id.BTHelpTextureTranscoding).setOnClickListener(
-                view -> AppUtils.showHelpBox(view.getContext(), view, R.string.texture_transcoding_help));
+        configureListeners();
 
         setOnConfirmCallback(() -> {
-            String result = applyDriverSafetyDefaults(graphicsDriver, writeGraphicsDriverConfig());
+            String result = writeGraphicsDriverConfig();
             Log.i(TAG, "Saved graphics driver config: " + result);
             anchor.setTag(result);
             if (graphicsDriverVersionView != null) {
@@ -126,35 +108,6 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
 
     public static String getExtensionsBlacklist(String graphicsDriverConfig) {
         return parseGraphicsDriverConfig(graphicsDriverConfig).get("blacklistedExtensions");
-    }
-
-    public static String applyDriverSafetyDefaults(String graphicsDriver, String graphicsDriverConfig) {
-        String driverId = StringUtils.parseIdentifier(graphicsDriver);
-        HashMap<String, String> config = parseGraphicsDriverConfig(graphicsDriverConfig);
-        boolean changed = false;
-        if ("wrapper-kirimu".equals(driverId)
-                && !"software".equals(config.getOrDefault("bcnEmulationType", "compute"))) {
-            // Kirimu's working native BCN path is the software implementation. ASTC/ETC2
-            // remain independent and are handled by the Mali-compatible layer.
-            config.put("bcnEmulationType", "software");
-            changed = true;
-        }
-        else if (!supportsNativeBcn(driverId)
-                && "software".equals(config.getOrDefault("bcnEmulationType", "compute"))) {
-            // Wrappers without their own BCN decoder use the shared Leegao compute layer.
-            config.put("bcnEmulationType", "compute");
-            changed = true;
-        }
-        if (!changed) return graphicsDriverConfig;
-        return toGraphicsDriverConfig(config);
-    }
-
-    public static boolean supportsNativeBcn(String graphicsDriver) {
-        String driverId = StringUtils.parseIdentifier(graphicsDriver);
-        return "wrapper-bcn".equals(driverId)
-                || "wrapper-gamenative".equals(driverId)
-                || "wrapper-kirimu".equals(driverId)
-                || "wrapper-ref4ik-v6".equals(driverId);
     }
 
     private void loadDriverVersions(Context context, String graphicsDriver) {
@@ -195,24 +148,14 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
                 config.getOrDefault("presentMode", "mailbox"));
         AppUtils.setSpinnerSelectionFromValue(resourceTypeSpinner,
                 config.getOrDefault("resourceType", "auto"));
-        AppUtils.setSpinnerSelectionFromValue(bcnEmulationSpinner,
-                config.getOrDefault("bcnEmulation", "auto"));
-        AppUtils.setSpinnerSelectionFromValue(bcnEmulationTypeSpinner,
-                config.getOrDefault("bcnEmulationType", "compute"));
-        AppUtils.setSpinnerSelectionFromValue(bcnEmulationCacheSpinner,
-                config.getOrDefault("bcnEmulationCache", "0"));
-
         syncFrameCheckBox.setChecked("1".equals(config.getOrDefault("syncFrame", "0"))
                 || "Always".equals(config.get("frameSync")));
         disablePresentWaitCheckBox.setChecked("1".equals(config.getOrDefault("disablePresentWait", "0"))
                 || "Never".equals(config.get("frameSync")));
-        astcTranscodeCheckBox.setChecked("1".equals(config.getOrDefault("astcTranscode", "0")));
-        etc2TranscodeCheckBox.setChecked("1".equals(config.getOrDefault("etc2Transcode", "0")));
         refreshExtensions(initialVersion);
-        updateTranscodeCheckboxes(true);
     }
 
-    private void configureListeners(Context context) {
+    private void configureListeners() {
         versionSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
@@ -224,50 +167,6 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
             }
         });
 
-        bcnEmulationTypeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                updateTranscodeCheckboxes(true);
-            }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {
-            }
-        });
-
-        astcTranscodeCheckBox.setOnCheckedChangeListener((buttonView, checked) -> {
-            if (updatingTranscodeState || !checked) return;
-            if (isSoftwareBcn()) {
-                updatingTranscodeState = true;
-                astcTranscodeCheckBox.setChecked(false);
-                updatingTranscodeState = false;
-                AppUtils.showToast(context, R.string.transcode_requires_compute);
-            }
-            else if (etc2TranscodeCheckBox.isChecked()) {
-                updatingTranscodeState = true;
-                etc2TranscodeCheckBox.setChecked(false);
-                updatingTranscodeState = false;
-                AppUtils.showToast(context, R.string.transcode_mutually_exclusive);
-            }
-            updateTranscodeCheckboxes(false);
-        });
-
-        etc2TranscodeCheckBox.setOnCheckedChangeListener((buttonView, checked) -> {
-            if (updatingTranscodeState || !checked) return;
-            if (isSoftwareBcn()) {
-                updatingTranscodeState = true;
-                etc2TranscodeCheckBox.setChecked(false);
-                updatingTranscodeState = false;
-                AppUtils.showToast(context, R.string.transcode_requires_compute);
-            }
-            else if (astcTranscodeCheckBox.isChecked()) {
-                updatingTranscodeState = true;
-                astcTranscodeCheckBox.setChecked(false);
-                updatingTranscodeState = false;
-                AppUtils.showToast(context, R.string.transcode_mutually_exclusive);
-            }
-            updateTranscodeCheckboxes(false);
-        });
     }
 
     private void refreshExtensions(String selectedVersion) {
@@ -282,27 +181,6 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
         }
     }
 
-    private void updateTranscodeCheckboxes(boolean clearWhenSoftware) {
-        boolean software = isSoftwareBcn();
-        updatingTranscodeState = true;
-        if (software && clearWhenSoftware) {
-            astcTranscodeCheckBox.setChecked(false);
-            etc2TranscodeCheckBox.setChecked(false);
-        }
-        if (astcTranscodeCheckBox.isChecked() && etc2TranscodeCheckBox.isChecked()) {
-            etc2TranscodeCheckBox.setChecked(false);
-        }
-        astcTranscodeCheckBox.setEnabled(!software && !etc2TranscodeCheckBox.isChecked());
-        etc2TranscodeCheckBox.setEnabled(!software && !astcTranscodeCheckBox.isChecked());
-        astcTranscodeCheckBox.setAlpha(astcTranscodeCheckBox.isEnabled() ? 1.0f : 0.5f);
-        etc2TranscodeCheckBox.setAlpha(etc2TranscodeCheckBox.isEnabled() ? 1.0f : 0.5f);
-        updatingTranscodeState = false;
-    }
-
-    private boolean isSoftwareBcn() {
-        return "software".equals(selectedValue(bcnEmulationTypeSpinner));
-    }
-
     private String writeGraphicsDriverConfig() {
         return "vulkanVersion=" + selectedValue(vulkanVersionSpinner)
                 + ";version=" + selectedValue(versionSpinner)
@@ -311,12 +189,7 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
                 + ";presentMode=" + selectedValue(presentModeSpinner)
                 + ";syncFrame=" + boolValue(syncFrameCheckBox)
                 + ";disablePresentWait=" + boolValue(disablePresentWaitCheckBox)
-                + ";astcTranscode=" + boolValue(astcTranscodeCheckBox)
-                + ";etc2Transcode=" + boolValue(etc2TranscodeCheckBox)
                 + ";resourceType=" + selectedValue(resourceTypeSpinner)
-                + ";bcnEmulation=" + selectedValue(bcnEmulationSpinner)
-                + ";bcnEmulationType=" + selectedValue(bcnEmulationTypeSpinner)
-                + ";bcnEmulationCache=" + selectedValue(bcnEmulationCacheSpinner)
                 + ";gpuName=" + selectedValue(gpuNameSpinner);
     }
 
@@ -343,13 +216,11 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
     }
 
     private void applyTheme(Context context) {
-        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
-        boolean dark = preferences.getBoolean("dark_mode", false);
+        boolean dark = AppUtils.isDarkMode(context);
         int background = dark ? R.drawable.combo_box_dark : R.drawable.combo_box;
         int textColor = dark ? Color.WHITE : Color.BLACK;
         Spinner[] spinners = {versionSpinner, vulkanVersionSpinner, gpuNameSpinner,
-                maxDeviceMemorySpinner, presentModeSpinner, resourceTypeSpinner,
-                bcnEmulationSpinner, bcnEmulationTypeSpinner, bcnEmulationCacheSpinner};
+                maxDeviceMemorySpinner, presentModeSpinner, resourceTypeSpinner};
         for (Spinner spinner : spinners) {
             spinner.setBackgroundResource(background);
         }

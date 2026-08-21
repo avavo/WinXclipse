@@ -126,7 +126,7 @@ import java.nio.file.Files;
             }
 
             // Fallback to standard cover art location
-            File defaultCoverArtFile = new File(COVER_ART_DIR, this.name + ".png");
+            File defaultCoverArtFile = getGeneratedCoverArtFile();
             if (defaultCoverArtFile.isFile()) {
                 this.coverArt = BitmapFactory.decodeFile(defaultCoverArtFile.getPath());
             }
@@ -233,6 +233,51 @@ import java.nio.file.Files;
             } catch (Exception e) {
                 e.printStackTrace();
             }
+        }
+
+        public File getGeneratedCoverArtFile() {
+            return new File(new File(container.getRootDir(), COVER_ART_DIR), this.name + ".png");
+        }
+
+        public boolean saveGeneratedCoverArt(Bitmap generatedCoverArt) {
+            if (generatedCoverArt == null) return false;
+            File coverFile = getGeneratedCoverArtFile();
+            File parent = coverFile.getParentFile();
+            if (parent != null && !parent.isDirectory() && !parent.mkdirs()) return false;
+            if (!FileUtils.saveBitmapToFile(generatedCoverArt, coverFile)) return false;
+            this.coverArt = generatedCoverArt;
+            return true;
+        }
+
+        public void reloadCoverArt() {
+            this.coverArt = null;
+            loadCoverArt();
+        }
+
+        public File resolveExecutableFile() {
+            if (path == null) return null;
+            String windowsPath = path.trim().replace("\"", "");
+            int exeEnd = windowsPath.toLowerCase().indexOf(".exe");
+            if (exeEnd >= 0) windowsPath = windowsPath.substring(0, exeEnd + 4);
+            if (!windowsPath.matches("^[A-Za-z]:.*")) return null;
+
+            String drive = windowsPath.substring(0, 1).toUpperCase();
+            File base;
+            if ("C".equals(drive)) base = new File(container.getRootDir(), ".wine/drive_c");
+            else if ("Z".equals(drive)) base = container.getRootDir().getParentFile().getParentFile();
+            else {
+                base = null;
+                for (String[] item : container.drivesIterator()) {
+                    if (drive.equalsIgnoreCase(item[0])) {
+                        base = new File(item[1]);
+                        break;
+                    }
+                }
+            }
+            if (base == null) return null;
+            String relative = windowsPath.substring(2).replace('\\', File.separatorChar);
+            while (relative.startsWith(File.separator)) relative = relative.substring(1);
+            return new File(base, relative);
         }
 
 

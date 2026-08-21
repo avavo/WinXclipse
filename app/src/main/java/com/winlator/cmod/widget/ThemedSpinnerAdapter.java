@@ -57,8 +57,7 @@ public class ThemedSpinnerAdapter<T> extends ArrayAdapter<T> {
         T item = getItem(position);
         textView.setText(item == null ? "" : item.toString());
         textView.setTextSize(textSizeSp);
-        boolean dark = PreferenceManager.getDefaultSharedPreferences(getContext())
-                .getBoolean("dark_mode", false);
+        boolean dark = com.winlator.cmod.core.AppUtils.isDarkMode(getContext());
         textView.setTextColor(ContextCompat.getColor(getContext(),
                 dark ? android.R.color.white : android.R.color.black));
     }

@@ -56,8 +56,7 @@ public class ContentDialog extends AppCompatDialog {
     private View inflatedLayout;
 
     private static int resolveDialogStyle(Context context) {
-        boolean darkMode = PreferenceManager.getDefaultSharedPreferences(context)
-                .getBoolean("dark_mode", false);
+        boolean darkMode = AppUtils.isDarkMode(context);
         return darkMode ? R.style.ContentDialog_Dark : R.style.ContentDialog;
     }
 
@@ -70,8 +69,7 @@ public class ContentDialog extends AppCompatDialog {
         contentView = themedInflater.inflate(R.layout.content_dialog, null);
 
 
-        SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context);
-        isDarkMode = sharedPreferences.getBoolean("dark_mode", false);
+        isDarkMode = AppUtils.isDarkMode(context);
 
 //        contentView.setBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark: R.drawable.content_dialog_background);
 
@@ -207,8 +205,7 @@ public class ContentDialog extends AppCompatDialog {
 
         final EditText editText = dialog.findViewById(R.id.EditText);
 
-        SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context);
-        boolean isDarkMode = sharedPreferences.getBoolean("dark_mode", false);
+        boolean isDarkMode = AppUtils.isDarkMode(context);
         applyDarkThemeToEditText(editText, isDarkMode);
 
         editText.setHint(R.string.untitled);

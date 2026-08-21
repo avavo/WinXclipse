@@ -46,6 +46,7 @@ import com.winlator.cmod.contentdialog.SaveSettingsDialog;
 import com.winlator.cmod.contents.ContentProfile;
 import com.winlator.cmod.contents.ContentsManager;
 import com.winlator.cmod.core.Callback;
+import com.winlator.cmod.core.AppUtils;
 import com.winlator.cmod.core.PreloaderDialog;
 import com.winlator.cmod.core.UpdateChecker;
 import com.winlator.cmod.container.ContainerManager;
@@ -97,8 +98,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        SharedPreferences themePreferences = PreferenceManager.getDefaultSharedPreferences(this);
-        isDarkMode = themePreferences.getBoolean("dark_mode", false);
+        isDarkMode = AppUtils.isDarkMode(this);
         setTheme(isDarkMode ? R.style.AppTheme_Dark : R.style.AppTheme);
         super.onCreate(savedInstanceState);
 
@@ -117,10 +117,6 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             Intent intent = new Intent(MainActivity.this, BigPictureActivity.class);
             startActivity(intent);
         }
-
-        // Load the user's preferred theme
-        sharedPreferences = themePreferences;
-
 
         setContentView(R.layout.main_activity);
 
@@ -593,7 +589,8 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             ((TextView) dialog.findViewById(R.id.TVAppVersion)).setText(getString(R.string.version) + " " + pInfo.versionName);
 
             String creditsAndThirdPartyAppsHTML = String.join("<br />",
-                    "WinXclipse Exynos/Xclipse adaptation by Álvaro (<a href=\"https://github.com/avavo\">GitHub</a>)",
+                    "WinXclipse Exynos/Xclipse adaptation by &Aacute;lvaro (<a href=\"https://github.com/avavo\">GitHub</a>)",
+                    "Soula / ExynosTools (<a href=\"https://github.com/WearyConcern1165/ExynosTools\">Git</a>)",
                     "Based on Winlator by Brunodev85 (<a href=\"https://github.com/brunodev85\">Git</a>)",
                     "Based on Winlator CMod by <a href=\"https://github.com/coffincolors/winlator\">coffincolors</a> and <a href=\"https://github.com/Pipetto-crypto/winlator\">Pipetto-crypto</a>",
                     "Ports from Winlator Mali (<a href=\"https://github.com/GunaCharanTeja/WinlatorMali\">Git</a>)",

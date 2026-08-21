@@ -114,51 +114,6 @@
             android:entries="@array/resource_type_entries"
             android:spinnerMode="dialog" />
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:paddingBottom="8dp"
-            android:text="@string/graphics_driver_bcn_emulation"
-            android:textAppearance="?android:attr/textAppearanceMedium" />
-
-        <Spinner
-            android:id="@+id/SGraphicsDriverBCnEmulation"
-            style="@style/ComboBox"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:entries="@array/bcn_emulation_entries"
-            android:spinnerMode="dialog" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:paddingBottom="8dp"
-            android:text="@string/graphics_driver_bcn_emulation_type"
-            android:textAppearance="?android:attr/textAppearanceMedium" />
-
-        <Spinner
-            android:id="@+id/SGraphicsDriverBCnEmulationType"
-            style="@style/ComboBox"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:entries="@array/bcn_emulation_type_entries"
-            android:spinnerMode="dialog" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:paddingBottom="8dp"
-            android:text="@string/graphics_driver_bcn_emulation_cache"
-            android:textAppearance="?android:attr/textAppearanceMedium" />
-
-        <Spinner
-            android:id="@+id/SGraphicsDriverBCnEmulationCache"
-            style="@style/ComboBox"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:entries="@array/bcn_emulation_cache_entries"
-            android:spinnerMode="dialog" />
-
         <CheckBox
             android:id="@+id/CBSyncFrame"
             android:layout_width="wrap_content"
@@ -171,36 +126,6 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/graphics_driver_disable_present_wait" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <CheckBox
-                android:id="@+id/CBASTCTranscode"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/graphics_driver_astc_transcode" />
-
-            <ImageButton
-                android:id="@+id/BTHelpTextureTranscoding"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:background="?android:attr/selectableItemBackgroundBorderless"
-                android:contentDescription="@string/texture_transcoding"
-                android:padding="8dp"
-                android:src="@drawable/icon_help"
-                app:tint="?colorAccent" />
-        </LinearLayout>
-
-        <CheckBox
-            android:id="@+id/CBETC2Transcode"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/graphics_driver_etc2_transcode" />
 
     </LinearLayout>
 </ScrollView>

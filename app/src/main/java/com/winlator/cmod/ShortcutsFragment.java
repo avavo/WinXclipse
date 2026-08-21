@@ -9,6 +9,8 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ShortcutInfo;
 import android.content.pm.ShortcutManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.drawable.Icon;
 import android.net.Uri;
 import android.os.Build;
@@ -49,6 +51,7 @@ import com.winlator.cmod.contentdialog.ShortcutSettingsDialog;
 import com.winlator.cmod.core.FileUtils;
 import com.winlator.cmod.core.MSLink;
 import com.winlator.cmod.core.PreloaderDialog;
+import com.winlator.cmod.core.ShortcutArtworkManager;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -69,69 +72,68 @@ public class ShortcutsFragment extends Fragment {
     private ArrayList<FileObserver> fileObservers = new ArrayList<>();
     private PreloaderDialog preloaderDialog;
 
-    private final ActivityResultLauncher<Intent> iconPickerLauncher = registerForActivityResult(
+    private final ActivityResultLauncher<Intent> artworkPickerLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
             result -> {
                 if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
                     Uri uri = result.getData().getData();
                     if (uri != null && currentShortcut != null) {
-                        // This is where you will handle the selected .ico file
-                        handleSelectedIcon(uri);
+                        handleSelectedArtwork(uri);
                     }
                 }
             });
 
-    private void openIconPicker(Shortcut shortcut) {
+    private void openArtworkPicker(Shortcut shortcut) {
         this.currentShortcut = shortcut;
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("image/x-icon"); // Set the primary MIME type for .ico files
-
-        // Provide an array of possible MIME types to be more compatible
-        String[] mimeTypes = {"image/x-icon", "image/vnd.microsoft.icon"};
-        intent.putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes);
-
-        iconPickerLauncher.launch(intent);
+        intent.setType("image/*");
+        artworkPickerLauncher.launch(intent);
     }
 
-    private void showIconPickerConfirmation(final Shortcut shortcut) {
-        new AlertDialog.Builder(getContext())
-                .setTitle("Custom Icon")
-                .setMessage("You will be prompted to select an icon file. Please choose a valid .ico file.")
-                .setPositiveButton("Continue", (dialog, which) -> {
-                    // This will launch the file picker
-                    openIconPicker(shortcut);
+    private void showArtworkSourceDialog(final Shortcut shortcut) {
+        String[] entries = getResources().getStringArray(R.array.shortcut_artwork_mode_entries);
+        String current = ShortcutArtworkManager.getMode(requireContext(), shortcut);
+        int checked = ShortcutArtworkManager.MODE_EXE.equals(current) ? 1
+                : ShortcutArtworkManager.MODE_CUSTOM.equals(current) ? 2 : 0;
+        new AlertDialog.Builder(requireContext())
+                .setTitle(R.string.shortcut_artwork)
+                .setSingleChoiceItems(entries, checked, (dialog, which) -> {
+                    dialog.dismiss();
+                    if (which == 2) {
+                        ShortcutArtworkManager.setMode(shortcut, ShortcutArtworkManager.MODE_CUSTOM);
+                        openArtworkPicker(shortcut);
+                        return;
+                    }
+                    clearArtwork(shortcut);
+                    String mode = which == 1 ? ShortcutArtworkManager.MODE_EXE
+                            : ShortcutArtworkManager.MODE_BROWSER;
+                    ShortcutArtworkManager.setMode(shortcut, mode);
+                    ShortcutArtworkManager.ensure(requireContext(), shortcut, true,
+                            success -> loadShortcutsList());
                 })
-                .setNegativeButton("Cancel", null)
                 .show();
     }
 
-    private void handleSelectedIcon(Uri icoFileUri) {
-        try {
-            File iconsDir = new File(currentShortcut.container.getIconsDir(0).getParentFile(), "custom_icons");
-            if (!iconsDir.exists()) {
-                iconsDir.mkdirs();
-            }
-
-            // Use the shortcut's unique name to create a unique icon filename
-            String newIconFileName = currentShortcut.name + "_" + System.currentTimeMillis() + ".ico";
-            File newIconFile = new File(iconsDir, newIconFileName);
-
-            // Use the correct copy method from your FileUtils class
-            if (FileUtils.copy(getContext(), icoFileUri, newIconFile)) {
-                // Update the shortcut to point to this new icon
-                currentShortcut.setCustomIconPath(newIconFile.getAbsolutePath());
-
-                // Reload the list to show the new icon
-                loadShortcutsList();
-                Toast.makeText(getContext(), "Icon updated successfully.", Toast.LENGTH_SHORT).show();
-            } else {
-                Toast.makeText(getContext(), "Failed to copy icon file.", Toast.LENGTH_SHORT).show();
-            }
+    private void handleSelectedArtwork(Uri uri) {
+        try (java.io.InputStream input = requireContext().getContentResolver().openInputStream(uri)) {
+            Bitmap bitmap = BitmapFactory.decodeStream(input);
+            if (bitmap == null) throw new IOException("Unsupported image");
+            clearArtwork(currentShortcut);
+            ShortcutArtworkManager.setMode(currentShortcut, ShortcutArtworkManager.MODE_CUSTOM);
+            currentShortcut.saveCustomCoverArt(bitmap);
+            loadShortcutsList();
+            Toast.makeText(getContext(), R.string.shortcut_artwork_updated, Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
-            Toast.makeText(getContext(), "Failed to update icon.", Toast.LENGTH_SHORT).show();
-            Log.e("ShortcutsFragment", "Error handling selected icon", e);
+            Toast.makeText(getContext(), R.string.shortcut_artwork_failed, Toast.LENGTH_SHORT).show();
+            Log.e("ShortcutsFragment", "Error handling selected artwork", e);
         }
+    }
+
+    private void clearArtwork(Shortcut shortcut) {
+        String custom = shortcut.getCustomCoverArtPath();
+        if (custom != null && !custom.isEmpty()) shortcut.removeCustomCoverArt();
+        ShortcutArtworkManager.deleteGeneratedArtwork(shortcut);
     }
 
 
@@ -456,14 +458,21 @@ public class ShortcutsFragment extends Fragment {
         @Override
         public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
             final Shortcut item = data.get(position);
-            if (item.icon != null) {
+            if (item.getCoverArt() != null) {
+                holder.imageView.setImageBitmap(item.getCoverArt());
+            } else if (item.icon != null) {
                 holder.imageView.setImageBitmap(item.icon);
             } else {
-                // Set a default icon if none exists
-                holder.imageView.setImageResource(R.mipmap.ic_launcher_foreground); // Create a default icon drawable
+                holder.imageView.setImageResource(R.drawable.cover_art_placeholder);
+            }
+            if (item.getCoverArt() == null) {
+                ShortcutArtworkManager.ensure(requireContext(), item, false, success -> {
+                    int adapterPosition = holder.getBindingAdapterPosition();
+                    if (adapterPosition != RecyclerView.NO_POSITION) notifyItemChanged(adapterPosition);
+                });
             }
             holder.imageView.setOnLongClickListener(v -> {
-                showIconPickerConfirmation(item);
+                showArtworkSourceDialog(item);
                 return true;
             });
             holder.title.setText(item.name);
@@ -471,20 +480,6 @@ public class ShortcutsFragment extends Fragment {
             holder.menuButton.setOnClickListener((v) -> showListItemMenu(v, item));
             holder.innerArea.setOnClickListener((v) -> runFromShortcut(item));
 
-            // Get the context from the item view
-            Context context = holder.itemView.getContext();
-
-            // Check if dark mode is enabled
-            SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context);
-            boolean isDarkMode = sharedPreferences.getBoolean("dark_mode", false);
-
-            if (isDarkMode) {
-                // Set the text color to something light for dark backgrounds
-                holder.title.setTextColor(android.graphics.Color.WHITE);
-            } else {
-                // Set the text color to something dark for light backgrounds
-                holder.title.setTextColor(android.graphics.Color.BLACK);
-            }
         }
 
         @Override
@@ -502,6 +497,9 @@ public class ShortcutsFragment extends Fragment {
                 int itemId = menuItem.getItemId();
                 if (itemId == R.id.shortcut_settings) {
                     (new ShortcutSettingsDialog(ShortcutsFragment.this, shortcut)).show();
+                }
+                else if (itemId == R.id.shortcut_change_artwork) {
+                    showArtworkSourceDialog(shortcut);
                 }
                 else if (itemId == R.id.shortcut_remove) {
                     ContentDialog.confirm(context, R.string.do_you_want_to_remove_this_shortcut, () -> {

@@ -326,8 +326,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        SharedPreferences themePreferences = PreferenceManager.getDefaultSharedPreferences(this);
-        isDarkMode = themePreferences.getBoolean("dark_mode", false);
+        isDarkMode = AppUtils.isDarkMode(this);
         setTheme(isDarkMode ? R.style.AppThemeFullscreen_Dark : R.style.AppThemeFullscreen);
         super.onCreate(savedInstanceState);
         AppUtils.hideSystemUI(this);
@@ -345,7 +344,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
 
         // Check for Dark Mode
-        isDarkMode = preferences.getBoolean("dark_mode", false);
+        isDarkMode = AppUtils.isDarkMode(this);
 
         boolean isOpenWithAndroidBrowser = preferences.getBoolean("open_with_android_browser", false);
         boolean isShareAndroidClipboard = preferences.getBoolean("share_android_clipboard", false);
@@ -619,9 +618,17 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             Log.d("XServerDisplayActivity", "XInput Disabled from Shortcut: " + xinputDisabledFromShortcut);
         }
 
+        boolean dinputEnabled = (winHandler.getInputType() & WinHandler.FLAG_INPUT_TYPE_DINPUT) != 0;
+        boolean exclusiveXInput = shortcut != null
+                ? "1".equals(shortcut.getExtra("exclusiveXInput", container.isExclusiveXInput() ? "1" : "0"))
+                : container.isExclusiveXInput();
+        WineUtils.setJoystickRegistryKeys(container, dinputEnabled, exclusiveXInput);
+
         graphicsDriver = Container.normalizeGraphicsDriver(graphicsDriver);
 
         this.graphicsDriverConfig = GraphicsDriverConfigDialog.parseGraphicsDriverConfig(graphicsDriverConfig);
+        String configuredDDrawWrapper = DXVKConfigDialog.parseConfig(dxwrapperConfig).get("ddrawrapper");
+        if (!configuredDDrawWrapper.isEmpty()) this.ddrawrapper = configuredDDrawWrapper;
 
         if (dxwrapper.equals("dxvk") || dxwrapper.equals("vkd3d")) {
             this.dxwrapperConfig = DXVKConfigDialog.parseConfig(dxwrapperConfig);
@@ -1646,12 +1653,24 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             startupSelection = String.valueOf(container.getStartupSelection());
 
         if (!startupSelection.equals(container.getExtra("startupSelection"))) {
-            WineUtils.changeServicesStatus(container, Byte.parseByte(startupSelection) != Container.STARTUP_SELECTION_NORMAL);
+            byte selection = Container.STARTUP_SELECTION_ESSENTIAL;
+            try {
+                selection = Byte.parseByte(startupSelection);
+            }
+            catch (NumberFormatException ignored) {}
+            WineUtils.changeServicesStatus(container, selection);
             container.putExtra("startupSelection", startupSelection);
             containerDataChanged = true;
         }
 
-
+        if (!"1".equals(container.getExtra("controllerFixVersion"))) {
+            File system32Dir = new File(container.getRootDir(), ".wine/drive_c/windows/system32");
+            FileUtils.copy(this, "controllerfix/dinput.dll", new File(system32Dir, "dinput.dll"));
+            FileUtils.copy(this, "controllerfix/dinput8.dll", new File(system32Dir, "dinput8.dll"));
+            FileUtils.copy(this, "controllerfix/xidi.ini", new File(system32Dir, "xidi.ini"));
+            container.putExtra("controllerFixVersion", "1");
+            containerDataChanged = true;
+        }
 
         if (containerDataChanged) container.saveData();
     }
@@ -1690,12 +1709,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         // Additional container checks and environment configuration
         if (container != null) {
-            if (Byte.parseByte(startupSelection) == Container.STARTUP_SELECTION_AGGRESSIVE) {
-//                winHandler.killProcess("services.exe");
-                Log.d("XServerDisplayActivity", "Incorrect startup selection detected. Reverting to essential startup selection");
-                container.putExtra("startupSelection", String.valueOf(Container.STARTUP_SELECTION_ESSENTIAL));
-                container.saveData();
-            }
             bionicLauncher.setContainer(this.container);
             bionicLauncher.setWineInfo(this.wineInfo);
             boolean wow64Mode = container.isWoW64Mode();
@@ -2692,82 +2705,17 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             }
         }
 
-        boolean astcTranscode = "1".equals(graphicsDriverConfig.getOrDefault("astcTranscode", "0"));
-        boolean etc2Transcode = "1".equals(graphicsDriverConfig.getOrDefault("etc2Transcode", "0"));
-        String bcnEmulation = graphicsDriverConfig.getOrDefault("bcnEmulation", "auto");
-        String bcnEmulationType = graphicsDriverConfig.getOrDefault("bcnEmulationType", "compute");
-        boolean nativeBcnWrapper = GraphicsDriverConfigDialog.supportsNativeBcn(mainWrapperSelection);
-        if ("wrapper-kirimu".equalsIgnoreCase(mainWrapperSelection)) {
-            bcnEmulationType = "software";
-        }
-        else if (!nativeBcnWrapper && "software".equals(bcnEmulationType)) {
-            // Keep BCN available for every wrapper. Non-native wrappers are routed
-            // through the shared Leegao compute layer instead of ignoring the mode.
-            bcnEmulationType = "compute";
-        }
-        boolean computeBcnEnabled = "compute".equals(bcnEmulationType)
-                && ("auto".equals(bcnEmulation) || "full".equals(bcnEmulation));
-        // Native-capable wrappers handle base BCN themselves. Every other wrapper
-        // receives base BCN through the shared Leegao compute layer. The same layer
-        // also owns ASTC/ETC2 transcoding for all compatible wrappers.
-        boolean bcnLayerEnabled = astcTranscode || etc2Transcode
-                || (computeBcnEnabled && !nativeBcnWrapper);
-        final String bcnLayerVersion = "leegao-winmali-2";
-        File bcnLayerLibrary = new File(rootDir, "usr/lib/libbcn_layer.so");
-        File bcnLayerManifest = new File(rootDir,
+        // v0.9 returns to the pre-BCN-layer graphics path used by v0.7.6. Clean up
+        // files left by v0.8.x so an in-place update cannot keep activating them.
+        File staleBcnLayerLibrary = new File(rootDir, "usr/lib/libbcn_layer.so");
+        File staleBcnLayerManifest = new File(rootDir,
                 "usr/share/vulkan/implicit_layer.d/libbcn_layer.json");
-        boolean bcnLayerReady = bcnLayerLibrary.isFile() && bcnLayerManifest.isFile();
-        boolean previousBcnLayerEnabled = "1".equals(container.getExtra("bcnLayerEnabled",
-                container.getExtra("transcodeEnabled", "0")));
-        boolean bcnLayerNeedsUpdate = bcnLayerEnabled
-                && (!bcnLayerVersion.equals(container.getExtra("bcnLayerVersion", ""))
-                || !bcnLayerReady);
-        if (firstTimeBoot || bcnLayerEnabled != previousBcnLayerEnabled || bcnLayerNeedsUpdate) {
-            Log.d("GraphicsDriverExtraction", "Refreshing graphics layers; BCN layer=" + bcnLayerEnabled);
-            TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "graphics_driver/extra_libs.tzst", rootDir);
-            TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "layers.tzst", rootDir);
-            if (bcnLayerEnabled) {
-                File internalBcnLayer = new File(getFilesDir(), "graphics_driver/leegao_bcn.tzst");
-                boolean extracted = internalBcnLayer.isFile()
-                        ? TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, internalBcnLayer, rootDir)
-                        : TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this,
-                                "graphics_driver/leegao_bcn.tzst", rootDir);
-                bcnLayerReady = extracted && bcnLayerLibrary.isFile() && bcnLayerManifest.isFile();
-                if (bcnLayerReady) {
-                    Log.d("GraphicsDriverExtraction", "BCN layer extracted and verified");
-                }
-                else {
-                    Log.e("GraphicsDriverExtraction", "BCN layer extraction or verification failed");
-                    if (bcnLayerManifest.isFile() && !bcnLayerManifest.delete()) {
-                        Log.w("GraphicsDriverExtraction", "Unable to remove incomplete BCN layer manifest");
-                    }
-                    if (bcnLayerLibrary.isFile() && !bcnLayerLibrary.delete()) {
-                        Log.w("GraphicsDriverExtraction", "Unable to remove incomplete BCN layer library");
-                    }
-                }
-            }
-            else {
-                bcnLayerReady = false;
-            }
-            container.putExtra("transcodeEnabled", (astcTranscode || etc2Transcode) ? "1" : "0");
-            container.putExtra("bcnLayerEnabled", bcnLayerEnabled && bcnLayerReady ? "1" : "0");
-            container.putExtra("bcnLayerVersion",
-                    bcnLayerEnabled && bcnLayerReady ? bcnLayerVersion : "");
-            container.saveData();
+        if (staleBcnLayerManifest.isFile() && !staleBcnLayerManifest.delete()) {
+            Log.w("GraphicsDriverExtraction", "Unable to remove legacy BCN layer manifest");
         }
-        if (!bcnLayerEnabled) {
-            // ENABLE_BCN_COMPUTE is also used by the native wrapper path. Remove a
-            // previously extracted implicit layer so that base BCN compute does not
-            // accidentally reactivate the Leegao transcoder after ASTC/ETC2 is off.
-            if (bcnLayerManifest.isFile() && !bcnLayerManifest.delete()) {
-                Log.w("GraphicsDriverExtraction", "Unable to remove inactive BCN layer manifest");
-            }
-            if (bcnLayerLibrary.isFile() && !bcnLayerLibrary.delete()) {
-                Log.w("GraphicsDriverExtraction", "Unable to remove inactive BCN layer library");
-            }
-            bcnLayerReady = false;
+        if (staleBcnLayerLibrary.isFile() && !staleBcnLayerLibrary.delete()) {
+            Log.w("GraphicsDriverExtraction", "Unable to remove legacy BCN layer library");
         }
-        boolean activeBcnLayer = bcnLayerEnabled && bcnLayerReady;
 
         if (!DefaultVersion.WRAPPER.equals(xclipseDriverId)) {
             XclipseDriverManager driverManager = new XclipseDriverManager(this);
@@ -2804,41 +2752,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         String disablePresentWait = graphicsDriverConfig.getOrDefault("disablePresentWait",
                 "Never".equals(legacyFrameSync) ? "1" : "0");
         envVars.put("WRAPPER_DISABLE_PRESENT_WAIT", disablePresentWait);
-
-        envVars.remove("ENABLE_BCN_COMPUTE");
-        envVars.remove("DISABLE_BCN_COMPUTE");
-        envVars.remove("BCN_COMPUTE_AUTO");
-        envVars.remove("BCN_TRANSCODE_TO_ASTC");
-        envVars.remove("BCN_TRANSCODE_TO_ETC2");
-        if (computeBcnEnabled || activeBcnLayer) {
-            envVars.put("ENABLE_BCN_COMPUTE", "1");
-            envVars.put("BCN_COMPUTE_AUTO", "auto".equals(bcnEmulation) ? "1" : "0");
-        }
-        switch (bcnEmulation) {
-            case "none":
-                envVars.put("WRAPPER_EMULATE_BCN", "0");
-                break;
-            case "full":
-                envVars.put("WRAPPER_EMULATE_BCN", "2");
-                break;
-            case "auto":
-                envVars.put("WRAPPER_EMULATE_BCN", "3");
-                break;
-            default:
-                envVars.put("WRAPPER_EMULATE_BCN", "1");
-                break;
-        }
-        envVars.put("WRAPPER_USE_BCN_CACHE",
-                graphicsDriverConfig.getOrDefault("bcnEmulationCache", "0"));
-        if (activeBcnLayer && astcTranscode) envVars.put("BCN_TRANSCODE_TO_ASTC", "1");
-        if (activeBcnLayer && etc2Transcode) envVars.put("BCN_TRANSCODE_TO_ETC2", "1");
-        Log.i("GraphicsDriverExtraction", "BCN route: emulation=" + bcnEmulation
-                + ", type=" + bcnEmulationType
-                + ", nativeWrapper=" + nativeBcnWrapper
-                + ", compute=" + computeBcnEnabled
-                + ", astc=" + astcTranscode
-                + ", etc2=" + etc2Transcode
-                + ", leegaoLayer=" + activeBcnLayer);
 
         if (!vkbasaltConfig.isEmpty()) {
             envVars.put("ENABLE_VKBASALT", "1");

@@ -33,7 +33,7 @@ public class FileProgressDialog {
         dialog.setCanceledOnTouchOutside(false);
         dialog.setContentView(R.layout.file_progress_dialog);
 
-        boolean isDarkMode = androidx.preference.PreferenceManager.getDefaultSharedPreferences(activity).getBoolean("dark_mode", false);
+        boolean isDarkMode = com.winlator.cmod.core.AppUtils.isDarkMode(activity);
         dialog.findViewById(R.id.LLPreloaderBackground).setBackgroundResource(
                 isDarkMode ? R.drawable.preloader_panel_dark : R.drawable.preloader_panel_light);
         int foreground = androidx.core.content.ContextCompat.getColor(activity,

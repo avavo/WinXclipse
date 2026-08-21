@@ -3,6 +3,7 @@ package com.winlator.cmod.core;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
@@ -28,6 +29,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.preference.PreferenceManager;
 
 import com.google.android.material.tabs.TabLayout;
 import com.winlator.cmod.R;
@@ -39,7 +41,26 @@ import java.util.Timer;
 import java.util.TimerTask;
 
 public abstract class AppUtils {
+    public static final String PREF_DARK_MODE = "dark_mode";
+    public static final String PREF_FOLLOW_SYSTEM_THEME = "follow_system_theme";
     private static WeakReference<Toast> globalToastReference = null;
+
+    public static boolean isDarkMode(Context context) {
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
+        if (preferences.getBoolean(PREF_FOLLOW_SYSTEM_THEME, false)) {
+            int nightMode = context.getResources().getConfiguration().uiMode
+                    & Configuration.UI_MODE_NIGHT_MASK;
+            boolean darkMode = nightMode == Configuration.UI_MODE_NIGHT_YES;
+            if (preferences.getBoolean(PREF_DARK_MODE, !darkMode) != darkMode) {
+                preferences.edit().putBoolean(PREF_DARK_MODE, darkMode).apply();
+            }
+            return darkMode;
+        }
+        if (!preferences.contains(PREF_DARK_MODE)) {
+            preferences.edit().putBoolean(PREF_DARK_MODE, true).apply();
+        }
+        return preferences.getBoolean(PREF_DARK_MODE, true);
+    }
 
     public static void keepScreenOn(Activity activity) {
         activity.getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);

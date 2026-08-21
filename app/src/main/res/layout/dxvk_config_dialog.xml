@@ -45,6 +45,19 @@
             android:layout_width="match_parent"
             android:spinnerMode="dialog" />
 
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/ddraw_wrapper" />
+
+        <Spinner
+            android:id="@+id/SDDrawWrapper"
+            style="@style/ComboBox"
+            android:layout_width="match_parent"
+            android:entries="@array/ddrawrapper_entries"
+            android:spinnerMode="dialog" />
+
         <LinearLayout
             android:id="@+id/LLAsync"
             android:layout_width="match_parent"
@@ -106,16 +119,5 @@
             android:entries="@array/dxvk_framerate_entries"
             android:spinnerMode="dialog"/>
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/max_device_memory" />
-
-        <Spinner
-            style="@style/ComboBox"
-            android:layout_width="match_parent"
-            android:id="@+id/SMaxDeviceMemory"
-            android:entries="@array/dxvk_max_device_memory_entries"
-            android:spinnerMode="dialog"/>
     </LinearLayout>
 </ScrollView>

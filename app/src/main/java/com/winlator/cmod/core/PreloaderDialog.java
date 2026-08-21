@@ -29,8 +29,7 @@ public class PreloaderDialog {
         dialog.setCanceledOnTouchOutside(false);
         dialog.setContentView(R.layout.preloader_dialog);
 
-        boolean dark = PreferenceManager.getDefaultSharedPreferences(activity)
-                .getBoolean("dark_mode", false);
+        boolean dark = AppUtils.isDarkMode(activity);
         dialog.findViewById(R.id.LLPreloaderPanel).setBackgroundResource(
                 dark ? R.drawable.preloader_panel_dark : R.drawable.preloader_panel_light);
         int foreground = ContextCompat.getColor(activity,

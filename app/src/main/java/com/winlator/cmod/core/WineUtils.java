@@ -212,8 +212,19 @@ public abstract class WineUtils {
         }
     }
 
-    public static void changeServicesStatus(Container container, boolean onlyEssential) {
-        final String[] services = {"BITS:3", "Eventlog:2", "HTTP:3", "LanmanServer:3", "NDIS:2", "PlugPlay:2", "RpcSs:3", "scardsvr:3", "Schedule:3", "Spooler:3", "StiSvc:3", "TermService:3", "winebus:3", "winehid:3", "Winmgmt:3", "wuauserv:3"};
+    public static void changeServicesStatus(Container container, byte startupSelection) {
+        final String[] services = {
+                "BITS:3", "Eventlog:2", "FontCache:3", "FontCache3.0.0.0:3", "HTTP:3",
+                "LanmanServer:3", "MountMgr:2", "MSIServer:3", "NDIS:2", "nsiproxy:3",
+                "PlugPlay:2", "RpcSs:3", "scardsvr:3", "Schedule:3", "SharedGpuResources:2",
+                "Spooler:3", "StiSvc:3", "TermService:3", "TrkWks:3", "W32Time:3",
+                "winebus:2", "winehid:2", "Winmgmt:3", "wuauserv:3"
+        };
+        final String[] essentialServices = {
+                "BITS", "Eventlog", "HTTP", "LanmanServer", "NDIS", "PlugPlay", "RpcSs",
+                "scardsvr", "Schedule", "Spooler", "StiSvc", "TermService", "winebus",
+                "winehid", "Winmgmt", "wuauserv"
+        };
         File systemRegFile = new File(container.getRootDir(), ".wine/system.reg");
 
         try (WineRegistryEditor registryEditor = new WineRegistryEditor(systemRegFile)) {
@@ -221,8 +232,54 @@ public abstract class WineUtils {
 
             for (String service : services) {
                 String name = service.substring(0, service.indexOf(":"));
-                int value = onlyEssential ? 4 : Character.getNumericValue(service.charAt(service.length()-1));
-                registryEditor.setDwordValue("System\\CurrentControlSet\\Services\\"+name, "Start", value);
+                int defaultValue = Character.getNumericValue(service.charAt(service.length() - 1));
+                boolean protectedService = name.equals("winebus") || name.equals("winehid")
+                        || name.equals("MountMgr") || name.equals("PlugPlay");
+                int value = defaultValue;
+
+                if (startupSelection == Container.STARTUP_SELECTION_AGGRESSIVE) {
+                    value = protectedService ? defaultValue : 4;
+                }
+                else if (startupSelection == Container.STARTUP_SELECTION_ESSENTIAL
+                        && containsService(essentialServices, name)) {
+                    value = protectedService ? defaultValue : 4;
+                }
+
+                String suffix = "\\Services\\" + name;
+                registryEditor.setDwordValue("System\\CurrentControlSet" + suffix, "Start", value);
+                registryEditor.setDwordValue("System\\ControlSet001" + suffix, "Start", value);
+                registryEditor.setDwordValue("System\\ControlSet002" + suffix, "Start", value);
+            }
+        }
+    }
+
+    private static boolean containsService(String[] services, String name) {
+        for (String service : services) if (service.equals(name)) return true;
+        return false;
+    }
+
+    /**
+     * Keeps Wine's DirectInput enumeration in sync with the controller mode
+     * exposed by WinHandler.  Exclusive XInput hides the virtual HID mirrors
+     * from DirectInput so games do not see every controller twice.
+     */
+    public static void setJoystickRegistryKeys(Container container, boolean dinputEnabled, boolean exclusiveXInput) {
+        File userRegFile = new File(container.getRootDir(), ".wine/user.reg");
+        final String joysticksKey = "Software\\Wine\\DirectInput\\Joysticks";
+        final String value = dinputEnabled ? "override" : "disabled";
+
+        try (WineRegistryEditor registryEditor = new WineRegistryEditor(userRegFile)) {
+            for (int i = 0; i < 4; i++) {
+                String genericName = "Generic HID Gamepad " + i;
+                String legacyName = "ric HID Gamepad " + i;
+                if (exclusiveXInput) {
+                    registryEditor.setStringValue(joysticksKey, genericName, value);
+                    registryEditor.setStringValue(joysticksKey, legacyName, value);
+                }
+                else {
+                    registryEditor.removeValue(joysticksKey, genericName);
+                    registryEditor.removeValue(joysticksKey, legacyName);
+                }
             }
         }
     }

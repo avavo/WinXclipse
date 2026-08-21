@@ -377,6 +377,11 @@ public class ContainerDetailFragment extends Fragment {
 
         setupDXWrapperSpinner(sDXWrapper, vDXWrapperConfig);
         setupDDrawSpinner(sDDrawrapper, isEditMode() ? container.getDDrawWrapper() : Container.DEFAULT_DDRAWRAPPER);
+        KeyValueSet initialDXConfig = DXVKConfigDialog.parseConfig(vDXWrapperConfig.getTag());
+        if (initialDXConfig.get("ddrawrapper").isEmpty()) {
+            initialDXConfig.put("ddrawrapper", isEditMode() ? container.getDDrawWrapper() : Container.DEFAULT_DDRAWRAPPER);
+            vDXWrapperConfig.setTag(initialDXConfig.toString());
+        }
         loadGraphicsDriverSpinner(sGraphicsDriver, sDXWrapper, vGraphicsDriverConfig,
                 isEditMode() ? container.getGraphicsDriver() : Container.DEFAULT_GRAPHICS_DRIVER,
                 isEditMode() ? container.getDXWrapper() : Container.DEFAULT_DXWRAPPER);
@@ -408,64 +413,39 @@ public class ContainerDetailFragment extends Fragment {
         final CheckBox cbFullscreenStretched = view.findViewById(R.id.CBFullscreenStretched);
         cbFullscreenStretched.setChecked(isEditMode() && container.isFullscreenStretched());
 
-        // Existing declarations of UI components and variables
-//        final Runnable showInputWarning = () -> ContentDialog.alert(context, R.string.enable_xinput_and_dinput_same_time, null);
-//        final CheckBox cbEnableXInput = view.findViewById(R.id.CBEnableXInput);
-//        final CheckBox cbEnableDInput = view.findViewById(R.id.CBEnableDInput);
-//        final View llDInputType = view.findViewById(R.id.LLDinputMapperType);
-//        final View btHelpXInput = view.findViewById(R.id.BTXInputHelp);
-//        final View btHelpDInput = view.findViewById(R.id.BTDInputHelp);
-//        final Spinner SDInputType = view.findViewById(R.id.SDInputType);
+        final Runnable showInputWarning = () -> ContentDialog.alert(context,
+                R.string.enable_xinput_and_dinput_same_time, null);
+        final CheckBox cbEnableXInput = view.findViewById(R.id.CBEnableXInput);
+        final CheckBox cbEnableDInput = view.findViewById(R.id.CBEnableDInput);
+        final CheckBox cbExclusiveXInput = view.findViewById(R.id.CBExclusiveXInput);
+        int inputType = isEditMode() ? container.getInputType() : WinHandler.DEFAULT_INPUT_TYPE;
+        cbEnableXInput.setChecked((inputType & WinHandler.FLAG_INPUT_TYPE_XINPUT) != 0);
+        cbEnableDInput.setChecked((inputType & WinHandler.FLAG_INPUT_TYPE_DINPUT) != 0);
+        cbExclusiveXInput.setChecked(!isEditMode() || container.isExclusiveXInput());
 
-//        // Check if we are in edit mode to set input type accordingly
-//        int inputType = isEditMode() ? container.getInputType() : WinHandler.DEFAULT_INPUT_TYPE;
-//
-//        // Initialize the TextView for the legacy mode message
-//        TextView tvLegacyInputMessage = view.findViewById(R.id.TVLegacyInputMessage);
-//
-//        if (!isLegacyModeEnabled) {
-//
-//            // Set visibility of legacy mode message
-//            tvLegacyInputMessage.setVisibility(View.GONE); // Hide message when not in legacy mode
-//
-//            // New logic for enabling XInput and DInput
-//            cbEnableXInput.setChecked((inputType & WinHandler.FLAG_INPUT_TYPE_XINPUT) == WinHandler.FLAG_INPUT_TYPE_XINPUT);
-//            cbEnableDInput.setChecked((inputType & WinHandler.FLAG_INPUT_TYPE_DINPUT) == WinHandler.FLAG_INPUT_TYPE_DINPUT);
-//
-//            cbEnableDInput.setOnCheckedChangeListener((buttonView, isChecked) -> {
-//                llDInputType.setVisibility(isChecked ? View.VISIBLE : View.GONE);
-//                if (isChecked && cbEnableXInput.isChecked())
-//                    showInputWarning.run();
-//            });
-//
-//            cbEnableXInput.setOnCheckedChangeListener((buttonView, isChecked) -> {
-//                if (isChecked && cbEnableDInput.isChecked())
-//                    showInputWarning.run();
-//            });
-//
-//            SDInputType.setSelection(((inputType & WinHandler.FLAG_DINPUT_MAPPER_STANDARD) == WinHandler.FLAG_DINPUT_MAPPER_STANDARD) ? 0 : 1);
-//            llDInputType.setVisibility(cbEnableDInput.isChecked() ? View.VISIBLE : View.GONE);
-//
-//            btHelpXInput.setOnClickListener(v -> AppUtils.showHelpBox(context, v, R.string.help_xinput));
-//            btHelpDInput.setOnClickListener(v -> AppUtils.showHelpBox(context, v, R.string.help_dinput));
-//        } else {
-//            // Legacy mode handling: disable or hide input-related UI elements
-//            cbEnableXInput.setVisibility(View.GONE);
-//            cbEnableDInput.setVisibility(View.GONE);
-//            llDInputType.setVisibility(View.GONE);
-//            btHelpXInput.setVisibility(View.GONE);
-//            btHelpDInput.setVisibility(View.GONE);
-//            SDInputType.setVisibility(View.GONE);
-//
-//            // Show the legacy input mode message
-//            tvLegacyInputMessage.setVisibility(View.VISIBLE);
-//
-//            // Set inputType to default or legacy-compatible setting
-//            inputType = WinHandler.DEFAULT_INPUT_TYPE;
-//        }
-//
-//        final CheckBox cbSdl2Toggle = view.findViewById(R.id.CBSdl2Toggle);
-//        cbSdl2Toggle.setChecked(isEditMode() && container.getEnvVars().contains("SDL_XINPUT_ENABLED=1"));
+        final boolean[] changingInputOptions = {false};
+        Runnable updateExclusiveInput = () -> {
+            changingInputOptions[0] = true;
+            boolean exclusive = cbExclusiveXInput.isChecked();
+            if (!exclusive) {
+                cbEnableXInput.setChecked(true);
+                cbEnableDInput.setChecked(true);
+            }
+            cbEnableXInput.setEnabled(exclusive);
+            cbEnableDInput.setEnabled(exclusive);
+            changingInputOptions[0] = false;
+        };
+        cbEnableXInput.setOnCheckedChangeListener((buttonView, checked) -> {
+            if (!changingInputOptions[0] && checked && cbEnableDInput.isChecked()) showInputWarning.run();
+        });
+        cbEnableDInput.setOnCheckedChangeListener((buttonView, checked) -> {
+            if (!changingInputOptions[0] && checked && cbEnableXInput.isChecked()) showInputWarning.run();
+        });
+        cbExclusiveXInput.setOnCheckedChangeListener((buttonView, checked) -> updateExclusiveInput.run());
+        view.findViewById(R.id.BTXInputHelp).setOnClickListener(v -> AppUtils.showHelpBox(context, v, R.string.help_xinput));
+        view.findViewById(R.id.BTDInputHelp).setOnClickListener(v -> AppUtils.showHelpBox(context, v, R.string.help_dinput));
+        view.findViewById(R.id.BTExclusiveInputHelp).setOnClickListener(v -> AppUtils.showHelpBox(context, v, R.string.help_exclusive_input));
+        updateExclusiveInput.run();
 
         final Runnable showGStreamerWorkaroundWarning = () -> ContentDialog.alert(context, R.string.enable_gstreamer_workaround_alert, null);
 
@@ -529,10 +509,10 @@ public class ContainerDetailFragment extends Fragment {
         RCManager.loadRCFileSpinner(rcManager, container == null ? 0 : container.getRCFileId(), sRCFile, id -> rcfileIds[0] = id);
 
         final CPUListView cpuListView = view.findViewById(R.id.CPUListView);
-//        final CPUListView cpuListViewWoW64 = view.findViewById(R.id.CPUListViewWoW64);
+        final CPUListView cpuListViewWoW64 = view.findViewById(R.id.CPUListViewWoW64);
 
         cpuListView.setCheckedCPUList(isEditMode() ? container.getCPUList(true) : Container.getFallbackCPUList());
-//        cpuListViewWoW64.setCheckedCPUList(isEditMode() ? container.getCPUListWoW64(true) : Container.getFallbackCPUListWoW64());
+        cpuListViewWoW64.setCheckedCPUList(isEditMode() ? container.getCPUListWoW64(true) : Container.getFallbackCPUListWoW64());
 
         final Spinner sPrimaryController = view.findViewById(R.id.SPrimaryController);
         sPrimaryController.setSelection(isEditMode() ? container.getPrimaryController() : 1);
@@ -572,8 +552,9 @@ public class ContainerDetailFragment extends Fragment {
                 String graphicsDriver = StringUtils.parseIdentifier(sGraphicsDriver.getSelectedItem());
                 String graphicsDriverConfig = vGraphicsDriverConfig.getTag().toString();
                 String dxwrapper = getDXWrapperIdentifier(sDXWrapper.getSelectedItem());
-                String ddrawrapper = StringUtils.parseIdentifier(sDDrawrapper.getSelectedItem());
                 String dxwrapperConfig = vDXWrapperConfig.getTag().toString();
+                String ddrawrapper = DXVKConfigDialog.parseConfig(dxwrapperConfig).get("ddrawrapper");
+                if (ddrawrapper.isEmpty()) ddrawrapper = StringUtils.parseIdentifier(sDDrawrapper.getSelectedItem());
                 String audioDriver = StringUtils.parseIdentifier(sAudioDriver.getSelectedItem());
                 String emulator = StringUtils.parseIdentifier(sEmulator.getSelectedItem());
                 String wincomponents = getWinComponents(view);
@@ -585,7 +566,7 @@ public class ContainerDetailFragment extends Fragment {
                 boolean fullscreenStretched = cbFullscreenStretched.isChecked();
 
                 String cpuList = cpuListView.getCheckedCPUListAsString();
-//                String cpuListWoW64 = cpuListViewWoW64.getCheckedCPUListAsString();
+                String cpuListWoW64 = cpuListViewWoW64.getCheckedCPUListAsString();
                 boolean wow64Mode = cbWoW64Mode.isChecked();
 //                boolean isRelativeMouseMovement = cbRelativeMouseMovement.isChecked();
                 byte startupSelection = (byte) sStartupSelection.getSelectedItemPosition();
@@ -600,11 +581,9 @@ public class ContainerDetailFragment extends Fragment {
                 int primaryController = sPrimaryController.getSelectedItemPosition();
                 String controllerMapping = getControllerMapping(view);
 
-                // Define final input type
-//                int finalInputType = 0;
-//                finalInputType |= cbEnableXInput.isChecked() ? WinHandler.FLAG_INPUT_TYPE_XINPUT : 0;
-//                finalInputType |= cbEnableDInput.isChecked() ? WinHandler.FLAG_INPUT_TYPE_DINPUT : 0;
-//                finalInputType |= SDInputType.getSelectedItemPosition() == 0 ? WinHandler.FLAG_DINPUT_MAPPER_STANDARD : WinHandler.FLAG_DINPUT_MAPPER_XINPUT;
+                int finalInputType = 0;
+                finalInputType |= cbEnableXInput.isChecked() ? WinHandler.FLAG_INPUT_TYPE_XINPUT : 0;
+                finalInputType |= cbEnableDInput.isChecked() ? WinHandler.FLAG_INPUT_TYPE_DINPUT : 0;
 //
 //                // Handle SDL2 environment variables based on the toggle state
 //                if (cbSdl2Toggle.isChecked()) {
@@ -633,7 +612,7 @@ public class ContainerDetailFragment extends Fragment {
                     container.setScreenSize(screenSize);
                     container.setEnvVars(envVars);
                     container.setCPUList(cpuList);
-//                    container.setCPUListWoW64(cpuListWoW64);
+                    container.setCPUListWoW64(cpuListWoW64);
                     container.setGraphicsDriver(graphicsDriver);
                     container.setGraphicsDriverConfig(graphicsDriverConfig);
                     container.setDXWrapper(dxwrapper);
@@ -646,7 +625,8 @@ public class ContainerDetailFragment extends Fragment {
                     container.setShowFPS(showFPS);
                     container.setHudMode(hudMode);
                     container.setFullscreenStretched(fullscreenStretched);
-//                    container.setInputType(finalInputType);
+                    container.setInputType((byte) finalInputType);
+                    container.setExclusiveXInput(cbExclusiveXInput.isChecked());
                     container.setWoW64Mode(wow64Mode);
 //                    container.setRelativeMouseMovement(isRelativeMouseMovement);
                     container.setStartupSelection(startupSelection);
@@ -672,7 +652,7 @@ public class ContainerDetailFragment extends Fragment {
                     data.put("screenSize", screenSize);
                     data.put("envVars", envVars);
                     data.put("cpuList", cpuList);
-//                    data.put("cpuListWoW64", cpuListWoW64);
+                    data.put("cpuListWoW64", cpuListWoW64);
                     data.put("graphicsDriver", graphicsDriver);
                     data.put("graphicsDriverConfig", graphicsDriverConfig);
                     data.put("dxwrapper", dxwrapper);
@@ -686,7 +666,8 @@ public class ContainerDetailFragment extends Fragment {
                     data.put("hudMode", hudMode);
 //                    data.put("relativeMouseMovement", isRelativeMouseMovement);
                     data.put("fullscreenStretched", fullscreenStretched);
-//                    data.put("inputType", finalInputType);
+                    data.put("inputType", finalInputType);
+                    data.put("exclusiveXInput", cbExclusiveXInput.isChecked());
                     data.put("wow64Mode", wow64Mode);
                     data.put("startupSelection", startupSelection);
                     data.put("box64Version", box64Version);
@@ -917,11 +898,6 @@ public class ContainerDetailFragment extends Fragment {
 
         Runnable update = () -> {
             String graphicsDriver = StringUtils.parseIdentifier(sGraphicsDriver.getSelectedItem());
-            String currentConfig = String.valueOf(vGraphicsDriverConfig.getTag());
-            String safeConfig = GraphicsDriverConfigDialog.applyDriverSafetyDefaults(
-                    graphicsDriver, currentConfig);
-            if (!safeConfig.equals(currentConfig)) vGraphicsDriverConfig.setTag(safeConfig);
-
             // Update the DXWrapper spinner
             ArrayList<String> items = new ArrayList<>();
             for (String value : context.getResources().getStringArray(R.array.dxwrapper_entries)) {

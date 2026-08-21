@@ -26,7 +26,7 @@ import java.util.Arrays;
 import java.util.List;
 
 public class DXVKConfigDialog extends ContentDialog {
-    public static final String DEFAULT_CONFIG = "version="+DefaultVersion.DXVK+",framerate=0,maxDeviceMemory=0,async=0,asyncCache=0,vkd3dVersion="+DefaultVersion.VKD3D+",vkd3dLevel=12_1";
+    public static final String DEFAULT_CONFIG = "version="+DefaultVersion.DXVK+",framerate=0,async=1,asyncCache=0,vkd3dVersion="+DefaultVersion.VKD3D+",vkd3dLevel=12_1,ddrawrapper=";
     public static final String[] VKD3D_FEATURE_LEVELS = {"12_0", "12_1", "12_2", "11_1", "11_0", "10_1", "10_0", "9_3", "9_2", "9_1"};
     public static final int DXVK_TYPE_NONE = 0;
     public static final int DXVK_TYPE_ASYNC = 1;
@@ -46,7 +46,7 @@ public class DXVKConfigDialog extends ContentDialog {
 
         final Spinner sVersion = findViewById(R.id.SVersion);
         final Spinner sFramerate = findViewById(R.id.SFramerate);
-        final Spinner sMaxDeviceMemory = findViewById(R.id.SMaxDeviceMemory);
+        final Spinner sDDrawWrapper = findViewById(R.id.SDDrawWrapper);
         final Spinner sVkd3dVersion = findViewById(R.id.SVKD3DVersion);
         final Spinner sVkd3dFeatureLevel = findViewById(R.id.SVKD3DFeatureLevel);
         swAsync = findViewById(R.id.SWAsync);
@@ -64,7 +64,7 @@ public class DXVKConfigDialog extends ContentDialog {
         KeyValueSet config = parseConfig(anchor.getTag());
         AppUtils.setSpinnerSelectionFromIdentifier(sVersion, config.get("version"));
         AppUtils.setSpinnerSelectionFromIdentifier(sFramerate, config.get("framerate"));
-        AppUtils.setSpinnerSelectionFromNumber(sMaxDeviceMemory, config.get("maxDeviceMemory"));
+        AppUtils.setSpinnerSelectionFromIdentifier(sDDrawWrapper, config.get("ddrawrapper"));
         setVkd3dSelectionByIdentifier(sVkd3dVersion, config.get("vkd3dVersion"));
         updateVkd3dControls(sVkd3dVersion, sVkd3dFeatureLevel);
         AppUtils.setSpinnerSelectionFromIdentifier(sVkd3dFeatureLevel, config.get("vkd3dLevel"));
@@ -97,7 +97,7 @@ public class DXVKConfigDialog extends ContentDialog {
         setOnConfirmCallback(() -> {
             config.put("version", sVersion.getSelectedItem().toString());
             config.put("framerate", StringUtils.parseNumber(sFramerate.getSelectedItem()));
-            config.put("maxDeviceMemory", StringUtils.parseNumber(sMaxDeviceMemory.getSelectedItem()));
+            config.put("ddrawrapper", StringUtils.parseIdentifier(sDDrawWrapper.getSelectedItem()));
             config.put("async", ((swAsync.isChecked())&&(llAsync.getVisibility()==View.VISIBLE))?"1":"0");
             config.put("asyncCache", ((swAsyncCache.isChecked())&&(llAsyncCache.getVisibility()==View.VISIBLE))?"1":"0");
             config.put("vkd3dVersion", ((VKD3DVersionItem) sVkd3dVersion.getSelectedItem()).getIdentifier());
@@ -147,12 +147,6 @@ public class DXVKConfigDialog extends ContentDialog {
         File dxvkConfigFile = new File(rootDir, ImageFs.CONFIG_PATH+"/dxvk.conf");
 
         String content = "\"";
-        String maxDeviceMemory = config.get("maxDeviceMemory");
-        if (!maxDeviceMemory.isEmpty() && !maxDeviceMemory.equals("0")) {
-            content += "dxgi.maxDeviceMemory = "+maxDeviceMemory+';';
-            content += "dxgi.maxSharedMemory = "+maxDeviceMemory+';';
-        }
-
         String framerate = config.get("framerate");
         if (!framerate.isEmpty() && !framerate.equals("0")) {
 //            content += "dxgi.maxFrameRate = "+framerate+';';

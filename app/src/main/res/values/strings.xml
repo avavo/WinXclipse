@@ -11,6 +11,14 @@
     <string name="remove">Remove</string>
     <string name="add">Add</string>
     <string name="shortcuts">Shortcuts</string>
+    <string name="shortcut_artwork">Shortcut artwork</string>
+    <string name="shortcut_artwork_source">Artwork source</string>
+    <string name="shortcut_artwork_browser">Browser</string>
+    <string name="shortcut_artwork_exe">EXE icon</string>
+    <string name="shortcut_artwork_custom">Custom</string>
+    <string name="shortcut_change_artwork">Change artwork</string>
+    <string name="shortcut_artwork_failed">No artwork was found. You can choose a custom image.</string>
+    <string name="shortcut_artwork_updated">Shortcut artwork updated.</string>
     <string name="containers">Containers</string>
     <string name="input_controls">Input Controls</string>
     <string name="no_items_to_display">No items to display.</string>
@@ -354,17 +362,8 @@
     <string name="graphics_driver_vulkan_version">Vulkan Version</string>
     <string name="graphics_driver_present_modes">Present Modes</string>
     <string name="graphics_driver_resource_type">Memory Resource Type</string>
-    <string name="graphics_driver_bcn_emulation">BCn Emulation</string>
-    <string name="graphics_driver_bcn_emulation_type">BCn Emulation Type</string>
-    <string name="graphics_driver_bcn_emulation_cache">BCn Emulation Cache</string>
     <string name="graphics_driver_sync_frame">Sync Every Frame</string>
     <string name="graphics_driver_disable_present_wait">Disable KHR_present_wait</string>
-    <string name="graphics_driver_astc_transcode">ASTC Transcode</string>
-    <string name="graphics_driver_etc2_transcode">ETC2 Transcode</string>
-    <string name="texture_transcoding">Texture Transcoding</string>
-    <string name="texture_transcoding_help"><![CDATA[<b>ASTC &amp; ETC2 Transcode</b><br/><br/>These settings utilize a custom <b>leegao BCN layer</b> to transcode BCN (BC1-BC7) textures directly into ASTC and ETC2 formats natively supported by mobile GPUs.<br/><br/><b>Trade-offs:</b><br/>Enabling this can slightly reduce visual quality due to compression. ETC2 generally offers lower quality, while ASTC maintains normal to high quality closer to the original.<br/><br/><b>Why it matters:</b><br/>Without this, BCN textures are typically decompressed to RGBA8, which consumes 4x more Video Memory than the original texture.<br/><br/><b>Benefits:</b><br/>- <b>VRAM Savings:</b> Significantly lowers VRAM usage by keeping textures compressed.<br/>- <b>RAM Savings:</b> Reduces system RAM pressure during texture-heavy games.<br/>- <b>Stability:</b> Prevents out-of-memory crashes on devices with limited memory.]]></string>
-    <string name="transcode_requires_compute">Transcode options require BCn Emulation Type to be set to Compute</string>
-    <string name="transcode_mutually_exclusive">ASTC and ETC2 are mutually exclusive</string>
     <string name="add_to_homescreen">Add to Homescreen</string>
     <string name="add_save">Add Save</string>
     <string name="saves">Saves</string>
@@ -431,6 +430,8 @@
         This option will affect both <i><b>virtual</b></i> (provided by Input Controls) and <i><b>physical</b></i> game controllers.
     ]]></string>
     <string name="enable_xinput_and_dinput_same_time">Some games may support both APIs. Enabling both XInput and DInput simultaneously in such games may cause control issues, as seen in titles like The Binding of Isaac and the Resident Evil series.</string>
+    <string name="exclusive_input">Exclusive Input</string>
+    <string name="help_exclusive_input">Prevents Wine from exposing duplicate virtual controllers through both XInput and DirectInput. Disable it only when a game needs both APIs at the same time.</string>
     <string name="startup_normal">Normal (Load all services)</string>
     <string name="startup_essential">Essential (Load only essential services)</string>
     <string name="startup_aggressive">Aggressive (Stop services on startup)</string>
@@ -735,8 +736,10 @@ E.g. <b>META</b> for <i>META key</i>, \n
 
     <string name="backend_logs">Backend Logs</string>
     <string name="app_name_winxclipse">WinXclipse</string>
-    <string name="winxclipse_credits">WinXclipse based on Winlator and CMOD. Exynos/Xclipse adaptation by Álvaro</string>
+    <string name="winxclipse_credits">WinXclipse based on Winlator and CMOD. Exynos/Xclipse adaptation by Álvaro. ExynosTools by Soula.</string>
     <string name="xclipse_driver_download_hint">Download compatible drivers from the MdiEx releases page: https://github.com/avavo/MdiEx/releases</string>
+    <string name="enable_dark_mode">Enable Dark Mode</string>
+    <string name="follow_system_theme">Follow Android System Theme</string>
 
     <string name="fexcore_preset">FEXCore Preset</string>
     <string name="import_preset">Import Preset</string>
