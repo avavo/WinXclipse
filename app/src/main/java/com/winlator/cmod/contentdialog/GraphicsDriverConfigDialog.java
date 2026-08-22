@@ -52,6 +52,7 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
     private final String initialVersion;
     private final String initialExtensionBlacklist;
     private final HashMap<String, String> initialConfig;
+    private final boolean experimentalBcn;
 
     public GraphicsDriverConfigDialog(View anchor, String graphicsDriver, TextView graphicsDriverVersionView) {
         this(anchor, graphicsDriver, graphicsDriverVersionView, false);
@@ -61,6 +62,7 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
                                       TextView graphicsDriverVersionView,
                                       boolean experimentalBcn) {
         super(anchor.getContext(), R.layout.graphics_driver_config_dialog);
+        this.experimentalBcn = experimentalBcn;
         setIcon(R.drawable.icon_settings);
         setTitle(R.string.graphics_driver_configuration);
 
@@ -181,7 +183,7 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
         AppUtils.setSpinnerSelectionFromValue(bcnTypeSpinner,
                 config.getOrDefault("bcnEmulationType", "compute"));
         AppUtils.setSpinnerSelectionFromValue(bcnCacheSpinner,
-                config.getOrDefault("bcnEmulationCache", "0"));
+                config.getOrDefault("bcnEmulationCache", experimentalBcn ? "1" : "0"));
         astcTranscodeCheckBox.setChecked("1".equals(config.getOrDefault("astcTranscode", "0")));
         etc2TranscodeCheckBox.setChecked("1".equals(config.getOrDefault("etc2Transcode", "0")));
         refreshExtensions(initialVersion);

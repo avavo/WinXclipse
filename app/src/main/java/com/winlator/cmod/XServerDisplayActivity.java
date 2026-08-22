@@ -642,6 +642,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 ? "1".equals(shortcut.getExtra("exclusiveXInput", container.isExclusiveXInput() ? "1" : "0"))
                 : container.isExclusiveXInput();
         WineUtils.setJoystickRegistryKeys(container, dinputEnabled, exclusiveXInput);
+        WineUtils.setDirect3DRenderer(container, "gl");
 
         graphicsDriver = Container.normalizeGraphicsDriver(graphicsDriver);
 
@@ -2771,6 +2772,18 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         Log.d("GraphicsDriverExtraction", "Xclipse driver ID: " + xclipseDriverId);
 
         File rootDir = imageFs.getRootDir();
+
+        // Extra system libs (libGL.so.1 for the wined3d GL renderer / zink,
+        // vkBasalt, etc.). The bionic base extracts these on first boot; ours
+        // only did so inside the experimental-BCN flow, leaving containers
+        // without OpenGL and killing wined3d-GL sessions with
+        // "Failed to load libGL".
+        if (!new File(rootDir, "usr/lib/libGL.so.1.5.0").isFile()) {
+            Log.i("GraphicsDriverExtraction", "Extracting extra system libraries");
+            TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this,
+                    "graphics_driver/extra_libs.tzst", rootDir);
+        }
+
         if (dxwrapper.equals("dxvk")) {
             DXVKConfigDialog.setEnvVars(this, dxwrapperConfig, envVars);
         }
@@ -2920,7 +2933,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             String bcnEmulation = graphicsDriverConfig.getOrDefault("bcnEmulation", "auto");
             boolean computeEmulation = !"software".equalsIgnoreCase(
                     graphicsDriverConfig.getOrDefault("bcnEmulationType", "compute"));
-            String bcnEmulationCache = graphicsDriverConfig.getOrDefault("bcnEmulationCache", "0");
+            String bcnEmulationCache = graphicsDriverConfig.getOrDefault("bcnEmulationCache", "1");
             boolean astcTranscode = "1".equals(graphicsDriverConfig.getOrDefault("astcTranscode", "0"));
             boolean etc2Transcode = "1".equals(graphicsDriverConfig.getOrDefault("etc2Transcode", "0"));
 
