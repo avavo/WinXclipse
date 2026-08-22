@@ -82,6 +82,8 @@ Version 0.9 focuses on the video and audio configuration tabs, shortcut artwork,
 - On Xclipse 530/540 (low-tier RDNA2, one or two WGPs), Experimental BCN defaults to BCn-to-ASTC transcoding when no transcode option was chosen explicitly — these GPUs decode ASTC in hardware, while per-frame compute emulation competes directly with game rendering.
 - Frequency-based cluster detection covers octa-core (Exynos 1480/1580) and deca-core (Exynos 2400/2400e/2500/2600) layouts alike, so performance-core defaults for 32-bit guest processes are correct on every supported SoC.
 
+- Fixed ARM64EC guests dying silently before creating any window when running the bundled Proton arm64ec under FEXCore: the launcher requested the legacy `libarm64ecfex.dll` bridge instead of `libwow64fex.dll`, so every 64-bit game on this path exited at startup (black screen, only Wine services left). The correct bridge is now requested automatically per package.
+
 #### Native and memory optimizations (unified LPDDR awareness)
 
 - Native X11 blits (`copyAreaOp`, `fillRect`, `drawLine`) now process whole 32-bit pixels instead of byte-per-pixel loops — NEON-friendly and lighter on the shared memory bus that the CPU translation layers (FEXCore/Box64) and the Xclipse GPU compete for.

@@ -314,8 +314,16 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
                 envVars.putAll(FEXCorePresetManager.getEnvVars(
                         environment.getContext(), activeFEXCorePreset));
 
-                envVars.put("HODLL", wineProfile != null
-                        ? "libwow64fex.dll" : "libarm64ecfex.dll");
+                // Proton 9.0 arm64ec resolves its FEX bridge through
+                // libwow64fex.dll; requesting the legacy libarm64ecfex.dll
+                // name silently kills the guest before any window appears.
+                File system32Dir = new File(rootDir,
+                        "/home/xuser/.wine/drive_c/windows/system32");
+                envVars.put("HODLL",
+                        new File(system32Dir, "libwow64fex.dll").isFile()
+                                ? "libwow64fex.dll"
+                                : new File(system32Dir, "libarm64ecfex.dll").isFile()
+                                        ? "libarm64ecfex.dll" : "libwow64fex.dll");
             }
             else {
                 envVars.put("HODLL", "wowbox64.dll");

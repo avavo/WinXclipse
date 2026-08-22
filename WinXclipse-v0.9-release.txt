@@ -90,6 +90,7 @@ Native and Memory Optimizations
 
 Fixes
 
+- Fixed ARM64EC guests dying silently before creating any window when using the bundled Proton arm64ec with FEXCore: the launcher requested the legacy libarm64ecfex.dll bridge instead of libwow64fex.dll (Proton 9.0 naming), which made every 64-bit game under this path exit at startup — black screen with only Wine services left alive. The launcher now requests libwow64fex.dll, falling back to the legacy name only when the package provides it.
 - Corrected the inverted exclusive XInput behavior: exclusive mode locks XInput-only with DInput forced off, while non-exclusive mode lets both be toggled freely with the simultaneous-use warning.
 - Controller-fix installation now verifies all three files (dinput.dll included) before being marked as applied, so partial failures retry on next launch.
 - Playtime autosave no longer double-schedules after resume, restoring the real 30-second cadence.
