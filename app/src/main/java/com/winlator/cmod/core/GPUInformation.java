@@ -96,6 +96,25 @@ public abstract class GPUInformation {
         }
     }
 
+    /**
+     * Typical device RAM for a detected SoC, in GB. Returns 0 when unknown.
+     * All 1480/1580/1680/2200/2400e devices ship with 8 GB; every 2600
+     * device ships with 12 GB. Other models vary per phone and stay unknown.
+     */
+    public static int getTypicalRamGB() {
+        switch (getXclipseModel()) {
+            case 530:
+            case 540:
+            case 550:
+            case 920:
+                return 8;
+            case 960:
+                return 12;
+            default:
+                return 0;
+        }
+    }
+
     public native static String getVersion();
     public native static String getRenderer();
     public native static long getMemorySize();

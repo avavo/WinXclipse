@@ -3012,11 +3012,19 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
      */
     private int suggestVramCap() {
         ActivityManager activityManager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
-        if (activityManager == null) return 0;
-        ActivityManager.MemoryInfo memoryInfo = new ActivityManager.MemoryInfo();
-        activityManager.getMemoryInfo(memoryInfo);
-        long totalMB = memoryInfo.totalMem / (1024 * 1024);
-        if (totalMB <= 0) return 0;
+        long totalMB = 0;
+        if (activityManager != null) {
+            ActivityManager.MemoryInfo memoryInfo = new ActivityManager.MemoryInfo();
+            activityManager.getMemoryInfo(memoryInfo);
+            totalMB = memoryInfo.totalMem / (1024 * 1024);
+        }
+        if (totalMB <= 0) {
+            // Fall back to the known per-SoC RAM tier when the kernel report
+            // is unavailable (e.g. some low-level builds).
+            int typicalRamGB = GPUInformation.getTypicalRamGB();
+            if (typicalRamGB <= 0) return 0;
+            totalMB = typicalRamGB * 1024L;
+        }
         long capMB = Math.min(4096, Math.max(2048, totalMB * 3 / 8));
         return (int)(capMB / 256 * 256);
     }

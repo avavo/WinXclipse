@@ -78,6 +78,18 @@ Version 0.9 focuses on the video and audio configuration tabs, shortcut artwork,
 - New ? help next to ASTC Transcode explains the Leegao BCN layer trade-offs in our own dialog style.
 - All ? help popups now measure their wrapped text correctly — long explanations are no longer clipped to a single line.
 - With Wrapper-Kirimu selected and Experimental BCN enabled, BCn options lock to Kirimu's profile: emulation type fixed to software, ASTC/ETC2 transcodes disabled, and BCn cache defaulting to 1.
+
+#### Follow-up fixes
+
+- The Video tab renderer choice (Vulkan/OpenGL/GDI) now persists: session startup no longer forces the Wine registry key back to GL on every run.
+- GPU Name starts from "Device" reliably — the Wine-tab GPU spoof spinner no longer leaks its selection into the Video tab.
+- Shortcut settings show the driver version selector on its own full-width row, and "Current Version" displays both wrapper and driver (e.g. "Wrapper-Kirimu · System"); the container editor keeps the original side-by-side rows.
+- ? help popups use a themed dialog background with matching text color on both dark and light themes.
+- New containers default the DDraw wrapper to **None** (Wine built-in ddraw instead of a proxy DLL).
+- Experimental BCN defaults the BCn Emulation Cache to 1 when nothing was configured.
+- Startup Selection fixed: Essential keeps essential+protected services and Aggressive keeps only the protected ones — previously both behaved identically due to an inverted condition.
+- Bundled `vkd3d-proton-3.0.1b.wcp` installs automatically and appears in the DXVK+VKD3D selector; VKD3D extraction also matches the "-0" suffixed bundled archives (`vkd3d-2.8-0.tzst` etc.) that previously failed silently.
+- Per-SoC RAM tiers (8 GB for 1480/1580/1680/2200/2400e-class devices, 12 GB for 2600) are known to the detector and back up the unified-memory VRAM cap when the kernel report is unavailable.
 - GPU detection recognizes the whole Xclipse family (530, 540, 550, 920, 940 including the Exynos 2400e variant, 950, 960) with its AMD RDNA generation (RDNA2: 530/540/920, RDNA3: 550/940/950, RDNA4: 960), and maps each GPU to its Exynos SoC; the FPS HUD shows the detected pairing, e.g. "Xclipse 940 RDNA3 (Exynos 2400/2400e)".
 - On Xclipse 530/540 (low-tier RDNA2, one or two WGPs), Experimental BCN defaults to BCn-to-ASTC transcoding when no transcode option was chosen explicitly — these GPUs decode ASTC in hardware, while per-frame compute emulation competes directly with game rendering.
 - Frequency-based cluster detection covers octa-core (Exynos 1480/1580) and deca-core (Exynos 2400/2400e/2500/2600) layouts alike, so performance-core defaults for 32-bit guest processes are correct on every supported SoC.
