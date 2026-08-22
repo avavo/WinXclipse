@@ -38,6 +38,7 @@ app/src/main/assets/graphics_driver/*
 app/src/main/assets/contents/*
 !app/src/main/assets/contents/Box64-0.4.3-260519-024717c.wcp
 !app/src/main/assets/contents/FEXCore-2608.wcp
+!app/src/main/assets/contents/vkd3d-proton-3.0.1b.wcp
 !app/src/main/assets/dxwrapper/
 app/src/main/assets/dxwrapper/*
 !app/src/main/assets/dxwrapper/dxvk-1.11.1-sarek.tzst
