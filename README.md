@@ -91,6 +91,16 @@ Version 0.9 focuses on the video and audio configuration tabs, shortcut artwork,
 - ALSA pacer thread no longer requests max `SCHED_FIFO`, EGL display is resolved once across all `EGLImage` create/destroy calls, JNI method lookups run only once.
 - Experimental Performance reports a unified-memory-aware VRAM cap (3/8 of total RAM, clamped 2–4 GB) when Max Device Memory is left unset, so games cannot over-commit shared RAM until Android kills Wine.
 
+#### ARM64EC / FEXCore game compatibility (PES 2018 round)
+
+- The builtin wined3d is pinned to the **GL renderer** (`Direct3D\renderer=gl`, written every session): this Proton arm64ec build otherwise defaults wined3d to its Vulkan backend, whose swapchain path died with "Unsupported alpha mode" + a failed `vkDestroySurfaceKHR` assert on Xclipse devices. GL renders through zink into the wrapper ICD instead — matching the bionic base behavior.
+- `extra_libs.tzst` (libGL.so.1, libglapi, vkBasalt) is now extracted whenever missing instead of only inside the experimental-BCN flow; without it the GL renderer failed with "Failed to load libGL → OpenGL support is disabled" and games page-faulted at adapter init.
+- Dedicated **ARM64EC DXVK builds** are bundled and selectable (`2.3.1-arm64ec-gplasync`, `1.10.3-arm64ec-async`). Under ARM64EC Proton the plain x86_64 DXVK builds never load — games silently fell back to builtin wined3d no matter which DXVK version was chosen.
+- FEXCore presets now match the bionic base: Intermediate sets `FEX_X87REDUCEDPRECISION=1`, Performance adds `FEX_DYNAMICL1CACHE=1` + `FEX_DISABLEL2CACHE=1`.
+- Guest processes preload system `libjpeg.so` / `libcrypto.so` (with `/system_ext` and imagefs fallbacks), like the bionic base ships by default.
+- DDraw wrapper gained a **None** option (restores the builtin ddraw.dll), usable alongside CnC-DDraw/Dd7To9/WineD3D.
+- Guest stdout/stderr is piped to logcat again, so Wine debug channels (`+loaddll,+seh,err+all`) produce readable backend logs for troubleshooting.
+
 ## Previous release: WinXclipse v0.8.6
 
 Version 0.8.6 builds on the large runtime and interface foundation introduced in v0.8.5. That release focused on external content management, Xclipse driver support, safer defaults, BCN texture handling, the in-session sidebar, diagnostics, and HUD accuracy.

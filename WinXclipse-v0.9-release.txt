@@ -88,6 +88,16 @@ Native and Memory Optimizations
 - The EGL display handle is resolved once and shared across all AHardwareBuffer EGLImage create/destroy calls, and remaining JNI method lookups run only once instead of per message.
 - Under Experimental Performance with Max Device Memory unset, the wrapper now reports a unified-memory-aware VRAM cap (3/8 of total RAM, clamped to 2-4 GB) instead of unlimited device memory, preventing games from over-committing the shared RAM pool until Android kills Wine.
 
+ARM64EC and FEXCore Game Compatibility
+
+- The builtin wined3d is pinned to the GL renderer (Direct3D\renderer=gl, written every session). This Proton arm64ec build otherwise defaults wined3d to its Vulkan backend, whose swapchain path dies with "Unsupported alpha mode" plus a failed vkDestroySurfaceKHR assert on Xclipse devices. GL renders through zink into the wrapper ICD instead, matching the bionic base behavior.
+- extra_libs.tzst (libGL.so.1, libglapi, vkBasalt) is extracted whenever missing instead of only inside the experimental-BCN flow; without it the GL renderer failed with "Failed to load libGL / OpenGL support is disabled" and games page-faulted at adapter initialization.
+- Dedicated ARM64EC DXVK builds are bundled and selectable (2.3.1-arm64ec-gplasync, 1.10.3-arm64ec-async). Under ARM64EC Proton the plain x86_64 DXVK builds never load, so games silently fell back to builtin wined3d no matter which DXVK version was chosen.
+- FEXCore presets now match the bionic base: Intermediate sets FEX_X87REDUCEDPRECISION=1, Performance adds FEX_DYNAMICL1CACHE=1 and FEX_DISABLEL2CACHE=1.
+- Guest processes preload system libjpeg.so and libcrypto.so (with /system_ext and imagefs fallbacks), like the bionic base ships by default.
+- DDraw wrapper gained a None option that restores the builtin ddraw.dll, alongside CnC-DDraw, Dd7To9 and WineD3D.
+- Guest stdout/stderr is piped to logcat again, so Wine debug channels (+loaddll,+seh,err+all) produce readable backend logs for troubleshooting.
+
 Fixes
 
 - Fixed ARM64EC guests dying silently before creating any window when using the bundled Proton arm64ec with FEXCore: the launcher requested the legacy libarm64ecfex.dll bridge instead of libwow64fex.dll (Proton 9.0 naming), which made every 64-bit game under this path exit at startup — black screen with only Wine services left alive. The launcher now requests libwow64fex.dll, falling back to the legacy name only when the package provides it.
