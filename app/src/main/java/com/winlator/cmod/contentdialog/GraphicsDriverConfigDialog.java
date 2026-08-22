@@ -8,6 +8,7 @@ import android.widget.AdapterView;
 import android.widget.CheckBox;
 import android.widget.Spinner;
 import android.widget.TextView;
+import android.widget.LinearLayout;
 
 import androidx.annotation.Nullable;
 
@@ -37,17 +38,27 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
     private final Spinner versionSpinner;
     private final Spinner vulkanVersionSpinner;
     private final MultiSelectionComboBox extensionsSpinner;
-    private final Spinner gpuNameSpinner;
     private final Spinner maxDeviceMemorySpinner;
-    private final Spinner presentModeSpinner;
     private final Spinner resourceTypeSpinner;
     private final CheckBox syncFrameCheckBox;
     private final CheckBox disablePresentWaitCheckBox;
+    private final Spinner bcnEmulationSpinner;
+    private final Spinner bcnTypeSpinner;
+    private final Spinner bcnCacheSpinner;
+    private final CheckBox astcTranscodeCheckBox;
+    private final CheckBox etc2TranscodeCheckBox;
 
     private final String initialVersion;
     private final String initialExtensionBlacklist;
+    private final HashMap<String, String> initialConfig;
 
     public GraphicsDriverConfigDialog(View anchor, String graphicsDriver, TextView graphicsDriverVersionView) {
+        this(anchor, graphicsDriver, graphicsDriverVersionView, false);
+    }
+
+    public GraphicsDriverConfigDialog(View anchor, String graphicsDriver,
+                                      TextView graphicsDriverVersionView,
+                                      boolean experimentalBcn) {
         super(anchor.getContext(), R.layout.graphics_driver_config_dialog);
         setIcon(R.drawable.icon_settings);
         setTitle(R.string.graphics_driver_configuration);
@@ -55,21 +66,25 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
         versionSpinner = findViewById(R.id.SGraphicsDriverVersion);
         vulkanVersionSpinner = findViewById(R.id.SGraphicsDriverVulkanVersion);
         extensionsSpinner = findViewById(R.id.MSCAvailableExtensions);
-        gpuNameSpinner = findViewById(R.id.SGraphicsDriverGPUName);
         maxDeviceMemorySpinner = findViewById(R.id.SGraphicsDriverMaxDeviceMemory);
-        presentModeSpinner = findViewById(R.id.SGraphicsDriverPresentMode);
         resourceTypeSpinner = findViewById(R.id.SGraphicsDriverResourceType);
         syncFrameCheckBox = findViewById(R.id.CBSyncFrame);
         disablePresentWaitCheckBox = findViewById(R.id.CBDisablePresentWait);
+        bcnEmulationSpinner = findViewById(R.id.SGraphicsDriverBCnEmulation);
+        bcnTypeSpinner = findViewById(R.id.SGraphicsDriverBCnEmulationType);
+        bcnCacheSpinner = findViewById(R.id.SGraphicsDriverBCnEmulationCache);
+        astcTranscodeCheckBox = findViewById(R.id.CBASTCTranscode);
+        etc2TranscodeCheckBox = findViewById(R.id.CBETC2Transcode);
+        findViewById(R.id.LLExperimentalBCNOptions).setVisibility(
+                experimentalBcn ? View.VISIBLE : View.GONE);
 
-        HashMap<String, String> config = parseGraphicsDriverConfig(String.valueOf(anchor.getTag()));
-        initialVersion = config.getOrDefault("version", DefaultVersion.WRAPPER);
-        initialExtensionBlacklist = config.getOrDefault("blacklistedExtensions", "");
+        initialConfig = parseGraphicsDriverConfig(String.valueOf(anchor.getTag()));
+        initialVersion = initialConfig.getOrDefault("version", DefaultVersion.WRAPPER);
+        initialExtensionBlacklist = initialConfig.getOrDefault("blacklistedExtensions", "");
 
         applyTheme(anchor.getContext());
         loadDriverVersions(anchor.getContext(), graphicsDriver);
-        loadGpuNames(anchor.getContext());
-        restoreValues(config);
+        restoreValues(initialConfig);
         configureListeners();
 
         setOnConfirmCallback(() -> {
@@ -110,6 +125,31 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
         return parseGraphicsDriverConfig(graphicsDriverConfig).get("blacklistedExtensions");
     }
 
+    public static void bindExternalDriverSpinner(Context context, Spinner spinner,
+                                                  View configAnchor, String graphicsDriver) {
+        ContentsManager manager = new ContentsManager(context);
+        manager.syncContents();
+        LinkedHashSet<String> versions = new LinkedHashSet<>(Arrays.asList(
+                context.getResources().getStringArray(
+                        R.array.wrapper_graphics_driver_version_entries)));
+        versions.addAll(new XclipseDriverManager(context).enumerateInstalledDrivers());
+        spinner.setAdapter(new ThemedSpinnerAdapter<>(context, new ArrayList<>(versions)));
+        HashMap<String, String> config = parseGraphicsDriverConfig(
+                String.valueOf(configAnchor.getTag()));
+        String wanted = config.getOrDefault("version", DefaultVersion.WRAPPER);
+        AppUtils.setSpinnerSelectionFromValue(spinner, wanted);
+        spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(AdapterView<?> parent, View view,
+                                                 int position, long id) {
+                HashMap<String, String> updated = parseGraphicsDriverConfig(
+                        String.valueOf(configAnchor.getTag()));
+                updated.put("version", selectedValue(spinner));
+                configAnchor.setTag(toGraphicsDriverConfig(updated));
+            }
+            @Override public void onNothingSelected(AdapterView<?> parent) {}
+        });
+    }
+
     private void loadDriverVersions(Context context, String graphicsDriver) {
         ContentsManager contentsManager = new ContentsManager(context);
         contentsManager.syncContents();
@@ -121,37 +161,25 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
         setSpinnerSelectionWithFallback(versionSpinner, initialVersion, graphicsDriver);
     }
 
-    private void loadGpuNames(Context context) {
-        ArrayList<String> names = new ArrayList<>();
-        names.add("Device");
-        try {
-            JSONArray cards = new JSONArray(FileUtils.readString(context, "gpu_cards.json"));
-            for (int i = 0; i < cards.length(); i++) {
-                String name = cards.getJSONObject(i).optString("name", "");
-                if (!name.isEmpty() && !names.contains(name)) names.add(name);
-            }
-        }
-        catch (JSONException e) {
-            Log.w(TAG, "Unable to load GPU name catalog", e);
-        }
-        gpuNameSpinner.setAdapter(new ThemedSpinnerAdapter<>(context, names));
-    }
-
     private void restoreValues(HashMap<String, String> config) {
         AppUtils.setSpinnerSelectionFromValue(vulkanVersionSpinner,
                 config.getOrDefault("vulkanVersion", "1.3"));
-        AppUtils.setSpinnerSelectionFromValue(gpuNameSpinner,
-                config.getOrDefault("gpuName", "Device"));
         AppUtils.setSpinnerSelectionFromNumber(maxDeviceMemorySpinner,
                 config.getOrDefault("maxDeviceMemory", "0"));
-        AppUtils.setSpinnerSelectionFromValue(presentModeSpinner,
-                config.getOrDefault("presentMode", "mailbox"));
         AppUtils.setSpinnerSelectionFromValue(resourceTypeSpinner,
                 config.getOrDefault("resourceType", "auto"));
         syncFrameCheckBox.setChecked("1".equals(config.getOrDefault("syncFrame", "0"))
                 || "Always".equals(config.get("frameSync")));
         disablePresentWaitCheckBox.setChecked("1".equals(config.getOrDefault("disablePresentWait", "0"))
                 || "Never".equals(config.get("frameSync")));
+        AppUtils.setSpinnerSelectionFromValue(bcnEmulationSpinner,
+                config.getOrDefault("bcnEmulation", "auto"));
+        AppUtils.setSpinnerSelectionFromValue(bcnTypeSpinner,
+                config.getOrDefault("bcnEmulationType", "compute"));
+        AppUtils.setSpinnerSelectionFromValue(bcnCacheSpinner,
+                config.getOrDefault("bcnEmulationCache", "0"));
+        astcTranscodeCheckBox.setChecked("1".equals(config.getOrDefault("astcTranscode", "0")));
+        etc2TranscodeCheckBox.setChecked("1".equals(config.getOrDefault("etc2Transcode", "0")));
         refreshExtensions(initialVersion);
     }
 
@@ -165,6 +193,26 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
             @Override
             public void onNothingSelected(AdapterView<?> parent) {
             }
+        });
+
+        astcTranscodeCheckBox.setOnCheckedChangeListener((button, checked) -> {
+            if (checked) etc2TranscodeCheckBox.setChecked(false);
+        });
+        etc2TranscodeCheckBox.setOnCheckedChangeListener((button, checked) -> {
+            if (checked) astcTranscodeCheckBox.setChecked(false);
+        });
+        bcnTypeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(AdapterView<?> parent, View view,
+                                                 int position, long id) {
+                boolean software = "software".equalsIgnoreCase(selectedValue(bcnTypeSpinner));
+                astcTranscodeCheckBox.setEnabled(!software);
+                etc2TranscodeCheckBox.setEnabled(!software);
+                if (software) {
+                    astcTranscodeCheckBox.setChecked(false);
+                    etc2TranscodeCheckBox.setChecked(false);
+                }
+            }
+            @Override public void onNothingSelected(AdapterView<?> parent) {}
         });
 
     }
@@ -182,15 +230,24 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
     }
 
     private String writeGraphicsDriverConfig() {
-        return "vulkanVersion=" + selectedValue(vulkanVersionSpinner)
-                + ";version=" + selectedValue(versionSpinner)
-                + ";blacklistedExtensions=" + extensionsSpinner.getUnSelectedItemsAsString()
-                + ";maxDeviceMemory=" + StringUtils.parseNumber(selectedValue(maxDeviceMemorySpinner))
-                + ";presentMode=" + selectedValue(presentModeSpinner)
-                + ";syncFrame=" + boolValue(syncFrameCheckBox)
-                + ";disablePresentWait=" + boolValue(disablePresentWaitCheckBox)
-                + ";resourceType=" + selectedValue(resourceTypeSpinner)
-                + ";gpuName=" + selectedValue(gpuNameSpinner);
+        HashMap<String, String> result = new HashMap<>(initialConfig);
+        result.put("vulkanVersion", selectedValue(vulkanVersionSpinner));
+        result.put("version", selectedValue(versionSpinner));
+        result.put("blacklistedExtensions", extensionsSpinner.getUnSelectedItemsAsString());
+        result.put("maxDeviceMemory", StringUtils.parseNumber(selectedValue(maxDeviceMemorySpinner)));
+        result.put("syncFrame", boolValue(syncFrameCheckBox));
+        result.put("disablePresentWait", boolValue(disablePresentWaitCheckBox));
+        result.put("resourceType", selectedValue(resourceTypeSpinner));
+        result.put("bcnEmulation", selectedValue(bcnEmulationSpinner));
+        result.put("bcnEmulationType", selectedValue(bcnTypeSpinner));
+        result.put("bcnEmulationCache", selectedValue(bcnCacheSpinner));
+        result.put("astcTranscode", boolValue(astcTranscodeCheckBox));
+        result.put("etc2Transcode", boolValue(etc2TranscodeCheckBox));
+        // GPU name and present mode belong to Video Configuration.  Keeping the
+        // untouched keys here prevents either dialog from silently resetting the other.
+        result.putIfAbsent("gpuName", "Device");
+        result.putIfAbsent("presentMode", "mailbox");
+        return toGraphicsDriverConfig(result);
     }
 
     private static String boolValue(CheckBox checkBox) {
@@ -219,8 +276,9 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
         boolean dark = AppUtils.isDarkMode(context);
         int background = dark ? R.drawable.combo_box_dark : R.drawable.combo_box;
         int textColor = dark ? Color.WHITE : Color.BLACK;
-        Spinner[] spinners = {versionSpinner, vulkanVersionSpinner, gpuNameSpinner,
-                maxDeviceMemorySpinner, presentModeSpinner, resourceTypeSpinner};
+        Spinner[] spinners = {versionSpinner, vulkanVersionSpinner,
+                maxDeviceMemorySpinner, resourceTypeSpinner, bcnEmulationSpinner,
+                bcnTypeSpinner, bcnCacheSpinner};
         for (Spinner spinner : spinners) {
             spinner.setBackgroundResource(background);
         }

@@ -51,7 +51,7 @@ public class ScreenEffectDialog extends ContentDialog {
 
         preferences = PreferenceManager.getDefaultSharedPreferences(activity);
 
-        boolean isDarkMode = preferences.getBoolean("dark_mode", false);
+        boolean isDarkMode = AppUtils.isDarkMode(activity);
 
         TextView lblColorAdjustment = findViewById(R.id.LBLColorAdjustment);
         applyFieldSetLabelStyle(lblColorAdjustment, isDarkMode);

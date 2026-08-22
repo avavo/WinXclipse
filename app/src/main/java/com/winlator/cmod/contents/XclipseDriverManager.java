@@ -13,6 +13,7 @@ import com.winlator.cmod.core.EnvVars;
 import com.winlator.cmod.core.FileUtils;
 import com.winlator.cmod.contentdialog.GraphicsDriverConfigDialog;
 import com.winlator.cmod.core.TarCompressorUtils;
+import com.winlator.cmod.xenvironment.ImageFs;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -20,7 +21,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Locale;
 import org.json.JSONException;
-import org.json.JSONArray;
 import org.json.JSONObject;
 
 public class XclipseDriverManager {
@@ -244,54 +244,23 @@ public class XclipseDriverManager {
         return root;
     }
 
-    public void setDriverById(EnvVars envVars, String driverId) {
+    public void setDriverById(EnvVars envVars, ImageFs imageFs, String driverId) {
         if (extractDriverFromResources(driverId) || enumerateInstalledDrivers().contains(driverId)) {
             String driverPath = driverContentDir.getAbsolutePath() + "/" + driverId + "/";
-            if (!getLibraryName(driverId).equals("")) {
-                envVars.put("XCLIPSE_DRIVER_PATH", driverPath);
-                envVars.put("XCLIPSE_DRIVER_NAME", getLibraryName(driverId));
-                String currentLibraryPath = envVars.get("LD_LIBRARY_PATH");
-                envVars.put("LD_LIBRARY_PATH", driverPath
-                        + (currentLibraryPath.isEmpty() ? "" : ":" + currentLibraryPath));
-                enablePackageLayers(envVars, new File(driverPath));
+            String libraryName = getLibraryName(driverId);
+            if (!libraryName.isEmpty()) {
+                /*
+                 * These environment variable names are the private ABI consumed by
+                 * libvulkan_wrapper.so and its hook libraries.  They are intentionally
+                 * kept for binary compatibility even though the public UI and manager
+                 * are Xclipse-specific.  Renaming them in v0.8.6 made every external
+                 * driver invisible to the wrapper and could leave container startup
+                 * waiting forever.
+                 */
+                envVars.put("ADRENOTOOLS_DRIVER_PATH", driverPath);
+                envVars.put("ADRENOTOOLS_HOOKS_PATH", imageFs.getLibDir());
+                envVars.put("ADRENOTOOLS_DRIVER_NAME", libraryName);
             }
-        }
-    }
-
-    private void enablePackageLayers(EnvVars envVars, File driverDir) {
-        File[] manifests = driverDir.listFiles((dir, name) -> name.toLowerCase(Locale.ENGLISH).endsWith(".json")
-                && !"meta.json".equalsIgnoreCase(name));
-        if (manifests == null || manifests.length == 0) return;
-
-        ArrayList<String> layerNames = new ArrayList<>();
-        for (File manifest : manifests) {
-            try {
-                JSONObject root = new JSONObject(FileUtils.readString(manifest));
-                JSONObject layer = root.optJSONObject("layer");
-                if (layer != null) {
-                    String name = layer.optString("name", "");
-                    if (!name.isEmpty()) layerNames.add(name);
-                }
-                JSONArray layers = root.optJSONArray("layers");
-                if (layers != null) {
-                    for (int i = 0; i < layers.length(); i++) {
-                        JSONObject layerEntry = layers.optJSONObject(i);
-                        if (layerEntry == null) continue;
-                        String name = layerEntry.optString("name", "");
-                        if (!name.isEmpty()) layerNames.add(name);
-                    }
-                }
-            }
-            catch (Exception e) {
-                Log.w("XclipseDriverManager", "Ignoring invalid Vulkan layer manifest " + manifest.getName(), e);
-            }
-        }
-        envVars.put("VK_LAYER_PATH", driverDir.getAbsolutePath()
-                + (envVars.get("VK_LAYER_PATH").isEmpty() ? "" : ":" + envVars.get("VK_LAYER_PATH")));
-        if (!layerNames.isEmpty()) {
-            String existing = envVars.get("VK_INSTANCE_LAYERS");
-            String enabled = String.join(":", layerNames);
-            envVars.put("VK_INSTANCE_LAYERS", enabled + (existing.isEmpty() ? "" : ":" + existing));
         }
     }
  }

@@ -29,6 +29,7 @@
             android:spinnerMode="dialog" />
 
         <TextView
+            android:visibility="gone"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:paddingBottom="8dp"
@@ -37,6 +38,7 @@
 
         <Spinner
             android:id="@+id/SGraphicsDriverVersion"
+            android:visibility="gone"
             style="@style/ComboBox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -59,20 +61,6 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:paddingBottom="8dp"
-            android:text="@string/gpu_name"
-            android:textAppearance="?android:attr/textAppearanceMedium" />
-
-        <Spinner
-            android:id="@+id/SGraphicsDriverGPUName"
-            style="@style/ComboBox"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:spinnerMode="dialog" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:paddingBottom="8dp"
             android:text="@string/graphics_driver_max_device_memory"
             android:textAppearance="?android:attr/textAppearanceMedium" />
 
@@ -82,21 +70,6 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:entries="@array/device_memory_entries"
-            android:spinnerMode="dialog" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:paddingBottom="8dp"
-            android:text="@string/graphics_driver_present_modes"
-            android:textAppearance="?android:attr/textAppearanceMedium" />
-
-        <Spinner
-            android:id="@+id/SGraphicsDriverPresentMode"
-            style="@style/ComboBox"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:entries="@array/present_mode_entries"
             android:spinnerMode="dialog" />
 
         <TextView
@@ -126,6 +99,23 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/graphics_driver_disable_present_wait" />
+
+        <LinearLayout
+            android:id="@+id/LLExperimentalBCNOptions"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/bcn_emulation" />
+            <Spinner android:id="@+id/SGraphicsDriverBCnEmulation" style="@style/ComboBox" android:layout_width="match_parent" android:layout_height="48dp" android:entries="@array/bcn_emulation_entries" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/bcn_emulation_type" />
+            <Spinner android:id="@+id/SGraphicsDriverBCnEmulationType" style="@style/ComboBox" android:layout_width="match_parent" android:layout_height="48dp" android:entries="@array/bcn_emulation_type_entries" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/bcn_emulation_cache" />
+            <Spinner android:id="@+id/SGraphicsDriverBCnEmulationCache" style="@style/ComboBox" android:layout_width="match_parent" android:layout_height="48dp" android:entries="@array/bcn_emulation_cache_entries" />
+            <CheckBox android:id="@+id/CBASTCTranscode" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/astc_transcode" />
+            <CheckBox android:id="@+id/CBETC2Transcode" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/etc2_transcode" />
+        </LinearLayout>
 
     </LinearLayout>
 </ScrollView>

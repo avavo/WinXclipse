@@ -88,8 +88,7 @@ public class ContentsFragment extends Fragment {
         remoteDrivers = externalCatalog.getCachedDrivers();
 
         // Initialize isDarkMode based on shared preferences or theme
-        isDarkMode = PreferenceManager.getDefaultSharedPreferences(getContext())
-                .getBoolean("dark_mode", false);
+        isDarkMode = AppUtils.isDarkMode(requireContext());
     }
 
     @Override

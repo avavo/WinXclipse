@@ -87,8 +87,7 @@ public class SaveSettingsDialog extends ContentDialog {
     private void createContentView() {
         final Context context = getContext();
 
-        isDarkMode = PreferenceManager.getDefaultSharedPreferences(getContext())
-                .getBoolean("dark_mode", false);
+        isDarkMode = AppUtils.isDarkMode(getContext());
 
         LinearLayout llContent = findViewById(R.id.LLContent);
         llContent.getLayoutParams().width = AppUtils.getPreferredDialogWidth(context);

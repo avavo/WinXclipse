@@ -45,8 +45,7 @@ public class FEXCoreEditPresetDialog extends ContentDialog {
         this.preset = presetId != null
                 ? FEXCorePresetManager.getPreset(context, presetId) : null;
         this.readonly = preset != null && !preset.isCustom();
-        this.darkMode = PreferenceManager.getDefaultSharedPreferences(context)
-                .getBoolean("dark_mode", false);
+        this.darkMode = AppUtils.isDarkMode(context);
 
         setTitle(R.string.fexcore_preset);
         setIcon(R.drawable.icon_env_var);

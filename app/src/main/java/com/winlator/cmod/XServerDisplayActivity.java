@@ -113,6 +113,7 @@ import com.winlator.cmod.renderer.GLRenderer;
 import com.winlator.cmod.renderer.effects.CRTEffect;
 import com.winlator.cmod.renderer.effects.ColorEffect;
 import com.winlator.cmod.renderer.effects.FXAAEffect;
+import com.winlator.cmod.renderer.effects.HDREffect;
 import com.winlator.cmod.renderer.effects.NTSCCombinedEffect;
 import com.winlator.cmod.renderer.effects.ToonEffect;
 import com.winlator.cmod.widget.HudDataSource;
@@ -193,6 +194,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     private String graphicsDriver = Container.DEFAULT_GRAPHICS_DRIVER;
     private HashMap<String, String> graphicsDriverConfig;
     private String audioDriver = Container.DEFAULT_AUDIO_DRIVER;
+    private int audioVolume = 100;
     private String emulator = Container.DEFAULT_EMULATOR;
     private String dxwrapper = Container.DEFAULT_DXWRAPPER;
     private String ddrawrapper = Container.DEFAULT_DDRAWRAPPER;
@@ -578,6 +580,13 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         graphicsDriver = container.getGraphicsDriver();
         String graphicsDriverConfig = container.getGraphicsDriverConfig();
         audioDriver = container.getAudioDriver();
+        try {
+            audioVolume = Integer.parseInt(container.getExtra("audioVolume", "100"));
+        }
+        catch (NumberFormatException ignored) {
+            audioVolume = 100;
+        }
+        audioVolume = Math.max(0, Math.min(100, audioVolume));
         emulator = container.getEmulator();
         midiSoundFont = container.getMIDISoundFont();
         dxwrapper = container.getDXWrapper();
@@ -596,6 +605,14 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             graphicsDriver = shortcut.getExtra("graphicsDriver", container.getGraphicsDriver());
             graphicsDriverConfig = shortcut.getExtra("graphicsDriverConfig", container.getGraphicsDriverConfig());
             audioDriver = shortcut.getExtra("audioDriver", container.getAudioDriver());
+            midiSoundFont = shortcut.getExtra("midiSoundFont", container.getMIDISoundFont());
+            try {
+                audioVolume = Integer.parseInt(shortcut.getExtra(
+                        "audioVolume", String.valueOf(audioVolume)));
+            }
+            catch (NumberFormatException ignored) {
+            }
+            audioVolume = Math.max(0, Math.min(100, audioVolume));
             emulator = shortcut.getExtra("emulator", container.getEmulator());
             dxwrapper = shortcut.getExtra("dxwrapper", container.getDXWrapper());
             ddrawrapper = shortcut.getExtra("ddrawrapper", container.getDDrawWrapper());
@@ -683,21 +700,21 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
             @Override
             public void onMapWindow(Window window) {
+                if (!window.isApplicationWindow()) return;
 
-                String cpuList = container.getCPUList(true);
+                String cpuList64 = container.getCPUList(true);
+                String cpuList32 = container.getCPUListWoW64(true);
 
-                // If a shortcut exists, let its setting override the container's default.
+                // A shortcut may override either architecture independently.
                 if (shortcut != null) {
-                    cpuList = shortcut.getExtra("cpuList", container.getCPUList(true));
+                    cpuList64 = shortcut.getExtra("cpuList", cpuList64);
+                    cpuList32 = shortcut.getExtra("cpuListWoW64", cpuList32);
                 }
 
-                // Calculate the final mask from the determined CPU list.
-                short taskAffinityMask = (short) ProcessHelper.getAffinityMask(cpuList);
-
-                // Apply the affinity mask.
-                if (taskAffinityMask > 0) {
-                    setProcessAffinity(window, taskAffinityMask);
-                }
+                int affinityMask = ProcessHelper.getAffinityMask(
+                        window.isWoW64() ? cpuList32 : cpuList64
+                );
+                if (affinityMask > 0) setProcessAffinity(window, affinityMask);
             }
 
             @Override
@@ -1050,16 +1067,19 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             if (midiHandler != null) midiHandler.stop();
             if (sensorManager != null) sensorManager.unregisterListener(gyroListener);
             if (environment != null) environment.stopEnvironmentComponents();
-            if (midiHandler != null) midiHandler.stop();
             if (winHandler != null) winHandler.stop();
             if (wineRequestHandler != null) wineRequestHandler.stop();
             ProcessHelper.terminateAllWineProcesses();
 
-            // Finish the activity on the main UI thread
+            // Return to the application without killing/restarting its process. This
+            // also works when the Wine session was launched by an Android shortcut.
             runOnUiThread(() -> {
-            preloaderDialog.close();
-            AppUtils.restartApplication(getApplicationContext());
-                });
+                preloaderDialog.close();
+                Intent intent = new Intent(this, MainActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                startActivity(intent);
+                finish();
+            });
             });
         }, 1000);
     }
@@ -1818,7 +1838,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             envVars.put("PULSE_SERVER", rootPath + UnixSocketConfig.PULSE_SERVER_PATH);
             environment.addComponent(
                     new PulseAudioComponent(
-                            UnixSocketConfig.createSocket(rootPath, UnixSocketConfig.PULSE_SERVER_PATH)
+                            UnixSocketConfig.createSocket(rootPath, UnixSocketConfig.PULSE_SERVER_PATH),
+                            audioVolume
                     )
             );
         }
@@ -1977,6 +1998,24 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         }
         catch (Exception ignored) {}
         setFpsLimit(renderer, savedFpsLimit, false);
+
+        int textureFilterMode = 0;
+        try {
+            String value = shortcut != null
+                    ? shortcut.getExtra("rendererFilterMode", container.getExtra("rendererFilterMode", "0"))
+                    : container.getExtra("rendererFilterMode", "0");
+            textureFilterMode = Integer.parseInt(value);
+        }
+        catch (Exception ignored) {}
+        renderer.setTextureFilterMode(textureFilterMode);
+        boolean swapRedBlue = shortcut != null
+                ? "1".equals(shortcut.getExtra("rendererSwapRB", container.getExtra("rendererSwapRB", "0")))
+                : "1".equals(container.getExtra("rendererSwapRB", "0"));
+        renderer.setSwapRedBlue(swapRedBlue);
+        boolean fakeHdr = shortcut != null
+                ? "1".equals(shortcut.getExtra("fakeHDR", container.getExtra("fakeHDR", "0")))
+                : "1".equals(container.getExtra("fakeHDR", "0"));
+        if (fakeHdr) renderer.getEffectComposer().addEffect(new HDREffect());
 
         if (shortcut != null) {
             if (shortcut.getExtra("forceFullscreen", "0").equals("1")) renderer.setForceFullscreenWMClass(shortcut.wmClass);
@@ -2150,13 +2189,66 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     }
 
     private void showSidebarDisplayMenu(View anchor) {
+        GLRenderer renderer = getXServerView().getRenderer();
+        final int filterGroup = 0x710000;
+        final int itemFakeHdr = 0x710001;
+        final int itemBilinear = 0x710002;
+        final int itemNearest = 0x710003;
+        final int itemSwapRedBlue = 0x710004;
         PopupMenu popup = new PopupMenu(this, anchor);
         popup.getMenu().add(0, R.id.main_menu_screen_effects, 0, R.string.screen_effect);
-        popup.getMenu().add(0, R.id.main_menu_toggle_fullscreen, 1, R.string.toggle_fullscreen);
-        popup.getMenu().add(0, R.id.main_menu_magnifier, 2, R.string.magnifier);
-        popup.getMenu().add(0, R.id.main_menu_pip_mode, 3, R.string.pip_mode);
-        popup.setOnMenuItemClickListener(this::onNavigationItemSelected);
+        popup.getMenu().add(0, itemFakeHdr, 1, R.string.fake_hdr)
+                .setCheckable(true)
+                .setChecked(renderer.getEffectComposer().getEffect(HDREffect.class) != null);
+        popup.getMenu().add(filterGroup, itemBilinear, 2, R.string.bilinear)
+                .setCheckable(true).setChecked(renderer.getTextureFilterMode() == 0);
+        popup.getMenu().add(filterGroup, itemNearest, 3, R.string.nearest_neighbor)
+                .setCheckable(true).setChecked(renderer.getTextureFilterMode() == 1);
+        popup.getMenu().setGroupCheckable(filterGroup, true, true);
+        popup.getMenu().add(0, itemSwapRedBlue, 4, R.string.swap_red_blue_channels)
+                .setCheckable(true).setChecked(renderer.isSwapRedBlue());
+        popup.getMenu().add(0, R.id.main_menu_toggle_fullscreen, 5, R.string.toggle_fullscreen);
+        popup.getMenu().add(0, R.id.main_menu_magnifier, 6, R.string.magnifier);
+        popup.getMenu().add(0, R.id.main_menu_pip_mode, 7, R.string.pip_mode);
+        popup.setOnMenuItemClickListener(item -> {
+            if (item.getItemId() == itemFakeHdr) {
+                setFakeHdrEnabled(renderer,
+                        renderer.getEffectComposer().getEffect(HDREffect.class) == null, true);
+                return true;
+            }
+            if (item.getItemId() == itemBilinear || item.getItemId() == itemNearest) {
+                int mode = item.getItemId() == itemNearest ? 1 : 0;
+                renderer.setTextureFilterMode(mode);
+                persistRuntimeVideoOption("rendererFilterMode", String.valueOf(mode));
+                return true;
+            }
+            if (item.getItemId() == itemSwapRedBlue) {
+                boolean enabled = !renderer.isSwapRedBlue();
+                renderer.setSwapRedBlue(enabled);
+                persistRuntimeVideoOption("rendererSwapRB", enabled ? "1" : "0");
+                return true;
+            }
+            return onNavigationItemSelected(item);
+        });
         popup.show();
+    }
+
+    private void setFakeHdrEnabled(GLRenderer renderer, boolean enabled, boolean persist) {
+        HDREffect current = renderer.getEffectComposer().getEffect(HDREffect.class);
+        if (enabled && current == null) renderer.getEffectComposer().addEffect(new HDREffect());
+        else if (!enabled && current != null) renderer.getEffectComposer().removeEffect(current);
+        if (persist) persistRuntimeVideoOption("fakeHDR", enabled ? "1" : "0");
+    }
+
+    private void persistRuntimeVideoOption(String key, String value) {
+        if (shortcut != null) {
+            shortcut.putExtra(key, value);
+            shortcut.saveData();
+        }
+        else if (container != null) {
+            container.putExtra(key, value);
+            container.saveData();
+        }
     }
 
     private void showSidebarFpsLimiter(GLRenderer renderer) {
@@ -2184,11 +2276,15 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         ArrayList<ControlsProfile> profiles = inputControlsManager.getProfiles(true);
         int preferredId = preferences.getInt("sidebar_controller_profile_id", -1);
         ControlsProfile fallback = null;
+        ControlsProfile legacyFallback = null;
         for (ControlsProfile profile : profiles) {
             if (profile.id == preferredId) return profile;
-            if ("Virtual Gamepad".equalsIgnoreCase(profile.getName())) fallback = profile;
+            if ("Virtual Gamepad 2".equalsIgnoreCase(profile.getName())) fallback = profile;
+            else if ("Virtual Gamepad".equalsIgnoreCase(profile.getName())) legacyFallback = profile;
         }
-        return fallback != null ? fallback : (profiles.isEmpty() ? null : profiles.get(0));
+        if (fallback != null) return fallback;
+        if (legacyFallback != null) return legacyFallback;
+        return profiles.isEmpty() ? null : profiles.get(0);
     }
 
     private void updateSidebarControllerLabel(ControlsProfile profile) {
@@ -2651,8 +2747,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             currentWrapperVersion = shortcut.getExtra("wrapperGraphicsDriverVersion", currentWrapperVersion);
             selectedDriverVersion = currentWrapperVersion;
         }
-        String xclipseDriverId = selectedDriverVersion.contains(DefaultVersion.WRAPPER)
-                ? DefaultVersion.WRAPPER : selectedDriverVersion;
+        String xclipseDriverId = selectedDriverVersion == null
+                || selectedDriverVersion.trim().equalsIgnoreCase(DefaultVersion.WRAPPER)
+                ? DefaultVersion.WRAPPER : selectedDriverVersion.trim();
         Log.d("GraphicsDriverExtraction", "Xclipse driver ID: " + xclipseDriverId);
 
         File rootDir = imageFs.getRootDir();
@@ -2705,21 +2802,51 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             }
         }
 
-        // v0.9 returns to the pre-BCN-layer graphics path used by v0.7.6. Clean up
-        // files left by v0.8.x so an in-place update cannot keep activating them.
-        File staleBcnLayerLibrary = new File(rootDir, "usr/lib/libbcn_layer.so");
-        File staleBcnLayerManifest = new File(rootDir,
-                "usr/share/vulkan/implicit_layer.d/libbcn_layer.json");
-        if (staleBcnLayerManifest.isFile() && !staleBcnLayerManifest.delete()) {
-            Log.w("GraphicsDriverExtraction", "Unable to remove legacy BCN layer manifest");
+        boolean experimentalBCN = container != null
+                && "1".equals(container.getExtra("experimentalBCN", "0"));
+        if (shortcut != null && shortcut.hasExtra("experimentalBCN")) {
+            experimentalBCN = "1".equals(shortcut.getExtra("experimentalBCN", "0"));
         }
-        if (staleBcnLayerLibrary.isFile() && !staleBcnLayerLibrary.delete()) {
-            Log.w("GraphicsDriverExtraction", "Unable to remove legacy BCN layer library");
+
+        File bcnLayerLibrary = new File(rootDir, "usr/lib/libbcn_layer.so");
+        File bcnLayerManifest = new File(rootDir,
+                "usr/share/vulkan/implicit_layer.d/libbcn_layer.json");
+        final String bcnLayerVersion = "leegao-winmali-2";
+        boolean bcnLayerReady = bcnLayerLibrary.isFile() && bcnLayerManifest.isFile();
+
+        if (experimentalBCN && (!bcnLayerReady
+                || !bcnLayerVersion.equals(container.getExtra("bcnLayerVersion", "")))) {
+            Log.i("GraphicsDriverExtraction", "Installing opt-in BCN compatibility layer");
+            TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this,
+                    "graphics_driver/extra_libs.tzst", rootDir);
+            TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this,
+                    "layers.tzst", rootDir);
+            File downloadedBcnLayer = new File(getFilesDir(),
+                    "graphics_driver/leegao_bcn.tzst");
+            boolean extracted = downloadedBcnLayer.isFile()
+                    ? TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD,
+                            downloadedBcnLayer, rootDir)
+                    : TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this,
+                            "graphics_driver/leegao_bcn.tzst", rootDir);
+            bcnLayerReady = extracted && bcnLayerLibrary.isFile()
+                    && bcnLayerManifest.isFile();
+            container.putExtra("bcnLayerVersion", bcnLayerReady ? bcnLayerVersion : null);
+            container.saveData();
+        }
+
+        if (!experimentalBCN || !bcnLayerReady) {
+            if (bcnLayerManifest.isFile() && !bcnLayerManifest.delete()) {
+                Log.w("GraphicsDriverExtraction", "Unable to remove inactive BCN layer manifest");
+            }
+            if (bcnLayerLibrary.isFile() && !bcnLayerLibrary.delete()) {
+                Log.w("GraphicsDriverExtraction", "Unable to remove inactive BCN layer library");
+            }
+            bcnLayerReady = false;
         }
 
         if (!DefaultVersion.WRAPPER.equals(xclipseDriverId)) {
             XclipseDriverManager driverManager = new XclipseDriverManager(this);
-            driverManager.setDriverById(envVars, xclipseDriverId);
+            driverManager.setDriverById(envVars, imageFs, xclipseDriverId);
         }
 
         envVars.put("WRAPPER_VK_VERSION",
@@ -2752,6 +2879,22 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         String disablePresentWait = graphicsDriverConfig.getOrDefault("disablePresentWait",
                 "Never".equals(legacyFrameSync) ? "1" : "0");
         envVars.put("WRAPPER_DISABLE_PRESENT_WAIT", disablePresentWait);
+
+        envVars.remove("ENABLE_BCN_COMPUTE");
+        envVars.remove("DISABLE_BCN_COMPUTE");
+        envVars.remove("BCN_COMPUTE_AUTO");
+        envVars.remove("WRAPPER_EMULATE_BCN");
+        envVars.remove("WRAPPER_USE_BCN_CACHE");
+        envVars.remove("BCN_TRANSCODE_TO_ASTC");
+        envVars.remove("BCN_TRANSCODE_TO_ETC2");
+        if (experimentalBCN && bcnLayerReady) {
+            envVars.put("ENABLE_BCN_COMPUTE", "1");
+            envVars.put("BCN_COMPUTE_AUTO", "1");
+            envVars.put("WRAPPER_EMULATE_BCN", "3");
+            envVars.put("WRAPPER_USE_BCN_CACHE", "0");
+        }
+        Log.i("GraphicsDriverExtraction", "Experimental BCN="
+                + experimentalBCN + ", layerReady=" + bcnLayerReady);
 
         if (!vkbasaltConfig.isEmpty()) {
             envVars.put("ENABLE_VKBASALT", "1");

@@ -3,6 +3,7 @@ package com.winlator.cmod.widget;
 // Ported from Winlator Mali:
 // https://github.com/GunaCharanTeja/WinlatorMali
 
+import android.app.ActivityManager;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Canvas;
@@ -18,6 +19,7 @@ import android.view.MotionEvent;
 import android.view.View;
 
 import com.winlator.cmod.R;
+import com.winlator.cmod.contentdialog.ContentDialog;
 import com.winlator.cmod.core.StringUtils;
 
 import java.util.Locale;
@@ -74,12 +76,14 @@ public class WinlatorHUD extends View {
     private final Paint pFps     = new Paint(TEXT_FLAGS);
     private final Paint pRend    = new Paint(TEXT_FLAGS);
     private final Paint pRam     = new Paint(TEXT_FLAGS);
+    private final Paint pRamAlert= new Paint(TEXT_FLAGS);
     private final Paint pSep     = new Paint(TEXT_FLAGS);
     private final Paint pChg     = new Paint(TEXT_FLAGS);
     private final Paint pGraph   = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint pGraphBg = new Paint();
 
     private final RectF bgRect = new RectF();
+    private final RectF ramHelpHitRect = new RectF();
 
     private float wLabelGpu, wLabelCpu, wLabelRam, wLabelPwr, wLabelTmp, wLabelCTmp, wLabelFps, wLabelApex, wSep;
     private float wVal100pct, wValFps, wValWatt, wValTemp, wValBInfo;
@@ -90,6 +94,10 @@ public class WinlatorHUD extends View {
     private String strPwr = "N/A", strTmp = "", strCTmp = "", strFps = "0", strPct = "";
     private String strRend = "OpenGL", strWrapper = "WineD3D";
     private boolean snapCharging = false;
+    private final int ramBlinkThreshold;
+    private final int ramWarningThreshold;
+    private boolean ramAlertActive = false;
+    private boolean ramHelpPressed = false;
 
     private final SharedPreferences prefs;
     private final Handler uiHandler = new Handler(Looper.getMainLooper());
@@ -139,6 +147,12 @@ public class WinlatorHUD extends View {
     public WinlatorHUD(Context context, AttributeSet attrs) {
         super(context, attrs);
         prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        ActivityManager.MemoryInfo memoryInfo = new ActivityManager.MemoryInfo();
+        ActivityManager activityManager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
+        if (activityManager != null) activityManager.getMemoryInfo(memoryInfo);
+        boolean hasAtLeastTenGb = memoryInfo.totalMem >= 10L * 1024L * 1024L * 1024L;
+        ramBlinkThreshold = hasAtLeastTenGb ? 93 : 91;
+        ramWarningThreshold = hasAtLeastTenGb ? 95 : 92;
         float d = context.getResources().getDisplayMetrics().density;
         TS     = 12f * d;
         TSR    = 11f * d;
@@ -168,6 +182,7 @@ public class WinlatorHUD extends View {
         pFps.setColor(C_FPS);
         pRend.setTextSize(TSR);     pRend.setTypeface(mono); pRend.setColor(C_REND);
         pRam.setTextSize(TS);       pRam.setTypeface(mono);  pRam.setColor(C_RAM);
+        pRamAlert.setTextSize(TS);  pRamAlert.setTypeface(mono); pRamAlert.setColor(C_TEMP);
         pSep.setTextSize(TS);       pSep.setTypeface(mono);  pSep.setColor(C_SEP);
         pChg.setTextSize(TS);       pChg.setTypeface(mono);  pChg.setColor(C_CHG);
 
@@ -179,6 +194,7 @@ public class WinlatorHUD extends View {
         pFps.setShadowLayer(2f, 1f, 1f, Color.BLACK);
         pRend.setShadowLayer(2f, 1f, 1f, Color.BLACK);
         pRam.setShadowLayer(2f, 1f, 1f, Color.BLACK);
+        pRamAlert.setShadowLayer(2f, 1f, 1f, Color.BLACK);
         pSep.setShadowLayer(2f, 1f, 1f, Color.BLACK);
         pChg.setShadowLayer(2f, 1f, 1f, Color.BLACK);
 
@@ -241,6 +257,7 @@ public class WinlatorHUD extends View {
             if (g != snapGpu)   { snapGpu = g;  strGpu = g  >= 0 ? g  + "%" : "N/A"; }
             if (cp != snapCpu)  { snapCpu = cp; strCpu = cp >= 0 ? cp + "%" : "N/A"; }
             if (rm != snapRam)  { snapRam = rm; strRam = rm >= 0 ? rm + "%" : "N/A"; }
+            updateRamAlert(rm);
             if (tm != snapTmp)  { snapTmp = tm; strTmp = tm > 0 ? tm + "°C" : ""; }
             if (ctm != snapCTmp) { snapCTmp = ctm; strCTmp = ctm > 0 ? ctm + "°C" : ""; }
             if (pc != snapPct)  { snapPct = pc; strPct = pc >= 0 ? pc + "%" : ""; }
@@ -254,10 +271,29 @@ public class WinlatorHUD extends View {
         }
     }
 
+    private void updateRamAlert(int ramPercent) {
+        boolean wasActive = ramAlertActive;
+        ramAlertActive = ramPercent >= ramBlinkThreshold;
+        if (wasActive != ramAlertActive) {
+            layoutDirty = true;
+            requestLayout();
+        }
+    }
+
+    private void showRamWarning() {
+        ContentDialog dialog = new ContentDialog(getContext());
+        dialog.setTitle("High RAM Usage");
+        dialog.setMessage("RAM usage is currently " + Math.max(0, snapRam) + "%. "
+                + "At " + ramWarningThreshold + "% or higher, the game may run out of memory and crash.");
+        dialog.findViewById(R.id.BTCancel).setVisibility(View.GONE);
+        dialog.show();
+    }
+
     @Override
     protected void onDraw(Canvas c) {
         if (getVisibility() != VISIBLE) return;
         try {
+            ramHelpHitRect.setEmpty();
             boolean mono = (showMask & SHOW_MONO) != 0;
             updatePaintColors(mono);
 
@@ -286,7 +322,11 @@ public class WinlatorHUD extends View {
         pBat.setColor(mono ? C_WHITE : C_BATT);
         pTmp.setColor(mono ? C_WHITE : C_TEMP);
         pRend.setColor(mono ? C_WHITE : C_REND);
-        pRam.setColor(mono ? C_WHITE : C_RAM);
+        pRam.setColor(ramAlertActive ? C_TEMP : (mono ? C_WHITE : C_RAM));
+    }
+
+    private Paint getRamValuePaint(boolean compact) {
+        return ramAlertActive ? pRamAlert : (compact ? pRam : pVal);
     }
 
     private void drawHorizontal(Canvas c) {
@@ -330,11 +370,18 @@ public class WinlatorHUD extends View {
         }
         if ((showMask & SHOW_RAM) != 0) {
             if (!first) x += drawSep(c, x, 0);
-            float baseline = getBaseline(compact ? pRam : pVal, 0, rowH);
+            Paint ramValuePaint = getRamValuePaint(compact);
+            float baseline = getBaseline(ramValuePaint, 0, rowH);
             if (!compact) { c.drawText("RAM ", x, baseline, pRam); x += wLabelRam; }
             float vw = Math.max(pVal.measureText(strRam), wVal100pct);
-            c.drawText(strRam, x, baseline, compact ? pRam : pVal);
+            c.drawText(strRam, x, baseline, ramValuePaint);
             x += vw;
+            if (ramAlertActive) {
+                float helpWidth = pRamAlert.measureText(" ?");
+                c.drawText(" ?", x, baseline, pRamAlert);
+                ramHelpHitRect.set(x - PAD / 2f, 0, x + helpWidth + PAD / 2f, rowH);
+                x += helpWidth;
+            }
             first = false;
         }
         if ((showMask & SHOW_BATT) != 0) {
@@ -417,9 +464,17 @@ public class WinlatorHUD extends View {
             y += lineH;
         }
         if ((showMask & SHOW_RAM) != 0) {
-            float bl = getBaseline(compact ? pRam : pVal, y, lineH);
+            Paint ramValuePaint = getRamValuePaint(compact);
+            float bl = getBaseline(ramValuePaint, y, lineH);
             if (!compact) c.drawText("RAM ", PAD, bl, pRam);
-            c.drawText(strRam, PAD + (compact ? 0 : wLabelRam), bl, compact ? pRam : pVal);
+            float valueX = PAD + (compact ? 0 : wLabelRam);
+            c.drawText(strRam, valueX, bl, ramValuePaint);
+            if (ramAlertActive) {
+                float helpX = valueX + ramValuePaint.measureText(strRam);
+                float helpWidth = pRamAlert.measureText(" ?");
+                c.drawText(" ?", helpX, bl, pRamAlert);
+                ramHelpHitRect.set(helpX - PAD / 2f, y, helpX + helpWidth + PAD / 2f, y + lineH);
+            }
             y += lineH;
         }
         if ((showMask & SHOW_BATT) != 0) {
@@ -511,6 +566,7 @@ public class WinlatorHUD extends View {
         if ((showMask & SHOW_RAM) != 0) {
             if (!first) w += drawSep(null, 0, 0);
             w += (compact ? 0 : wLabelRam) + Math.max(pVal.measureText(strRam), wVal100pct);
+            if (ramAlertActive) w += pRamAlert.measureText(" ?");
             first = false;
         }
         if ((showMask & SHOW_BATT) != 0) {
@@ -547,7 +603,11 @@ public class WinlatorHUD extends View {
         if ((showMask & SHOW_WRAPPER)  != 0) w = Math.max(w, PAD * 2 + pRend.measureText(strWrapper));
         if ((showMask & SHOW_GPU)      != 0) w = Math.max(w, PAD * 2 + (compact ? 0 : wLabelGpu) + Math.max(pVal.measureText(strGpu), wVal100pct));
         if ((showMask & SHOW_CPU)      != 0) w = Math.max(w, PAD * 2 + (compact ? 0 : wLabelCpu) + Math.max(pVal.measureText(strCpu), wVal100pct));
-        if ((showMask & SHOW_RAM)      != 0) w = Math.max(w, PAD * 2 + (compact ? 0 : wLabelRam) + Math.max(pVal.measureText(strRam), wVal100pct));
+        if ((showMask & SHOW_RAM)      != 0) {
+            float helpWidth = ramAlertActive ? pRamAlert.measureText(" ?") : 0;
+            w = Math.max(w, PAD * 2 + (compact ? 0 : wLabelRam)
+                    + Math.max(pVal.measureText(strRam), wVal100pct) + helpWidth);
+        }
         if ((showMask & SHOW_BATT)     != 0) {
             float bw = Math.max((compact ? pBat : pVal).measureText(strPwr + ( (showMask & SHOW_BATT_PCT) != 0 ? " (100%)" : "" )), wValBInfo);
             w = Math.max(w, PAD * 2 + (compact ? 0 : wLabelPwr) + bw);
@@ -589,6 +649,21 @@ public class WinlatorHUD extends View {
 
     @Override
     public boolean onTouchEvent(MotionEvent e) {
+        if (e.getActionMasked() == MotionEvent.ACTION_DOWN
+                && ramAlertActive && ramHelpHitRect.contains(e.getX(), e.getY())) {
+            ramHelpPressed = true;
+            return true;
+        }
+        if (ramHelpPressed) {
+            if (e.getActionMasked() == MotionEvent.ACTION_UP) {
+                boolean showWarning = ramHelpHitRect.contains(e.getX(), e.getY());
+                ramHelpPressed = false;
+                if (showWarning) showRamWarning();
+            } else if (e.getActionMasked() == MotionEvent.ACTION_CANCEL) {
+                ramHelpPressed = false;
+            }
+            return true;
+        }
         if ((showMask & SHOW_LOCKED) != 0) return false;
         switch (e.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:

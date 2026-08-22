@@ -30,6 +30,7 @@ import androidx.core.content.ContextCompat;
 import androidx.preference.PreferenceManager;
 
 import com.winlator.cmod.R;
+import com.winlator.cmod.core.AppUtils;
 import com.winlator.cmod.contentdialog.ContentDialog;
 import com.winlator.cmod.winhandler.WinHandler;
 
@@ -171,7 +172,7 @@ public class MotionControls implements SensorEventListener {
         ContentDialog cd = new ContentDialog(ctx, 0);
         cd.setTitle(R.string.gyro_settings);
 
-        boolean dark = PreferenceManager.getDefaultSharedPreferences(ctx).getBoolean("dark_mode", false);
+        boolean dark = AppUtils.isDarkMode(ctx);
         ContextThemeWrapper wrap = new ContextThemeWrapper(cd.getContext(), dark ? R.style.ContentDialog : R.style.AppTheme);
 
         if (dark) {

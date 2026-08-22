@@ -21,11 +21,17 @@ import java.util.ArrayList;
 
 public class PulseAudioComponent extends EnvironmentComponent {
     private final UnixSocketConfig socketConfig;
+    private final int volumePercent;
     private static int pid = -1;
     private static final Object lock = new Object();
 
     public PulseAudioComponent(UnixSocketConfig socketConfig) {
+        this(socketConfig, 100);
+    }
+
+    public PulseAudioComponent(UnixSocketConfig socketConfig, int volumePercent) {
         this.socketConfig = socketConfig;
+        this.volumePercent = Math.max(0, Math.min(100, volumePercent));
     }
 
     @Override
@@ -77,10 +83,13 @@ public class PulseAudioComponent extends EnvironmentComponent {
         }
 
         File configFile = new File(workingDir, "default.pa");
+        int pulseVolume = Math.round(65536f * volumePercent / 100f);
         FileUtils.writeString(configFile, String.join("\n",
             "load-module module-native-protocol-unix auth-anonymous=1 auth-cookie-enabled=0 socket=\""+socketConfig.path+"\"",
             "load-module module-aaudio-sink",
-            "set-default-sink AAudioSink"
+            "set-default-sink AAudioSink",
+            "set-sink-volume AAudioSink " + pulseVolume,
+            "set-sink-mute AAudioSink no"
         ));
 
         String archName = AppUtils.getArchName();

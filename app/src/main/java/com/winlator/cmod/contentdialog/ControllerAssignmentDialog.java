@@ -18,6 +18,7 @@ import androidx.preference.PreferenceManager;
 import com.winlator.cmod.R;
 import com.winlator.cmod.MainActivity;
 import com.winlator.cmod.XServerDisplayActivity;
+import com.winlator.cmod.core.AppUtils;
 import com.winlator.cmod.inputcontrols.ControllerManager;
 import com.winlator.cmod.winhandler.WinHandler;
 
@@ -61,8 +62,7 @@ public class ControllerAssignmentDialog {
     // ---------- Impl ---------------------------------------------------------
 
     private ControllerAssignmentDialog(Activity activity, int initialPlayerCount, WinHandler winHandler) {
-        boolean dark = PreferenceManager.getDefaultSharedPreferences(activity)
-                .getBoolean("dark_mode", false);
+        boolean dark = AppUtils.isDarkMode(activity);
 
         this.dialog = new ContentDialog(activity, R.layout.controller_assignment_dialog);
         this.dialog.setTitle(R.string.controller_manager);

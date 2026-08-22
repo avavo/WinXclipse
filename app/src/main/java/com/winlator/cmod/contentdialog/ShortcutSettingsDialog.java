@@ -54,6 +54,7 @@ import java.io.File;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 
 import kotlin.random.Random;
@@ -106,7 +107,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
         llContent.getLayoutParams().width = AppUtils.getPreferredDialogWidth(context);
 
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
-        boolean isDarkMode = prefs.getBoolean("dark_mode", false);
+        boolean isDarkMode = AppUtils.isDarkMode(context);
 
         applyDynamicStyles(findViewById(R.id.LLContent), isDarkMode);
 
@@ -158,6 +159,71 @@ public class ShortcutSettingsDialog extends ContentDialog {
                 Container.normalizeGraphicsDriver(shortcut.getExtra("graphicsDriver", shortcut.container.getGraphicsDriver())),
             shortcut.getExtra("dxwrapper", shortcut.container.getDXWrapper()));
 
+        final Spinner sRenderer = findViewById(R.id.SRenderer);
+        sRenderer.setAdapter(new ThemedSpinnerAdapter<>(context,
+                Arrays.asList(context.getString(R.string.gl),
+                        context.getString(R.string.vulkan), context.getString(R.string.gdi))));
+        final String containerRenderer = shortcut.container.getExtra("renderer", "vulkan");
+        AppUtils.setSpinnerSelectionFromIdentifier(sRenderer,
+                shortcut.getExtra("renderer", containerRenderer));
+
+        int parsedContainerRendererFilterMode = 0;
+        int parsedShortcutRendererFilterMode = 0;
+        try {
+            parsedContainerRendererFilterMode = Integer.parseInt(
+                    shortcut.container.getExtra("rendererFilterMode", "0"));
+            parsedShortcutRendererFilterMode = Integer.parseInt(shortcut.getExtra(
+                    "rendererFilterMode", String.valueOf(parsedContainerRendererFilterMode)));
+        }
+        catch (NumberFormatException ignored) {
+        }
+        final int containerRendererFilterMode = parsedContainerRendererFilterMode;
+        final int[] rendererFilterMode = {parsedShortcutRendererFilterMode};
+        final boolean containerRendererSwapRB = "1".equals(
+                shortcut.container.getExtra("rendererSwapRB", "0"));
+        final boolean[] rendererSwapRB = {"1".equals(shortcut.getExtra(
+                "rendererSwapRB", containerRendererSwapRB ? "1" : "0"))};
+
+        findViewById(R.id.BTVideoConfig).setOnClickListener(button ->
+                new VideoConfigDialog(context, new VideoConfigDialog.Config() {
+                    @Override
+                    public String getGpuName() {
+                        HashMap<String, String> config = GraphicsDriverConfigDialog
+                                .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()));
+                        return config.getOrDefault("gpuName", "Device");
+                    }
+
+                    @Override
+                    public String getPresentMode() {
+                        HashMap<String, String> config = GraphicsDriverConfigDialog
+                                .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()));
+                        return config.getOrDefault("presentMode", "mailbox");
+                    }
+
+                    @Override
+                    public int getTextureFilterMode() {
+                        return rendererFilterMode[0];
+                    }
+
+                    @Override
+                    public boolean isSwapRedBlue() {
+                        return rendererSwapRB[0];
+                    }
+
+                    @Override
+                    public void apply(String gpuName, String presentMode,
+                                      int textureFilterMode, boolean swapRedBlue) {
+                        HashMap<String, String> config = GraphicsDriverConfigDialog
+                                .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()));
+                        config.put("gpuName", gpuName);
+                        config.put("presentMode", presentMode);
+                        vGraphicsDriverConfig.setTag(
+                                GraphicsDriverConfigDialog.toGraphicsDriverConfig(config));
+                        rendererFilterMode[0] = textureFilterMode;
+                        rendererSwapRB[0] = swapRedBlue;
+                    }
+                }).show());
+
         findViewById(R.id.BTHelpDXWrapper).setOnClickListener((v) -> AppUtils.showHelpBox(context, v, R.string.dxwrapper_help_content));
 
         final Spinner sAudioDriver = findViewById(R.id.SAudioDriver);
@@ -169,6 +235,44 @@ public class ShortcutSettingsDialog extends ContentDialog {
         final Spinner sMIDISoundFont = findViewById(R.id.SMIDISoundFont);
         MidiManager.loadSFSpinner(sMIDISoundFont);
         AppUtils.setSpinnerSelectionFromValue(sMIDISoundFont, shortcut.getExtra("midiSoundFont", shortcut.container.getMIDISoundFont()));
+
+        int parsedContainerAudioVolume = 100;
+        int parsedShortcutAudioVolume = 100;
+        try {
+            parsedContainerAudioVolume = Integer.parseInt(
+                    shortcut.container.getExtra("audioVolume", "100"));
+            parsedShortcutAudioVolume = Integer.parseInt(shortcut.getExtra(
+                    "audioVolume", String.valueOf(parsedContainerAudioVolume)));
+        }
+        catch (NumberFormatException ignored) {
+        }
+        final int containerAudioVolume = Math.max(0, Math.min(100, parsedContainerAudioVolume));
+        final int[] audioVolume = {Math.max(0, Math.min(100, parsedShortcutAudioVolume))};
+        findViewById(R.id.BTAudioConfig).setOnClickListener(v ->
+                new AudioConfigDialog(context, new AudioConfigDialog.Config() {
+                    @Override
+                    public String getAudioDriver() {
+                        return StringUtils.parseIdentifier(sAudioDriver.getSelectedItem());
+                    }
+
+                    @Override
+                    public String getMidiSoundFont() {
+                        return sMIDISoundFont.getSelectedItemPosition() == 0
+                                ? "" : sMIDISoundFont.getSelectedItem().toString();
+                    }
+
+                    @Override
+                    public int getVolumePercent() {
+                        return audioVolume[0];
+                    }
+
+                    @Override
+                    public void apply(String driver, String soundFont, int volumePercent) {
+                        AppUtils.setSpinnerSelectionFromIdentifier(sAudioDriver, driver);
+                        AppUtils.setSpinnerSelectionFromValue(sMIDISoundFont, soundFont);
+                        audioVolume[0] = volumePercent;
+                    }
+                }).show());
 
         FrameLayout fexcoreFL = findViewById(R.id.fexcoreFrame);
         String wineVersion = shortcut.container.getWineVersion();
@@ -319,6 +423,17 @@ public class ShortcutSettingsDialog extends ContentDialog {
         cbExperimentalPerformance.setChecked("1".equals(shortcut.getExtra(
                 "experimentalPerformance", containerExperimentalPerformance ? "1" : "0")));
 
+        final CheckBox cbExperimentalBCN = findViewById(R.id.CBExperimentalBCN);
+        final boolean containerExperimentalBCN = "1".equals(
+                shortcut.container.getExtra("experimentalBCN", "0"));
+        cbExperimentalBCN.setChecked("1".equals(shortcut.getExtra(
+                "experimentalBCN", containerExperimentalBCN ? "1" : "0")));
+
+        findViewById(R.id.BTExperimentalPerformanceHelp).setOnClickListener(v ->
+                AppUtils.showHelpBox(context, v, R.string.experimental_performance_description));
+        findViewById(R.id.BTExperimentalBCNHelp).setOnClickListener(v ->
+                AppUtils.showHelpBox(context, v, R.string.experimental_bcn_description));
+
 
 //        final CheckBox cbRelativeMouseMovement = findViewById(R.id.CBRelativeMouseMovement);
 //        String isRelativeMouseMovement = shortcut.getExtra("relativeMouseMovement", shortcut.container.isRelativeMouseMovement() ? "1" : "0");
@@ -426,6 +541,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
             if (renamingSuccess) {
                 String graphicsDriver = StringUtils.parseIdentifier(sGraphicsDriver.getSelectedItem());
                 String graphicsDriverConfig = vGraphicsDriverConfig.getTag().toString();
+                String renderer = StringUtils.parseIdentifier(sRenderer.getSelectedItem());
                 String dxwrapper = ContainerDetailFragment.getDXWrapperIdentifier(sDXWrapper.getSelectedItem());
                 String dxwrapperConfig = vDXWrapperConfig.getTag().toString();
                 String ddrawrapper = DXVKConfigDialog.parseConfig(dxwrapperConfig).get("ddrawrapper");
@@ -459,6 +575,11 @@ public class ShortcutSettingsDialog extends ContentDialog {
                         experimentalPerformance == containerExperimentalPerformance
                                 ? null : (experimentalPerformance ? "1" : "0"));
 
+                boolean experimentalBCN = cbExperimentalBCN.isChecked();
+                shortcut.putExtra("experimentalBCN",
+                        experimentalBCN == containerExperimentalBCN
+                                ? null : (experimentalBCN ? "1" : "0"));
+
                 boolean touchscreenMode = cbSimTouchScreen.isChecked();
                 shortcut.putExtra("simTouchScreen", touchscreenMode ? "1" : "0");
 
@@ -467,12 +588,21 @@ public class ShortcutSettingsDialog extends ContentDialog {
                 shortcut.putExtra("screenSize", !screenSize.equals(shortcut.container.getScreenSize()) ? screenSize : null);
                 shortcut.putExtra("graphicsDriver", !graphicsDriver.equals(shortcut.container.getGraphicsDriver()) ? graphicsDriver : null);
                 shortcut.putExtra("graphicsDriverConfig", !graphicsDriverConfig.equals(shortcut.container.getGraphicsDriverConfig()) ? graphicsDriverConfig : null);
+                shortcut.putExtra("renderer", !renderer.equals(containerRenderer) ? renderer : null);
+                shortcut.putExtra("rendererFilterMode",
+                        rendererFilterMode[0] != containerRendererFilterMode
+                                ? String.valueOf(rendererFilterMode[0]) : null);
+                shortcut.putExtra("rendererSwapRB",
+                        rendererSwapRB[0] != containerRendererSwapRB
+                                ? (rendererSwapRB[0] ? "1" : "0") : null);
                 shortcut.putExtra("dxwrapper", !dxwrapper.equals(shortcut.container.getDXWrapper()) ? dxwrapper : null);
                 shortcut.putExtra("ddrawrapper", !ddrawrapper.equals(shortcut.container.getDDrawWrapper()) ? ddrawrapper : null);
                 shortcut.putExtra("dxwrapperConfig", !dxwrapperConfig.equals(shortcut.container.getDXWrapperConfig()) ? dxwrapperConfig : null);
                 shortcut.putExtra("audioDriver", !audioDriver.equals(shortcut.container.getAudioDriver()) ? audioDriver : null);
                 shortcut.putExtra("emulator", !emulator.equals(shortcut.container.getEmulator()) ? emulator : null);
                 shortcut.putExtra("midiSoundFont", !midiSoundFont.equals(shortcut.container.getMIDISoundFont()) ? midiSoundFont : null);
+                shortcut.putExtra("audioVolume", audioVolume[0] != containerAudioVolume
+                        ? String.valueOf(audioVolume[0]) : null);
                 shortcut.putExtra("forceFullscreen", cbForceFullscreen.isChecked() ? "1" : null);
 
                 if (cbUseSecondaryExec.isChecked()) {
@@ -728,7 +858,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
 
         // Update the dark mode setting of the existing instance
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
-        boolean isDarkMode = prefs.getBoolean("dark_mode", false);
+        boolean isDarkMode = AppUtils.isDarkMode(context);
         envVarsView.setDarkMode(isDarkMode);
 
         // Set the environment variables in the existing EnvVarsView
@@ -791,8 +921,18 @@ public class ShortcutSettingsDialog extends ContentDialog {
             tvGraphicsDriverVersion.setText(GraphicsDriverConfigDialog.getVersion(graphicsDriverConfig));
 
             vGraphicsDriverConfig.setOnClickListener((v) -> {
-                new GraphicsDriverConfigDialog(vGraphicsDriverConfig, graphicsDriver, tvGraphicsDriverVersion).show();
+                CheckBox experimentalBcn = vGraphicsDriverConfig.getRootView()
+                        .findViewById(R.id.CBExperimentalBCN);
+                new GraphicsDriverConfigDialog(vGraphicsDriverConfig, graphicsDriver,
+                        tvGraphicsDriverVersion,
+                        experimentalBcn != null && experimentalBcn.isChecked()).show();
             });
+            Spinner externalVersion = vGraphicsDriverConfig.getRootView()
+                    .findViewById(R.id.SGraphicsDriverVersionExternal);
+            if (externalVersion != null) {
+                GraphicsDriverConfigDialog.bindExternalDriverSpinner(context, externalVersion,
+                        vGraphicsDriverConfig, graphicsDriver);
+            }
 
             ArrayList<String> items = new ArrayList<>();
             for (String value : dxwrapperEntries) {

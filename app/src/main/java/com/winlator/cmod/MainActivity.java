@@ -1,7 +1,6 @@
 package com.winlator.cmod;
 
 import android.Manifest;
-import android.app.AlertDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -154,7 +153,10 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             onNavigationItemSelected(navigationView.getMenu().findItem(menuItemId));
             navigationView.setCheckedItem(menuItemId);
 
-            if (!requestLegacyStoragePermissions()) continueStartup();
+            // The base runtime must be ready before Android presents any
+            // storage permission UI. This keeps first boot deterministic and
+            // prevents permission dialogs from covering the installer.
+            continueStartup();
 
         }
         UpdateChecker.check(this);
@@ -333,35 +335,42 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     private void showAllFilesAccessDialog() {
         if (allAccessFilesDialogDismissed || isFinishing()) return;
         allAccessFilesDialogDismissed = true;
-        new AlertDialog.Builder(this)
-                .setTitle("USB Storage Access")
-                .setMessage("In order to grant access to additional storage devices such as USB storage device, the All Files Access permission must be granted. You can leave this disabled, or you can enable it for USB storage support.")
-                .setPositiveButton("Okay", (dialog, which) -> {
-                    Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
-                    intent.setData(Uri.parse("package:" + getPackageName()));
-                    startActivity(intent);
-                })
-                .setNegativeButton("Cancel", null)
-                .show();
+        ContentDialog dialog = new ContentDialog(this);
+        dialog.setTitle("USB Storage Access");
+        dialog.setMessage("To use additional storage devices such as USB drives, grant All Files Access. You can leave it disabled if you do not need USB storage support.");
+        dialog.setOnConfirmCallback(() -> {
+            Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
+            intent.setData(Uri.parse("package:" + getPackageName()));
+            startActivity(intent);
+        });
+        dialog.show();
     }
 
     private void continueStartup() {
         ImageFsInstaller.installIfNeeded(this, () ->
                 checkForAndInstallAssetContents(() -> {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
-                            && !Environment.isExternalStorageManager()) {
-                        showAllFilesAccessDialog();
-                    }
+                    requestStorageAccessAfterInstallation();
                 }));
+    }
+
+    private void requestStorageAccessAfterInstallation() {
+        if (!requestLegacyStoragePermissions()) showUsbStorageAccessIfNeeded();
+    }
+
+    private void showUsbStorageAccessIfNeeded() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+                && !Environment.isExternalStorageManager()) {
+            showAllFilesAccessDialog();
+        }
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == PERMISSION_WRITE_EXTERNAL_STORAGE_REQUEST_CODE) {
-            // The app remains useful with internal storage even if legacy external
-            // storage access was denied. USB access is handled separately on R+.
-            continueStartup();
+            // Internal storage remains usable when this is denied. The USB/all
+            // files request is deliberately the final step of first boot.
+            showUsbStorageAccessIfNeeded();
         }
     }
 

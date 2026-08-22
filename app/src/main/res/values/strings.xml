@@ -4,6 +4,7 @@
     <!ENTITY TERMUX_X11_APP_NAME "Winlator:X11">
     ]>
 <resources>
+    <string name="help">Help</string>
     <string name="close">Close</string>
     <string name="app_name">WinXclipse</string>
     <string name="run">Run</string>
@@ -94,6 +95,13 @@
     <string name="offscreen_rendering_mode">Offscreen Rendering Mode</string>
     <string name="strict_shader_math">Strict Shader Math</string>
     <string name="video_memory_size">Video Memory Size</string>
+    <string name="video">Video</string>
+    <string name="video_configuration">Video Configuration</string>
+    <string name="texture_filter">Texture Filter</string>
+    <string name="bilinear">Bilinear</string>
+    <string name="nearest_neighbor">Nearest Neighbor</string>
+    <string name="fake_hdr">Fake HDR</string>
+    <string name="swap_red_blue_channels">Swap Red and Blue Channels</string>
     <string name="show_fps">Show FPS</string>
     <string name="none">None</string>
     <string name="custom_text">Custom Text</string>
@@ -115,6 +123,8 @@
     <string name="external_controllers">External Controllers</string>
     <string name="graphics_driver">Graphics Driver</string>
     <string name="audio_driver">Audio Driver</string>
+    <string name="audio_configuration">Audio Configuration</string>
+    <string name="audio_volume">Volume</string>
     <string name="loading">Loading…</string>
     <string name="press_any_button_on_your_controller">Press any button on your controller</string>
     <string name="bindings">bindings</string>
@@ -134,7 +144,7 @@
     <string name="settings">Settings</string>
     <string name="exec_arguments">Exec Arguments</string>
     <string name="win_components">Win Components</string>
-    <string name="drives">Drives</string>
+    <string name="drives">Storage</string>
     <string name="force_fullscreen">Force Fullscreen for Windowed Apps</string>
     <string name="range">Range</string>
     <string name="enable">Enable</string>
@@ -295,6 +305,16 @@
     <string name="experimental">Experimental</string>
     <string name="experimental_performance">Experimental Performance</string>
     <string name="experimental_performance_description">Optional runtime performance tweaks. May improve demanding games, but compatibility can vary.</string>
+    <string name="experimental_bcn">Experimental BCN Support</string>
+    <string name="experimental_bcn_description">Loads the WinXclipse 0.8.6 BCN compatibility layer. Disabled by default for maximum driver compatibility.</string>
+    <string name="bcn_emulation">BCn Emulation</string>
+    <string name="bcn_emulation_type">BCn Emulation Type</string>
+    <string name="bcn_emulation_cache">BCn Emulation Cache</string>
+    <string name="astc_transcode">ASTC Transcode</string>
+    <string name="etc2_transcode">ETC2 Transcode</string>
+    <string-array name="bcn_emulation_entries"><item>auto</item><item>full</item></string-array>
+    <string-array name="bcn_emulation_type_entries"><item>compute</item><item>software</item></string-array>
+    <string-array name="bcn_emulation_cache_entries"><item>0</item><item>1</item></string-array>
     <string name="glibc_exp_edition">Glibc Experimental Edition</string>
     <string name="enabled_async">Enable Async</string>
     <string name="enabled_async_cache">Enable Async Cache</string>

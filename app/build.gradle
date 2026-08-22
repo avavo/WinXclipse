@@ -49,13 +49,13 @@ android {
         versionCode 23
         versionName "0.9"
 
-        // External native build from Winlator
-        externalNativeBuild {
-            cmake {
-                cppFlags ''
-            }
-        }
-
+        // Native libraries are shipped as prebuilts in src/main/jniLibs;
+        // the CMake build is disabled while those binaries are authoritative.
+        // externalNativeBuild {
+        //     cmake {
+        //         cppFlags ''
+        //     }
+        // }
 
         ndk {
             abiFilters 'arm64-v8a'
@@ -97,16 +97,25 @@ android {
         debug {
             minifyEnabled false
         }
-        // If you have a release build type, add it here
+        release {
+            // Same certificate as installed builds so APKs update in place
+            signingConfig signingConfigs.winxclipseUpdate
+        }
+    }
+
+    // Release APKs are sideloaded, not published to Google Play; the low
+    // targetSdk is intentional and must not fail lintVital.
+    lint {
+        checkReleaseBuilds false
     }
 
 
     ndkVersion '27.0.12077973'
-    externalNativeBuild {
-        cmake {
-            path 'src/main/cpp/CMakeLists.txt'
-        }
-    }
+    // externalNativeBuild {
+    //     cmake {
+    //         path 'src/main/cpp/CMakeLists.txt'
+    //     }
+    // }
 
 
     packagingOptions {

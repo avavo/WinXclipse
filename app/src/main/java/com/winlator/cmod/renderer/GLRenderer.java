@@ -55,6 +55,8 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
     public int surfaceHeight;
     private final EffectComposer effectComposer;
     private volatile int fpsLimit;
+    private volatile int textureFilterMode;
+    private volatile boolean swapRedBlue;
 
     public GLRenderer(XServerView xServerView, XServer xServer) {
         this.xServerView = xServerView;
@@ -262,6 +264,15 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
 
             GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture.getTextureId());
+            if (material == windowMaterial) {
+                int filter = textureFilterMode == 1 ? GLES20.GL_NEAREST : GLES20.GL_LINEAR;
+                if (texture.getMagFilter() != filter || texture.getMinFilter() != filter) {
+                    texture.setMagFilter(filter);
+                    texture.setMinFilter(filter);
+                    GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, filter);
+                    GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, filter);
+                }
+            }
             GLES20.glUniform1i(material.getUniformLocation("texture"), 0);
             GLES20.glUniform1fv(material.getUniformLocation("xform"), tmpXForm1.length, tmpXForm1, 0);
             GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, quadVertices.count());
@@ -272,6 +283,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
     private void renderWindows(boolean forceFullscreen) {
         windowMaterial.use();
         GLES20.glUniform2f(windowMaterial.getUniformLocation("viewSize"), xServer.screenInfo.width, xServer.screenInfo.height);
+        GLES20.glUniform1i(windowMaterial.getUniformLocation("swapRB"), swapRedBlue ? 1 : 0);
         quadVertices.bind(windowMaterial.programId);
 
         boolean singleWindow = forceFullscreen;
@@ -465,6 +477,24 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
 
     public int getSurfaceHeight() {
         return surfaceHeight;
+    }
+
+    public int getTextureFilterMode() {
+        return textureFilterMode;
+    }
+
+    public void setTextureFilterMode(int textureFilterMode) {
+        this.textureFilterMode = textureFilterMode == 1 ? 1 : 0;
+        xServerView.requestRender();
+    }
+
+    public boolean isSwapRedBlue() {
+        return swapRedBlue;
+    }
+
+    public void setSwapRedBlue(boolean swapRedBlue) {
+        this.swapRedBlue = swapRedBlue;
+        xServerView.requestRender();
     }
 
     public int getFpsLimit() {

@@ -548,41 +548,25 @@ public class ContainersFragment extends Fragment {
                 return;
             }
 
-            // 4. If no controllers are assigned and the notice is enabled, show the dialog
-            // Create a custom layout for the dialog programmatically
-            LinearLayout layout = new LinearLayout(context);
-            layout.setOrientation(LinearLayout.VERTICAL);
-            int padding = (int) (20 * getResources().getDisplayMetrics().density); // 20dp padding
-            layout.setPadding(padding, padding, padding, padding);
+            // 4. Keep first-run notices inside WinXclipse's themed dialog instead
+            // of falling back to the platform/Holo palette.
+            ContentDialog dialog = new ContentDialog(context);
+            dialog.setTitle("Controller Notice");
+            dialog.setMessage("No controllers have been assigned. If you are using a physical controller, open the Controller Manager and assign it to a slot.");
 
-            TextView messageView = new TextView(context);
-            messageView.setText("No controllers have been assigned. If you are using a physical controller, open the Controller Manager and assign it to a slot.");
-            messageView.setTextSize(16f);
-            layout.addView(messageView);
-
-            CheckBox checkbox = new CheckBox(context);
+            CheckBox checkbox = dialog.findViewById(R.id.CBExtraOption);
             checkbox.setText("Don't show this again");
-            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-            );
-            params.topMargin = padding; // Add margin to the top of the checkbox
-            checkbox.setLayoutParams(params);
-            layout.addView(checkbox);
+            checkbox.setVisibility(View.VISIBLE);
 
-            new AlertDialog.Builder(context)
-                    .setTitle("Controller Notice")
-                    .setView(layout)
-                    .setPositiveButton("OK", (dialog, which) -> {
-                        // If the user checks the box, save the preference
-                        if (checkbox.isChecked()) {
-                            prefs.edit().putBoolean(DONT_SHOW_KEY, true).apply();
-                        }
-                        // Proceed with the launch after the user clicks OK
-                        proceedWithLaunch(container);
-                    })
-                    .setCancelable(false) // Prevent dismissing by tapping outside
-                    .show();
+            dialog.findViewById(R.id.BTCancel).setVisibility(View.GONE);
+            dialog.setCancelable(false);
+            dialog.setOnConfirmCallback(() -> {
+                if (checkbox.isChecked()) {
+                    prefs.edit().putBoolean(DONT_SHOW_KEY, true).apply();
+                }
+                proceedWithLaunch(container);
+            });
+            dialog.show();
         }
         private void proceedWithLaunch(Container container) {
             final Context context = getContext();

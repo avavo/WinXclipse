@@ -14,6 +14,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.winlator.cmod.R;
+import com.winlator.cmod.core.AppUtils;
 
 import java.io.File;
 import java.util.concurrent.ExecutorService;
@@ -36,7 +37,7 @@ public class CustomFilePickerActivity extends AppCompatActivity {
 
         // Check dark mode setting from shared preferences or system
         SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
-        boolean isDarkMode = sharedPreferences.getBoolean("dark_mode", false);
+        boolean isDarkMode = AppUtils.isDarkMode(this);
 
         // Apply the theme based on dark mode setting
         if (isDarkMode) {

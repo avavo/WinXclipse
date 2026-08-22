@@ -40,10 +40,12 @@ import com.winlator.cmod.box86_64.rc.RCManager;
 import com.winlator.cmod.container.Container;
 import com.winlator.cmod.container.ContainerManager;
 import com.winlator.cmod.contentdialog.AddEnvVarDialog;
+import com.winlator.cmod.contentdialog.AudioConfigDialog;
 import com.winlator.cmod.contentdialog.ContentDialog;
 import com.winlator.cmod.contentdialog.DXVKConfigDialog;
 import com.winlator.cmod.contentdialog.GraphicsDriverConfigDialog;
 import com.winlator.cmod.contentdialog.ShortcutSettingsDialog;
+import com.winlator.cmod.contentdialog.VideoConfigDialog;
 import com.winlator.cmod.contentdialog.VKD3DConfigDialog;
 import com.winlator.cmod.contents.ContentProfile;
 import com.winlator.cmod.contents.ContentsManager;
@@ -81,6 +83,7 @@ import org.json.JSONObject;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 
@@ -323,7 +326,7 @@ public class ContainerDetailFragment extends Fragment {
         final View view = inflater.inflate(R.layout.container_detail_fragment, root, false);
 
         // Determine if dark mode is enabled
-        isDarkMode = preferences.getBoolean("dark_mode", false);
+        isDarkMode = AppUtils.isDarkMode(context);
 
         // Apply dynamic styles
         applyDynamicStyles(view, isDarkMode);
@@ -374,6 +377,15 @@ public class ContainerDetailFragment extends Fragment {
 
         final View vGraphicsDriverConfig = view.findViewById(R.id.BTGraphicsDriverConfig);
         vGraphicsDriverConfig.setTag(isEditMode() ? container.getGraphicsDriverConfig() : Container.DEFAULT_GRAPHICSDRIVERCONFIG);
+        final int[] rendererFilterMode = {0};
+        try {
+            rendererFilterMode[0] = Integer.parseInt(isEditMode()
+                    ? container.getExtra("rendererFilterMode", "0") : "0");
+        }
+        catch (NumberFormatException ignored) {
+        }
+        final boolean[] rendererSwapRB = {isEditMode()
+                && "1".equals(container.getExtra("rendererSwapRB", "0"))};
 
         setupDXWrapperSpinner(sDXWrapper, vDXWrapperConfig);
         setupDDrawSpinner(sDDrawrapper, isEditMode() ? container.getDDrawWrapper() : Container.DEFAULT_DDRAWRAPPER);
@@ -399,6 +411,40 @@ public class ContainerDetailFragment extends Fragment {
         Spinner sMIDISoundFont = view.findViewById(R.id.SMIDISoundFont);
         MidiManager.loadSFSpinner(sMIDISoundFont);
         AppUtils.setSpinnerSelectionFromValue(sMIDISoundFont, isEditMode() ? container.getMIDISoundFont() : "");
+
+        int initialAudioVolume = 100;
+        try {
+            initialAudioVolume = Integer.parseInt(isEditMode()
+                    ? container.getExtra("audioVolume", "100") : "100");
+        }
+        catch (NumberFormatException ignored) {
+        }
+        final int[] audioVolume = {Math.max(0, Math.min(100, initialAudioVolume))};
+        view.findViewById(R.id.BTAudioConfig).setOnClickListener(v ->
+                new AudioConfigDialog(context, new AudioConfigDialog.Config() {
+                    @Override
+                    public String getAudioDriver() {
+                        return StringUtils.parseIdentifier(sAudioDriver.getSelectedItem());
+                    }
+
+                    @Override
+                    public String getMidiSoundFont() {
+                        return sMIDISoundFont.getSelectedItemPosition() == 0
+                                ? "" : sMIDISoundFont.getSelectedItem().toString();
+                    }
+
+                    @Override
+                    public int getVolumePercent() {
+                        return audioVolume[0];
+                    }
+
+                    @Override
+                    public void apply(String driver, String soundFont, int volumePercent) {
+                        AppUtils.setSpinnerSelectionFromIdentifier(sAudioDriver, driver);
+                        AppUtils.setSpinnerSelectionFromValue(sMIDISoundFont, soundFont);
+                        audioVolume[0] = volumePercent;
+                    }
+                }).show());
 
         final CheckBox cbShowFPS = view.findViewById(R.id.CBShowFPS);
         cbShowFPS.setChecked(!isEditMode() || container.isShowFPS());
@@ -461,6 +507,15 @@ public class ContainerDetailFragment extends Fragment {
         final CheckBox cbExperimentalPerformance = view.findViewById(R.id.CBExperimentalPerformance);
         cbExperimentalPerformance.setChecked(isEditMode()
                 && "1".equals(container.getExtra("experimentalPerformance", "0")));
+
+        final CheckBox cbExperimentalBCN = view.findViewById(R.id.CBExperimentalBCN);
+        cbExperimentalBCN.setChecked(isEditMode()
+                && "1".equals(container.getExtra("experimentalBCN", "0")));
+
+        view.findViewById(R.id.BTExperimentalPerformanceHelp).setOnClickListener(v ->
+                AppUtils.showHelpBox(context, v, R.string.experimental_performance_description));
+        view.findViewById(R.id.BTExperimentalBCNHelp).setOnClickListener(v ->
+                AppUtils.showHelpBox(context, v, R.string.experimental_bcn_description));
 
         final EditText etLC_ALL = view.findViewById(R.id.ETlcall);
         Locale systemLocal = Locale.getDefault();
@@ -528,6 +583,51 @@ public class ContainerDetailFragment extends Fragment {
         setControllerMapping(view.findViewById(R.id.SThumbstickRight), Container.XrControllerMapping.THUMBSTICK_RIGHT, XKeycode.KEY_RIGHT.ordinal());
 
         createWineConfigurationTab(view);
+        final Spinner sGPUName = view.findViewById(R.id.SGPUName);
+        view.findViewById(R.id.BTVideoConfig).setOnClickListener(button ->
+                new VideoConfigDialog(context, new VideoConfigDialog.Config() {
+                    @Override
+                    public String getGpuName() {
+                        HashMap<String, String> config = GraphicsDriverConfigDialog
+                                .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()));
+                        String value = config.getOrDefault("gpuName", "Device");
+                        if ("Device".equals(value) && sGPUName.getSelectedItem() != null) {
+                            value = sGPUName.getSelectedItem().toString();
+                        }
+                        return value;
+                    }
+
+                    @Override
+                    public String getPresentMode() {
+                        return GraphicsDriverConfigDialog
+                                .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()))
+                                .getOrDefault("presentMode", "mailbox");
+                    }
+
+                    @Override
+                    public int getTextureFilterMode() {
+                        return rendererFilterMode[0];
+                    }
+
+                    @Override
+                    public boolean isSwapRedBlue() {
+                        return rendererSwapRB[0];
+                    }
+
+                    @Override
+                    public void apply(String gpuName, String presentMode,
+                                      int textureFilterMode, boolean swapRedBlue) {
+                        HashMap<String, String> config = GraphicsDriverConfigDialog
+                                .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()));
+                        config.put("gpuName", gpuName);
+                        config.put("presentMode", presentMode);
+                        vGraphicsDriverConfig.setTag(
+                                GraphicsDriverConfigDialog.toGraphicsDriverConfig(config));
+                        AppUtils.setSpinnerSelectionFromValue(sGPUName, gpuName);
+                        rendererFilterMode[0] = textureFilterMode;
+                        rendererSwapRB[0] = swapRedBlue;
+                    }
+                }).show());
         final EnvVarsView envVarsView = createEnvVarsTab(view);
         createWinComponentsTab(view, isEditMode() ? container.getWinComponents() : Container.DEFAULT_WINCOMPONENTS);
         createDrivesTab(view);
@@ -603,6 +703,7 @@ public class ContainerDetailFragment extends Fragment {
                 // Handle GStreamer Workaround environment variables based on the toggle state
                 boolean gstreamerWorkaround = cbGStreamerWorkaroundToggle.isChecked();
                 boolean experimentalPerformance = cbExperimentalPerformance.isChecked();
+                boolean experimentalBCN = cbExperimentalBCN.isChecked();
 
 
 
@@ -642,6 +743,12 @@ public class ContainerDetailFragment extends Fragment {
                     container.setControllerMapping(controllerMapping);
                     container.setGstreamerWorkaround(gstreamerWorkaround);
                     container.putExtra("experimentalPerformance", experimentalPerformance ? "1" : null);
+                    container.putExtra("experimentalBCN", experimentalBCN ? "1" : null);
+                    container.putExtra("rendererFilterMode",
+                            rendererFilterMode[0] != 0 ? String.valueOf(rendererFilterMode[0]) : null);
+                    container.putExtra("rendererSwapRB", rendererSwapRB[0] ? "1" : null);
+                    container.putExtra("audioVolume",
+                            audioVolume[0] != 100 ? String.valueOf(audioVolume[0]) : null);
                     container.saveData();
                     saveWineRegistryKeys(view);
                     getActivity().onBackPressed();
@@ -682,9 +789,19 @@ public class ContainerDetailFragment extends Fragment {
                     data.put("primaryController", primaryController);
                     data.put("controllerMapping", controllerMapping);
                     data.put("gstreamerWorkaround", gstreamerWorkaround);
-                    if (experimentalPerformance) {
+                    if (experimentalPerformance || experimentalBCN
+                            || rendererFilterMode[0] != 0 || rendererSwapRB[0]
+                            || audioVolume[0] != 100) {
                         JSONObject extraData = new JSONObject();
-                        extraData.put("experimentalPerformance", "1");
+                        if (experimentalPerformance) extraData.put("experimentalPerformance", "1");
+                        if (experimentalBCN) extraData.put("experimentalBCN", "1");
+                        if (rendererFilterMode[0] != 0) {
+                            extraData.put("rendererFilterMode", String.valueOf(rendererFilterMode[0]));
+                        }
+                        if (rendererSwapRB[0]) extraData.put("rendererSwapRB", "1");
+                        if (audioVolume[0] != 100) {
+                            extraData.put("audioVolume", String.valueOf(audioVolume[0]));
+                        }
                         data.put("extraData", extraData);
                     }
 
@@ -723,9 +840,14 @@ public class ContainerDetailFragment extends Fragment {
 
             Spinner sGPUName = view.findViewById(R.id.SGPUName);
             try {
-                JSONObject gpuName = gpuCards.getJSONObject(sGPUName.getSelectedItemPosition());
-                registryEditor.setDwordValue("Software\\Wine\\Direct3D", "VideoPciDeviceID", gpuName.getInt("deviceID"));
-                registryEditor.setDwordValue("Software\\Wine\\Direct3D", "VideoPciVendorID", gpuName.getInt("vendorID"));
+                String selectedGpu = String.valueOf(sGPUName.getSelectedItem());
+                for (int i = 0; i < gpuCards.length(); i++) {
+                    JSONObject gpuName = gpuCards.getJSONObject(i);
+                    if (!selectedGpu.equals(gpuName.optString("name"))) continue;
+                    registryEditor.setDwordValue("Software\\Wine\\Direct3D", "VideoPciDeviceID", gpuName.getInt("deviceID"));
+                    registryEditor.setDwordValue("Software\\Wine\\Direct3D", "VideoPciVendorID", gpuName.getInt("vendorID"));
+                    break;
+                }
             }
             catch (JSONException e) {}
 
@@ -907,8 +1029,17 @@ public class ContainerDetailFragment extends Fragment {
             setDXWrapperSelection(sDXWrapper, selectedDXWrapper);
 
             vGraphicsDriverConfig.setOnClickListener((v) -> {
-                new GraphicsDriverConfigDialog(vGraphicsDriverConfig, graphicsDriver, null).show();
+                CheckBox experimentalBcn = vGraphicsDriverConfig.getRootView()
+                        .findViewById(R.id.CBExperimentalBCN);
+                new GraphicsDriverConfigDialog(vGraphicsDriverConfig, graphicsDriver, null,
+                        experimentalBcn != null && experimentalBcn.isChecked()).show();
             });
+            Spinner externalVersion = vGraphicsDriverConfig.getRootView()
+                    .findViewById(R.id.SGraphicsDriverVersionExternal);
+            if (externalVersion != null) {
+                GraphicsDriverConfigDialog.bindExternalDriverSpinner(context, externalVersion,
+                        vGraphicsDriverConfig, graphicsDriver);
+            }
             vGraphicsDriverConfig.setVisibility(View.VISIBLE);
         };
 

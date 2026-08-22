@@ -76,8 +76,7 @@ public class Box86_64RCFragment extends Fragment {
         manager = new RCManager(getContext());
 
         // Initialize isDarkMode based on shared preferences or theme
-        isDarkMode = PreferenceManager.getDefaultSharedPreferences(getContext())
-                .getBoolean("dark_mode", false);
+        isDarkMode = AppUtils.isDarkMode(requireContext());
     }
 
     @Override
@@ -465,7 +464,7 @@ public class Box86_64RCFragment extends Fragment {
             etGroupName.setText(group.getGroupName());
 
             SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getContext());
-            boolean isDarkMode = prefs.getBoolean("dark_mode", false);
+            boolean isDarkMode = AppUtils.isDarkMode(requireContext());
             applyDarkThemeToEditText(etGroupName, isDarkMode);
 
             final View btNewItem = layout.findViewById(R.id.BTNewItem);
@@ -723,7 +722,7 @@ public class Box86_64RCFragment extends Fragment {
                     etKey = layout.findViewById(R.id.ETKey);
 
                     SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
-                    boolean isDarkMode = prefs.getBoolean("dark_mode", false);
+                    boolean isDarkMode = AppUtils.isDarkMode(context);
                     applyDarkThemeToEditText(etKey, isDarkMode);
 
 
