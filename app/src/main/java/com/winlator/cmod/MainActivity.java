@@ -80,7 +80,6 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     private boolean editInputControls = false;
     private int selectedProfileId;
     private Callback<Uri> openFileCallback;
-    private SharedPreferences sharedPreferences;
 
     // Add SaveSettingsDialog and SaveEditDialog instances
     private SaveSettingsDialog saveSettingsDialog;
@@ -603,6 +602,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                     "Based on Winlator by Brunodev85 (<a href=\"https://github.com/brunodev85\">Git</a>)",
                     "Based on Winlator CMod by <a href=\"https://github.com/coffincolors/winlator\">coffincolors</a> and <a href=\"https://github.com/Pipetto-crypto/winlator\">Pipetto-crypto</a>",
                     "Ports from Winlator Mali (<a href=\"https://github.com/GunaCharanTeja/WinlatorMali\">Git</a>)",
+                    "Ports from Winlator Ludashi (<a href=\"https://github.com/StevenMXZ/Winlator-Ludashi\">Git</a>)",
                     "Winlator Glibc by longjunyu2 (<a href=\"https://github.com/longjunyu2/winlator/\">Fork</a>)",
                     "Winlator OpenXR by lvonasek (<a href=\"https://github.com/lvonasek\">Git</a>)",
                     "Big Picture Mode Music by Fumer",

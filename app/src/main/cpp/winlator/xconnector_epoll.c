@@ -17,6 +17,23 @@
 
 struct epoll_event events[MAX_EVENTS];
 
+/* Method IDs are process-wide constants; resolving them on every epoll
+ * wakeup costs a name lookup per X11 event batch. Cache them once. */
+static jmethodID g_handleNewConnection = NULL;
+static jmethodID g_handleExistingConnection = NULL;
+static jmethodID g_addAncillaryFd = NULL;
+
+static void resolveConnectionMethodIDs(JNIEnv *env, jobject obj) {
+    if (g_handleNewConnection != NULL && g_handleExistingConnection != NULL) return;
+    jclass cls = (*env)->GetObjectClass(env, obj);
+    if (g_handleNewConnection == NULL) {
+        g_handleNewConnection = (*env)->GetMethodID(env, cls, "handleNewConnection", "(I)V");
+    }
+    if (g_handleExistingConnection == NULL) {
+        g_handleExistingConnection = (*env)->GetMethodID(env, cls, "handleExistingConnection", "(I)V");
+    }
+}
+
 JNIEXPORT jint JNICALL
 Java_com_winlator_cmod_xconnector_XConnectorEpoll_createAFUnixSocket(JNIEnv *env, jobject obj,
                                                                 jstring path) {
@@ -58,9 +75,7 @@ JNIEXPORT jboolean JNICALL
 Java_com_winlator_cmod_xconnector_XConnectorEpoll_doEpollIndefinitely(JNIEnv *env, jobject obj,
                                                                  jint epollFd, jint serverFd,
                                                                  jboolean addClientToEpoll) {
-    jclass cls = (*env)->GetObjectClass(env, obj);
-    jmethodID handleNewConnection = (*env)->GetMethodID(env, cls, "handleNewConnection", "(I)V");
-    jmethodID handleExistingConnection = (*env)->GetMethodID(env, cls, "handleExistingConnection", "(I)V");
+    resolveConnectionMethodIDs(env, obj);
 
     int numFds = epoll_wait(epollFd, events, MAX_EVENTS, -1);
     for (int i = 0; i < numFds; i++) {
@@ -73,14 +88,14 @@ Java_com_winlator_cmod_xconnector_XConnectorEpoll_doEpollIndefinitely(JNIEnv *en
                     event.events = EPOLLIN;
 
                     if (epoll_ctl(epollFd, EPOLL_CTL_ADD, clientFd, &event) >= 0) {
-                        (*env)->CallVoidMethod(env, obj, handleNewConnection, clientFd);
+                        (*env)->CallVoidMethod(env, obj, g_handleNewConnection, clientFd);
                     }
                 }
-                else (*env)->CallVoidMethod(env, obj, handleNewConnection, clientFd);
+                else (*env)->CallVoidMethod(env, obj, g_handleNewConnection, clientFd);
             }
         }
         else if (events[i].events & EPOLLIN) {
-            (*env)->CallVoidMethod(env, obj, handleExistingConnection, events[i].data.fd);
+            (*env)->CallVoidMethod(env, obj, g_handleExistingConnection, events[i].data.fd);
         }
     }
 
@@ -152,10 +167,12 @@ Java_com_winlator_cmod_xconnector_ClientSocket_recvAncillaryMsg(JNIEnv *env, job
                 int numFds = (cmsg->cmsg_len - CMSG_LEN(0)) / sizeof(int);
                 if (numFds > 0) {
                     jclass cls = (*env)->GetObjectClass(env, obj);
-                    jmethodID addAncillaryFd = (*env)->GetMethodID(env, cls, "addAncillaryFd", "(I)V");
+                    if (g_addAncillaryFd == NULL) {
+                        g_addAncillaryFd = (*env)->GetMethodID(env, cls, "addAncillaryFd", "(I)V");
+                    }
                     for (int i = 0; i < numFds; i++) {
                         int ancillaryFd = ((int*)CMSG_DATA(cmsg))[i];
-                        (*env)->CallVoidMethod(env, obj, addAncillaryFd, ancillaryFd);
+                        (*env)->CallVoidMethod(env, obj, g_addAncillaryFd, ancillaryFd);
                     }
                 }
             }
@@ -166,7 +183,7 @@ Java_com_winlator_cmod_xconnector_ClientSocket_recvAncillaryMsg(JNIEnv *env, job
 
 JNIEXPORT jint JNICALL
 Java_com_winlator_cmod_xconnector_ClientSocket_sendAncillaryMsg(JNIEnv *env, jobject obj, jint clientFd,
-                                                           jobject data, jint length, jint ancillaryFd) {
+                                                            jobject data, jint length, jint ancillaryFd) {
     char *dataAddr = (*env)->GetDirectBufferAddress(env, data);
 
     struct iovec iovmsg = {.iov_base = dataAddr, .iov_len = length};
@@ -207,9 +224,8 @@ Java_com_winlator_cmod_xconnector_XConnectorEpoll_waitForSocketRead(JNIEnv *env,
     if (res < 0 || (pfds[1].revents & POLLIN)) return JNI_FALSE;
 
     if (pfds[0].revents & POLLIN) {
-        jclass cls = (*env)->GetObjectClass(env, obj);
-        jmethodID handleExistingConnection = (*env)->GetMethodID(env, cls, "handleExistingConnection", "(I)V");
-        (*env)->CallVoidMethod(env, obj, handleExistingConnection, clientFd);
+        resolveConnectionMethodIDs(env, obj);
+        (*env)->CallVoidMethod(env, obj, g_handleExistingConnection, clientFd);
     }
     return JNI_TRUE;
 }

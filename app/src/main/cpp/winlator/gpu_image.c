@@ -17,6 +17,10 @@
 #define printf(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
 #define HAL_PIXEL_FORMAT_BGRA_8888 5
 
+/* Called once per presented frame; resolve the callback ID only once
+ * instead of running a method-name lookup on every lock. */
+static jmethodID g_setStrideMethod = NULL;
+
 // Function to create an EGL image from a hardware buffer
 EGLImageKHR createImageKHR(AHardwareBuffer* hardwareBuffer, int textureId) {
     if (!hardwareBuffer) {
@@ -164,13 +168,15 @@ Java_com_winlator_cmod_renderer_GPUImage_lockHardwareBuffer(JNIEnv *env, jclass 
         return NULL;
     }
 
-    jmethodID setStride = (*env)->GetMethodID(env, cls, "setStride", "(S)V");
-    if (setStride == NULL) {
+    if (g_setStrideMethod == NULL) {
+        g_setStrideMethod = (*env)->GetMethodID(env, cls, "setStride", "(S)V");
+    }
+    if (g_setStrideMethod == NULL) {
         printf("Failed to get setStride method ID\n");
         AHardwareBuffer_unlock(hardwareBuffer, NULL);
         return NULL;
     }
-    (*env)->CallVoidMethod(env, obj, setStride, (jshort)buffDesc.stride);
+    (*env)->CallVoidMethod(env, obj, g_setStrideMethod, (jshort)buffDesc.stride);
 
     jlong size = buffDesc.stride * buffDesc.height * 4;
     jobject buffer = (*env)->NewDirectByteBuffer(env, virtualAddr, size);

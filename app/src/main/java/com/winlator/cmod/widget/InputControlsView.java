@@ -143,6 +143,32 @@ public class InputControlsView extends View {
 
     public void setOverlayOpacity(float overlayOpacity) {
         this.overlayOpacity = overlayOpacity;
+        invalidate();
+    }
+
+    public float getOverlayOpacity() {
+        return overlayOpacity;
+    }
+
+    /** Dark radial-gradient button bodies (center). */
+    public int getControlBodyCenterColor(boolean pressed) {
+        int alpha = Math.min(255, (int)(overlayOpacity * 235));
+        return pressed ? Color.argb(Math.min(255, alpha + 50), 28, 28, 28)
+                : Color.argb(alpha, 10, 10, 10);
+    }
+
+    /** Dark radial-gradient button bodies (outer edge). */
+    public int getControlBodyEdgeColor(boolean pressed) {
+        int alpha = Math.min(255, (int)(overlayOpacity * 255));
+        return pressed ? Color.argb(alpha, 95, 95, 95)
+                : Color.argb(alpha, 58, 58, 58);
+    }
+
+    /** Thin light border around buttons, sticks and d-pad petals. */
+    public int getControlBorderColor(boolean pressed) {
+        int alpha = Math.min(255, (int)(overlayOpacity * 480));
+        return pressed ? Color.argb(Math.min(255, alpha + 30), 230, 230, 230)
+                : Color.argb(alpha, 190, 190, 190);
     }
 
     public int getSnappingSize() {
@@ -386,8 +412,10 @@ public class InputControlsView extends View {
 
     @Override
     protected void onDetachedFromWindow() {
-        if (mouseMoveTimer != null)
+        if (mouseMoveTimer != null) {
             mouseMoveTimer.cancel();
+            mouseMoveTimer = null;   // allow createMouseMoveTimer() to run again on re-attach
+        }
         super.onDetachedFromWindow();
     }
 
@@ -494,19 +522,12 @@ public class InputControlsView extends View {
 
     @Override
     public boolean dispatchGenericMotionEvent(MotionEvent event) {
-        Log.d("InputControlsView", "dispatchGenericMotionEvent called. Source: " + event.getSource());
         return super.dispatchGenericMotionEvent(event);
     }
 
 
     @Override
     public boolean onGenericMotionEvent(MotionEvent event) {
-
-        Log.d("InputControlsView", "Motion event received. Source: " + event.getSource());
-        Log.d("InputControlsView", "Device ID: " + event.getDeviceId());
-        Log.d("InputControlsView", "Profile is " + (profile != null ? "set" : "null"));
-
-
         if (!editMode && profile != null) {
             // Retrieve the associated controller for this event
             ExternalController controller = profile.getController(event.getDeviceId());
@@ -526,10 +547,6 @@ public class InputControlsView extends View {
                 if (controllerBinding != null) {
                     handleInputEvent(controllerBinding.getBinding(), controller.state.isPressed(ExternalController.IDX_BUTTON_R2));
                 }
-
-                Log.d("InputEvent", "Event source: " + event.getSource());
-                Log.d("InputEvent", "Device ID: " + event.getDeviceId());
-                Log.d("InputEvent", "Action: " + event.getAction());
 
                 // Process joystick inputs for mouse movement and other bindings
                 processJoystickInput(controller);

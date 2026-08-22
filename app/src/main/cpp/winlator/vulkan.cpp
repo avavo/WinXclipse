@@ -20,10 +20,11 @@ void start() {
 
 VkInstance create_instance() {
     VkResult result;
-    VkInstance instance;
+    VkInstance instance = NULL;
     VkInstanceCreateInfo create_info = {};
 
     PFN_vkCreateInstance createInstance = (PFN_vkCreateInstance)dlsym(vulkan_handle, "vkCreateInstance");
+    if (!createInstance) return NULL;
 
     create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     create_info.pNext = NULL;
@@ -63,10 +64,12 @@ std::vector<VkPhysicalDevice> get_physical_devices(VkInstance instance) {
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_winlator_cmod_core_GPUInformation_getVersion(JNIEnv *env, jclass obj) {
     VkPhysicalDeviceProperties props = {};
-    char *driverVersion;
+    char *driverVersion = NULL;
     VkInstance instance;
 
     instance = create_instance();
+    if (!instance || !gip) return env->NewStringUTF("unknown");
+
     PFN_vkGetPhysicalDeviceProperties getPhysicalDeviceProperties = (PFN_vkGetPhysicalDeviceProperties)gip(instance, "vkGetPhysicalDeviceProperties");
     PFN_vkDestroyInstance destroyInstance = (PFN_vkDestroyInstance)gip(instance, "vkDestroyInstance");
 
@@ -81,16 +84,19 @@ Java_com_winlator_cmod_core_GPUInformation_getVersion(JNIEnv *env, jclass obj) {
 
     destroyInstance(instance, NULL);
 
+    if (!driverVersion) return env->NewStringUTF("unknown");
     return (env->NewStringUTF(driverVersion));
 }
 
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_winlator_cmod_core_GPUInformation_getRenderer(JNIEnv *env, jclass obj) {
     VkPhysicalDeviceProperties props = {};
-    char *renderer;
+    char *renderer = NULL;
     VkInstance instance;
 
     instance = create_instance();
+    if (!instance || !gip) return env->NewStringUTF("unknown");
+
     PFN_vkGetPhysicalDeviceProperties getPhysicalDeviceProperties = (PFN_vkGetPhysicalDeviceProperties)gip(instance, "vkGetPhysicalDeviceProperties");
     PFN_vkDestroyInstance destroyInstance = (PFN_vkDestroyInstance)gip(instance, "vkDestroyInstance");
 
@@ -101,16 +107,19 @@ Java_com_winlator_cmod_core_GPUInformation_getRenderer(JNIEnv *env, jclass obj) 
 
     destroyInstance(instance, NULL);
 
+    if (!renderer) return env->NewStringUTF("unknown");
     return (env->NewStringUTF(renderer));
 }
 
 extern "C" JNIEXPORT jlong JNICALL
 Java_com_winlator_cmod_core_GPUInformation_getMemorySize(JNIEnv *env, jclass obj) {
     VkPhysicalDeviceMemoryProperties props = {};
-    long memorySize;
+    long memorySize = 0;
     VkInstance instance;
 
     instance = create_instance();
+    if (!instance || !gip) return 0;
+
     PFN_vkGetPhysicalDeviceMemoryProperties getPhysicalDeviceMemoryProperties = (PFN_vkGetPhysicalDeviceMemoryProperties)gip(instance, "vkGetPhysicalDeviceMemoryProperties");
     PFN_vkDestroyInstance destroyInstance = (PFN_vkDestroyInstance)gip(instance, "vkDestroyInstance");
 
@@ -125,12 +134,13 @@ Java_com_winlator_cmod_core_GPUInformation_getMemorySize(JNIEnv *env, jclass obj
 
 extern "C" JNIEXPORT jobjectArray JNICALL
 Java_com_winlator_cmod_core_GPUInformation_enumerateExtensions(JNIEnv *env, jclass obj) {
-    jobjectArray extensions;
+    jobjectArray extensions = NULL;
     VkInstance instance;
     uint32_t extensionCount;
     std::vector<VkExtensionProperties> extensionProperties;
 
     instance = create_instance();
+    if (!instance || !gip) return NULL;
 
     PFN_vkEnumerateDeviceExtensionProperties enumerateDeviceExtensionProperties = (PFN_vkEnumerateDeviceExtensionProperties)gip(instance, "vkEnumerateDeviceExtensionProperties");
     PFN_vkDestroyInstance destroyInstance = (PFN_vkDestroyInstance)gip(instance, "vkDestroyInstance");

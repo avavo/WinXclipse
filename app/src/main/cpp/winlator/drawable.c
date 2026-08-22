@@ -166,7 +166,10 @@ Java_com_winlator_cmod_xserver_Drawable_fillRect(JNIEnv *env, jclass obj, jshort
     unpackColor(color, rgba);
 
     int rowSize = width * 4;
-    uint8_t *row = malloc(rowSize);
+    /* avoid a heap round-trip on every X11 FillRect: rows up to 1024 px
+     * come from the stack, wider rows fall back to malloc */
+    uint8_t stackRow[4096];
+    uint8_t *row = rowSize <= (int)sizeof(stackRow) ? stackRow : (uint8_t*)malloc(rowSize);
     if (!row) {
         printf("Error: Failed to allocate memory for row\n");
         return;
@@ -179,7 +182,7 @@ Java_com_winlator_cmod_xserver_Drawable_fillRect(JNIEnv *env, jclass obj, jshort
         memcpy(dataAddr + (x + (i + y) * stride) * 4, row, rowSize);
     }
 
-    free(row);
+    if (row != stackRow) free(row);
 }
 
 JNIEXPORT void JNICALL
@@ -203,7 +206,9 @@ Java_com_winlator_cmod_xserver_Drawable_drawLine(JNIEnv *env, jclass obj, jshort
     unpackColor(color, rgba);
 
     int rowSize = lineWidth * 4;
-    uint8_t *row = malloc(rowSize);
+    /* same stack-first policy as fillRect: no heap churn per X11 DrawLine */
+    uint8_t stackRow[4096];
+    uint8_t *row = rowSize <= (int)sizeof(stackRow) ? stackRow : (uint8_t*)malloc(rowSize);
     if (!row) {
         printf("Error: Failed to allocate memory for row\n");
         return;
@@ -230,7 +235,7 @@ Java_com_winlator_cmod_xserver_Drawable_drawLine(JNIEnv *env, jclass obj, jshort
         }
     }
 
-    free(row);
+    if (row != stackRow) free(row);
 }
 
 JNIEXPORT void JNICALL
@@ -280,9 +285,8 @@ Java_com_winlator_cmod_xserver_Drawable_fromBitmap(JNIEnv *env, jclass obj, jobj
         return;
     }
 
-    for (int i = 0, size = info.width * info.height * 4; i < size; i++) {
-        memcpy(dataAddr + i, pixels + i, 4);
-    }
+    /* single bulk copy; the old loop did one 4-byte memcpy per pixel */
+    memcpy(dataAddr, pixels, (size_t)info.width * info.height * 4);
 
     AndroidBitmap_unlockPixels(env, bitmap);
 }

@@ -245,7 +245,10 @@ public abstract class WineUtils {
                     value = protectedService ? defaultValue : 4;
                 }
 
-                String suffix = "\\Services\\" + name;
+                // Wine registers the NIC service as "Ndis"; writing "NDIS" would
+                // silently do nothing because keys are not created here.
+                String keyName = name.equals("NDIS") ? "Ndis" : name;
+                String suffix = "\\Services\\" + keyName;
                 registryEditor.setDwordValue("System\\CurrentControlSet" + suffix, "Start", value);
                 registryEditor.setDwordValue("System\\ControlSet001" + suffix, "Start", value);
                 registryEditor.setDwordValue("System\\ControlSet002" + suffix, "Start", value);

@@ -49,13 +49,12 @@ android {
         versionCode 23
         versionName "0.9"
 
-        // Native libraries are shipped as prebuilts in src/main/jniLibs;
-        // the CMake build is disabled while those binaries are authoritative.
-        // externalNativeBuild {
-        //     cmake {
-        //         cppFlags ''
-        //     }
-        // }
+        // Native build from Winlator sources
+        externalNativeBuild {
+            cmake {
+                cppFlags ''
+            }
+        }
 
         ndk {
             abiFilters 'arm64-v8a'
@@ -111,11 +110,11 @@ android {
 
 
     ndkVersion '27.0.12077973'
-    // externalNativeBuild {
-    //     cmake {
-    //         path 'src/main/cpp/CMakeLists.txt'
-    //     }
-    // }
+    externalNativeBuild {
+        cmake {
+            path 'src/main/cpp/CMakeLists.txt'
+        }
+    }
 
 
     packagingOptions {

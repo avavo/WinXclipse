@@ -12,9 +12,54 @@ WinXclipse is experimental. Performance, stability, graphics-driver behavior, an
 
 Use it at your own risk and test each configuration individually.
 
-## Current release: WinXclipse v0.8.6
+## Current release: WinXclipse v0.9
 
-Version 0.8.6 builds on the large runtime and interface foundation introduced in v0.8.5. This release focuses on external content management, Xclipse driver support, safer defaults, BCN texture handling, the in-session sidebar, diagnostics, and HUD accuracy.
+Version 0.9 focuses on the video and audio configuration tabs, shortcut artwork, controller handling, services and CPU management, graphics configuration cleanup, HUD alerts, and a new touchscreen control style.
+
+### What changed since v0.8.6
+
+#### Video tab
+
+- Ported the video configuration tab from [Winlator Ludashi](https://github.com/StevenMXZ/Winlator-Ludashi) into containers and shortcuts.
+- GPU name and present mode selection moved into the new video tab; added texture filtering and a red/blue channel swap option.
+- Renderer selection (Vulkan, OpenGL, GDI) lives in the video tab as the primary graphics backend switch.
+- Fake HDR from Winlator Mali is available through the in-session sidebar display options.
+
+#### Audio
+
+- Default audio driver changed to **PulseAudio**, still selectable per container or shortcut.
+- New audio driver configuration dialog with a volume option; the MIDI soundfont setting is managed inside it.
+
+#### Shortcut artwork
+
+- Three configurable sources: **Browser** (default on first boot), **EXE icon**, and **Custom** — searchable online through SteamGridDB with EXE-icon fallback, settable globally or per shortcut.
+
+#### Controls and visuals
+
+- New dark glassy touchscreen control style: gradient button bodies with thin light borders and bold labels, four-petal D-pad with outward chevron arrows, tick-marked analog sticks, and a matching trackpad.
+- Restored the light purple border around containers in the containers list.
+
+#### Input, services and CPU
+
+- Exclusive XInput mode; controller-fix files applied automatically with retry on partial failure.
+- Aggressive startup selection protects winebus/winehid/MountMgr/PlugPlay while disabling non-critical Wine services; corrected the Wine `Ndis` registry key.
+- Separate WoW64 CPU list is back for pinning 32-bit processes to different cores.
+
+#### Graphics configuration
+
+- Max Device Memory exists only in the Graphics Driver configuration; DDraw wrapper moved inside the combined DXVK + VKD3D config (default WineD3D).
+- Default DXVK changed to `async-1.10.3`; BCN layer files from v0.8.x are cleaned up on update.
+
+#### Fixes and performance
+
+- Fixed repeated online artwork retries while scrolling and a recycled-bitmap risk between artwork download and reload.
+- Hardened shortcut input parsing against corrupted stored values.
+- Unified dark-mode detection across all remaining dialogs and screens (follow-system-theme aware).
+- Control overlay no longer allocates native shaders per frame; rumble/turbo poller idles at ~60 Hz instead of ~200 Hz; playtime saves every 30 s instead of every 1 s; cover art decodes downsampled; controller motion-event logging removed; mouse-move timer restarts after re-attach.
+
+## Previous release: WinXclipse v0.8.6
+
+Version 0.8.6 builds on the large runtime and interface foundation introduced in v0.8.5. That release focused on external content management, Xclipse driver support, safer defaults, BCN texture handling, the in-session sidebar, diagnostics, and HUD accuracy.
 
 ### What changed since v0.8.5
 
@@ -158,6 +203,7 @@ WinXclipse builds upon the work of:
 - Winlator Glibc by longjunyu2
 - Winlator OpenXR by lvonasek
 - [Winlator Mali](https://github.com/GunaCharanTeja/WinlatorMali) for ports and implementation references
+- Ports from [Winlator Ludashi](https://github.com/StevenMXZ/Winlator-Ludashi)
 - [ExynosTools](https://github.com/WearyConcern1165/ExynosTools) for Exynos/Xclipse driver resources
 - [MdiEx](https://github.com/avavo/MdiEx) for Xclipse driver resources
 - WinXclipse Exynos/Xclipse adaptation by Álvaro

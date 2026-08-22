@@ -140,6 +140,7 @@ public class WinHandler {
 
     // --- Turbo (autofire) ----------------------------------------------------
     private static final int BUTTON_COUNT = 15; // length of sdlButtons
+    private final ThreadLocal<byte[]> sdlButtonsScratch = ThreadLocal.withInitial(() -> new byte[BUTTON_COUNT]);
     private static final int MAX_SLOTS = MAX_PLAYERS; // 4
     private final boolean[][] turboEnabled = new boolean[MAX_SLOTS][BUTTON_COUNT];
     private final boolean[] includeTriggers = new boolean[MAX_SLOTS];
@@ -816,7 +817,11 @@ public class WinHandler {
                     }
                 }
 
-                try { Thread.sleep(5); } catch (InterruptedException ignored) { break; }
+                try {
+                    // Idle rumble polling only needs ~60 Hz; keep a fast cadence
+                    // only while turbo is active so it stays phase-accurate.
+                    Thread.sleep(anyTurboEnabled ? 5 : 16);
+                } catch (InterruptedException ignored) { break; }
             }
         });
         rumblePollerThread.start();
@@ -909,7 +914,10 @@ public class WinHandler {
         float rawR = Math.max(0f, Math.min(1f, src.triggerR));
 
         // Buttons & dpad (SDL-style ordering)
-        byte[] sdlButtons = new byte[15];
+        // Per-thread scratch: written from both the rumble poller and input
+        // paths, so a shared array would race; ThreadLocal avoids the
+        // per-event allocation without locking.
+        byte[] sdlButtons = sdlButtonsScratch.get();
         sdlButtons[0]  = src.isPressed(0)  ? (byte)1 : 0;  // A
         sdlButtons[1]  = src.isPressed(1)  ? (byte)1 : 0;  // B
         sdlButtons[2]  = src.isPressed(2)  ? (byte)1 : 0;  // X

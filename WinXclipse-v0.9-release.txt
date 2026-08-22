@@ -1,0 +1,107 @@
+WinXclipse v0.9
+
+This release focuses on the video and audio configuration tabs, shortcut artwork, controller handling, services and CPU management, graphics configuration cleanup, HUD alerts, and a new touchscreen control style.
+
+What Changed Compared to v0.8.6
+
+Video Tab
+
+- Ported the video configuration tab from Winlator Ludashi into containers and shortcuts.
+- GPU name and present mode selection moved out of the Graphics Driver dialog into the new video tab.
+- Added texture filtering and a red/blue channel swap option for games that render with inverted color channels.
+- Renderer selection (Vulkan, OpenGL, GDI) lives in the video tab as the primary graphics backend switch, mirroring how wrappers work in the graphics tab.
+- Fake HDR from Winlator Mali is available through the in-session sidebar display options, alongside texture filters.
+
+Audio
+
+- Default audio driver changed to PulseAudio, with ALSA-Reflector, ALSA, and PulseAudio still selectable per container or shortcut.
+- Added an audio driver configuration dialog with a volume option; the MIDI soundfont setting is now managed inside it.
+
+Shortcut Artwork and Cover Logos
+
+- Centralized shortcut artwork with three configurable sources: Browser (default on first boot), EXE icon, and Custom.
+- Browser mode searches the game name online through SteamGridDB and falls back to the EXE icon when nothing is found.
+- The source can be set globally in Settings and overridden per shortcut; installed cover art can be changed or reset at any time.
+
+Controls and Visuals
+
+- Applied a new dark glassy visual style to touchscreen controls: gradient button bodies with thin light borders and bold labels, a four-petal D-pad with outward chevron arrows and per-direction press highlighting, tick-marked analog sticks, and a matching trackpad.
+- Restored the light purple border around containers in the containers list.
+
+Input and Controllers
+
+- Exclusive XInput mode for containers and shortcuts; when off, XInput and DInput can be enabled together with the classic simultaneous-use warning.
+- Controller-fix files are applied to containers automatically and only marked as installed when every file is copied successfully, retrying on next launch otherwise.
+
+Services and Startup Selection
+
+- Aggressive startup selection disables non-critical Wine services while protecting winebus, winehid, MountMgr, and PlugPlay so controllers keep working.
+- Corrected the Wine Ndis registry key so NIC service state changes apply correctly.
+
+CPU Lists
+
+- Separate WoW64 CPU list is back, so 32-bit processes can be pinned to different cores than 64-bit processes.
+
+Graphics Configuration
+
+- Max Device Memory now exists only in the Graphics Driver configuration.
+- DDraw wrapper selection moved inside the combined DXVK + VKD3D configuration, defaulting to WineD3D.
+- Default DXVK changed to async-1.10.3; default audio driver to PulseAudio; BCN layer files left by v0.8.x installations are cleaned up on update.
+
+First Boot
+
+- Base file installation starts immediately on first launch; storage permissions and the USB storage request come after installation completes.
+
+Fixes
+
+- Fixed repeated online artwork retries that could keep refreshing shortcut cover art while scrolling.
+- Removed a recycled-bitmap risk between generated artwork download and reload.
+- Hardened shortcut input parsing against corrupted stored values.
+- Unified dark-mode detection across all remaining dialogs, fragments, and screens, honoring follow-system-theme and the dark-by-default preference.
+
+Performance
+
+- Cached gradient shaders used by touchscreen controls so the overlay no longer allocates native shaders every frame.
+- Reduced the rumble/turbo poller from ~200 wakeups per second to ~60 when turbo is not in use, freeing CPU time for the emulated game on Exynos big.LITTLE scheduling.
+- Playtime statistics are persisted every 30 seconds instead of every second, avoiding constant background disk writes during gameplay.
+- Shortcut cover art is decoded with downsampling instead of holding full-size bitmaps for every list row.
+- Online artwork lookups reuse shared HTTP clients; failed lookups are remembered per session instead of retried on every scroll.
+- Removed debug logging from the controller motion-event path, which runs at 100-200 events per second.
+- Fixed the mouse-move timer never restarting after re-attaching the controls view.
+
+Available Package Variants
+
+- Main: com.win.xclipse
+- AnTuTu: com.antutu.ABenchMark
+- Geekbench 6: com.primatelabs.geekbench6
+
+Providers and internal paths use the active application ID, reducing the risk of breaking controls, file access, containers, and shortcuts when using different package variants.
+
+Updates and Existing Data
+
+- Updating the main variant preserves the com.win.xclipse package name.
+- Existing containers, shortcuts, and internal data should remain available when updating a previous build that uses the same package and signing key.
+- Backing up important data before updating is recommended, especially because this remains an experimental release.
+
+Remote Sources
+
+- ExynosTools: https://github.com/WearyConcern1165/ExynosTools/releases
+- MdiEx: https://github.com/avavo/MdiEx/releases
+- WinXclipse: https://github.com/avavo/WinXclipse/releases
+
+Status
+
+Functionally experimental.
+
+Behavior can vary depending on the device, GPU, driver, wrapper, runtime, container, and game. A package appearing in Downloads does not guarantee compatibility with every device.
+
+Credits
+
+- Winlator by Brunodev85
+- Winlator CMOD by coffincolors and Pipetto-crypto
+- Winlator Glibc by longjunyu2
+- Winlator OpenXR by lvonasek
+- Ports and implementation references from Winlator Mali
+- Ports from Winlator Ludashi (https://github.com/StevenMXZ/Winlator-Ludashi)
+- ExynosTools and MdiEx for Exynos/Xclipse resources
+- WinXclipse Exynos/Xclipse adaptation by Álvaro

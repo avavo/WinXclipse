@@ -2,7 +2,6 @@ package com.winlator.cmod.core;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Handler;
 import android.os.Looper;
@@ -20,7 +19,10 @@ import com.winlator.cmod.container.Shortcut;
 
 import java.io.File;
 import java.io.InputStream;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -43,6 +45,11 @@ public final class ShortcutArtworkManager {
     private static final String BUILT_IN_API_KEY = "0324c52513634547a7b32d6d323635d0";
     private static final ExecutorService EXECUTOR = Executors.newFixedThreadPool(2);
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
+    private static final Set<String> PENDING = Collections.synchronizedSet(new HashSet<String>());
+    /** Session negative cache: shortcuts whose online lookup already failed. */
+    private static final Set<String> FAILED = Collections.synchronizedSet(new HashSet<String>());
+    private static final OkHttpClient HTTP_CLIENT = new OkHttpClient();
+    private static volatile SteamGridDBApi steamGridApi;
 
     private ShortcutArtworkManager() {}
 
@@ -79,22 +86,60 @@ public final class ShortcutArtworkManager {
             post(callback, true);
             return;
         }
+        final String pendingKey = shortcut.container.getRootDir().getPath()
+                + File.separatorChar + shortcut.name;
+        if (!force && FAILED.contains(pendingKey)) {
+            // Already tried and failed this session; do not hammer the network
+            // again on every rebind.
+            post(callback, false);
+            return;
+        }
+        if (!PENDING.add(pendingKey)) {
+            post(callback, false);
+            return;
+        }
         EXECUTOR.execute(() -> {
-            boolean ok;
-            if (MODE_BROWSER.equals(mode)) {
-                ok = downloadBrowserArtwork(context.getApplicationContext(), shortcut);
-                if (!ok) ok = createExeArtwork(shortcut);
-            } else {
-                ok = createExeArtwork(shortcut);
+            try {
+                boolean ok;
+                if (MODE_BROWSER.equals(mode)) {
+                    ok = downloadBrowserArtwork(context.getApplicationContext(), shortcut);
+                    if (!ok) ok = createExeArtwork(shortcut);
+                } else {
+                    ok = createExeArtwork(shortcut);
+                }
+                shortcut.reloadCoverArt();
+                boolean resolved = ok && shortcut.getCoverArt() != null;
+                if (resolved) FAILED.remove(pendingKey); else FAILED.add(pendingKey);
+                post(callback, resolved);
+            } finally {
+                PENDING.remove(pendingKey);
             }
-            shortcut.reloadCoverArt();
-            post(callback, ok);
         });
     }
 
     private static boolean createExeArtwork(Shortcut shortcut) {
         File exe = shortcut.resolveExecutableFile();
         return exe != null && ExeIconExtractor.extractCover(exe, shortcut.getGeneratedCoverArtFile());
+    }
+
+    private static SteamGridDBApi getSteamGridApi() {
+        SteamGridDBApi api = steamGridApi;
+        if (api != null) return api;
+        synchronized (ShortcutArtworkManager.class) {
+            if (steamGridApi == null) {
+                Gson gridsGson = new GsonBuilder()
+                        .registerTypeAdapter(SteamGridGridsResponse.class,
+                                new SteamGridGridsResponseDeserializer())
+                        .create();
+                steamGridApi = new Retrofit.Builder()
+                        .baseUrl(BASE_URL)
+                        .client(HTTP_CLIENT)
+                        .addConverterFactory(GsonConverterFactory.create(gridsGson))
+                        .build()
+                        .create(SteamGridDBApi.class);
+            }
+            return steamGridApi;
+        }
     }
 
     private static boolean downloadBrowserArtwork(Context context, Shortcut shortcut) {
@@ -106,15 +151,7 @@ public final class ShortcutArtworkManager {
                 if (custom != null && !custom.trim().isEmpty()) key = custom.trim();
             }
 
-            Gson gridsGson = new GsonBuilder()
-                    .registerTypeAdapter(SteamGridGridsResponse.class,
-                            new SteamGridGridsResponseDeserializer())
-                    .create();
-            Retrofit retrofit = new Retrofit.Builder()
-                    .baseUrl(BASE_URL)
-                    .addConverterFactory(GsonConverterFactory.create(gridsGson))
-                    .build();
-            SteamGridDBApi api = retrofit.create(SteamGridDBApi.class);
+            SteamGridDBApi api = getSteamGridApi();
 
             String query = cleanSearchName(shortcut.name);
             retrofit2.Response<SteamGridSearchResponse> search =
@@ -131,15 +168,12 @@ public final class ShortcutArtworkManager {
 
             String imageUrl = firstImageUrl(grids.body().data);
             if (imageUrl == null) return false;
-            OkHttpClient client = new OkHttpClient();
-            try (Response response = client.newCall(new Request.Builder().url(imageUrl).build()).execute()) {
+            try (Response response = HTTP_CLIENT.newCall(new Request.Builder().url(imageUrl).build()).execute()) {
                 if (!response.isSuccessful() || response.body() == null) return false;
                 try (InputStream input = response.body().byteStream()) {
-                    Bitmap bitmap = BitmapFactory.decodeStream(input);
-                    if (bitmap == null) return false;
-                    boolean saved = shortcut.saveGeneratedCoverArt(bitmap);
-                    if (!bitmap.isRecycled()) bitmap.recycle();
-                    return saved;
+                    // Do not recycle: the bitmap is stored as shortcut cover art
+                    // until reloadCoverArt() replaces it with a fresh decode.
+                    return shortcut.saveGeneratedCoverArt(BitmapFactory.decodeStream(input));
                 }
             }
         } catch (Exception e) {
