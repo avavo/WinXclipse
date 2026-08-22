@@ -642,7 +642,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 ? "1".equals(shortcut.getExtra("exclusiveXInput", container.isExclusiveXInput() ? "1" : "0"))
                 : container.isExclusiveXInput();
         WineUtils.setJoystickRegistryKeys(container, dinputEnabled, exclusiveXInput);
-        WineUtils.setDirect3DRenderer(container, "gl");
 
         graphicsDriver = Container.normalizeGraphicsDriver(graphicsDriver);
 
@@ -3203,8 +3202,16 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 Log.d(TAG, "Applying user-defined VKD3D content profile: " + dxwrapper);
                 contentsManager.applyContent(profile);
             } else {
-                Log.d(TAG, "Extracting fallback VKD3D .tzst archive: " + dxwrapper);
-                TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "dxwrapper/" + dxwrapper + ".tzst", windowsDir, onExtractFileListener);
+                // Bundled archives may carry a "-<build>" suffix (e.g. vkd3d-2.8-0.tzst).
+                String assetFile = "dxwrapper/" + dxwrapper + ".tzst";
+                try {
+                    getAssets().open(assetFile).close();
+                }
+                catch (IOException e) {
+                    assetFile = "dxwrapper/" + dxwrapper + "-0.tzst";
+                }
+                Log.d(TAG, "Extracting fallback VKD3D .tzst archive: " + assetFile);
+                TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, assetFile, windowsDir, onExtractFileListener);
             }
             Log.d(TAG, "Finished VKD3D extraction for " + dxwrapper);
         } else if (dxwrapper.contains("dxvk")) {
