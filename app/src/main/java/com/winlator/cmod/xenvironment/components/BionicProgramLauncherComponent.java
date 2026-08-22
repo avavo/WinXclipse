@@ -429,6 +429,18 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         else {
             Log.e("FakeInput", "Missing libfakeinput.so");
         }
+        // System libraries some guest launchers/crash handlers dlopen
+        // (same preloads the bionic base ships by default).
+        String libjpeg = firstExistingFile("/system/lib64/libjpeg.so",
+                "/system_ext/lib64/libjpeg.so");
+        String libcrypto = firstExistingFile("/system/lib64/libcrypto.so",
+                "/system_ext/lib64/libcrypto.so",
+                new File(rootDir, "usr/lib/libcrypto.so.3").getAbsolutePath());
+        for (String systemLib : new String[]{libjpeg, libcrypto}) {
+            if (systemLib != null) {
+                ld_preload += (ld_preload.isEmpty() ? "" : ":") + systemLib;
+            }
+        }
         if (!ld_preload.isEmpty()) envVars.put("LD_PRELOAD", ld_preload);
         File fakeInputDir = new File(rootDir, "dev/input");
         if (!fakeInputDir.isDirectory()) fakeInputDir.mkdirs();
@@ -533,6 +545,13 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         }
 
         return output.toString();
+    }
+
+    private static String firstExistingFile(String... paths) {
+        for (String path : paths) {
+            if (path != null && new File(path).isFile()) return path;
+        }
+        return null;
     }
 
     public void restartWineServer() {

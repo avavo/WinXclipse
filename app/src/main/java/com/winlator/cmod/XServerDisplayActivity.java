@@ -3228,8 +3228,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             FileUtils.delete(new File(windowsDir + "/syswow64/" + glideDLL));
         }
 
-        if (ddrawrapper.equals("wined3d")) {
-            Log.d("XserverDisplayActivity", "Restoring original dlls for WineD3D");
+        if (ddrawrapper.equals("wined3d") || ddrawrapper.equals("none")) {
+            Log.d("XserverDisplayActivity", "Restoring original dlls for WineD3D/None");
             restoreOriginalDllFiles(dlls);
         }
         else {

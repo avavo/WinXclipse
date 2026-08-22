@@ -78,6 +78,8 @@ public final class FEXCorePresetManager {
                 envVars.put("FEX_HALFBARRIERTSOENABLED", "0");
                 envVars.put("FEX_X87REDUCEDPRECISION", "1");
                 envVars.put("FEX_MULTIBLOCK", "1");
+                envVars.put("FEX_DYNAMICL1CACHE", "1");
+                envVars.put("FEX_DISABLEL2CACHE", "1");
                 break;
             case FEXCorePreset.INTERMEDIATE:
                 putIntermediateEnvVars(envVars);
@@ -107,7 +109,7 @@ public final class FEXCorePresetManager {
         envVars.put("FEX_VECTORTSOENABLED", "0");
         envVars.put("FEX_MEMCPYSETTSOENABLED", "0");
         envVars.put("FEX_HALFBARRIERTSOENABLED", "1");
-        envVars.put("FEX_X87REDUCEDPRECISION", "0");
+        envVars.put("FEX_X87REDUCEDPRECISION", "1");
         envVars.put("FEX_MULTIBLOCK", "1");
     }
 
