@@ -135,18 +135,19 @@ Java_com_winlator_cmod_xserver_Drawable_copyAreaOp(JNIEnv *env, jclass obj, jsho
         return;
     }
 
+    /* Word-per-pixel BGRA ops instead of 6 byte loads + 3 byte stores per
+     * pixel; the alpha byte is preserved exactly like the old byte path. */
+    uint32_t *srcWords = (uint32_t *)srcDataAddr;
+    uint32_t *dstWords = (uint32_t *)dstDataAddr;
+
     for (int16_t y = 0; y < height; y++) {
+        const uint32_t *srcRow = srcWords + srcX + (y + srcY) * (int)srcStride;
+        uint32_t *dstRow = dstWords + dstX + (y + dstY) * (int)dstStride;
         for (int16_t x = 0; x < width; x++) {
-            int i = (x + srcX + (y + srcY) * srcStride) * 4;
-            int j = (x + dstX + (y + dstY) * dstStride) * 4;
-            int srcColor = (srcDataAddr[i] << 16) | (srcDataAddr[i+1] << 8) | srcDataAddr[i+2];
-            int dstColor = (dstDataAddr[j] << 16) | (dstDataAddr[j+1] << 8) | dstDataAddr[j+2];
-
-            dstColor = setPixelOp(srcColor, dstColor, gcFunction);
-
-            dstDataAddr[j] = (dstColor >> 16) & 0xff;
-            dstDataAddr[j+1] = (dstColor >> 8) & 0xff;
-            dstDataAddr[j+2] = dstColor & 0xff;
+            uint32_t srcColor = srcRow[x];
+            uint32_t dstColor = dstRow[x];
+            uint32_t result = (uint32_t)setPixelOp(srcColor, dstColor, gcFunction);
+            dstRow[x] = (result & 0x00FFFFFFu) | (dstColor & 0xFF000000u);
         }
     }
 }
@@ -175,11 +176,15 @@ Java_com_winlator_cmod_xserver_Drawable_fillRect(JNIEnv *env, jclass obj, jshort
         return;
     }
 
-    for (int i = 0; i < rowSize; i += 4) {
-        memcpy(row + i, rgba, 4);
-    }
+    uint32_t pixelWord;
+    memcpy(&pixelWord, rgba, sizeof pixelWord);
+    uint32_t *rowWords = (uint32_t *)row;
+    for (int i = 0; i < width; i++) rowWords[i] = pixelWord;
+
+    uint32_t *pixels = (uint32_t *)dataAddr;
+    uint32_t *dstRow = pixels + x + y * (int)stride;
     for (int16_t i = 0; i < height; i++) {
-        memcpy(dataAddr + (x + (i + y) * stride) * 4, row, rowSize);
+        memcpy(dstRow + i * (int)stride, rowWords, rowSize);
     }
 
     if (row != stackRow) free(row);
@@ -205,6 +210,29 @@ Java_com_winlator_cmod_xserver_Drawable_drawLine(JNIEnv *env, jclass obj, jshort
     uint8_t rgba[4];
     unpackColor(color, rgba);
 
+    uint32_t *pixels = (uint32_t *)dataAddr;
+
+    if (lineWidth <= 1) {
+        /* hairline fast path: one word store per point instead of a memcpy */
+        uint32_t pixelWord;
+        memcpy(&pixelWord, rgba, sizeof pixelWord);
+        while (true) {
+            pixels[x0 + y0 * (int)stride] = pixelWord;
+            if (x0 == x1 && y0 == y1) break;
+
+            e2 = e1 * 2;
+            if (e2 >= dy) {
+                e1 += dy;
+                x0 += sx;
+            }
+            if (e2 <= dx) {
+                e1 += dx;
+                y0 += sy;
+            }
+        }
+        return;
+    }
+
     int rowSize = lineWidth * 4;
     /* same stack-first policy as fillRect: no heap churn per X11 DrawLine */
     uint8_t stackRow[4096];
@@ -214,13 +242,15 @@ Java_com_winlator_cmod_xserver_Drawable_drawLine(JNIEnv *env, jclass obj, jshort
         return;
     }
 
-    for (int i = 0; i < rowSize; i += 4) {
-        memcpy(row + i, rgba, 4);
-    }
+    uint32_t pixelWord;
+    memcpy(&pixelWord, rgba, sizeof pixelWord);
+    uint32_t *rowWords = (uint32_t *)row;
+    for (int i = 0; i < lineWidth; i++) rowWords[i] = pixelWord;
 
     while (true) {
+        uint32_t *dstRow = pixels + x0 + y0 * (int)stride;
         for (int16_t i = 0; i < lineWidth; i++) {
-            memcpy(dataAddr + (x0 + (i + y0) * stride) * 4, row, rowSize);
+            memcpy(dstRow + i * (int)stride, rowWords, rowSize);
         }
         if (x0 == x1 && y0 == y1) break;
 

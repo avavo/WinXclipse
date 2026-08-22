@@ -56,6 +56,38 @@ Version 0.9 focuses on the video and audio configuration tabs, shortcut artwork,
 - Hardened shortcut input parsing against corrupted stored values.
 - Unified dark-mode detection across all remaining dialogs and screens (follow-system-theme aware).
 - Control overlay no longer allocates native shaders per frame; rumble/turbo poller idles at ~60 Hz instead of ~200 Hz; playtime saves every 30 s instead of every 1 s; cover art decodes downsampled; controller motion-event logging removed; mouse-move timer restarts after re-attach.
+- Stylus hover logging removed from the touchpad hot path.
+- Fixed the inverted exclusive XInput behavior: exclusive mode now locks XInput-only (DInput forced off), while non-exclusive mode lets both be toggled freely with the simultaneous-use warning.
+- Controller-fix retry now verifies all three files (`dinput.dll` included) before marking installation complete.
+- Playtime autosave no longer double-schedules after `onResume`, restoring the real 30 s cadence.
+- BCn emulation controls in the Graphics Driver dialog are now applied at launch and match the Winlator-Mali reference mapping: none/partial/full/auto → `WRAPPER_EMULATE_BCN` 0/1/2/3, compute layer enabled only for full/auto (with `BCN_COMPUTE_AUTO`=0/1), software type force-disables it via the manifest's `DISABLE_BCN_COMPUTE` key, cache passes through, and ASTC/ETC2 transcode remain mutually exclusive. Wrappers with native BCN handling (GameNative, Kirimu, Ref4ik-v6) skip the shared Leegao layer. The section stays visible only when Experimental BCN is enabled.
+- New CPU cluster detection reads `cpufreq` data so the WoW64 fallback list pins 32-bit processes to performance cores on Exynos DynamIQ SoCs (Exynos 2200/2400 style 4+3+1 layouts), keeping LITTLE cores free for Android audio/input threads; homogeneous devices and explicit per-container lists are unaffected.
+- GPU renderer detection results are cached instead of re-running JNI/regex checks per call, and the per-frame `glGetError` validation became debug-only to avoid implicit command-buffer syncs on tile-based Xclipse RDNA2 GPUs.
+- Experimental Performance additionally sets `vblank_mode=0` so OpenGL/zink titles skip vsync waits (opt-in only).
+
+#### Interface and usability
+
+- Added wrapper credits to the About dialog and release notes: Wrappers from [Leegao](https://github.com/leegao/bionic-vulkan-wrapper), [GameNative](https://github.com/utkarshdalal/GameNative), [Ref4ik-v6](https://github.com/REF4IK/CronyX-), and Kirimu.
+- Removed the bundled DXVK 1.10.1 and 1.10.3 entries, and the Wrapper-EV1, Wrapper-EV2, and Wrapper-LD24 wrappers.
+- GPU Name now falls back to "Device" whenever no valid name is configured.
+- Containers list has more vertical spacing between entries.
+- The Audio Driver row is visible again in shortcut settings, and "Current Version" now shows the selected wrapper too (e.g. "Wrapper-Kirimu · System").
+- Processor affinity grids wrap into centered rows of 4-5 cores with clearance above the confirm button, so every core (CPU8/CPU9 on decacore Exynos) is reachable in both containers and shortcuts.
+- New HUD setting "Disable RAM warning" (with a ? help) hides the blinking RAM alert and its high-memory dialog; the choice is persisted per session preferences.
+- New ? help next to the Graphics Driver selector explains that Kirimu and GameNative are recommended for BCn texture errors in DirectX 11/12 games.
+- New ? help next to ASTC Transcode explains the Leegao BCN layer trade-offs in our own dialog style.
+- All ? help popups now measure their wrapped text correctly — long explanations are no longer clipped to a single line.
+- With Wrapper-Kirimu selected and Experimental BCN enabled, BCn options lock to Kirimu's profile: emulation type fixed to software, ASTC/ETC2 transcodes disabled, and BCn cache defaulting to 1.
+- GPU detection recognizes the whole Xclipse family (530, 540, 550, 920, 940 including the Exynos 2400e variant, 950, 960) with its AMD RDNA generation (RDNA2: 530/540/920, RDNA3: 550/940/950, RDNA4: 960), and maps each GPU to its Exynos SoC; the FPS HUD shows the detected pairing, e.g. "Xclipse 940 RDNA3 (Exynos 2400/2400e)".
+- On Xclipse 530/540 (low-tier RDNA2, one or two WGPs), Experimental BCN defaults to BCn-to-ASTC transcoding when no transcode option was chosen explicitly — these GPUs decode ASTC in hardware, while per-frame compute emulation competes directly with game rendering.
+- Frequency-based cluster detection covers octa-core (Exynos 1480/1580) and deca-core (Exynos 2400/2400e/2500/2600) layouts alike, so performance-core defaults for 32-bit guest processes are correct on every supported SoC.
+
+#### Native and memory optimizations (unified LPDDR awareness)
+
+- Native X11 blits (`copyAreaOp`, `fillRect`, `drawLine`) now process whole 32-bit pixels instead of byte-per-pixel loops — NEON-friendly and lighter on the shared memory bus that the CPU translation layers (FEXCore/Box64) and the Xclipse GPU compete for.
+- The evshim shim resolved `/proc/self/fd/N` via procfs on **every** `read()`/`ioctl()` inside guest processes; the verdict is cached per fd and invalidated on close/open.
+- ALSA pacer thread no longer requests max `SCHED_FIFO`, EGL display is resolved once across all `EGLImage` create/destroy calls, JNI method lookups run only once.
+- Experimental Performance reports a unified-memory-aware VRAM cap (3/8 of total RAM, clamped 2–4 GB) when Max Device Memory is left unset, so games cannot over-commit shared RAM until Android kills Wine.
 
 ## Previous release: WinXclipse v0.8.6
 
@@ -166,7 +198,6 @@ Version 0.8.5 was the major foundation for the current WinXclipse line. It intro
 The built-in graphics-driver list includes:
 
 - Wrapper
-- Wrapper-BCN
 - Wrapper-v2
 - Wrapper-Leegao
 - Wrapper-EV1
@@ -206,4 +237,5 @@ WinXclipse builds upon the work of:
 - Ports from [Winlator Ludashi](https://github.com/StevenMXZ/Winlator-Ludashi)
 - [ExynosTools](https://github.com/WearyConcern1165/ExynosTools) for Exynos/Xclipse driver resources
 - [MdiEx](https://github.com/avavo/MdiEx) for Xclipse driver resources
+- Wrappers from [Leegao](https://github.com/leegao/bionic-vulkan-wrapper), [GameNative](https://github.com/utkarshdalal/GameNative), [Ref4ik-v6](https://github.com/REF4IK/CronyX-), and Kirimu
 - WinXclipse Exynos/Xclipse adaptation by Álvaro

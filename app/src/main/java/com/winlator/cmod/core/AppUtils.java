@@ -226,15 +226,23 @@ public abstract class AppUtils {
 
     public static void showHelpBox(Context context, View anchor, String text) {
         int padding = (int)UnitUtils.dpToPx(8);
+        int width = (int)UnitUtils.dpToPx(284);
         TextView textView = new TextView(context);
-        textView.setLayoutParams(new ViewGroup.LayoutParams((int)UnitUtils.dpToPx(284), ViewGroup.LayoutParams.WRAP_CONTENT));
+        textView.setLayoutParams(new ViewGroup.LayoutParams(width, ViewGroup.LayoutParams.WRAP_CONTENT));
         textView.setPadding(padding, padding, padding, padding);
         textView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
         textView.setText(Html.fromHtml(text, Html.FROM_HTML_MODE_LEGACY));
-        int widthMeasureSpec = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED);
+        /* Measure with the real wrapped width so multi-line help text gets a
+         * correctly sized popup instead of being clipped to one line. */
+        int widthMeasureSpec = View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY);
         int heightMeasureSpec = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED);
         textView.measure(widthMeasureSpec, heightMeasureSpec);
-        showPopupWindow(anchor, textView, 300, textView.getMeasuredHeight());
+
+        PopupWindow popupWindow = new PopupWindow(textView,
+                width + padding, textView.getMeasuredHeight() + 2 * padding, true);
+        popupWindow.setElevation(5.0f);
+        popupWindow.setOutsideTouchable(true);
+        popupWindow.showAsDropDown(anchor);
     }
 
     public static int getVersionCode(Context context) {

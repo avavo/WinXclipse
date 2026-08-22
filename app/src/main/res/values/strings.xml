@@ -312,7 +312,19 @@
     <string name="bcn_emulation_cache">BCn Emulation Cache</string>
     <string name="astc_transcode">ASTC Transcode</string>
     <string name="etc2_transcode">ETC2 Transcode</string>
-    <string-array name="bcn_emulation_entries"><item>auto</item><item>full</item></string-array>
+    <string name="astc_transcode_help"><![CDATA[Uses the custom <b>Leegao BCN layer</b> to transcode BCn (BC1-BC7) textures directly into <b>ASTC</b>, a format natively supported by Xclipse RDNA GPUs.<br /><br />
+        <b>Why it matters:</b> without this, BCn textures are decoded to RGBA8, consuming <b>4x more video memory</b>.<br /><br />
+        <b>Benefits:</b> lower VRAM/RAM usage on the unified memory pool and fewer out-of-memory crashes on texture-heavy games, with quality close to the original.<br /><br />
+        Requires Emulation Type = Compute. Mutually exclusive with ETC2 Transcode.]]></string>
+    <string name="graphics_driver_help_content"><![CDATA[
+        <i><b>Wrapper</b></i> variants provide the Vulkan driver used by DXVK/VKD3D on Exynos Xclipse GPUs.<br /><br />
+        <b>Kirimu</b> and <b>GameNative</b> are recommended for BCn texture errors in DirectX 11 and DirectX 12 games.<br /><br />
+        Enable <b>Experimental BCN Support</b> to expose per-driver BCn controls.
+    ]]></string>
+    <string name="disable_ram_warning">Disable RAM warning</string>
+    <string name="ram_warning_help"><![CDATA[Hides the blinking RAM alert and its high-memory dialog shown when RAM usage crosses the danger threshold.<br /><br />
+        This only silences the warning — games can still run out of memory on the unified LPDDR pool.]]></string>
+    <string-array name="bcn_emulation_entries"><item>none</item><item>partial</item><item>full</item><item>auto</item></string-array>
     <string-array name="bcn_emulation_type_entries"><item>compute</item><item>software</item></string-array>
     <string-array name="bcn_emulation_cache_entries"><item>0</item><item>1</item></string-array>
     <string name="glibc_exp_edition">Glibc Experimental Edition</string>

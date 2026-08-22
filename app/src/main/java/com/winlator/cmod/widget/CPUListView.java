@@ -1,6 +1,7 @@
 package com.winlator.cmod.widget;
 
 import android.content.Context;
+import android.view.Gravity;
 import android.util.AttributeSet;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -37,16 +38,32 @@ public class CPUListView extends LinearLayout {
     private void refreshContent() {
         removeAllViews();
         LayoutInflater inflater = LayoutInflater.from(getContext());
+        float density = getResources().getDisplayMetrics().density;
 
-        for (int i = 0; i < numProcessors; i++) {
-            View itemView = inflater.inflate(R.layout.cpu_list_item, this, false);
-            String tag = "CPU"+i;
-            CheckBox checkBox = itemView.findViewById(R.id.CheckBox);
-            checkBox.setTag(tag);
-            checkBox.setChecked(checkedCPUList == null || checkedCPUList.contains(String.valueOf(i)));
+        /* Wrap cores into centered rows of at most 4-5 so every CPU stays
+         * reachable on decacore devices instead of overflowing off-screen. */
+        int perRow = numProcessors > 8 ? 5 : 4;
+        int rowCount = (numProcessors + perRow - 1) / perRow;
+        for (int row = 0; row < rowCount; row++) {
+            LinearLayout rowLayout = new LinearLayout(getContext());
+            rowLayout.setOrientation(HORIZONTAL);
+            rowLayout.setGravity(Gravity.CENTER_HORIZONTAL);
+            LayoutParams layoutParams = new LayoutParams(
+                    LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
+            if (row > 0) layoutParams.topMargin = (int)(density * 6);
+            rowLayout.setLayoutParams(layoutParams);
 
-            ((TextView)itemView.findViewById(R.id.TextView)).setText(tag);
-            addView(itemView);
+            for (int i = row * perRow; i < Math.min((row + 1) * perRow, numProcessors); i++) {
+                View itemView = inflater.inflate(R.layout.cpu_list_item, rowLayout, false);
+                String tag = "CPU"+i;
+                CheckBox checkBox = itemView.findViewById(R.id.CheckBox);
+                checkBox.setTag(tag);
+                checkBox.setChecked(checkedCPUList == null || checkedCPUList.contains(String.valueOf(i)));
+
+                ((TextView)itemView.findViewById(R.id.TextView)).setText(tag);
+                rowLayout.addView(itemView);
+            }
+            addView(rowLayout);
         }
     }
 

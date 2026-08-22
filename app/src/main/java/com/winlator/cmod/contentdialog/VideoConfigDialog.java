@@ -44,7 +44,9 @@ public class VideoConfigDialog extends ContentDialog {
                 Arrays.asList(context.getString(R.string.bilinear),
                         context.getString(R.string.nearest_neighbor))));
 
-        AppUtils.setSpinnerSelectionFromValue(gpuName, config.getGpuName());
+        if (!AppUtils.setSpinnerSelectionFromValue(gpuName, config.getGpuName())) {
+            AppUtils.setSpinnerSelectionFromValue(gpuName, "Device");
+        }
         AppUtils.setSpinnerSelectionFromValue(presentMode, config.getPresentMode());
         textureFilter.setSelection(Math.max(0, Math.min(config.getTextureFilterMode(), 1)));
         swapRedBlue.setChecked(config.isSwapRedBlue());

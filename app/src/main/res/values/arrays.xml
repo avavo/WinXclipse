@@ -22,10 +22,7 @@
         <item>Wrapper</item>
         <item>Wrapper-v2</item>
         <item>Wrapper-Leegao</item>
-        <item>Wrapper-EV1</item>
-        <item>Wrapper-EV2</item>
         <item>Wrapper-Kirimu</item>
-        <item>Wrapper-LD24</item>
         <item>Wrapper-Ref4ik-v6</item>
         <item>Wrapper-GameNative</item>
     </string-array>
@@ -56,8 +53,6 @@
 <!--        <item>0.96</item>-->
 <!--        <item>1.5.5</item>-->
         <item>1.7.2</item>
-        <item>1.10.1</item>
-        <item>1.10.3</item>
         <item>async-1.10.3</item>
         <item>1.11.1-sarek</item>
         <item>2.3.1</item>

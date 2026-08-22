@@ -12,7 +12,10 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="16dp">
+            android:paddingLeft="16dp"
+            android:paddingTop="16dp"
+            android:paddingRight="16dp"
+            android:paddingBottom="96dp">
 
             <TextView
                 android:layout_width="wrap_content"
@@ -159,6 +162,14 @@
                     android:id="@+id/BTGraphicsDriverConfig"
                     android:src="@drawable/icon_settings"
                     android:visibility="gone" />
+
+                <ImageView
+                    android:id="@+id/BTHelpGraphicsDriver"
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:layout_marginLeft="4dp"
+                    android:src="@drawable/icon_help"
+                    app:tint="?colorAccent" />
             </LinearLayout>
 
             <TextView

@@ -399,6 +399,7 @@ public class ContainerDetailFragment extends Fragment {
                 isEditMode() ? container.getDXWrapper() : Container.DEFAULT_DXWRAPPER);
 
         view.findViewById(R.id.BTHelpDXWrapper).setOnClickListener((v) -> AppUtils.showHelpBox(context, v, R.string.dxwrapper_help_content));
+        view.findViewById(R.id.BTHelpGraphicsDriver).setOnClickListener((v) -> AppUtils.showHelpBox(context, v, R.string.graphics_driver_help_content));
 
 
 
@@ -473,12 +474,12 @@ public class ContainerDetailFragment extends Fragment {
         Runnable updateExclusiveInput = () -> {
             changingInputOptions[0] = true;
             boolean exclusive = cbExclusiveXInput.isChecked();
-            if (!exclusive) {
+            if (exclusive) {
                 cbEnableXInput.setChecked(true);
-                cbEnableDInput.setChecked(true);
+                cbEnableDInput.setChecked(false);
             }
-            cbEnableXInput.setEnabled(exclusive);
-            cbEnableDInput.setEnabled(exclusive);
+            cbEnableXInput.setEnabled(!exclusive);
+            cbEnableDInput.setEnabled(!exclusive);
             changingInputOptions[0] = false;
         };
         cbEnableXInput.setOnCheckedChangeListener((buttonView, checked) -> {

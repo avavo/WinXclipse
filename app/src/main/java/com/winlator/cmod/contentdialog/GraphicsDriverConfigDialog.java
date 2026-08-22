@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
+import java.util.Locale;
 import java.util.Map;
 
 public class GraphicsDriverConfigDialog extends ContentDialog {
@@ -86,6 +87,9 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
         loadDriverVersions(anchor.getContext(), graphicsDriver);
         restoreValues(initialConfig);
         configureListeners();
+        applyWrapperBcnProfile(graphicsDriver, experimentalBcn);
+        findViewById(R.id.BTASTCTranscodeHelp).setOnClickListener(v ->
+                AppUtils.showHelpBox(getContext(), v, R.string.astc_transcode_help));
 
         setOnConfirmCallback(() -> {
             String result = writeGraphicsDriverConfig();
@@ -181,6 +185,24 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
         astcTranscodeCheckBox.setChecked("1".equals(config.getOrDefault("astcTranscode", "0")));
         etc2TranscodeCheckBox.setChecked("1".equals(config.getOrDefault("etc2Transcode", "0")));
         refreshExtensions(initialVersion);
+    }
+
+    private void applyWrapperBcnProfile(String graphicsDriver, boolean experimentalBcn) {
+        /* Kirimu ships its own working software BCN path: when Experimental
+         * BCN is on, lock the shared-layer options to that profile. */
+        if (!experimentalBcn || graphicsDriver == null
+                || !graphicsDriver.toLowerCase(Locale.ENGLISH).contains("kirimu")) {
+            return;
+        }
+        AppUtils.setSpinnerSelectionFromValue(bcnTypeSpinner, "software");
+        bcnTypeSpinner.setEnabled(false);
+        astcTranscodeCheckBox.setEnabled(false);
+        astcTranscodeCheckBox.setChecked(false);
+        etc2TranscodeCheckBox.setEnabled(false);
+        etc2TranscodeCheckBox.setChecked(false);
+        if (!initialConfig.containsKey("bcnEmulationCache")) {
+            AppUtils.setSpinnerSelectionFromValue(bcnCacheSpinner, "1");
+        }
     }
 
     private void configureListeners() {

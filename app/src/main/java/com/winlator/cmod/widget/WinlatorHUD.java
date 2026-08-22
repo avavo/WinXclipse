@@ -34,6 +34,7 @@ public class WinlatorHUD extends View {
     private static final String KEY_SCALE= "hud_scale";
     private static final String KEY_ALPHA= "hud_alpha_int";
     private static final String KEY_VERT = "hud_vertical";
+    private static final String KEY_RAM_WARNING = "hud_ram_warning";
 
     public static final int SHOW_FPS      = 1;
     public static final int SHOW_GPU      = 1<<1;
@@ -97,6 +98,7 @@ public class WinlatorHUD extends View {
     private final int ramBlinkThreshold;
     private final int ramWarningThreshold;
     private boolean ramAlertActive = false;
+    private boolean ramWarningEnabled = true;
     private boolean ramHelpPressed = false;
 
     private final SharedPreferences prefs;
@@ -272,6 +274,14 @@ public class WinlatorHUD extends View {
     }
 
     private void updateRamAlert(int ramPercent) {
+        if (!ramWarningEnabled) {
+            if (ramAlertActive) {
+                ramAlertActive = false;
+                layoutDirty = true;
+                requestLayout();
+            }
+            return;
+        }
         boolean wasActive = ramAlertActive;
         ramAlertActive = ramPercent >= ramBlinkThreshold;
         if (wasActive != ramAlertActive) {
@@ -772,6 +782,21 @@ public class WinlatorHUD extends View {
 
         userEnabled = prefs.getBoolean(KEY_VIS, false);
         setVisibility(userEnabled ? VISIBLE : GONE);
+        ramWarningEnabled = prefs.getBoolean(KEY_RAM_WARNING, true);
+    }
+
+    public boolean isRamWarningEnabled() {
+        return ramWarningEnabled;
+    }
+
+    public void setRamWarningEnabled(boolean enabled) {
+        ramWarningEnabled = enabled;
+        prefs.edit().putBoolean(KEY_RAM_WARNING, enabled).apply();
+        if (!enabled && ramAlertActive) {
+            ramAlertActive = false;
+            layoutDirty = true;
+            requestLayout();
+        }
     }
 
     private boolean rendererActive = false;

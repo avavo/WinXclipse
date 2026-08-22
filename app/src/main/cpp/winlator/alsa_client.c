@@ -100,11 +100,11 @@ static int get_bytes_per_frame(int format, int channelCount) {
 void *pacer_consumer_thread_func(void *arg) {
     PacerContext *ctx = (PacerContext*)arg;
 
-    struct sched_param schedParams;
-    schedParams.sched_priority = sched_get_priority_max(SCHED_FIFO);
-    pthread_setschedparam(pthread_self(), SCHED_FIFO, &schedParams);
+    /* No SCHED_FIFO here: this thread only drains a ring buffer on a
+     * 10 ms monotonic schedule, and real-time priority would let it preempt
+     * the render/X11 threads on the Exynos big cores. */
 
-    LOGI("Pacer consumer thread started with high-precision timing and real-time priority.");
+    LOGI("Pacer consumer thread started with high-precision timing.");
 
 
     struct timespec next_wakeup_time;

@@ -1,28 +1,99 @@
 package com.winlator.cmod.core;
 
 import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public abstract class GPUInformation {
 
+    public static final int MODEL_NONE = 0;
+    private static final Pattern XCLIPSE_MODEL_PATTERN = Pattern.compile("xclipse[ _-]?(\\d{3})");
+
+    private static volatile RendererInfo cachedInfo;
+
+    private static RendererInfo getInfo() {
+        RendererInfo info = cachedInfo;
+        if (info == null) {
+            synchronized (GPUInformation.class) {
+                info = cachedInfo;
+                if (info == null) {
+                    String renderer = getRenderer();
+                    info = new RendererInfo(renderer == null || renderer.trim().isEmpty()
+                            ? "Unknown GPU" : renderer.trim());
+                    cachedInfo = info;
+                }
+            }
+        }
+        return info;
+    }
+
     public static String getRendererName() {
-        String renderer = getRenderer();
-        return renderer == null || renderer.trim().isEmpty() ? "Unknown GPU" : renderer.trim();
+        return getInfo().name;
     }
 
     public static boolean isXclipse() {
-        return getRendererName().toLowerCase(Locale.ENGLISH).contains("xclipse");
+        return getInfo().xclipse;
+    }
+
+    public static int getXclipseModel() {
+        return getInfo().model;
+    }
+
+    public static int getRDNAVersion() {
+        return getInfo().rdna;
+    }
+
+    public static boolean isRDNA2() {
+        return getRDNAVersion() == 2;
+    }
+
+    public static boolean isRDNA3() {
+        return getRDNAVersion() == 3;
+    }
+
+    public static boolean isRDNA4() {
+        return getRDNAVersion() == 4;
+    }
+
+    public static boolean isXclipse530() {
+        return getXclipseModel() == 530;
+    }
+
+    public static boolean isXclipse540() {
+        return getXclipseModel() == 540;
+    }
+
+    public static boolean isXclipse550() {
+        return getXclipseModel() == 550;
     }
 
     public static boolean isXclipse920() {
-        return getRendererName().toLowerCase(Locale.ENGLISH).matches(".*xclipse[ _-]?920.*");
+        return getXclipseModel() == 920;
     }
 
     public static boolean isXclipse940() {
-        return getRendererName().toLowerCase(Locale.ENGLISH).matches(".*xclipse[ _-]?940.*");
+        return getXclipseModel() == 940;
     }
 
     public static boolean isXclipse950() {
-        return getRendererName().toLowerCase(Locale.ENGLISH).matches(".*xclipse[ _-]?950.*");
+        return getXclipseModel() == 950;
+    }
+
+    public static boolean isXclipse960() {
+        return getXclipseModel() == 960;
+    }
+
+    public static String getExynosModel() {
+        switch (getXclipseModel()) {
+            case 530: return "Exynos 1480";
+            case 540: return "Exynos 1580";
+            case 550: return "Exynos 1680";
+            case 920: return "Exynos 2200";
+            case 940: return "Exynos 2400/2400e";
+            case 950: return "Exynos 2500";
+            case 960: return "Exynos 2600";
+            default: return "";
+        }
     }
 
     public native static String getVersion();
@@ -32,5 +103,41 @@ public abstract class GPUInformation {
 
     static {
         System.loadLibrary("winlator");
+    }
+
+    private static final class RendererInfo {
+        final String name;
+        final boolean xclipse;
+        final int model;
+        final int rdna;
+
+        RendererInfo(String name) {
+            this.name = name;
+            String lower = name.toLowerCase(Locale.ENGLISH);
+            this.xclipse = lower.contains("xclipse");
+            int parsedModel = MODEL_NONE;
+            if (this.xclipse) {
+                Matcher matcher = XCLIPSE_MODEL_PATTERN.matcher(lower);
+                if (matcher.find()) parsedModel = Integer.parseInt(matcher.group(1));
+            }
+            this.model = parsedModel;
+            int rdnaVersion = MODEL_NONE;
+            switch (parsedModel) {
+                case 530:
+                case 540:
+                case 920:
+                    rdnaVersion = 2;
+                    break;
+                case 550:
+                case 940:
+                case 950:
+                    rdnaVersion = 3;
+                    break;
+                case 960:
+                    rdnaVersion = 4;
+                    break;
+            }
+            this.rdna = rdnaVersion;
+        }
     }
 }

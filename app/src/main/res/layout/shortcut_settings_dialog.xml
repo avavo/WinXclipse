@@ -11,7 +11,10 @@
         android:layout_height="wrap_content"
         android:layout_gravity="center_horizontal"
         android:orientation="vertical"
-        android:padding="8dp">
+        android:paddingLeft="8dp"
+        android:paddingTop="8dp"
+        android:paddingRight="8dp"
+        android:paddingBottom="24dp">
 
         <TextView
             android:layout_width="wrap_content"
@@ -136,6 +139,14 @@
                 android:padding="8dp"
                 android:src="@drawable/icon_settings"
                 android:visibility="visible" />
+
+            <ImageView
+                android:id="@+id/BTHelpGraphicsDriver"
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:layout_marginLeft="4dp"
+                android:src="@drawable/icon_help"
+                app:tint="?colorAccent" />
         </LinearLayout>
 
         <LinearLayout
@@ -253,7 +264,6 @@
             android:text="@string/audio_driver" />
 
         <LinearLayout
-            android:visibility="gone"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center_vertical"

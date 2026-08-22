@@ -221,6 +221,32 @@ static void initialize_all_pads(void)
 static inline int is_event_node(const char *p)
 { return p && !strncmp(p, "/dev/input/event", 16); }
 
+/* Lazy per-fd verdict cache: /proc/self/fd/N is resolved at most once per fd
+ * number instead of on every read()/ioctl(). Entries are invalidated by the
+ * close()/open() hooks below so reused numbers never inherit stale verdicts. */
+#define EVSHIM_FD_CACHE_SIZE 8192
+static signed char fd_event_cache[EVSHIM_FD_CACHE_SIZE];
+
+static int fd_is_event_node(int fd)
+{
+    if (fd < 0) return 0;
+    if (fd >= EVSHIM_FD_CACHE_SIZE) {
+        char linkbuf[64], path[64];
+        snprintf(linkbuf, sizeof linkbuf, "/proc/self/fd/%d", fd);
+        ssize_t n = readlink(linkbuf, path, sizeof path - 1);
+        return n > 0 && (path[n] = 0, is_event_node(path));
+    }
+    signed char v = fd_event_cache[fd];
+    if (v < 0) {
+        char linkbuf[64], path[64];
+        snprintf(linkbuf, sizeof linkbuf, "/proc/self/fd/%d", fd);
+        ssize_t n = readlink(linkbuf, path, sizeof path - 1);
+        v = (n > 0 && (path[n] = 0, is_event_node(path))) ? 1 : 0;
+        fd_event_cache[fd] = v;
+    }
+    return v;
+}
+
 typedef int (*open_f)(const char *, int, ...);
 static open_f real_open;
 
@@ -230,7 +256,9 @@ static int open_common(const char *path, int flags, va_list ap)
     if (!real_open) real_open = (open_f)dlsym(RTLD_NEXT, "open");
     mode_t mode = 0;
     if (flags & O_CREAT) mode = va_arg(ap, mode_t);
-    return real_open(path, flags, mode);
+    int r = real_open(path, flags, mode);
+    if (r >= 0 && r < EVSHIM_FD_CACHE_SIZE) fd_event_cache[r] = 0;
+    return r;
 }
 
 int open(const char *path, int flags, ...) __attribute__((visibility("default")));
@@ -253,6 +281,17 @@ int open64(const char *path, int flags, ...)
     return r;
 }
 
+typedef int (*close_f)(int);
+static close_f real_close;
+
+int close(int fd) __attribute__((visibility("default")));
+int close(int fd)
+{
+    if (!real_close) real_close = (close_f)dlsym(RTLD_NEXT, "close");
+    if (fd >= 0 && fd < EVSHIM_FD_CACHE_SIZE) fd_event_cache[fd] = -1;
+    return real_close(fd);
+}
+
 typedef int (*ioctl_f)(int, int, ...);
 static ioctl_f real_ioctl;
 
@@ -260,13 +299,7 @@ int ioctl(int fd, int req, ...) __attribute__((visibility("default")));
 int ioctl(int fd, int req, ...)
 {
     if (!real_ioctl) real_ioctl = (ioctl_f)dlsym(RTLD_NEXT, "ioctl");
-    char linkbuf[64], path[64];
-    snprintf(linkbuf, sizeof linkbuf, "/proc/self/fd/%d", fd);
-    ssize_t n = readlink(linkbuf, path, sizeof path - 1);
-    if (n > 0) {
-        path[n] = 0;
-        if (is_event_node(path)) { errno = ENOTTY; return -1; }
-    }
+    if (fd_is_event_node(fd)) { errno = ENOTTY; return -1; }
     va_list ap;
     va_start(ap, req);
     void *arg = va_arg(ap, void *);
@@ -281,13 +314,7 @@ ssize_t read(int fd, void *buf, size_t count) __attribute__((visibility("default
 ssize_t read(int fd, void *buf, size_t count)
 {
     if (!real_read) real_read = (read_f)dlsym(RTLD_NEXT, "read");
-    char linkbuf[64], path[64];
-    snprintf(linkbuf, sizeof(linkbuf), "/proc/self/fd/%d", fd);
-    ssize_t n = readlink(linkbuf, path, sizeof(path) - 1);
-    if (n > 0) {
-        path[n] = 0;
-        if (is_event_node(path)) { errno = EAGAIN; return -1; }
-    }
+    if (fd_is_event_node(fd)) { errno = EAGAIN; return -1; }
     return real_read(fd, buf, count);
 }
 /* --------------------------------------------------------------------- */

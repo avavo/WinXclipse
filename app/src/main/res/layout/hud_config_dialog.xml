@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="350dp"
     android:layout_height="260dp"
     android:orientation="vertical">
@@ -50,6 +51,16 @@
                     <CheckBox android:id="@+id/CBHudCPU" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Show CPU Load" />
                     <CheckBox android:id="@+id/CBHudCPUTemp" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Show CPU Temperature" />
                     <CheckBox android:id="@+id/CBHudRAM" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Show RAM Usage" />
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal">
+                        <CheckBox android:id="@+id/CBHudRamWarning" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/disable_ram_warning" />
+                        <ImageView
+                            android:id="@+id/BTHudRamWarningHelp"
+                            android:layout_width="22dp"
+                            android:layout_height="22dp"
+                            android:layout_marginLeft="4dp"
+                            android:src="@drawable/icon_help"
+                            app:tint="?colorAccent" />
+                    </LinearLayout>
                     <CheckBox android:id="@+id/CBHudBattery" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Show Battery/Power" />
                     <CheckBox android:id="@+id/CBHudBatteryPct" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Show Battery Percentage" />
                 </LinearLayout>

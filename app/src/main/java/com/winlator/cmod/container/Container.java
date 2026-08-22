@@ -6,6 +6,7 @@ import android.util.Log;
 import com.winlator.cmod.BuildConfig;
 import com.winlator.cmod.XrActivity;
 import com.winlator.cmod.box86_64.Box86_64Preset;
+import com.winlator.cmod.core.CpuClusters;
 import com.winlator.cmod.core.DefaultVersion;
 import com.winlator.cmod.core.EnvVars;
 import com.winlator.cmod.core.FileUtils;
@@ -687,18 +688,17 @@ data.put("desktopTheme", desktopTheme);
     }
 
     public static String getFallbackCPUList() {
-        String cpuList = "";
+        StringBuilder cpuList = new StringBuilder();
         int numProcessors = Runtime.getRuntime().availableProcessors();
-        for (int i = 0; i < numProcessors; i++) cpuList += (!cpuList.isEmpty() ? "," : "")+i;
-        return cpuList;
+        for (int i = 0; i < numProcessors; i++) {
+            if (cpuList.length() > 0) cpuList.append(',');
+            cpuList.append(i);
+        }
+        return cpuList.toString();
     }
 
     public static String getFallbackCPUListWoW64() {
-//        String cpuList = "";
-//        int numProcessors = Runtime.getRuntime().availableProcessors();
-//        for (int i = numProcessors / 2; i < numProcessors; i++) cpuList += (!cpuList.isEmpty() ? "," : "")+i;
-//        return cpuList;
-        return getFallbackCPUList();
+        return CpuClusters.getPerformanceCPUList();
     }
 
     // Check if a specific environment variable exists

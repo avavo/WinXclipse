@@ -21,6 +21,15 @@
  * instead of running a method-name lookup on every lock. */
 static jmethodID g_setStrideMethod = NULL;
 
+/* eglGetDisplay is resolved once and reused for every EGLImage create/destroy. */
+static EGLDisplay getSharedEGLDisplay(void) {
+    static EGLDisplay sharedDisplay = EGL_NO_DISPLAY;
+    if (sharedDisplay == EGL_NO_DISPLAY) {
+        sharedDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+    }
+    return sharedDisplay;
+}
+
 // Function to create an EGL image from a hardware buffer
 EGLImageKHR createImageKHR(AHardwareBuffer* hardwareBuffer, int textureId) {
     if (!hardwareBuffer) {
@@ -38,7 +47,7 @@ EGLImageKHR createImageKHR(AHardwareBuffer* hardwareBuffer, int textureId) {
         return NULL;
     }
 
-    EGLDisplay eglDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+    EGLDisplay eglDisplay = getSharedEGLDisplay();
     if (eglDisplay == EGL_NO_DISPLAY) {
         printf("Invalid EGLDisplay\n");
         AHardwareBuffer_release(hardwareBuffer);
@@ -161,14 +170,13 @@ Java_com_winlator_cmod_renderer_GPUImage_lockHardwareBuffer(JNIEnv *env, jclass 
     AHardwareBuffer_Desc buffDesc;
     AHardwareBuffer_describe(hardwareBuffer, &buffDesc);
 
-    jclass cls = (*env)->GetObjectClass(env, obj);
-    if (cls == NULL) {
-        printf("Failed to get Java class reference\n");
-        AHardwareBuffer_unlock(hardwareBuffer, NULL);
-        return NULL;
-    }
-
     if (g_setStrideMethod == NULL) {
+        jclass cls = (*env)->GetObjectClass(env, obj);
+        if (cls == NULL) {
+            printf("Failed to get Java class reference\n");
+            AHardwareBuffer_unlock(hardwareBuffer, NULL);
+            return NULL;
+        }
         g_setStrideMethod = (*env)->GetMethodID(env, cls, "setStride", "(S)V");
     }
     if (g_setStrideMethod == NULL) {
@@ -193,7 +201,7 @@ JNIEXPORT void JNICALL
 Java_com_winlator_cmod_renderer_GPUImage_destroyImageKHR(JNIEnv *env, jclass obj, jlong imageKHRPtr) {
     EGLImageKHR imageKHR = (EGLImageKHR)imageKHRPtr;
     if (imageKHR) {
-        EGLDisplay eglDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+        EGLDisplay eglDisplay = getSharedEGLDisplay();
         eglDestroyImageKHR(eglDisplay, imageKHR);
     }
 }

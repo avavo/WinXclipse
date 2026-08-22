@@ -166,8 +166,8 @@ Java_com_winlator_cmod_xconnector_ClientSocket_recvAncillaryMsg(JNIEnv *env, job
             if (cmsg->cmsg_level == SOL_SOCKET && cmsg->cmsg_type == SCM_RIGHTS) {
                 int numFds = (cmsg->cmsg_len - CMSG_LEN(0)) / sizeof(int);
                 if (numFds > 0) {
-                    jclass cls = (*env)->GetObjectClass(env, obj);
                     if (g_addAncillaryFd == NULL) {
+                        jclass cls = (*env)->GetObjectClass(env, obj);
                         g_addAncillaryFd = (*env)->GetMethodID(env, cls, "addAncillaryFd", "(I)V");
                     }
                     for (int i = 0; i < numFds; i++) {

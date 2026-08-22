@@ -105,10 +105,17 @@ public class FrameRating extends FrameLayout implements Runnable {
             tvRenderer.setText(renderer);
         else
             tvRenderer.setText("OpenGL");
-        if (gpuName != null)
+        if (gpuName != null) {
             tvGPU.setText(gpuName);
-        else
-            tvGPU.setText(GPUInformation.getRenderer());
+        }
+        else {
+            String rendererName = GPUInformation.getRendererName();
+            int rdna = GPUInformation.getRDNAVersion();
+            String exynosModel = GPUInformation.getExynosModel();
+            if (rdna > 0) rendererName += " RDNA" + rdna;
+            if (!exynosModel.isEmpty()) rendererName += " (" + exynosModel + ")";
+            tvGPU.setText(rendererName);
+        }
         tvRAM.setText(getAvailableRAM() + " GB Used / " + totalRAM + " Total");
     }
 }

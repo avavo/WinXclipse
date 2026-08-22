@@ -9,6 +9,7 @@ import android.animation.ObjectAnimator;
 import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.app.ActivityManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -85,6 +86,7 @@ import com.winlator.cmod.core.DefaultVersion;
 import com.winlator.cmod.core.EnvVars;
 import com.winlator.cmod.core.EnvironmentManager;
 import com.winlator.cmod.core.FileUtils;
+import com.winlator.cmod.core.GPUInformation;
 import com.winlator.cmod.core.KeyValueSet;
 import com.winlator.cmod.core.OnExtractFileListener;
 import com.winlator.cmod.core.PreloaderDialog;
@@ -977,6 +979,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             }
         }
         startTime = System.currentTimeMillis();
+        handler.removeCallbacks(savePlaytimeRunnable);
         handler.postDelayed(savePlaytimeRunnable, SAVE_INTERVAL_MS);
         ProcessHelper.resumeAllWineProcesses();
     }
@@ -1690,7 +1693,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             FileUtils.copy(this, "controllerfix/xidi.ini", new File(system32Dir, "xidi.ini"));
             // FileUtils.copy swallows IO errors; only mark as applied when the
             // files really landed so a failed copy is retried on next launch.
-            if (new File(system32Dir, "dinput8.dll").isFile()
+            if (new File(system32Dir, "dinput.dll").isFile()
+                    && new File(system32Dir, "dinput8.dll").isFile()
                     && new File(system32Dir, "xidi.ini").isFile()) {
                 container.putExtra("controllerFixVersion", "1");
                 containerDataChanged = true;
@@ -1800,9 +1804,13 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         }
         if (experimentalPerformance) {
             // Opt-in and fully reversible runtime defaults.
+            // WRAPPER_MAX_IMAGE_COUNT is applied here on purpose: it runs after
+            // extractGraphicsDriverFiles(), so the opt-in value overrides the
+            // present-mode-derived swapchain limit.
             envVars.put("WRAPPER_MAX_IMAGE_COUNT", "0");
             envVars.put("DXVK_DISABLE_TIMELINE_SEMAPHORES", "1");
             envVars.put("VKD3D_SHADER_MODEL", "6_6");
+            envVars.put("vblank_mode", "0");
         }
 
         // Create our overall XEnvironment with various components
@@ -2539,6 +2547,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         CheckBox cbWrapper = dialog.findViewById(R.id.CBHudWrapper);
         CheckBox cbLocked = dialog.findViewById(R.id.CBHudLocked);
         CheckBox cbCpuTemp = dialog.findViewById(R.id.CBHudCPUTemp);
+        CheckBox cbRamWarning = dialog.findViewById(R.id.CBHudRamWarning);
         SeekBar sbAlpha = dialog.findViewById(R.id.SBHudAlpha);
         SeekBar sbScale = dialog.findViewById(R.id.SBHudScale);
         TextView tvAlpha = dialog.findViewById(R.id.TVHudAlpha);
@@ -2583,6 +2592,10 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         cbLocked.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(13, checked));
         cbCpuTemp.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(14, checked));
         cbVert.setOnCheckedChangeListener((v, checked) -> frameRating.setVertical(checked));
+        cbRamWarning.setChecked(!frameRating.isRamWarningEnabled());
+        cbRamWarning.setOnCheckedChangeListener((v, checked) -> frameRating.setRamWarningEnabled(!checked));
+        dialog.findViewById(R.id.BTHudRamWarningHelp).setOnClickListener(view ->
+                AppUtils.showHelpBox(this, view, R.string.ram_warning_help));
 
         sbAlpha.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
@@ -2813,13 +2826,15 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             experimentalBCN = "1".equals(shortcut.getExtra("experimentalBCN", "0"));
         }
 
+        boolean nativeBcnWrapper = isNativeBcnWrapper(mainWrapperSelection);
+
         File bcnLayerLibrary = new File(rootDir, "usr/lib/libbcn_layer.so");
         File bcnLayerManifest = new File(rootDir,
                 "usr/share/vulkan/implicit_layer.d/libbcn_layer.json");
         final String bcnLayerVersion = "leegao-winmali-2";
         boolean bcnLayerReady = bcnLayerLibrary.isFile() && bcnLayerManifest.isFile();
 
-        if (experimentalBCN && (!bcnLayerReady
+        if (experimentalBCN && !nativeBcnWrapper && (!bcnLayerReady
                 || !bcnLayerVersion.equals(container.getExtra("bcnLayerVersion", "")))) {
             Log.i("GraphicsDriverExtraction", "Installing opt-in BCN compatibility layer");
             TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this,
@@ -2839,7 +2854,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             container.saveData();
         }
 
-        if (!experimentalBCN || !bcnLayerReady) {
+        if (!experimentalBCN || nativeBcnWrapper || !bcnLayerReady) {
             if (bcnLayerManifest.isFile() && !bcnLayerManifest.delete()) {
                 Log.w("GraphicsDriverExtraction", "Unable to remove inactive BCN layer manifest");
             }
@@ -2867,6 +2882,15 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 envVars.put("WRAPPER_VMEM_MAX_SIZE", maxDeviceMemory);
                 envVars.put("UTIL_LAYER_VMEM_MAX_SIZE", maxDeviceMemory);
             }
+            else if (isExperimentalPerformanceActive()) {
+                int vramCap = suggestVramCap();
+                if (vramCap > 0) {
+                    envVars.put("WRAPPER_VMEM_MAX_SIZE", String.valueOf(vramCap));
+                    envVars.put("UTIL_LAYER_VMEM_MAX_SIZE", String.valueOf(vramCap));
+                    Log.i("GraphicsDriverExtraction",
+                            "Unified-memory VRAM cap: " + vramCap + " MB");
+                }
+            }
         }
         catch (NumberFormatException e) {
             Log.w("GraphicsDriverExtraction", "Invalid max device memory: " + maxDeviceMemory);
@@ -2892,19 +2916,97 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         envVars.remove("WRAPPER_USE_BCN_CACHE");
         envVars.remove("BCN_TRANSCODE_TO_ASTC");
         envVars.remove("BCN_TRANSCODE_TO_ETC2");
-        if (experimentalBCN && bcnLayerReady) {
-            envVars.put("ENABLE_BCN_COMPUTE", "1");
-            envVars.put("BCN_COMPUTE_AUTO", "1");
-            envVars.put("WRAPPER_EMULATE_BCN", "3");
-            envVars.put("WRAPPER_USE_BCN_CACHE", "0");
+        if (experimentalBCN) {
+            String bcnEmulation = graphicsDriverConfig.getOrDefault("bcnEmulation", "auto");
+            boolean computeEmulation = !"software".equalsIgnoreCase(
+                    graphicsDriverConfig.getOrDefault("bcnEmulationType", "compute"));
+            String bcnEmulationCache = graphicsDriverConfig.getOrDefault("bcnEmulationCache", "0");
+            boolean astcTranscode = "1".equals(graphicsDriverConfig.getOrDefault("astcTranscode", "0"));
+            boolean etc2Transcode = "1".equals(graphicsDriverConfig.getOrDefault("etc2Transcode", "0"));
+
+            if (computeEmulation && !astcTranscode && !etc2Transcode
+                    && (GPUInformation.isXclipse530() || GPUInformation.isXclipse540())) {
+                astcTranscode = true;
+                Log.i("GraphicsDriverExtraction",
+                        "Defaulting BCn-to-ASTC transcode on low-tier RDNA2 (hardware ASTC decode)");
+            }
+
+            // Winlator-Mali mapping: none->0, partial->1, full->2, auto->3.
+            String emulateBcn;
+            boolean computeLayerActive = false;
+            switch (bcnEmulation.toLowerCase(Locale.ENGLISH)) {
+                case "none":
+                    emulateBcn = "0";
+                    break;
+                case "partial":
+                    emulateBcn = "1";
+                    break;
+                case "full":
+                    emulateBcn = "2";
+                    computeLayerActive = computeEmulation;
+                    break;
+                default:
+                    emulateBcn = "3";
+                    computeLayerActive = computeEmulation;
+                    break;
+            }
+            envVars.put("WRAPPER_EMULATE_BCN", emulateBcn);
+
+            if (computeLayerActive) {
+                envVars.put("ENABLE_BCN_COMPUTE", "1");
+                envVars.put("BCN_COMPUTE_AUTO",
+                        "auto".equalsIgnoreCase(bcnEmulation) ? "1" : "0");
+            }
+            else {
+                envVars.put("DISABLE_BCN_COMPUTE", "1");
+            }
+            if (bcnLayerReady && !nativeBcnWrapper) {
+                if (astcTranscode) envVars.put("BCN_TRANSCODE_TO_ASTC", "1");
+                else if (etc2Transcode) envVars.put("BCN_TRANSCODE_TO_ETC2", "1");
+            }
+            envVars.put("WRAPPER_USE_BCN_CACHE", bcnEmulationCache);
         }
         Log.i("GraphicsDriverExtraction", "Experimental BCN="
-                + experimentalBCN + ", layerReady=" + bcnLayerReady);
+                + experimentalBCN + ", layerReady=" + bcnLayerReady
+                + ", nativeWrapper=" + nativeBcnWrapper);
 
         if (!vkbasaltConfig.isEmpty()) {
             envVars.put("ENABLE_VKBASALT", "1");
             envVars.put("VKBASALT_CONFIG", vkbasaltConfig);
         }
+    }
+
+    private static boolean isNativeBcnWrapper(String wrapper) {
+        if (wrapper == null) return false;
+        String id = wrapper.toLowerCase(Locale.ENGLISH);
+        return id.contains("gamenative")
+                || id.contains("kirimu") || id.contains("ref4ik");
+    }
+
+    private boolean isExperimentalPerformanceActive() {
+        boolean experimental = container != null
+                && "1".equals(container.getExtra("experimentalPerformance", "0"));
+        if (shortcut != null && shortcut.hasExtra("experimentalPerformance")) {
+            experimental = "1".equals(shortcut.getExtra("experimentalPerformance"));
+        }
+        return experimental;
+    }
+
+    /**
+     * RAM and VRAM are the same LPDDR pool on Exynos, so reporting the whole
+     * device memory as VRAM invites games to over-commit and triggers OOM
+     * kills of the Wine tree. Under the opt-in performance profile, report a
+     * conservative slice instead: 3/8 of total RAM clamped to 2-4 GB.
+     */
+    private int suggestVramCap() {
+        ActivityManager activityManager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+        if (activityManager == null) return 0;
+        ActivityManager.MemoryInfo memoryInfo = new ActivityManager.MemoryInfo();
+        activityManager.getMemoryInfo(memoryInfo);
+        long totalMB = memoryInfo.totalMem / (1024 * 1024);
+        if (totalMB <= 0) return 0;
+        long capMB = Math.min(4096, Math.max(2048, totalMB * 3 / 8));
+        return (int)(capMB / 256 * 256);
     }
 
     private void copyFile(File sourceFile, File destFile) throws IOException {

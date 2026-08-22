@@ -225,6 +225,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
                 }).show());
 
         findViewById(R.id.BTHelpDXWrapper).setOnClickListener((v) -> AppUtils.showHelpBox(context, v, R.string.dxwrapper_help_content));
+        findViewById(R.id.BTHelpGraphicsDriver).setOnClickListener((v) -> AppUtils.showHelpBox(context, v, R.string.graphics_driver_help_content));
 
         final Spinner sAudioDriver = findViewById(R.id.SAudioDriver);
         AppUtils.setSpinnerSelectionFromIdentifier(sAudioDriver, shortcut.getExtra("audioDriver", shortcut.container.getAudioDriver()));
@@ -356,12 +357,12 @@ public class ShortcutSettingsDialog extends ContentDialog {
         Runnable updateExclusiveInput = () -> {
             changingInputOptions[0] = true;
             boolean exclusive = cbExclusiveXInput.isChecked();
-            if (!exclusive) {
+            if (exclusive) {
                 cbEnableXInput.setChecked(true);
-                cbEnableDInput.setChecked(true);
+                cbEnableDInput.setChecked(false);
             }
-            cbEnableXInput.setEnabled(exclusive);
-            cbEnableDInput.setEnabled(exclusive);
+            cbEnableXInput.setEnabled(!exclusive);
+            cbEnableDInput.setEnabled(!exclusive);
             changingInputOptions[0] = false;
         };
         cbEnableXInput.setOnCheckedChangeListener((buttonView, checked) -> {
@@ -918,7 +919,9 @@ public class ShortcutSettingsDialog extends ContentDialog {
             String graphicsDriver = StringUtils.parseIdentifier(sGraphicsDriver.getSelectedItem());
             String graphicsDriverConfig = vGraphicsDriverConfig.getTag().toString();
 
-            tvGraphicsDriverVersion.setText(GraphicsDriverConfigDialog.getVersion(graphicsDriverConfig));
+            String driverVersion = GraphicsDriverConfigDialog.getVersion(graphicsDriverConfig);
+            tvGraphicsDriverVersion.setText(driverVersion.equalsIgnoreCase("System")
+                    ? graphicsDriver : graphicsDriver + " · " + driverVersion);
 
             vGraphicsDriverConfig.setOnClickListener((v) -> {
                 CheckBox experimentalBcn = vGraphicsDriverConfig.getRootView()

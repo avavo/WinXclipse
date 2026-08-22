@@ -204,15 +204,12 @@ public class TouchpadView extends View {
 
         switch (action) {
             case MotionEvent.ACTION_HOVER_ENTER:
-                Log.d("StylusEvent", "Hover Enter");
                 break;
             case MotionEvent.ACTION_HOVER_MOVE:
-                Log.d("StylusEvent", "Hover Move: (" + event.getX() + ", " + event.getY() + ")");
                 float[] transformedPoint = XForm.transformPoint(xform, event.getX(), event.getY());
                 xServer.injectPointerMove((int) transformedPoint[0], (int) transformedPoint[1]);
                 break;
             case MotionEvent.ACTION_HOVER_EXIT:
-                Log.d("StylusEvent", "Hover Exit");
                 break;
             default:
                 return false;
