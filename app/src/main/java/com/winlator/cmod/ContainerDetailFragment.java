@@ -589,13 +589,9 @@ public class ContainerDetailFragment extends Fragment {
                 new VideoConfigDialog(context, new VideoConfigDialog.Config() {
                     @Override
                     public String getGpuName() {
-                        HashMap<String, String> config = GraphicsDriverConfigDialog
-                                .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()));
-                        String value = config.getOrDefault("gpuName", "Device");
-                        if ("Device".equals(value) && sGPUName.getSelectedItem() != null) {
-                            value = sGPUName.getSelectedItem().toString();
-                        }
-                        return value;
+                        return GraphicsDriverConfigDialog
+                                .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()))
+                                .getOrDefault("gpuName", "Device");
                     }
 
                     @Override

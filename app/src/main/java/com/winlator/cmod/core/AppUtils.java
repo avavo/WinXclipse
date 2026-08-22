@@ -8,6 +8,7 @@ import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.content.res.Resources;
+import android.graphics.Color;
 import android.graphics.Rect;
 import android.os.Build;
 import android.os.Looper;
@@ -227,8 +228,12 @@ public abstract class AppUtils {
     public static void showHelpBox(Context context, View anchor, String text) {
         int padding = (int)UnitUtils.dpToPx(8);
         int width = (int)UnitUtils.dpToPx(284);
+        boolean darkMode = isDarkMode(context);
         TextView textView = new TextView(context);
         textView.setLayoutParams(new ViewGroup.LayoutParams(width, ViewGroup.LayoutParams.WRAP_CONTENT));
+        textView.setBackgroundResource(darkMode ? R.drawable.content_dialog_background_dark
+                                                 : R.drawable.content_dialog_background);
+        textView.setTextColor(darkMode ? Color.WHITE : Color.BLACK);
         textView.setPadding(padding, padding, padding, padding);
         textView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
         textView.setText(Html.fromHtml(text, Html.FROM_HTML_MODE_LEGACY));
@@ -239,7 +244,7 @@ public abstract class AppUtils {
         textView.measure(widthMeasureSpec, heightMeasureSpec);
 
         PopupWindow popupWindow = new PopupWindow(textView,
-                width + padding, textView.getMeasuredHeight() + 2 * padding, true);
+                width + 2 * padding, textView.getMeasuredHeight() + 2 * padding, true);
         popupWindow.setElevation(5.0f);
         popupWindow.setOutsideTouchable(true);
         popupWindow.showAsDropDown(anchor);

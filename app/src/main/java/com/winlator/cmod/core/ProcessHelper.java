@@ -20,7 +20,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public abstract class ProcessHelper {
-    public static final boolean PRINT_DEBUG = false;
+    public static final boolean PRINT_DEBUG = true;
     private static final int MAX_RECENT_DEBUG_LINES = 2000;
     private static final CopyOnWriteArrayList<Callback<String>> debugCallbacks = new CopyOnWriteArrayList<>();
     private static final ArrayDeque<String> recentDebugLines = new ArrayDeque<>();

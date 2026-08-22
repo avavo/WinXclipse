@@ -916,12 +916,14 @@ public class ShortcutSettingsDialog extends ContentDialog {
         final String[] dxwrapperEntries = context.getResources().getStringArray(R.array.dxwrapper_entries);
         
         Runnable update = () -> {
-            String graphicsDriver = StringUtils.parseIdentifier(sGraphicsDriver.getSelectedItem());
+            Object selectedDriverItem = sGraphicsDriver.getSelectedItem();
+            String graphicsDriver = StringUtils.parseIdentifier(selectedDriverItem);
+            String graphicsDriverLabel = selectedDriverItem != null
+                    ? selectedDriverItem.toString() : "";
             String graphicsDriverConfig = vGraphicsDriverConfig.getTag().toString();
 
-            String driverVersion = GraphicsDriverConfigDialog.getVersion(graphicsDriverConfig);
-            tvGraphicsDriverVersion.setText(driverVersion.equalsIgnoreCase("System")
-                    ? graphicsDriver : graphicsDriver + " · " + driverVersion);
+            tvGraphicsDriverVersion.setText(graphicsDriverLabel + "  ·  "
+                    + GraphicsDriverConfigDialog.getVersion(graphicsDriverConfig));
 
             vGraphicsDriverConfig.setOnClickListener((v) -> {
                 CheckBox experimentalBcn = vGraphicsDriverConfig.getRootView()

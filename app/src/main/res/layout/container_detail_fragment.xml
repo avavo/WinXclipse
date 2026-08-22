@@ -149,14 +149,6 @@
                     android:id="@+id/SGraphicsDriver"
                     android:entries="@array/graphics_driver_entries" />
 
-                <Spinner
-                    android:id="@+id/SGraphicsDriverVersionExternal"
-                    style="@style/ComboBox"
-                    android:layout_width="0dp"
-                    android:layout_height="48dp"
-                    android:layout_marginStart="6dp"
-                    android:layout_weight="1" />
-
                 <ImageButton
                     style="@style/ListMenuButton"
                     android:id="@+id/BTGraphicsDriverConfig"
@@ -171,6 +163,13 @@
                     android:src="@drawable/icon_help"
                     app:tint="?colorAccent" />
             </LinearLayout>
+
+            <Spinner
+                android:id="@+id/SGraphicsDriverVersionExternal"
+                style="@style/ComboBox"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="4dp" />
 
             <TextView
                 android:layout_width="wrap_content"
