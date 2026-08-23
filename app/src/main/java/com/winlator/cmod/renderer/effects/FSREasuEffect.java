@@ -14,8 +14,6 @@ import com.winlator.cmod.renderer.material.ShaderMaterial;
  */
 public class FSREasuEffect extends Effect {
     private final float[] con0 = new float[4];
-    private final float[] con1 = new float[4];
-    private final float[] srcRect = new float[4];
     private final float[] dstRect = new float[4];
     private float outHeight;
 
@@ -39,13 +37,8 @@ public class FSREasuEffect extends Effect {
         con0[1] = srcViewH * rcpOutY;
         con0[2] = 0.5f * srcViewW * rcpOutX - 0.5f + srcOffX;
         con0[3] = 0.5f * srcViewH * rcpOutY - 0.5f + srcOffY;
-        con1[0] = 1.0f / inW;
-        con1[1] = 1.0f / inH;
-        // con1.zw / con2 / con3 are folded into the direct texel fetches below.
-        srcRect[0] = srcOffX;
-        srcRect[1] = srcOffY;
-        srcRect[2] = srcViewW;
-        srcRect[3] = srcViewH;
+        // inW/inH feed uTexel directly from EffectComposer; con1.zw / con2 /
+        // con3 are folded into the direct texel fetches below.
         dstRect[0] = dstOffX;
         dstRect[1] = dstOffY;
         dstRect[2] = dstViewW;
@@ -54,8 +47,6 @@ public class FSREasuEffect extends Effect {
     }
 
     public float[] getCon0() { return con0; }
-    public float[] getCon1() { return con1; }
-    public float[] getSrcRect() { return srcRect; }
     public float[] getDstRect() { return dstRect; }
     public float getOutHeight() { return outHeight; }
 

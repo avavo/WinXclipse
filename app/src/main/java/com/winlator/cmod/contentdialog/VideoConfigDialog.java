@@ -78,11 +78,12 @@ public class VideoConfigDialog extends ContentDialog {
         fsrQuality.setAdapter(new ThemedSpinnerAdapter<>(context, Arrays.asList(
                 "Quality (1.5x)", "Balanced (1.7x)", "Performance (2.0x)")));
 
-        // Resolve legacy configs where the mode spinner stored quality/balanced/performance.
-        String fsr = config.getFsrMode() == null ? "off" : config.getFsrMode();
+        // Normalize values persisted by any build (display strings from old
+        // releases, legacy mode tokens, current on/off tokens).
+        String fsr = GraphicsDriverConfigDialog.normalizeFsrValue(config.getFsrMode());
         String upscale = config.getFsrUpscale() == null ? "0" : config.getFsrUpscale();
-        String quality = config.getFsrQuality() == null ? "balanced" : config.getFsrQuality();
-        if (fsr.equals("quality") || fsr.equals("balanced") || fsr.equals("performance")) {
+        String quality = GraphicsDriverConfigDialog.normalizeFsrValue(config.getFsrQuality());
+        if (!fsr.equals("on") && !fsr.equals("off")) {
             quality = fsr;
             upscale = "1";
             fsr = "on";

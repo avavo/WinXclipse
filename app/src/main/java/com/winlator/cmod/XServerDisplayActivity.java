@@ -2061,17 +2061,22 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 ? "1".equals(shortcut.getExtra("fakeHDR", container.getExtra("fakeHDR", "0")))
                 : "1".equals(container.getExtra("fakeHDR", "0"));
         if (fakeHdr) renderer.getEffectComposer().addEffect(new HDREffect());
-        String fsrRaw = shortcut != null
-                ? shortcut.getExtra("fsrMode", graphicsDriverConfig.getOrDefault("fsrMode", "off"))
-                : graphicsDriverConfig.getOrDefault("fsrMode", "off");
+        // Runtime FSR menu persists the state as a shortcut/container extra;
+        // fall back to the driver config for older setups.
+        String fsrRaw = GraphicsDriverConfigDialog.normalizeFsrValue(
+                shortcut != null
+                        ? shortcut.getExtra("fsrMode", graphicsDriverConfig.getOrDefault("fsrMode", "off"))
+                        : graphicsDriverConfig.getOrDefault("fsrMode", "off"));
         // Legacy configs stored the mode directly in fsrMode; that implies upscale.
-        boolean fsrLegacyMode = fsrRaw.equals("quality") || fsrRaw.equals("balanced")
-                || fsrRaw.equals("performance");
+        boolean fsrLegacyMode = !fsrRaw.equals("on") && !fsrRaw.equals("off");
         boolean fsrOn = fsrLegacyMode || "on".equals(fsrRaw) || textureFilterMode == 2;
         boolean fsrUpscale = fsrOn && (fsrLegacyMode
                 || "1".equals(graphicsDriverConfig.getOrDefault("fsrUpscale", "0")));
-        String fsrQuality = fsrLegacyMode ? fsrRaw
+        String fsrQualityRaw = fsrLegacyMode ? fsrRaw
                 : graphicsDriverConfig.getOrDefault("fsrQuality", "balanced");
+        String fsrQualityNorm = GraphicsDriverConfigDialog.normalizeFsrValue(fsrQualityRaw);
+        String fsrQuality = fsrQualityNorm.equals("quality")
+                || fsrQualityNorm.equals("performance") ? fsrQualityNorm : "balanced";
         String fsrState = !fsrOn ? "off" : !fsrUpscale ? "on" : fsrQuality;
         applyFsrRuntime(renderer, fsrState);
 

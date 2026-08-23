@@ -254,9 +254,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                     String verNorm = parsed[1];
                     String verNoV  = verNorm.startsWith("v") ? verNorm.substring(1) : verNorm;
 
-                    // Already installed in a previous launch (marker set on success)
-                    if (installedAssets.contains(asset)) continue;
-
+                    // Already installed on disk under this content type?
                     Set<String> vers = installed.get(typeKey);
                     boolean exists = false;
                     if (vers != null) {
@@ -271,8 +269,20 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                             }
                         }
                     }
+                    if (exists) continue;
 
-                    if (!exists) toInstall.add(asset);
+                    // Success marker present but content missing on disk: it
+                    // was uninstalled through the UI. Drop the stale marker so
+                    // this launch reinstalls the embedded asset (previously it
+                    // could only come back by clearing app data).
+                    if (installedAssets.remove(asset)) {
+                        PreferenceManager.getDefaultSharedPreferences(MainActivity.this)
+                                .edit()
+                                .putStringSet(PREF_INSTALLED_ASSET_CONTENTS, installedAssets)
+                                .apply();
+                    }
+
+                    toInstall.add(asset);
                 }
 
                 if (toInstall.isEmpty()) {
@@ -311,7 +321,13 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                                     if (first) {
                                         first = false;
                                         cm.finishInstallContent(p, this);
-                                        Set<String> updated = new HashSet<>(installedAssets);
+                                        // Re-read: other installs may have
+                                        // updated the marker set meanwhile.
+                                        Set<String> updated = new HashSet<>(
+                                                PreferenceManager
+                                                        .getDefaultSharedPreferences(MainActivity.this)
+                                                        .getStringSet(PREF_INSTALLED_ASSET_CONTENTS,
+                                                                new HashSet<>()));
                                         updated.add(asset);
                                         PreferenceManager.getDefaultSharedPreferences(MainActivity.this)
                                                 .edit()
@@ -343,9 +359,8 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     private static final String PREF_INSTALLED_ASSET_CONTENTS = "installed_asset_contents";
 
     /**
-     * Bundle-type prefixes found in asset file names, mapped implicitly to the
-     * directory key under contents/. Longest match wins so that
-     * "vkd3d-proton-3.0.1b" resolves to type vkd3d + version 3.0.1b instead of
+     * Bundle-type prefixes found in asset file names. Longest match wins so
+     * that "vkd3d-proton-3.0.1b" resolves to version 3.0.1b instead of
      * vkd3d + "proton-3.0.1b" (which never matched an installed dir and made
      * this installer re-run on every startup).
      */
@@ -353,12 +368,16 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             "vkd3d-proton", "wowbox64", "box64", "dxvk", "fexcore", "proton", "wine", "vkd3d"
     };
 
-    /** Returns {typeKey, normalisedVersion} or null when unknown/malformed. */
+    /** Returns {typeKey, normalisedVersion} or null when unknown/malformed.
+     * typeKey is the lower-cased contents/ directory name (ContentProfile
+     * ContentType enum name), e.g. vkd3d-proton bundles install under VKD3D. */
     private static String[] parseBundleName(String base) {
         String lowerBase = base.toLowerCase(Locale.ENGLISH).replace('_', '-');
         for (String alias : BUNDLE_TYPE_ALIASES) {
-            if (lowerBase.startsWith(alias + "-"))
-                return new String[]{alias, lowerBase.substring(alias.length() + 1)};
+            if (lowerBase.startsWith(alias + "-")) {
+                String typeKey = "vkd3d-proton".equals(alias) ? "vkd3d" : alias;
+                return new String[]{typeKey, lowerBase.substring(alias.length() + 1)};
+            }
         }
         return null;
     }

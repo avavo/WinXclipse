@@ -434,11 +434,12 @@ public class ContainerDetailFragment extends Fragment {
         {
             HashMap<String, String> fsrConfig = GraphicsDriverConfigDialog.parseGraphicsDriverConfig(
                     String.valueOf(vGraphicsDriverConfig.getTag()));
-            containerFsr = fsrConfig.getOrDefault("fsrMode", "off");
+            containerFsr = GraphicsDriverConfigDialog.normalizeFsrValue(
+                    fsrConfig.getOrDefault("fsrMode", "off"));
             containerFsrUpscale = fsrConfig.getOrDefault("fsrUpscale", "0");
-            containerFsrQuality = fsrConfig.getOrDefault("fsrQuality", "balanced");
-            if (containerFsr.equals("quality") || containerFsr.equals("balanced")
-                    || containerFsr.equals("performance")) {
+            containerFsrQuality = GraphicsDriverConfigDialog.normalizeFsrValue(
+                    fsrConfig.getOrDefault("fsrQuality", "balanced"));
+            if (!containerFsr.equals("on") && !containerFsr.equals("off")) {
                 containerFsrQuality = containerFsr;
                 containerFsrUpscale = "1";
                 containerFsr = "on";

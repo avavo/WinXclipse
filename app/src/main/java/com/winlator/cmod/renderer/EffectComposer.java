@@ -209,8 +209,25 @@ public class EffectComposer {
         renderer.drawFrame();
 //        Log.d(TAG, "Initial frame drawn");
 
+        // Effects before (and including) the first FSREasuEffect read the raw
+        // scene buffer; everything after it runs on the ping-pong buffers at
+        // display resolution. Keying this on the EASU position instead of
+        // index 0 keeps the pipeline correct regardless of effect ordering
+        // (e.g. HDREffect added before or after the FSR passes).
+        int sceneConsumer = -1;
+        if (useScene && !effects.isEmpty()) {
+            sceneConsumer = 0;
+            for (int i = 0; i < effects.size(); i++) {
+                if (effects.get(i) instanceof FSREasuEffect) {
+                    sceneConsumer = i;
+                    break;
+                }
+            }
+        }
+
         // Iterate through each effect and render it
-        for (Effect effect : effects) {
+        for (int i = 0; i < effects.size(); i++) {
+            Effect effect = effects.get(i);
             boolean renderToScreen = effect == effects.get(effects.size() - 1);
             int targetFramebuffer = renderToScreen ? 0 : writeBuffer.getFramebuffer();
 
@@ -230,7 +247,7 @@ public class EffectComposer {
 //            Log.d(TAG, "Framebuffer cleared");
 
             // Render the effect
-            renderEffect(effect, useScene && effect instanceof FSREasuEffect);
+            renderEffect(effect, i <= sceneConsumer);
 //            Log.d(TAG, "Effect rendered: " + effect.getClass().getSimpleName());
 
             // Swap the read and write buffers
@@ -265,17 +282,45 @@ public class EffectComposer {
             FSREasuEffect easu = (FSREasuEffect) effect;
             int screenW = renderer.getXScreenWidth();
             int screenH = renderer.getXScreenHeight();
-            // Aspect-fit rect of the X screen on the display (letterbox preserved).
-            float aspect = Math.min(renderer.surfaceWidth / (float) screenW,
-                    renderer.surfaceHeight / (float) screenH);
-            int dstW = Math.round(screenW * aspect);
-            int dstH = Math.round(screenH * aspect);
-            int dstOffX = (renderer.surfaceWidth - dstW) / 2;
-            int dstOffYGl = (renderer.surfaceHeight - dstH) / 2;
-            // V-down offset to match the shader's coordinate space.
-            int dstOffYDown = renderer.surfaceHeight - dstOffYGl - dstH;
+            int srcOffX;
+            int srcOffYDown;
+            int srcViewW;
+            int srcViewH;
+            int dstOffX;
+            int dstOffYDown;
+            int dstW;
+            int dstH;
+            if (renderer.isFullscreen()) {
+                // Fullscreen stretches the X screen across the whole target.
+                srcOffX = 0;
+                srcOffYDown = 0;
+                srcViewW = sceneBufferWidth;
+                srcViewH = sceneBufferHeight;
+                dstOffX = 0;
+                dstOffYDown = 0;
+                dstW = renderer.surfaceWidth;
+                dstH = renderer.surfaceHeight;
+            } else {
+                // Source: the letterboxed content region inside the scene buffer.
+                float sceneAspect = Math.min(sceneBufferWidth / (float) screenW,
+                        sceneBufferHeight / (float) screenH);
+                srcViewW = Math.round(screenW * sceneAspect);
+                srcViewH = Math.round(screenH * sceneAspect);
+                srcOffX = (sceneBufferWidth - srcViewW) / 2;
+                int srcOffYGl = (sceneBufferHeight - srcViewH) / 2;
+                srcOffYDown = sceneBufferHeight - srcOffYGl - srcViewH;
+                // Destination: the letterboxed content region on the display.
+                float dstAspect = Math.min(renderer.surfaceWidth / (float) screenW,
+                        renderer.surfaceHeight / (float) screenH);
+                dstW = Math.round(screenW * dstAspect);
+                dstH = Math.round(screenH * dstAspect);
+                dstOffX = (renderer.surfaceWidth - dstW) / 2;
+                int dstOffYGl = (renderer.surfaceHeight - dstH) / 2;
+                dstOffYDown = renderer.surfaceHeight - dstOffYGl - dstH;
+            }
+            // V-down offsets to match the shader's coordinate space.
             easu.setMapping(sceneBufferWidth, sceneBufferHeight,
-                    0, 0, sceneBufferWidth, sceneBufferHeight,
+                    srcOffX, srcOffYDown, srcViewW, srcViewH,
                     dstOffX, dstOffYDown, dstW, dstH, renderer.surfaceHeight);
             material.setUniformVec2("resolution", renderer.surfaceWidth, renderer.surfaceHeight);
             material.setUniformVec4("uCon0", easu.getCon0());

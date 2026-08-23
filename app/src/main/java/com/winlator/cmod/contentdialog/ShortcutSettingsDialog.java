@@ -259,6 +259,8 @@ public class ShortcutSettingsDialog extends ContentDialog {
                         config.put("fsrMode", fsrMode == null ? "off" : fsrMode);
                         config.put("fsrUpscale", fsrUpscale == null ? "0" : fsrUpscale);
                         config.put("fsrQuality", fsrQuality == null ? "balanced" : fsrQuality);
+                        config.put("vblankOff", vsyncOff ? "1" : "0");
+                        config.put("unlimitedImages", unlimitedImages ? "1" : "0");
                         vGraphicsDriverConfig.setTag(
                                 GraphicsDriverConfigDialog.toGraphicsDriverConfig(config));
                         rendererFilterMode[0] = textureFilterMode;

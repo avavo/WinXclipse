@@ -139,6 +139,23 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
         return parseGraphicsDriverConfig(graphicsDriverConfig).get("version");
     }
 
+    /**
+     * Normalizes any FSR mode value persisted by past builds to one of
+     * "off", "on", "quality", "balanced" or "performance". Older releases
+     * stored the spinner's display string ("Off", "Quality (1.5x)",
+     * "Balanced (1.7x)", "Performance (2.0x)"); the current format stores
+     * lowercase tokens.
+     */
+    public static String normalizeFsrValue(String raw) {
+        if (raw == null) return "off";
+        String value = raw.trim().toLowerCase(Locale.ENGLISH);
+        if (value.startsWith("quality")) return "quality";
+        if (value.startsWith("balanced")) return "balanced";
+        if (value.startsWith("performance")) return "performance";
+        if (value.equals("on") || value.equals("1") || value.equals("true")) return "on";
+        return "off";
+    }
+
     public static String getExtensionsBlacklist(String graphicsDriverConfig) {
         return parseGraphicsDriverConfig(graphicsDriverConfig).get("blacklistedExtensions");
     }

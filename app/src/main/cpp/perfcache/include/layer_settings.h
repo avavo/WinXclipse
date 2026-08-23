@@ -8,8 +8,9 @@
 //
 //  Environment variables:
 //
-//   XCACHE_DISABLE              1  →  disable everything; layer becomes a
-//                                        transparent pass-through
+//   PERFCACHE_DISABLE           1  →  disable everything; layer becomes a
+//                                        transparent pass-through (matches the
+//                                        manifest's disable_environment key)
 //   PERFCACHE_PIPELINE_CACHE_DIR   path for pipeline cache files
 //                                  default: /data/local/tmp/layercache/pipeline
 //   PERFCACHE_TEXTURE_CACHE_DIR    path for texture cache files

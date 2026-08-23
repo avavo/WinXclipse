@@ -683,7 +683,7 @@ static VKAPI_ATTR VkResult VKAPI_CALL layer_CreateDevice(
     xcache_settings_init();
 
     if (g_settings.disable) {
-        LOGI("CreateDevice: XCACHE_DISABLE=1, layer is pass-through");
+        LOGI("CreateDevice: PERFCACHE_DISABLE=1, layer is pass-through");
         return VK_SUCCESS;
     }
 

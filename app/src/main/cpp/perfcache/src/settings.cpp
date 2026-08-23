@@ -626,7 +626,7 @@ void xcache_settings_init() {
     g_settings = next;
 
     g_settings.disable =
-        env_bool("XCACHE_DISABLE", false);
+        env_bool("PERFCACHE_DISABLE", false);
 
     g_settings.pipeline_cache_dir =
         env_or("PERFCACHE_PIPELINE_CACHE_DIR",
