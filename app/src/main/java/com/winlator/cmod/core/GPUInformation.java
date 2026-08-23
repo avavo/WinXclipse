@@ -116,6 +116,48 @@ public abstract class GPUInformation {
         }
     }
 
+    /** Relative GPU size classes used by session tuning. */
+    public static final int GPU_TINY = 0;   // 1-2 WGP  (Xclipse 530/540)
+    public static final int GPU_MID = 1;    // ~3 WGP   (Xclipse 920, 550)
+    public static final int GPU_BIG = 2;    // 6-8 WGP  (Xclipse 940/950/960)
+
+    /**
+     * Size class of the detected Xclipse, from public die information:
+     * 530=1 WGP, 540=2 WGP, 920~3 WGP (384 SP), 940=6 WGP, 950/960=8 WGP.
+     * Unknown models map to MID.
+     */
+    public static int getGpuTier() {
+        switch (getXclipseModel()) {
+            case 530:
+            case 540:
+                return GPU_TINY;
+            case 940:
+            case 950:
+            case 960:
+                return GPU_BIG;
+            default:
+                return GPU_MID;
+        }
+    }
+
+    /**
+     * Unified-memory VRAM ceiling for the detected GPU, in MB. A tiny GPU can
+     * never consume what the RAM-based formula would grant, and granting a
+     * big GPU less than its share wastes it. Returns 0 when unknown.
+     */
+    public static int getModelVramCapMB() {
+        switch (getGpuTier()) {
+            case GPU_TINY:
+                return 2048;
+            case GPU_MID:
+                return 3072;
+            case GPU_BIG:
+                return 4092;
+            default:
+                return 0;
+        }
+    }
+
     /**
      * Default BCn compute-emulation backend for the detected GPU generation,
      * used only when the user never picked one explicitly. The RDNA ISA docs

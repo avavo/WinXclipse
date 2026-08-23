@@ -97,23 +97,9 @@ Version 0.9 focuses on the video and audio configuration tabs, shortcut artwork,
 
 - Fixed ARM64EC guests dying silently before creating any window when running the bundled Proton arm64ec under FEXCore: the launcher requested the legacy `libarm64ecfex.dll` bridge instead of `libwow64fex.dll`, so every 64-bit game on this path exited at startup (black screen, only Wine services left). The correct bridge is now requested automatically per package.
 
-#### Per-SoC behavior matrix (Exynos ↔ Xclipse)
+#### Per-model GPU tuning
 
-| SoC | Xclipse | RDNA | GPU size (public data) | Always on | With Experimental BCN (defaults when unset) |
-|---|---|---|---|---|---|
-| Exynos 1480 | 530 | RDNA2 | 1 WGP / 2 CU @ ~1.3 GHz | cpufreq cluster pinning (WoW64 → perf cores) | BCn **software** + auto ASTC transcode |
-| Exynos 1580 | 540 | RDNA2 | 2 WGP / 4 CU | same as 1480 | BCn **software** + auto ASTC transcode |
-| Exynos 1680 | 550 | RDNA3 | — | same pattern | BCn **compute** |
-| Exynos 2200 | 920 | RDNA2 | ~3 WGP / 6 CU (384 SP) | cluster detection covers its layout | BCn **software** |
-| Exynos 2400/2400e | 940 | RDNA3 | 6 WGP / 12 CU | 8 GB RAM tier known to the VRAM fallback | BCn **compute** |
-| Exynos 2500 | 950 | RDNA3 | 8 WGP @ ~1.0 GHz | ships with varying RAM → no tier guess | BCn **compute** |
-| Exynos 2600 | 960 | RDNA4 | 8 WGP @ ~0.98 GHz | 12 GB RAM tier known to the VRAM fallback | BCn **compute** |
-
-The BCn backend split follows directly from the hardware: the 530's single WGP cannot spare ALU work for compute transcoding without tanking rendering, while the 6-8 WGP RDNA3/RDNA4 flagships pair VOPD dual-issue with enough occupancy to run the compute path nearly free.
-
-Every model also gets, unconditionally: cached GPU/renderer detection with the HUD pairing label, word-per-pixel native X11 blits, the evshim per-fd verdict cache, the ALSA pacer without SCHED_FIFO plus off-thread device rebuild, cached EGL display and JNI lookups, persistent Video-tab renderer, and DDraw **None** as container default.
-
-**What Experimental Performance adds on top** (opt-in only): `WRAPPER_MAX_IMAGE_COUNT=0`, `DXVK_DISABLE_TIMELINE_SEMAPHORES=1`, `VKD3D_SHADER_MODEL=6_6`, `vblank_mode=0`, and the unified-memory VRAM cap (2048 MB on 8 GB-class, 4092 MB on 12 GB-class) whenever Max Device Memory is left unset. Nothing else in the table is gated behind it.
+Session tuning is keyed off the detected Xclipse model, using public die data (530=1 WGP, 540=2 WGP, 920≈3 WGP/384 SP, 940=6 WGP, 950/960=8 WGP): the Experimental Performance VRAM cap is intersected with a per-model ceiling (2048 MB tiny / 3072 MB mid / 4092 MB big), the auto ASTC-transcode default covers every RDNA2 model (hardware ASTC decode, no dual-issue VALU), and the BCn backend defaults to compute only on RDNA3/RDNA4 where VOPD dual-issue makes it cheap.
 
 #### Native and memory optimizations (unified LPDDR awareness)
 

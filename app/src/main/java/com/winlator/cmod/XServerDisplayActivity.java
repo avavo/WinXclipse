@@ -2938,10 +2938,13 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             boolean etc2Transcode = "1".equals(graphicsDriverConfig.getOrDefault("etc2Transcode", "0"));
 
             if (computeEmulation && !astcTranscode && !etc2Transcode
-                    && (GPUInformation.isXclipse530() || GPUInformation.isXclipse540())) {
+                    && GPUInformation.isRDNA2()) {
+                // Every RDNA2 Xclipse decodes ASTC in hardware and none has the
+                // dual-issue VALU that makes compute transcoding cheap, so the
+                // transcode path wins by default on the whole generation.
                 astcTranscode = true;
                 Log.i("GraphicsDriverExtraction",
-                        "Defaulting BCn-to-ASTC transcode on low-tier RDNA2 (hardware ASTC decode)");
+                        "Defaulting BCn-to-ASTC transcode on RDNA2 (hardware ASTC decode)");
             }
 
             // Winlator-Mali mapping: none->0, partial->1, full->2, auto->3.
@@ -3030,7 +3033,11 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         }
         // Android reports usable RAM below the marketing size (a "12 GB"
         // device usually lands near 11 GB), so split the tiers at 10 GB.
-        return totalMB >= 10240 ? 4092 : 2048;
+        int ramBased = totalMB >= 10240 ? 4092 : 2048;
+        // A small GPU can never consume what the RAM formula grants, and a
+        // big one should not be capped below its share: intersect both views.
+        int modelCap = GPUInformation.getModelVramCapMB();
+        return modelCap > 0 ? Math.min(ramBased, modelCap) : ramBased;
     }
 
     private void copyFile(File sourceFile, File destFile) throws IOException {
