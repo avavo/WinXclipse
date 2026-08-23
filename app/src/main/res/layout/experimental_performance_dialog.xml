@@ -78,5 +78,17 @@
             android:layout_width="match_parent"
             android:layout_height="44dp"
             android:text="@string/xperf_nramv" />
+
+        <CheckBox
+            android:id="@+id/CBXPerfBcnSoftware"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:text="@string/xperf_bcn_software" />
+
+        <CheckBox
+            android:id="@+id/CBXPerfAstcAuto"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:text="@string/xperf_astc_auto" />
     </LinearLayout>
 </ScrollView>

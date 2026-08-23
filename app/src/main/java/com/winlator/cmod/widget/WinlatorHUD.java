@@ -215,7 +215,7 @@ public class WinlatorHUD extends View {
         wVal100pct = pVal.measureText("100%");
         wValFps    = pFps.measureText("999");
         wValWatt   = pVal.measureText("9.9W");
-        wValTemp   = pVal.measureText("99°C");
+        wValTemp   = pVal.measureText("99Â°C");
         wValBInfo  = pVal.measureText("9.9W (100%)");
     }
 
@@ -260,8 +260,8 @@ public class WinlatorHUD extends View {
             if (cp != snapCpu)  { snapCpu = cp; strCpu = cp >= 0 ? cp + "%" : "N/A"; }
             if (rm != snapRam)  { snapRam = rm; strRam = rm >= 0 ? rm + "%" : "N/A"; }
             updateRamAlert(rm);
-            if (tm != snapTmp)  { snapTmp = tm; strTmp = tm > 0 ? tm + "°C" : ""; }
-            if (ctm != snapCTmp) { snapCTmp = ctm; strCTmp = ctm > 0 ? ctm + "°C" : ""; }
+            if (tm != snapTmp)  { snapTmp = tm; strTmp = tm > 0 ? tm + "Â°C" : ""; }
+            if (ctm != snapCTmp) { snapCTmp = ctm; strCTmp = ctm > 0 ? ctm + "Â°C" : ""; }
             if (pc != snapPct)  { snapPct = pc; strPct = pc >= 0 ? pc + "%" : ""; }
             if (mw != snapMw) {
                 snapMw = mw;
@@ -280,9 +280,9 @@ public class WinlatorHUD extends View {
         // session baseline. Native flush has its own cooldown/emergency rules.
         boolean inDanger = ramPercent >= ramBlinkThreshold;
         if (inDanger && !ramAlertActive) {
-            com.winlator.cmod.core.Nramv.escalate();
+            com.winlator.cmod.core.RamOptimizerXclipse.escalate();
         } else if (!inDanger && ramAlertActive && ramPercent < ramBlinkThreshold - 6) {
-            com.winlator.cmod.core.Nramv.restoreBaseline();
+            com.winlator.cmod.core.RamOptimizerXclipse.restoreBaseline();
         }
 
         if (!ramWarningEnabled) {
@@ -1057,3 +1057,4 @@ public class WinlatorHUD extends View {
         else post(r);
     }
 }
+

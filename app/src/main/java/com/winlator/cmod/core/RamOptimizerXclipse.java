@@ -13,14 +13,14 @@ import java.util.concurrent.Executors;
  * which forces the AGGRESSIVE mallopt/compaction pass immediately - used
  * by the HUD RAM alert before the internal thresholds would catch up.
  */
-public final class Nramv {
+public final class RamOptimizerXclipse {
     public static final int PROFILE_LIGHT = 0;
     public static final int PROFILE_MEDIUM = 1;
     public static final int PROFILE_AGGRESSIVE = 2;
 
     private static final ExecutorService EXECUTOR =
             Executors.newSingleThreadExecutor(r -> {
-                Thread t = new Thread(r, "NramvDriver");
+                Thread t = new Thread(r, "RamOptimizerXclipseDriver");
                 t.setDaemon(true);
                 return t;
             });
@@ -31,7 +31,7 @@ public final class Nramv {
         System.loadLibrary("winlator");
     }
 
-    private Nramv() {}
+    private RamOptimizerXclipse() {}
 
     public static void setBaselineProfile(int profile) {
         baselineProfile = profile;
@@ -61,3 +61,4 @@ public final class Nramv {
     public static native int nativeFlush();
     public static native String nativeVersion();
 }
+

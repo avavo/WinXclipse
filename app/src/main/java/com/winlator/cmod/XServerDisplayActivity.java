@@ -88,8 +88,8 @@ import com.winlator.cmod.core.EnvVars;
 import com.winlator.cmod.core.EnvironmentManager;
 import com.winlator.cmod.core.FileUtils;
 import com.winlator.cmod.core.GPUInformation;
-import com.winlator.cmod.core.MdiExBridge;
-import com.winlator.cmod.core.Nramv;
+import com.winlator.cmod.core.WinXclipsePolicy;
+import com.winlator.cmod.core.RamOptimizerXclipse;
 import com.winlator.cmod.core.KeyValueSet;
 import com.winlator.cmod.core.OnExtractFileListener;
 import com.winlator.cmod.core.PreloaderDialog;
@@ -1051,7 +1051,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             hudDataSource.stop();
             hudDataSource = null;
         }
-        try { Nramv.nativeShutdown(); } catch (Throwable ignored) {}
+        try { RamOptimizerXclipse.nativeShutdown(); } catch (Throwable ignored) {}
         super.onDestroy();
     }
 
@@ -1277,7 +1277,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             MenuItem item = menu.findItem(id);
             if (item == null || item.getTitle() == null) continue;
             String title = item.getTitle().toString();
-            if (!title.startsWith("â†³")) item.setTitle("â†³  " + title);
+            if (!title.startsWith("Ã¢â€ Â³")) item.setTitle("Ã¢â€ Â³  " + title);
         }
     }
 
@@ -1756,7 +1756,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             guestProgramLauncherComponent.setWoW64Mode(wow64Mode);
             guestProgramLauncherComponent.setGuestExecutable(guestExecutable);
 
-            // Merge in containerâ€™s environment variables
+            // Merge in containerÃ¢â‚¬â„¢s environment variables
             envVars.putAll(container.getEnvVars());
 
             // Merge in shortcut environment variables if present
@@ -1828,8 +1828,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             if ("1".equals(xperfConfig.get("vblank")))
                 envVars.put("vblank_mode", "0");
             if ("1".equals(xperfConfig.get("mdiex"))) {
-                try { envVars.put("MDIEX_PROFILE", MdiExBridge.nativeProfileName()); }
-                catch (Throwable t) { Log.w("GraphicsDriverExtraction", "MdiExBridge unavailable", t); }
+                try { envVars.put("MDIEX_PROFILE", WinXclipsePolicy.nativeProfileName()); }
+                catch (Throwable t) { Log.w("GraphicsDriverExtraction", "WinXclipsePolicy unavailable", t); }
             }
             if ("1".equals(xperfConfig.get("perfcache")) && GPUInformation.isXclipse())
                 installPerfCacheLayer(envVars);
@@ -1837,8 +1837,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         // NRAMV unified-memory manager runs in our process for every session;
         // its baseline trim level follows device RAM while live escalation is
-        // driven by the HUD RAM alert through Nramv.escalate().
-        applyNramvProfile();
+        // driven by the HUD RAM alert through RamOptimizerXclipse.escalate().
+        applyRamOptimizerProfile();
 
         // Create our overall XEnvironment with various components
         environment = new XEnvironment(this, imageFs);
@@ -2963,10 +2963,16 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             String bcnEmulation = graphicsDriverConfig.getOrDefault("bcnEmulation", "auto");
             boolean computeEmulation = !"software".equalsIgnoreCase(
                     graphicsDriverConfig.getOrDefault("bcnEmulationType",
-                            GPUInformation.defaultBcnEmulationType()));
+                            "1".equals(xperfConfig.get("bcnSoftware"))
+                                    ? "software" : GPUInformation.defaultBcnEmulationType()));
             String bcnEmulationCache = graphicsDriverConfig.getOrDefault("bcnEmulationCache", "1");
             boolean astcTranscode = "1".equals(graphicsDriverConfig.getOrDefault("astcTranscode", "0"));
             boolean etc2Transcode = "1".equals(graphicsDriverConfig.getOrDefault("etc2Transcode", "0"));
+            if ("1".equals(xperfConfig.get("astcAuto")) && computeEmulation
+                    && !astcTranscode && !etc2Transcode) {
+                astcTranscode = true;
+                Log.i("GraphicsDriverExtraction", "ASTC transcode auto-default via tuning dialog");
+            }
 
             // Winlator-Mali mapping: none->0, partial->1, full->2, auto->3.
             String emulateBcn;
@@ -3066,17 +3072,17 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         }
     }
 
-    /** Starts the NRAMV memory manager and selects its aggressiveness from the
+    /** Starts the RAM Optimizer Xclipse engine and selects its aggressiveness from the
      * device RAM: LIGHT below 8 GB, MEDIUM on 8 GB-class, AGGRESSIVE only on
      * 12 GB-class devices with Experimental Performance enabled. */
-    private void applyNramvProfile() {
+    private void applyRamOptimizerProfile() {
         try {
-            if (Nramv.nativeInit() != 0) return;
+            if (RamOptimizerXclipse.nativeInit() != 0) return;
 
             boolean aggro = isExperimentalPerformanceActive()
-                    && "1".equals(xperfConfig.get("nramvAggro"));
+                    && "1".equals(xperfConfig.get("ramAggro"));
             int baseline;
-            if (aggro) baseline = Nramv.PROFILE_AGGRESSIVE;
+            if (aggro) baseline = RamOptimizerXclipse.PROFILE_AGGRESSIVE;
             else {
                 ActivityManager activityManager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
                 long totalMB = 0;
@@ -3085,16 +3091,16 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                     activityManager.getMemoryInfo(memoryInfo);
                     totalMB = memoryInfo.totalMem / (1024L * 1024L);
                 }
-                if (totalMB > 0 && totalMB < 6500) baseline = Nramv.PROFILE_AGGRESSIVE;
-                else if (totalMB > 0 && totalMB < 10240) baseline = Nramv.PROFILE_MEDIUM;
-                else baseline = Nramv.PROFILE_LIGHT;
+                if (totalMB > 0 && totalMB < 6500) baseline = RamOptimizerXclipse.PROFILE_AGGRESSIVE;
+                else if (totalMB > 0 && totalMB < 10240) baseline = RamOptimizerXclipse.PROFILE_MEDIUM;
+                else baseline = RamOptimizerXclipse.PROFILE_LIGHT;
             }
-            Nramv.setBaselineProfile(baseline);
-            Nramv.restoreBaseline();
-            Log.i("GraphicsDriverExtraction", "NRAMV baseline=" + baseline + " version=" + Nramv.nativeVersion());
+            RamOptimizerXclipse.setBaselineProfile(baseline);
+            RamOptimizerXclipse.restoreBaseline();
+            Log.i("GraphicsDriverExtraction", "RAM Optimizer baseline=" + baseline + " version=" + RamOptimizerXclipse.nativeVersion());
         }
         catch (Throwable t) {
-            Log.w("GraphicsDriverExtraction", "NRAMV unavailable", t);
+            Log.w("GraphicsDriverExtraction", "RAM Optimizer unavailable", t);
         }
     }
 
@@ -3683,3 +3689,5 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         audioManager.registerAudioDeviceCallback(audioDeviceCallback, new Handler(Looper.getMainLooper()));
     }
 }
+
+

@@ -44,8 +44,8 @@ add_library(winlator SHARED
         nramv/nramv_feedback.c
         nramv/nramv_debug.c
         nramv/nramv_compat.c
-        winlator/nramv_bridge.c
-        winlator/mdiex_bridge.c
+        winlator/ram_optimizer_xclipse_bridge.c
+        winlator/winxclipse_policy_bridge.c
 )
 
 # The memshim's malloc/mmap interpose symbols are meant for the guest-side
@@ -129,3 +129,4 @@ target_include_directories(VkLayer_PerfCache PRIVATE
 target_compile_options(VkLayer_PerfCache PRIVATE -Wall -Wextra -Wno-unused-parameter -fvisibility=hidden -fstack-protector-strong)
 target_link_libraries(VkLayer_PerfCache log dl)
 set_target_properties(VkLayer_PerfCache PROPERTIES OUTPUT_NAME "VkLayer_PerfCache")
+

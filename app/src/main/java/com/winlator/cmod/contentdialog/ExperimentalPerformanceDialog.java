@@ -20,7 +20,7 @@ import com.winlator.cmod.widget.ThemedSpinnerAdapter;
  */
 public class ExperimentalPerformanceDialog extends ContentDialog {
     public static final String DEFAULT_CONFIG =
-            "vblank=1,maxImages=1,noTimeline=1,vk3d66=1,vramCap=1,vramCapMode=auto,perfcache=1,mdiex=1,nramvAggro=0";
+            "vblank=1,maxImages=1,noTimeline=1,vk3d66=1,vramCap=1,vramCapMode=auto,perfcache=1,mdiex=1,ramAggro=0,bcnSoftware=0,astcAuto=0";
 
     public interface OnConfirmCallback {
         void onConfirm(String config);
@@ -51,6 +51,8 @@ public class ExperimentalPerformanceDialog extends ContentDialog {
         CheckBox cbPerfcache = findViewById(R.id.CBXPerfPerfcache);
         CheckBox cbMdiex = findViewById(R.id.CBXPerfMdiex);
         CheckBox cbNramv = findViewById(R.id.CBXPerfNramv);
+        CheckBox cbBcnSoftware = findViewById(R.id.CBXPerfBcnSoftware);
+        CheckBox cbAstcAuto = findViewById(R.id.CBXPerfAstcAuto);
 
         sVramCapMode.setAdapter(new ThemedSpinnerAdapter<>(context,
                 new String[]{"Auto", "2048 MB", "3072 MB", "4092 MB"}));
@@ -63,7 +65,9 @@ public class ExperimentalPerformanceDialog extends ContentDialog {
         AppUtils.setSpinnerSelectionFromValue(sVramCapMode, config.get("vramCapMode"));
         cbPerfcache.setChecked("1".equals(config.get("perfcache")));
         cbMdiex.setChecked("1".equals(config.get("mdiex")));
-        cbNramv.setChecked("1".equals(config.get("nramvAggro")));
+        cbNramv.setChecked("1".equals(config.get("ramAggro")));
+        cbBcnSoftware.setChecked("1".equals(config.get("bcnSoftware")));
+        cbAstcAuto.setChecked("1".equals(config.get("astcAuto")));
 
         Runnable updateVramCapUi = () -> {
             float alpha = cbVramCap.isChecked() ? 1f : 0.45f;
@@ -89,8 +93,12 @@ public class ExperimentalPerformanceDialog extends ContentDialog {
             config.put("vramCapMode", modeValue);
             config.put("perfcache", cbPerfcache.isChecked() ? "1" : "0");
             config.put("mdiex", cbMdiex.isChecked() ? "1" : "0");
-            config.put("nramvAggro", cbNramv.isChecked() ? "1" : "0");
+            config.put("ramAggro", cbNramv.isChecked() ? "1" : "0");
+            config.put("bcnSoftware", cbBcnSoftware.isChecked() ? "1" : "0");
+            config.put("astcAuto", cbAstcAuto.isChecked() ? "1" : "0");
             callback.onConfirm(config.toString());
         });
     }
 }
+
+
