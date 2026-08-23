@@ -3230,6 +3230,13 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             Log.d(TAG, "Extracting DXVK wrapper files, version: " + dxwrapper);
 
             ContentProfile profile = contentsManager.getProfileByEntryName(dxwrapper);
+            if (profile == null) {
+                // Clean selector entries carry no "-<verCode>" suffix (e.g.
+                // "dxvk-1.7.2"), which the entry-name parser cannot split;
+                // fall back to matching by version name alone.
+                profile = contentsManager.getProfile(ContentProfile.ContentType.CONTENT_TYPE_DXVK,
+                        dxwrapper.substring(dxwrapper.indexOf('-') + 1));
+            }
             if (profile != null) {
                 Log.d(TAG, "Applying user-defined DXVK content profile: " + dxwrapper);
                 contentsManager.applyContent(profile);

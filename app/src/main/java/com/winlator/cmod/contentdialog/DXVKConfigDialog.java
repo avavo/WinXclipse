@@ -179,10 +179,14 @@ public class DXVKConfigDialog extends ContentDialog {
         String[] originalItems = context.getResources().getStringArray(R.array.dxvk_version_entries);
         List<String> itemList = new ArrayList<>(Arrays.asList(originalItems));
 
+        /* Content profiles join the static list under their clean version name
+         * (profile.verName, e.g. "1.7.2" or "2.6.2-arm64ec-gplasync") instead of
+         * the raw "name-<verCode>" entry form, and duplicates are suppressed so
+         * a bundled .wcp never shows up twice next to its array entry. */
         for (ContentProfile profile : manager.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_DXVK)) {
-            String entryName = ContentsManager.getEntryName(profile);
-            int firstDashIndex = entryName.indexOf('-');
-            itemList.add(entryName.substring(firstDashIndex + 1));
+            String verName = profile.verName;
+            if (verName != null && !verName.isEmpty() && !itemList.contains(verName))
+                itemList.add(verName);
         }
 
         spinner.setAdapter(new ThemedSpinnerAdapter<>(context, itemList));

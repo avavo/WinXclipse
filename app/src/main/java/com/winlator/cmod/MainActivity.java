@@ -46,7 +46,6 @@ import com.winlator.cmod.contents.ContentProfile;
 import com.winlator.cmod.contents.ContentsManager;
 import com.winlator.cmod.core.Callback;
 import com.winlator.cmod.core.AppUtils;
-import com.winlator.cmod.core.FileUtils;
 import com.winlator.cmod.core.PreloaderDialog;
 import com.winlator.cmod.core.UpdateChecker;
 import com.winlator.cmod.container.ContainerManager;
@@ -197,17 +196,6 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                  * ---------------------------------------------------------- */
                 Map<String, Set<String>> installed = new HashMap<>();
                 File root = ContentsManager.getContentDir(this);
-
-                // DXVK 1.7.2 no longer ships with the APK; drop copies
-                // installed by earlier builds so they stop showing up as
-                // selectable content ("1.7.2-0").
-                File[] staleDxvkDirs = new File(root, "DXVK").listFiles();
-                if (staleDxvkDirs != null) {
-                    for (File verDir : staleDxvkDirs) {
-                        if (verDir.getName().toLowerCase(Locale.ENGLISH).startsWith("1.7.2"))
-                            FileUtils.delete(verDir);
-                    }
-                }
 
                 File[] typeDirs = root.listFiles();
                 if (typeDirs != null) {
