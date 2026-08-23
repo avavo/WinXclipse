@@ -87,18 +87,49 @@
             android:entries="@array/resource_type_entries"
             android:spinnerMode="dialog" />
 
-        <CheckBox
-            android:id="@+id/CBSyncFrame"
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="@string/graphics_driver_sync_frame" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
-        <CheckBox
-            android:id="@+id/CBDisablePresentWait"
-            android:layout_width="wrap_content"
+            <CheckBox
+                android:id="@+id/CBSyncFrame"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="@string/graphics_driver_sync_frame" />
+
+            <ImageView
+                android:id="@+id/BTSyncFrameHelp"
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:layout_marginLeft="8dp"
+                android:src="@drawable/icon_help"
+                app:tint="?colorAccent" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/graphics_driver_disable_present_wait" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <CheckBox
+                android:id="@+id/CBDisablePresentWait"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="@string/graphics_driver_disable_present_wait" />
+
+            <ImageView
+                android:id="@+id/BTDisablePresentWaitHelp"
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:layout_marginLeft="8dp"
+                android:src="@drawable/icon_help"
+                app:tint="?colorAccent" />
+        </LinearLayout>
 
         <LinearLayout
             android:id="@+id/LLExperimentalBCNOptions"
@@ -113,11 +144,9 @@
             <Spinner android:id="@+id/SGraphicsDriverBCnEmulationType" style="@style/ComboBox" android:layout_width="match_parent" android:layout_height="48dp" android:entries="@array/bcn_emulation_type_entries" />
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/bcn_emulation_cache" />
             <Spinner android:id="@+id/SGraphicsDriverBCnEmulationCache" style="@style/ComboBox" android:layout_width="match_parent" android:layout_height="48dp" android:entries="@array/bcn_emulation_cache_entries" />
-            <CheckBox android:id="@+id/CBASTCTranscode" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/astc_transcode" />
+
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal">
-                <CheckBox android:id="@+id/CBETC2Transcode" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/etc2_transcode" />
-        <CheckBox android:id="@+id/CBBCnSoftwareSwitch" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/gdc_bcn_software_switch" />
-        <CheckBox android:id="@+id/CBAstcAutoDefault" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/gdc_astc_auto_default" />
+                <CheckBox android:id="@+id/CBASTCTranscode" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/astc_transcode" />
                 <ImageView
                     android:id="@+id/BTASTCTranscodeHelp"
                     android:layout_width="22dp"
@@ -125,6 +154,32 @@
                     android:layout_marginLeft="8dp"
                     android:src="@drawable/icon_help"
                     app:tint="?colorAccent" />
+            </LinearLayout>
+
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal">
+                <CheckBox android:id="@+id/CBETC2Transcode" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/etc2_transcode" />
+                <ImageView
+                    android:id="@+id/BTETC2TranscodeHelp"
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:layout_marginLeft="8dp"
+                    android:src="@drawable/icon_help"
+                    app:tint="?colorAccent" />
+            </LinearLayout>
+
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal">
+                <CheckBox android:id="@+id/CBBCnSoftwareSwitch" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/gdc_bcn_software_switch" />
+                <ImageView
+                    android:id="@+id/BTBCnSoftwareHelp"
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:layout_marginLeft="8dp"
+                    android:src="@drawable/icon_help"
+                    app:tint="?colorAccent" />
+            </LinearLayout>
+
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal">
+                <CheckBox android:id="@+id/CBAstcAutoDefault" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/gdc_astc_auto_default" />
             </LinearLayout>
         </LinearLayout>
 

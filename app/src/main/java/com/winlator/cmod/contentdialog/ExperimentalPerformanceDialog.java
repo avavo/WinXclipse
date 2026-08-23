@@ -67,6 +67,19 @@ public class ExperimentalPerformanceDialog extends ContentDialog {
         updateVramCapUi.run();
         cbVramCap.setOnCheckedChangeListener((b, checked) -> updateVramCapUi.run());
 
+        findViewById(R.id.BTXPerfVramCapHelp).setOnClickListener(v ->
+                AppUtils.showHelpBox(context, v, R.string.xperf_help_vram_cap));
+        findViewById(R.id.BTXPerfVramCapModeHelp).setOnClickListener(v ->
+                AppUtils.showHelpBox(context, v, R.string.xperf_help_vram_cap_mode));
+        findViewById(R.id.BTXPerfPerfcacheHelp).setOnClickListener(v ->
+                AppUtils.showHelpBox(context, v, R.string.xperf_help_perfcache));
+        findViewById(R.id.BTXPerfMdiexHelp).setOnClickListener(v ->
+                AppUtils.showHelpBox(context, v, R.string.xperf_help_mdiex));
+        findViewById(R.id.BTXPerfNramvHelp).setOnClickListener(v ->
+                AppUtils.showHelpBox(context, v, R.string.xperf_help_nramv));
+        findViewById(R.id.BTXPerfWow64PinHelp).setOnClickListener(v ->
+                AppUtils.showHelpBox(context, v, R.string.xperf_help_wow64_pin));
+
         setOnConfirmCallback(() -> {
             config.put("vramCap", cbVramCap.isChecked() ? "1" : "0");
             Object mode = sVramCapMode.getSelectedItem();

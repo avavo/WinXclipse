@@ -52,6 +52,10 @@ public class DXVKConfigDialog extends ContentDialog {
         final Spinner sVkd3dFeatureLevel = findViewById(R.id.SVKD3DFeatureLevel);
         CheckBox cbNoTimeline = findViewById(R.id.CBXDvkNoTimeline);
         CheckBox cbVk3d66 = findViewById(R.id.CBXDvk66);
+        findViewById(R.id.BTNoTimelineHelp).setOnClickListener(v ->
+                AppUtils.showHelpBox(getContext(), v, R.string.dxvk_help_no_timeline));
+        findViewById(R.id.BTVk3d66Help).setOnClickListener(v ->
+                AppUtils.showHelpBox(getContext(), v, R.string.dxvk_help_vk3d66));
         swAsync = findViewById(R.id.SWAsync);
         swAsyncCache = findViewById(R.id.SWAsyncCache);
         llAsync = findViewById(R.id.LLAsync);

@@ -96,6 +96,14 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
         applyWrapperBcnProfile(graphicsDriver, experimentalBcn);
         findViewById(R.id.BTASTCTranscodeHelp).setOnClickListener(v ->
                 AppUtils.showHelpBox(getContext(), v, R.string.astc_transcode_help));
+        findViewById(R.id.BTETC2TranscodeHelp).setOnClickListener(v ->
+                AppUtils.showHelpBox(getContext(), v, R.string.gdc_help_etc2));
+        findViewById(R.id.BTBCnSoftwareHelp).setOnClickListener(v ->
+                AppUtils.showHelpBox(getContext(), v, R.string.gdc_help_bcn_software));
+        findViewById(R.id.BTSyncFrameHelp).setOnClickListener(v ->
+                AppUtils.showHelpBox(getContext(), v, R.string.gdc_help_sync_frame));
+        findViewById(R.id.BTDisablePresentWaitHelp).setOnClickListener(v ->
+                AppUtils.showHelpBox(getContext(), v, R.string.gdc_help_disable_present_wait));
 
         setOnConfirmCallback(() -> {
             String result = writeGraphicsDriverConfig();

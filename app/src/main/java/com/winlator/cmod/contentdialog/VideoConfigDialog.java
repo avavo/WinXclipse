@@ -42,6 +42,10 @@ public class VideoConfigDialog extends ContentDialog {
         Spinner fsrMode = findViewById(R.id.SVideoFsr);
         CheckBox vsyncOff = findViewById(R.id.CBVideoVsyncOff);
         CheckBox unlimitedImages = findViewById(R.id.CBVideoUnlimitedImages);
+        findViewById(R.id.BTVideoVsyncOffHelp).setOnClickListener(v ->
+                AppUtils.showHelpBox(context, v, R.string.video_help_vsync_off));
+        findViewById(R.id.BTVideoUnlimitedImagesHelp).setOnClickListener(v ->
+                AppUtils.showHelpBox(context, v, R.string.video_help_unlimited_images));
 
         gpuName.setAdapter(new ThemedSpinnerAdapter<>(context, loadGpuNames(context)));
         presentMode.setAdapter(new ThemedSpinnerAdapter<>(context,
