@@ -8,7 +8,7 @@
 //
 //  Environment variables:
 //
-//   PERFCACHE_DISABLE              1  →  disable everything; layer becomes a
+//   XCACHE_DISABLE              1  →  disable everything; layer becomes a
 //                                        transparent pass-through
 //   PERFCACHE_PIPELINE_CACHE_DIR   path for pipeline cache files
 //                                  default: /data/local/tmp/layercache/pipeline
@@ -79,12 +79,12 @@ struct LayerSettings {
     bool          metrics_dump_file      = true;
 };
 
-// Populated once in settings.cpp::perfcache_settings_init()
+// Populated once in settings.cpp::xcache_settings_init()
 extern LayerSettings g_settings;
 
 // Call once after g_is_xclipse is known
-void perfcache_settings_init();
+void xcache_settings_init();
 
-const char* perfcache_profile_name(PerfProfile profile);
-const char* perfcache_warmup_name(WarmupMode mode);
-const char* perfcache_sanitizer_name(SanitizerMode mode);
+const char* xcache_profile_name(PerfProfile profile);
+const char* xcache_warmup_name(WarmupMode mode);
+const char* xcache_sanitizer_name(SanitizerMode mode);

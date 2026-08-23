@@ -74,7 +74,7 @@ static bool is_required_subgroup_size_node(VkStructureType sType) {
 // All real corrections happen inside PipelineSanitizerContext::prepare(),
 // because prepare() owns the sidecar storage needed for safe mutation.
 
-void perfcache_sanitize_pipelines(
+void xcache_sanitize_pipelines(
     uint32_t count,
     const VkGraphicsPipelineCreateInfo* src,
     std::vector<VkGraphicsPipelineCreateInfo>& patched,
@@ -102,7 +102,7 @@ void PipelineSanitizerContext::prepare(
     const VkGraphicsPipelineCreateInfo* src,
     const VkPhysicalDeviceProperties2* dev_props2)
 {
-    perfcache_sanitize_pipelines(count, src, patched, dev_props2);
+    xcache_sanitize_pipelines(count, src, patched, dev_props2);
 
     if (patched.empty())
         return;
@@ -115,7 +115,7 @@ void PipelineSanitizerContext::prepare(
     uint32_t min_sg = 0;
     uint32_t max_sg = std::numeric_limits<uint32_t>::max();
 
-    if (perfcache_is_xclipse() && dev_props2) {
+    if (xcache_is_xclipse() && dev_props2) {
         const VkBaseInStructure* p =
             reinterpret_cast<const VkBaseInStructure*>(dev_props2->pNext);
 
@@ -276,7 +276,7 @@ void PipelineSanitizerContext::prepare(
         // Safer than manufacturing fake predecessor structs with unknown sizes.
         // ─────────────────────────────────────────────────────────────────────
 
-        if (perfcache_is_xclipse() &&
+        if (xcache_is_xclipse() &&
             ci.renderPass != VK_NULL_HANDLE &&
             ci.pNext)
         {
@@ -324,7 +324,7 @@ void PipelineSanitizerContext::prepare(
         // Again: conservative, because fake pNext cloning is where sanity dies.
         // ─────────────────────────────────────────────────────────────────────
 
-        if (perfcache_is_xclipse() &&
+        if (xcache_is_xclipse() &&
             min_sg != 0 &&
             ci.pStages &&
             ci.stageCount > 0)

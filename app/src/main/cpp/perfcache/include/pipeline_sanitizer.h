@@ -54,7 +54,7 @@ struct PipelineSanitizerContext {
 
 // Low-level batch function: fills patched with shallow copies.
 // All actual corrections are applied in PipelineSanitizerContext::prepare().
-void perfcache_sanitize_pipelines(
+void xcache_sanitize_pipelines(
     uint32_t                              count,
     const VkGraphicsPipelineCreateInfo*   src,
     std::vector<VkGraphicsPipelineCreateInfo>& patched,

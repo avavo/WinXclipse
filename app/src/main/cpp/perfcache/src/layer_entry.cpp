@@ -655,9 +655,9 @@ static VKAPI_ATTR VkResult VKAPI_CALL layer_CreateDevice(
             get_props(physDev, &props);
     }
 
-    perfcache_detect_device(physDev, props);
+    xcache_detect_device(physDev, props);
 
-    if (perfcache_is_xclipse()) {
+    if (xcache_is_xclipse()) {
         VkPhysicalDeviceSubgroupSizeControlProperties sc_props{};
         sc_props.sType =
             VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_SIZE_CONTROL_PROPERTIES;
@@ -680,10 +680,10 @@ static VKAPI_ATTR VkResult VKAPI_CALL layer_CreateDevice(
         }
     }
 
-    perfcache_settings_init();
+    xcache_settings_init();
 
     if (g_settings.disable) {
-        LOGI("CreateDevice: PERFCACHE_DISABLE=1, layer is pass-through");
+        LOGI("CreateDevice: XCACHE_DISABLE=1, layer is pass-through");
         return VK_SUCCESS;
     }
 
@@ -698,7 +698,7 @@ static VKAPI_ATTR VkResult VKAPI_CALL layer_CreateDevice(
     }
 
     LOGI("CreateDevice: layer fully initialised (device=%p, xclipse=%d gen=%u)",
-         (void*)*pDevice, (int)perfcache_is_xclipse(), perfcache_xclipse_gen());
+         (void*)*pDevice, (int)xcache_is_xclipse(), xcache_xclipse_gen());
 
     return VK_SUCCESS;
 }
@@ -1014,7 +1014,7 @@ static VKAPI_ATTR VkResult VKAPI_CALL layer_CreateGraphicsPipelines(
     }
 
     const bool raw_prewarm_is_safe =
-        !perfcache_is_xclipse() || !g_settings.sanitize_pipelines;
+        !xcache_is_xclipse() || !g_settings.sanitize_pipelines;
 
     if (effective_cache != VK_NULL_HANDLE && raw_prewarm_is_safe) {
         for (uint32_t i = 0; i < createInfoCount; ++i) {

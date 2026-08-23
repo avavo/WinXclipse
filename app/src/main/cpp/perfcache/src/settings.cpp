@@ -121,7 +121,7 @@ static uint64_t read_meminfo_kb(const char* wanted) {
 // Name helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-const char* perfcache_profile_name(PerfProfile p) {
+const char* xcache_profile_name(PerfProfile p) {
     switch (p) {
         case PerfProfile::LIGHT: return "LIGHT";
         case PerfProfile::HIGH: return "HIGH";
@@ -130,7 +130,7 @@ const char* perfcache_profile_name(PerfProfile p) {
     }
 }
 
-const char* perfcache_warmup_name(WarmupMode m) {
+const char* xcache_warmup_name(WarmupMode m) {
     switch (m) {
         case WarmupMode::OFF: return "OFF";
         case WarmupMode::AGGRESSIVE: return "AGGRESSIVE";
@@ -139,7 +139,7 @@ const char* perfcache_warmup_name(WarmupMode m) {
     }
 }
 
-const char* perfcache_sanitizer_name(SanitizerMode m) {
+const char* xcache_sanitizer_name(SanitizerMode m) {
     switch (m) {
         case SanitizerMode::OFF: return "OFF";
         case SanitizerMode::SAFE: return "SAFE";
@@ -241,7 +241,7 @@ static PerfProfile auto_profile_from_device_signals() {
     if (env_bool("PERFCACHE_BENCHMARK_MODE", false))
         return PerfProfile::LIGHT;
 
-    if (!perfcache_is_xclipse())
+    if (!xcache_is_xclipse())
         return PerfProfile::LIGHT;
 
     if (total_kb && total_kb < 7ull * 1024ull * 1024ull)
@@ -260,7 +260,7 @@ static PerfProfile auto_profile_from_device_signals() {
 
 static void apply_profile(PerfProfile p) {
     g_settings.profile = p;
-    g_settings.profile_name = perfcache_profile_name(p);
+    g_settings.profile_name = xcache_profile_name(p);
 
     switch (p) {
         case PerfProfile::LIGHT:
@@ -271,7 +271,7 @@ static void apply_profile(PerfProfile p) {
             g_settings.cache_compression = true;
             g_settings.renderpass_heuristics = false;
             g_settings.sanitizer_mode =
-                perfcache_is_xclipse() ? SanitizerMode::SAFE : SanitizerMode::OFF;
+                xcache_is_xclipse() ? SanitizerMode::SAFE : SanitizerMode::OFF;
             g_settings.texture_cache_mb = 128;
             g_settings.texture_cache_disk_mb = 256;
             break;
@@ -284,7 +284,7 @@ static void apply_profile(PerfProfile p) {
             g_settings.cache_compression = true;
             g_settings.renderpass_heuristics = true;
             g_settings.sanitizer_mode =
-                perfcache_is_xclipse() ? SanitizerMode::AGGRESSIVE : SanitizerMode::BALANCED;
+                xcache_is_xclipse() ? SanitizerMode::AGGRESSIVE : SanitizerMode::BALANCED;
             g_settings.texture_cache_mb = 384;
             g_settings.texture_cache_disk_mb = 1024;
             break;
@@ -298,7 +298,7 @@ static void apply_profile(PerfProfile p) {
             g_settings.cache_compression = true;
             g_settings.renderpass_heuristics = true;
             g_settings.sanitizer_mode =
-                perfcache_is_xclipse() ? SanitizerMode::BALANCED : SanitizerMode::OFF;
+                xcache_is_xclipse() ? SanitizerMode::BALANCED : SanitizerMode::OFF;
             g_settings.texture_cache_mb = 256;
             g_settings.texture_cache_disk_mb = 512;
             break;
@@ -610,7 +610,7 @@ static void apply_external_config_if_present() {
 // Public init
 // ─────────────────────────────────────────────────────────────────────────────
 
-void perfcache_settings_init() {
+void xcache_settings_init() {
     static std::mutex init_lock;
     static bool initialized = false;
 
@@ -626,7 +626,7 @@ void perfcache_settings_init() {
     g_settings = next;
 
     g_settings.disable =
-        env_bool("PERFCACHE_DISABLE", false);
+        env_bool("XCACHE_DISABLE", false);
 
     g_settings.pipeline_cache_dir =
         env_or("PERFCACHE_PIPELINE_CACHE_DIR",
@@ -730,7 +730,7 @@ void perfcache_settings_init() {
             g_settings.sanitizer_mode = SanitizerMode::OFF;
         } else if (g_settings.sanitizer_mode == SanitizerMode::OFF) {
             g_settings.sanitizer_mode =
-                perfcache_is_xclipse()
+                xcache_is_xclipse()
                     ? SanitizerMode::BALANCED
                     : SanitizerMode::SAFE;
         }
@@ -755,9 +755,9 @@ void perfcache_settings_init() {
     LOGI("AutoTune: process=%s profile=%s warmup=%s precreate=%d sanitizer=%s blacklist=%d dedup=%d compression=%d renderpass=%d metrics_file=%d metrics=%s config=%s mem=%lluMB avail=%lluMB cores=%u",
          g_settings.process_name.c_str(),
          g_settings.profile_name.c_str(),
-         perfcache_warmup_name(g_settings.pipeline_warmup),
+         xcache_warmup_name(g_settings.pipeline_warmup),
          static_cast<int>(g_settings.pipeline_warmup_precreate),
-         perfcache_sanitizer_name(g_settings.sanitizer_mode),
+         xcache_sanitizer_name(g_settings.sanitizer_mode),
          static_cast<int>(g_settings.pipeline_blacklist),
          static_cast<int>(g_settings.upload_deduplication),
          static_cast<int>(g_settings.cache_compression),

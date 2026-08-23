@@ -14,7 +14,7 @@
 //   - texture upload dedupe/cache
 //   - render-pass heuristics
 //
-// Xclipse-only behavior should stay behind perfcache_is_xclipse():
+// Xclipse-only behavior should stay behind xcache_is_xclipse():
 //   - aggressive sanitizer defaults
 //   - required subgroup size fixes
 //   - dynamic-rendering/renderPass pNext fixes
@@ -111,7 +111,7 @@ static const char* vendor_hint(uint32_t vendor_id) {
     }
 }
 
-void perfcache_detect_device(VkPhysicalDevice /*phys_dev*/,
+void xcache_detect_device(VkPhysicalDevice /*phys_dev*/,
                              const VkPhysicalDeviceProperties& props) {
     g_is_xclipse.store(false, std::memory_order_release);
     g_xclipse_gen.store(0, std::memory_order_release);

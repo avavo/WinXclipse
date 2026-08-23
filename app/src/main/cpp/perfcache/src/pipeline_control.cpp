@@ -596,7 +596,7 @@ void pipeline_control_on_device_created(const VkPhysicalDeviceProperties& props)
     LOGI("pipeline_control: blacklist=%s entries=%zu warmup=%s warm_seen=%zu precreate=%d",
          s_blacklist_path.c_str(),
          s_blacklist.size(),
-         perfcache_warmup_name(g_settings.pipeline_warmup),
+         xcache_warmup_name(g_settings.pipeline_warmup),
          s_warmup_seen.size(),
          static_cast<int>(g_settings.pipeline_warmup_precreate));
 }
