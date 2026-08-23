@@ -197,6 +197,9 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                  *       - replaces '_' with '-'
                  * ---------------------------------------------------------- */
                 Map<String, Set<String>> installed = new HashMap<>();
+                Set<String> installedAssets = new HashSet<>(
+                        PreferenceManager.getDefaultSharedPreferences(this)
+                                .getStringSet(PREF_INSTALLED_ASSET_CONTENTS, new HashSet<>()));
                 File root = ContentsManager.getContentDir(this);
 
                 File[] typeDirs = root.listFiles();
@@ -244,20 +247,15 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                     else continue;
 
                     String base = asset.substring(0, asset.length() - suffixLength);
-                    int sep = Math.min(
-                            base.indexOf('-') == -1 ? Integer.MAX_VALUE : base.indexOf('-'),
-                            base.indexOf('_') == -1 ? Integer.MAX_VALUE : base.indexOf('_'));
-                    if (sep == Integer.MAX_VALUE) continue;                 // malformed
 
-                    String typeKey = base.substring(0, sep).toLowerCase();
-                    String verRaw  = base.substring(sep + 1);
-
-                    // normalise version string:
-                    //  - lower-case
-                    //  - '_' → '-'
-                    //  - optional leading 'v' removed for matching
-                    String verNorm = verRaw.toLowerCase().replace('_', '-');
+                    String[] parsed = parseBundleName(base);
+                    if (parsed == null) continue;                 // malformed or unknown type
+                    String typeKey = parsed[0];
+                    String verNorm = parsed[1];
                     String verNoV  = verNorm.startsWith("v") ? verNorm.substring(1) : verNorm;
+
+                    // Already installed in a previous launch (marker set on success)
+                    if (installedAssets.contains(asset)) continue;
 
                     Set<String> vers = installed.get(typeKey);
                     boolean exists = false;
@@ -310,7 +308,16 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                             new ContentsManager.OnInstallFinishedCallback() {
                                 private boolean first = true;
                                 @Override public void onSucceed(ContentProfile p) {
-                                    if (first) { first = false; cm.finishInstallContent(p, this); }
+                                    if (first) {
+                                        first = false;
+                                        cm.finishInstallContent(p, this);
+                                        Set<String> updated = new HashSet<>(installedAssets);
+                                        updated.add(asset);
+                                        PreferenceManager.getDefaultSharedPreferences(MainActivity.this)
+                                                .edit()
+                                                .putStringSet(PREF_INSTALLED_ASSET_CONTENTS, updated)
+                                                .apply();
+                                    }
                                 }
                                 @Override public void onFailed(ContentsManager.InstallFailedReason r,
                                                                Exception e) {
@@ -331,6 +338,29 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 });
             }
         });
+    }
+
+    private static final String PREF_INSTALLED_ASSET_CONTENTS = "installed_asset_contents";
+
+    /**
+     * Bundle-type prefixes found in asset file names, mapped implicitly to the
+     * directory key under contents/. Longest match wins so that
+     * "vkd3d-proton-3.0.1b" resolves to type vkd3d + version 3.0.1b instead of
+     * vkd3d + "proton-3.0.1b" (which never matched an installed dir and made
+     * this installer re-run on every startup).
+     */
+    private static final String[] BUNDLE_TYPE_ALIASES = {
+            "vkd3d-proton", "wowbox64", "box64", "dxvk", "fexcore", "proton", "wine", "vkd3d"
+    };
+
+    /** Returns {typeKey, normalisedVersion} or null when unknown/malformed. */
+    private static String[] parseBundleName(String base) {
+        String lowerBase = base.toLowerCase(Locale.ENGLISH).replace('_', '-');
+        for (String alias : BUNDLE_TYPE_ALIASES) {
+            if (lowerBase.startsWith(alias + "-"))
+                return new String[]{alias, lowerBase.substring(alias.length() + 1)};
+        }
+        return null;
     }
 
     private void showAllFilesAccessDialog() {
