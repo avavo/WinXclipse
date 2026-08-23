@@ -81,6 +81,10 @@ android {
             dimension "identity"
             applicationId "com.primatelabs.geekbench6"
         }
+        pubg {
+            dimension "identity"
+            applicationId "com.tencent.ig"
+        }
     }
 
 

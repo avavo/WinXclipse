@@ -107,6 +107,7 @@ public abstract class GPUInformation {
             case 540:
             case 550:
             case 920:
+            case 940:
                 return 8;
             case 960:
                 return 12;

@@ -89,6 +89,7 @@ Version 0.9 focuses on the video and audio configuration tabs, shortcut artwork,
 - Experimental BCN defaults the BCn Emulation Cache to 1 when nothing was configured.
 - Startup Selection fixed: Essential keeps essential+protected services and Aggressive keeps only the protected ones — previously both behaved identically due to an inverted condition.
 - Bundled `vkd3d-proton-3.0.1b.wcp` installs automatically and appears in the DXVK+VKD3D selector; VKD3D extraction also matches the "-0" suffixed bundled archives (`vkd3d-2.8-0.tzst` etc.) that previously failed silently.
+- Bundled `Dxvk-2.6.2-arm64ec-gplasync.wcp` installs automatically and appears in the DXVK+VKD3D selector as `2.6.2-arm64ec-gplasync` with async and GPLAsync cache toggles enabled for it.
 - Per-SoC RAM tiers (8 GB for 1480/1580/1680/2200/2400e-class devices, 12 GB for 2600) are known to the detector and back up the unified-memory VRAM cap when the kernel report is unavailable.
 - GPU detection recognizes the whole Xclipse family (530, 540, 550, 920, 940 including the Exynos 2400e variant, 950, 960) with its AMD RDNA generation (RDNA2: 530/540/920, RDNA3: 550/940/950, RDNA4: 960), and maps each GPU to its Exynos SoC; the FPS HUD shows the detected pairing, e.g. "Xclipse 940 RDNA3 (Exynos 2400/2400e)".
 - On Xclipse 530/540 (low-tier RDNA2, one or two WGPs), Experimental BCN defaults to BCn-to-ASTC transcoding when no transcode option was chosen explicitly — these GPUs decode ASTC in hardware, while per-frame compute emulation competes directly with game rendering.
@@ -105,7 +106,7 @@ Version 0.9 focuses on the video and audio configuration tabs, shortcut artwork,
 
 #### ARM64EC / FEXCore game compatibility (PES 2018 round)
 
-- The builtin wined3d is pinned to the **GL renderer** (`Direct3D\renderer=gl`, written every session): this Proton arm64ec build otherwise defaults wined3d to its Vulkan backend, whose swapchain path died with "Unsupported alpha mode" + a failed `vkDestroySurfaceKHR` assert on Xclipse devices. GL renders through zink into the wrapper ICD instead — matching the bionic base behavior.
+- The builtin wined3d must run on the **GL renderer** (`Direct3D\renderer=gl`, chosen once from the Video tab): this Proton arm64ec build otherwise defaults wined3d to its Vulkan backend, whose swapchain path died with "Unsupported alpha mode" + a failed `vkDestroySurfaceKHR` assert on Xclipse devices. GL renders through zink into the wrapper ICD instead — matching the bionic base behavior.
 - `extra_libs.tzst` (libGL.so.1, libglapi, vkBasalt) is now extracted whenever missing instead of only inside the experimental-BCN flow; without it the GL renderer failed with "Failed to load libGL → OpenGL support is disabled" and games page-faulted at adapter init.
 - Dedicated **ARM64EC DXVK builds** are bundled and selectable (`2.3.1-arm64ec-gplasync`, `1.10.3-arm64ec-async`). Under ARM64EC Proton the plain x86_64 DXVK builds never load — games silently fell back to builtin wined3d no matter which DXVK version was chosen.
 - FEXCore presets now match the bionic base: Intermediate sets `FEX_X87REDUCEDPRECISION=1`, Performance adds `FEX_DYNAMICL1CACHE=1` + `FEX_DISABLEL2CACHE=1`.

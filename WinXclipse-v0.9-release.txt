@@ -93,6 +93,7 @@ ARM64EC and FEXCore Game Compatibility
 - The builtin wined3d is pinned to the GL renderer (Direct3D\renderer=gl, written every session). This Proton arm64ec build otherwise defaults wined3d to its Vulkan backend, whose swapchain path dies with "Unsupported alpha mode" plus a failed vkDestroySurfaceKHR assert on Xclipse devices. GL renders through zink into the wrapper ICD instead, matching the bionic base behavior.
 - extra_libs.tzst (libGL.so.1, libglapi, vkBasalt) is extracted whenever missing instead of only inside the experimental-BCN flow; without it the GL renderer failed with "Failed to load libGL / OpenGL support is disabled" and games page-faulted at adapter initialization.
 - Dedicated ARM64EC DXVK builds are bundled and selectable (2.3.1-arm64ec-gplasync, 1.10.3-arm64ec-async). Under ARM64EC Proton the plain x86_64 DXVK builds never load, so games silently fell back to builtin wined3d no matter which DXVK version was chosen.
+- New bundled Dxvk-2.6.2-arm64ec-gplasync.wcp installs automatically on first boot and appears in the DXVK+VKD3D selector as "2.6.2-arm64ec-gplasync", with the async and GPLAsync cache toggles active for it.
 - FEXCore presets now match the bionic base: Intermediate sets FEX_X87REDUCEDPRECISION=1, Performance adds FEX_DYNAMICL1CACHE=1 and FEX_DISABLEL2CACHE=1.
 - Guest processes preload system libjpeg.so and libcrypto.so (with /system_ext and imagefs fallbacks), like the bionic base ships by default.
 - DDraw wrapper gained a None option that restores the builtin ddraw.dll, alongside CnC-DDraw, Dd7To9 and WineD3D.
@@ -111,6 +112,7 @@ Interface and Usability
 
 - Added wrapper credits to the About dialog: Wrappers from Leegao (github.com/leegao/bionic-vulkan-wrapper), GameNative (github.com/utkarshdalal/GameNative), Ref4ik-v6 (github.com/REF4IK/CronyX-), and Kirimu.
 - Removed the bundled DXVK 1.10.1 and 1.10.3 entries, and the Wrapper-EV1, Wrapper-EV2, and Wrapper-LD24 wrappers.
+- Removed the dead DXVK 1.7.2 entry and its bundled package; the selector previously showed both "1.7.2" and the installed copy as "1.7.2-0". Copies left by earlier builds are deleted automatically on startup.
 - GPU Name falls back to "Device" whenever no valid name is configured.
 - Containers list has more vertical spacing between entries.
 - The Audio Driver row is visible again in shortcut settings (it was hidden by a leftover "gone" flag), and "Current Version" now shows the selected wrapper too, e.g. "Wrapper-Kirimu · System".
