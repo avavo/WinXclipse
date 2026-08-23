@@ -11,6 +11,14 @@ import java.util.Scanner;
 
 public abstract class CpuClusters {
     private static volatile String cachedPerformanceCPUList;
+    private static volatile boolean performancePinningEnabled = true;
+
+    /** Session-level override from the Experimental Performance tuning
+     * dialog: when disabled, 64-bit guests may use every core instead of
+     * the performance-cluster default. */
+    public static void setPerformancePinningEnabled(boolean enabled) {
+        performancePinningEnabled = enabled;
+    }
 
     public static String getPerformanceCPUList() {
         String result = cachedPerformanceCPUList;
@@ -18,7 +26,7 @@ public abstract class CpuClusters {
             result = resolvePerformanceCPUList();
             cachedPerformanceCPUList = result;
         }
-        return result;
+        return performancePinningEnabled ? result : allCPUList(Runtime.getRuntime().availableProcessors());
     }
 
     private static String resolvePerformanceCPUList() {

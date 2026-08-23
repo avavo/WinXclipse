@@ -48,6 +48,8 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
     private final Spinner bcnCacheSpinner;
     private final CheckBox astcTranscodeCheckBox;
     private final CheckBox etc2TranscodeCheckBox;
+    private final CheckBox bcnSoftwareSwitchCheckBox;
+    private final CheckBox astcAutoDefaultCheckBox;
 
     private final String initialVersion;
     private final String initialExtensionBlacklist;
@@ -78,6 +80,8 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
         bcnCacheSpinner = findViewById(R.id.SGraphicsDriverBCnEmulationCache);
         astcTranscodeCheckBox = findViewById(R.id.CBASTCTranscode);
         etc2TranscodeCheckBox = findViewById(R.id.CBETC2Transcode);
+        bcnSoftwareSwitchCheckBox = findViewById(R.id.CBBCnSoftwareSwitch);
+        astcAutoDefaultCheckBox = findViewById(R.id.CBAstcAutoDefault);
         findViewById(R.id.LLExperimentalBCNOptions).setVisibility(
                 experimentalBcn ? View.VISIBLE : View.GONE);
 
@@ -187,6 +191,8 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
                 config.getOrDefault("bcnEmulationCache", experimentalBcn ? "1" : "0"));
         astcTranscodeCheckBox.setChecked("1".equals(config.getOrDefault("astcTranscode", "0")));
         etc2TranscodeCheckBox.setChecked("1".equals(config.getOrDefault("etc2Transcode", "0")));
+        bcnSoftwareSwitchCheckBox.setChecked("1".equals(config.getOrDefault("bcnSoftwareSwitch", "0")));
+        astcAutoDefaultCheckBox.setChecked("1".equals(config.getOrDefault("astcAutoDefault", "0")));
         refreshExtensions(initialVersion);
     }
 
@@ -268,6 +274,8 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
         result.put("bcnEmulationCache", selectedValue(bcnCacheSpinner));
         result.put("astcTranscode", boolValue(astcTranscodeCheckBox));
         result.put("etc2Transcode", boolValue(etc2TranscodeCheckBox));
+        result.put("bcnSoftwareSwitch", boolValue(bcnSoftwareSwitchCheckBox));
+        result.put("astcAutoDefault", boolValue(astcAutoDefaultCheckBox));
         // GPU name and present mode belong to Video Configuration.  Keeping the
         // untouched keys here prevents either dialog from silently resetting the other.
         result.putIfAbsent("gpuName", "Device");

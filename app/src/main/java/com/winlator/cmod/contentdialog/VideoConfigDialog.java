@@ -1,7 +1,6 @@
 package com.winlator.cmod.contentdialog;
 
 import android.content.Context;
-import android.graphics.Color;
 import android.widget.CheckBox;
 import android.widget.Spinner;
 
@@ -23,8 +22,10 @@ public class VideoConfigDialog extends ContentDialog {
         String getPresentMode();
         int getTextureFilterMode();
         boolean isSwapRedBlue();
+        boolean isVsyncOff();
+        boolean isUnlimitedImages();
         void apply(String gpuName, String presentMode, int textureFilterMode,
-                   boolean swapRedBlue);
+                   boolean swapRedBlue, boolean vsyncOff, boolean unlimitedImages);
     }
 
     public VideoConfigDialog(Context context, Config config) {
@@ -36,25 +37,31 @@ public class VideoConfigDialog extends ContentDialog {
         Spinner presentMode = findViewById(R.id.SVideoPresentMode);
         Spinner textureFilter = findViewById(R.id.SVideoTextureFilter);
         CheckBox swapRedBlue = findViewById(R.id.CBVideoSwapRedBlue);
+        CheckBox vsyncOff = findViewById(R.id.CBVideoVsyncOff);
+        CheckBox unlimitedImages = findViewById(R.id.CBVideoUnlimitedImages);
 
         gpuName.setAdapter(new ThemedSpinnerAdapter<>(context, loadGpuNames(context)));
         presentMode.setAdapter(new ThemedSpinnerAdapter<>(context,
                 Arrays.asList(context.getResources().getStringArray(R.array.present_mode_entries))));
         textureFilter.setAdapter(new ThemedSpinnerAdapter<>(context,
                 Arrays.asList(context.getString(R.string.bilinear),
-                        context.getString(R.string.nearest_neighbor))));
+                        context.getString(R.string.nearest_neighbor),
+                        "FSR")));
 
         if (!AppUtils.setSpinnerSelectionFromValue(gpuName, config.getGpuName())) {
             AppUtils.setSpinnerSelectionFromValue(gpuName, "Device");
         }
         AppUtils.setSpinnerSelectionFromValue(presentMode, config.getPresentMode());
-        textureFilter.setSelection(Math.max(0, Math.min(config.getTextureFilterMode(), 1)));
+        textureFilter.setSelection(Math.max(0, Math.min(config.getTextureFilterMode(), 2)));
         swapRedBlue.setChecked(config.isSwapRedBlue());
+        vsyncOff.setChecked(config.isVsyncOff());
+        unlimitedImages.setChecked(config.isUnlimitedImages());
         applyTheme(context, gpuName, presentMode, textureFilter);
 
         setOnConfirmCallback(() -> config.apply(
                 selectedValue(gpuName), selectedValue(presentMode),
-                textureFilter.getSelectedItemPosition(), swapRedBlue.isChecked()));
+                textureFilter.getSelectedItemPosition(), swapRedBlue.isChecked(),
+                vsyncOff.isChecked(), unlimitedImages.isChecked()));
     }
 
     private static ArrayList<String> loadGpuNames(Context context) {

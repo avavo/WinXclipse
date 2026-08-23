@@ -623,12 +623,29 @@ public class ContainerDetailFragment extends Fragment {
                     }
 
                     @Override
+                    public boolean isVsyncOff() {
+                        return "1".equals(GraphicsDriverConfigDialog
+                                .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()))
+                                .getOrDefault("vblankOff", "0"));
+                    }
+
+                    @Override
+                    public boolean isUnlimitedImages() {
+                        return "1".equals(GraphicsDriverConfigDialog
+                                .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()))
+                                .getOrDefault("unlimitedImages", "0"));
+                    }
+
+                    @Override
                     public void apply(String gpuName, String presentMode,
-                                      int textureFilterMode, boolean swapRedBlue) {
+                                      int textureFilterMode, boolean swapRedBlue,
+                                      boolean vsyncOff, boolean unlimitedImages) {
                         HashMap<String, String> config = GraphicsDriverConfigDialog
                                 .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()));
                         config.put("gpuName", gpuName);
                         config.put("presentMode", presentMode);
+                        config.put("vblankOff", vsyncOff ? "1" : "0");
+                        config.put("unlimitedImages", unlimitedImages ? "1" : "0");
                         vGraphicsDriverConfig.setTag(
                                 GraphicsDriverConfigDialog.toGraphicsDriverConfig(config));
                         AppUtils.setSpinnerSelectionFromValue(sGPUName, gpuName);

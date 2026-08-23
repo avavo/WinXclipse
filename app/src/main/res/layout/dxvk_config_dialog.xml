@@ -58,6 +58,18 @@
             android:entries="@array/ddrawrapper_entries"
             android:spinnerMode="dialog" />
 
+        <CheckBox
+            android:id="@+id/CBXDvkNoTimeline"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:text="@string/dxvk_no_timeline" />
+
+        <CheckBox
+            android:id="@+id/CBXDvk66"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:text="@string/dxvk_vk3d66" />
+
         <LinearLayout
             android:id="@+id/LLAsync"
             android:layout_width="match_parent"

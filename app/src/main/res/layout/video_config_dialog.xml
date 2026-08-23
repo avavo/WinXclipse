@@ -48,6 +48,17 @@
             android:layout_height="wrap_content" />
 
         <CheckBox
+            android:id="@+id/CBVideoVsyncOff"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:text="@string/video_vsync_off" />
+
+        <CheckBox
+            android:id="@+id/CBVideoUnlimitedImages"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:text="@string/video_unlimited_images" />
+        <CheckBox
             android:id="@+id/CBVideoSwapRedBlue"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

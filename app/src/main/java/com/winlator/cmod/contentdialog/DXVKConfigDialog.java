@@ -4,6 +4,7 @@ import android.content.Context;
 import android.util.Log;
 import android.view.View;
 import android.widget.AdapterView;
+import android.widget.CheckBox;
 import android.widget.ArrayAdapter;
 import android.widget.Spinner;
 import android.widget.ToggleButton;
@@ -26,7 +27,7 @@ import java.util.Arrays;
 import java.util.List;
 
 public class DXVKConfigDialog extends ContentDialog {
-    public static final String DEFAULT_CONFIG = "version="+DefaultVersion.DXVK+",framerate=0,async=1,asyncCache=0,vkd3dVersion="+DefaultVersion.VKD3D+",vkd3dLevel=12_1,ddrawrapper=";
+    public static final String DEFAULT_CONFIG = "version="+DefaultVersion.DXVK+",framerate=0,async=1,asyncCache=0,vkd3dVersion="+DefaultVersion.VKD3D+",vkd3dLevel=12_1,ddrawrapper=,noTimeline=1,vk3d66=1";
     public static final String[] VKD3D_FEATURE_LEVELS = {"12_0", "12_1", "12_2", "11_1", "11_0", "10_1", "10_0", "9_3", "9_2", "9_1"};
     public static final int DXVK_TYPE_NONE = 0;
     public static final int DXVK_TYPE_ASYNC = 1;
@@ -49,6 +50,8 @@ public class DXVKConfigDialog extends ContentDialog {
         final Spinner sDDrawWrapper = findViewById(R.id.SDDrawWrapper);
         final Spinner sVkd3dVersion = findViewById(R.id.SVKD3DVersion);
         final Spinner sVkd3dFeatureLevel = findViewById(R.id.SVKD3DFeatureLevel);
+        CheckBox cbNoTimeline = findViewById(R.id.CBXDvkNoTimeline);
+        CheckBox cbVk3d66 = findViewById(R.id.CBXDvk66);
         swAsync = findViewById(R.id.SWAsync);
         swAsyncCache = findViewById(R.id.SWAsyncCache);
         llAsync = findViewById(R.id.LLAsync);
@@ -70,6 +73,8 @@ public class DXVKConfigDialog extends ContentDialog {
         AppUtils.setSpinnerSelectionFromIdentifier(sVkd3dFeatureLevel, config.get("vkd3dLevel"));
         swAsync.setChecked(config.get("async").equals("1"));
         swAsyncCache.setChecked(config.get("asyncCache").equals("1"));
+        cbNoTimeline.setChecked(config.get("noTimeline").equals("1"));
+        cbVk3d66.setChecked(config.get("vk3d66").equals("1"));
 
         updateConfigVisibility(getDXVKType(sVersion.getSelectedItemPosition()));
 
@@ -102,6 +107,8 @@ public class DXVKConfigDialog extends ContentDialog {
             config.put("asyncCache", ((swAsyncCache.isChecked())&&(llAsyncCache.getVisibility()==View.VISIBLE))?"1":"0");
             config.put("vkd3dVersion", ((VKD3DVersionItem) sVkd3dVersion.getSelectedItem()).getIdentifier());
             config.put("vkd3dLevel", sVkd3dFeatureLevel.getSelectedItem().toString());
+            config.put("noTimeline", cbNoTimeline.isChecked() ? "1" : "0");
+            config.put("vk3d66", cbVk3d66.isChecked() ? "1" : "0");
             anchor.setTag(config.toString());
         });
     }
@@ -142,6 +149,10 @@ public class DXVKConfigDialog extends ContentDialog {
     public static void setEnvVars(Context context, KeyValueSet config, EnvVars envVars) {
         envVars.put("DXVK_STATE_CACHE_PATH", context.getFilesDir() + "/imagefs/" + ImageFs.CACHE_PATH);
         envVars.put("DXVK_LOG_LEVEL", "none");
+        if ("1".equals(config.get("noTimeline")))
+            envVars.put("DXVK_DISABLE_TIMELINE_SEMAPHORES", "1");
+        if ("1".equals(config.get("vk3d66")))
+            envVars.put("VKD3D_SHADER_MODEL", "6_6");
 
         File rootDir = ImageFs.find(context).getRootDir();
         File dxvkConfigFile = new File(rootDir, ImageFs.CONFIG_PATH+"/dxvk.conf");

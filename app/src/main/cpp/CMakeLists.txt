@@ -23,27 +23,27 @@ add_library(winlator SHARED
         winlator/patchelf_wrapper.cpp
         winlator/vulkan.cpp
         # MdiEx runtime (Core/Policy, Loader, Sched, MemShim, AHB, Surface)
-        mdiex/MdiEx_Core_1.0.0/mdiex_core.c
-        mdiex/MdiEx_Core_1.0.0/mdiex_xclipse_policy.c
-        mdiex/MdiEx_Loader_1.0.0/mdiex_loader.c
-        mdiex/MdiEx_Sched_1.0.0/mdiex_sched.c
-        mdiex/MdiEx_MemShim_0.5.0/mdiex_memshim.c
-        mdiex/MdiEx_AHB_0.5.0/mdiex_ahb.c
-        mdiex/MdiEx_Surface_0.5.0/mdiex_surface.c
+        winxclipse_policy_engine/MdiEx_Core_1.0.0/mdiex_core.c
+        winxclipse_policy_engine/MdiEx_Core_1.0.0/mdiex_xclipse_policy.c
+        winxclipse_policy_engine/MdiEx_Loader_1.0.0/mdiex_loader.c
+        winxclipse_policy_engine/MdiEx_Sched_1.0.0/mdiex_sched.c
+        winxclipse_policy_engine/MdiEx_MemShim_0.5.0/mdiex_memshim.c
+        winxclipse_policy_engine/MdiEx_AHB_0.5.0/mdiex_ahb.c
+        winxclipse_policy_engine/MdiEx_Surface_0.5.0/mdiex_surface.c
         # NRAMV unified-memory manager + app-side bridge
-        nramv/nramv_core.c
-        nramv/nramv_vm.c
-        nramv/nramv_heap.c
-        nramv/nramv_gtt_react.c
-        nramv/nramv_pressure.c
-        nramv/nramv_thermal.c
-        nramv/nramv_mallopt.c
-        nramv/nramv_ringbuf.c
-        nramv/nramv_sgpu.c
-        nramv/nramv_emulator.c
-        nramv/nramv_feedback.c
-        nramv/nramv_debug.c
-        nramv/nramv_compat.c
+        ram_optimizer_xclipse/nramv_core.c
+        ram_optimizer_xclipse/nramv_vm.c
+        ram_optimizer_xclipse/nramv_heap.c
+        ram_optimizer_xclipse/nramv_gtt_react.c
+        ram_optimizer_xclipse/nramv_pressure.c
+        ram_optimizer_xclipse/nramv_thermal.c
+        ram_optimizer_xclipse/nramv_mallopt.c
+        ram_optimizer_xclipse/nramv_ringbuf.c
+        ram_optimizer_xclipse/nramv_sgpu.c
+        ram_optimizer_xclipse/nramv_emulator.c
+        ram_optimizer_xclipse/nramv_feedback.c
+        ram_optimizer_xclipse/nramv_debug.c
+        ram_optimizer_xclipse/nramv_compat.c
         winlator/ram_optimizer_xclipse_bridge.c
         winlator/winxclipse_policy_bridge.c
 )
@@ -51,17 +51,17 @@ add_library(winlator SHARED
 # The memshim's malloc/mmap interpose symbols are meant for the guest-side
 # LD_PRELOAD case only; inside libwinlator they must stay compiled out so the
 # app process keeps using libc's allocator untouched.
-set_source_files_properties(mdiex/MdiEx_MemShim_0.5.0/mdiex_memshim.c PROPERTIES
+set_source_files_properties(winxclipse_policy_engine/MdiEx_MemShim_0.5.0/mdiex_memshim.c PROPERTIES
         COMPILE_DEFINITIONS MDIEX_MEMSHIM_ENABLE_INTERPOSE_SYMBOLS=0)
 
 target_include_directories(winlator PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/mdiex/MdiEx_Core_1.0.0
-        ${CMAKE_CURRENT_SOURCE_DIR}/mdiex/MdiEx_Loader_1.0.0
-        ${CMAKE_CURRENT_SOURCE_DIR}/mdiex/MdiEx_Sched_1.0.0
-        ${CMAKE_CURRENT_SOURCE_DIR}/mdiex/MdiEx_MemShim_0.5.0
-        ${CMAKE_CURRENT_SOURCE_DIR}/mdiex/MdiEx_AHB_0.5.0
-        ${CMAKE_CURRENT_SOURCE_DIR}/mdiex/MdiEx_Surface_0.5.0
-        ${CMAKE_CURRENT_SOURCE_DIR}/nramv
+        ${CMAKE_CURRENT_SOURCE_DIR}/winxclipse_policy_engine/MdiEx_Core_1.0.0
+        ${CMAKE_CURRENT_SOURCE_DIR}/winxclipse_policy_engine/MdiEx_Loader_1.0.0
+        ${CMAKE_CURRENT_SOURCE_DIR}/winxclipse_policy_engine/MdiEx_Sched_1.0.0
+        ${CMAKE_CURRENT_SOURCE_DIR}/winxclipse_policy_engine/MdiEx_MemShim_0.5.0
+        ${CMAKE_CURRENT_SOURCE_DIR}/winxclipse_policy_engine/MdiEx_AHB_0.5.0
+        ${CMAKE_CURRENT_SOURCE_DIR}/winxclipse_policy_engine/MdiEx_Surface_0.5.0
+        ${CMAKE_CURRENT_SOURCE_DIR}/ram_optimizer_xclipse
 )
 
 target_link_libraries(winlator

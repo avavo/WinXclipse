@@ -12,29 +12,13 @@
         android:paddingTop="4dp"
         android:paddingBottom="8dp">
 
-        <CheckBox
-            android:id="@+id/CBXPerfVblank"
-            android:layout_width="match_parent"
-            android:layout_height="44dp"
-            android:text="@string/xperf_vblank" />
+        
 
-        <CheckBox
-            android:id="@+id/CBXPerfMaxImages"
-            android:layout_width="match_parent"
-            android:layout_height="44dp"
-            android:text="@string/xperf_max_images" />
+        
 
-        <CheckBox
-            android:id="@+id/CBXPerfNoTimeline"
-            android:layout_width="match_parent"
-            android:layout_height="44dp"
-            android:text="@string/xperf_no_timeline" />
+        
 
-        <CheckBox
-            android:id="@+id/CBXPerfVk3d66"
-            android:layout_width="match_parent"
-            android:layout_height="44dp"
-            android:text="@string/xperf_vk3d66" />
+        
 
         <CheckBox
             android:id="@+id/CBXPerfVramCap"
@@ -78,17 +62,14 @@
             android:layout_width="match_parent"
             android:layout_height="44dp"
             android:text="@string/xperf_nramv" />
-
         <CheckBox
-            android:id="@+id/CBXPerfBcnSoftware"
+            android:id="@+id/CBXPerfWow64Pin"
             android:layout_width="match_parent"
             android:layout_height="44dp"
-            android:text="@string/xperf_bcn_software" />
+            android:text="@string/xperf_wow64_pin" />
 
-        <CheckBox
-            android:id="@+id/CBXPerfAstcAuto"
-            android:layout_width="match_parent"
-            android:layout_height="44dp"
-            android:text="@string/xperf_astc_auto" />
+        
+
+        
     </LinearLayout>
 </ScrollView>

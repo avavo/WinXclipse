@@ -84,6 +84,7 @@ import com.winlator.cmod.contents.XclipseDriverManager;
 import com.winlator.cmod.contents.CustomWrapperManager;
 import com.winlator.cmod.core.AppUtils;
 import com.winlator.cmod.core.DefaultVersion;
+import com.winlator.cmod.core.CpuClusters;
 import com.winlator.cmod.core.EnvVars;
 import com.winlator.cmod.core.EnvironmentManager;
 import com.winlator.cmod.core.FileUtils;
@@ -117,6 +118,7 @@ import com.winlator.cmod.midi.MidiManager;
 import com.winlator.cmod.renderer.GLRenderer;
 import com.winlator.cmod.renderer.effects.CRTEffect;
 import com.winlator.cmod.renderer.effects.ColorEffect;
+import com.winlator.cmod.renderer.effects.FSREffect;
 import com.winlator.cmod.renderer.effects.FXAAEffect;
 import com.winlator.cmod.renderer.effects.HDREffect;
 import com.winlator.cmod.renderer.effects.NTSCCombinedEffect;
@@ -1811,6 +1813,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 ? shortcut.getExtra("xperfConfig")
                 : container.getExtra("xperfConfig", "");
         xperfConfig = ExperimentalPerformanceDialog.parseConfig(xperfRaw);
+        CpuClusters.setPerformancePinningEnabled(!"0".equals(xperfConfig.get("wow64Pin")));
         if (experimentalPerformance) {
             // Opt-in and fully reversible runtime defaults. Each piece is
             // individually switchable via the Experimental Performance tuning
@@ -1819,14 +1822,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             // WRAPPER_MAX_IMAGE_COUNT is applied here on purpose: it runs after
             // extractGraphicsDriverFiles(), so the opt-in value overrides the
             // present-mode-derived swapchain limit.
-            if ("1".equals(xperfConfig.get("maxImages")))
-                envVars.put("WRAPPER_MAX_IMAGE_COUNT", "0");
-            if ("1".equals(xperfConfig.get("noTimeline")))
-                envVars.put("DXVK_DISABLE_TIMELINE_SEMAPHORES", "1");
-            if ("1".equals(xperfConfig.get("vk3d66")))
-                envVars.put("VKD3D_SHADER_MODEL", "6_6");
-            if ("1".equals(xperfConfig.get("vblank")))
-                envVars.put("vblank_mode", "0");
+
             if ("1".equals(xperfConfig.get("mdiex"))) {
                 try { envVars.put("MDIEX_PROFILE", WinXclipsePolicy.nativeProfileName()); }
                 catch (Throwable t) { Log.w("GraphicsDriverExtraction", "WinXclipsePolicy unavailable", t); }
@@ -1838,6 +1834,11 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         // NRAMV unified-memory manager runs in our process for every session;
         // its baseline trim level follows device RAM while live escalation is
         // driven by the HUD RAM alert through RamOptimizerXclipse.escalate().
+        // Video tab choices apply regardless of the Experimental master switch.
+        if ("1".equals(graphicsDriverConfig.getOrDefault("vblankOff", "0")))
+            envVars.put("vblank_mode", "0");
+        if ("1".equals(graphicsDriverConfig.getOrDefault("unlimitedImages", "0")))
+            envVars.put("WRAPPER_MAX_IMAGE_COUNT", "0");
         applyRamOptimizerProfile();
 
         // Create our overall XEnvironment with various components
@@ -2056,6 +2057,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 ? "1".equals(shortcut.getExtra("fakeHDR", container.getExtra("fakeHDR", "0")))
                 : "1".equals(container.getExtra("fakeHDR", "0"));
         if (fakeHdr) renderer.getEffectComposer().addEffect(new HDREffect());
+        if (textureFilterMode == 2) renderer.getEffectComposer().addEffect(new FSREffect());
 
         if (shortcut != null) {
             if (shortcut.getExtra("forceFullscreen", "0").equals("1")) renderer.setForceFullscreenWMClass(shortcut.wmClass);
@@ -2963,12 +2965,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             String bcnEmulation = graphicsDriverConfig.getOrDefault("bcnEmulation", "auto");
             boolean computeEmulation = !"software".equalsIgnoreCase(
                     graphicsDriverConfig.getOrDefault("bcnEmulationType",
-                            "1".equals(xperfConfig.get("bcnSoftware"))
+                            "1".equals(graphicsDriverConfig.getOrDefault("bcnSoftwareSwitch", "0"))
                                     ? "software" : GPUInformation.defaultBcnEmulationType()));
             String bcnEmulationCache = graphicsDriverConfig.getOrDefault("bcnEmulationCache", "1");
             boolean astcTranscode = "1".equals(graphicsDriverConfig.getOrDefault("astcTranscode", "0"));
             boolean etc2Transcode = "1".equals(graphicsDriverConfig.getOrDefault("etc2Transcode", "0"));
-            if ("1".equals(xperfConfig.get("astcAuto")) && computeEmulation
+            if ("1".equals(graphicsDriverConfig.getOrDefault("astcAutoDefault", "0")) && computeEmulation
                     && !astcTranscode && !etc2Transcode) {
                 astcTranscode = true;
                 Log.i("GraphicsDriverExtraction", "ASTC transcode auto-default via tuning dialog");

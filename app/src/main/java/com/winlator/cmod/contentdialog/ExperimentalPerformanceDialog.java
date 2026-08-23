@@ -20,7 +20,7 @@ import com.winlator.cmod.widget.ThemedSpinnerAdapter;
  */
 public class ExperimentalPerformanceDialog extends ContentDialog {
     public static final String DEFAULT_CONFIG =
-            "vblank=1,maxImages=1,noTimeline=1,vk3d66=1,vramCap=1,vramCapMode=auto,perfcache=1,mdiex=1,ramAggro=0,bcnSoftware=0,astcAuto=0";
+            "vramCap=1,vramCapMode=auto,perfcache=1,mdiex=1,ramAggro=0,wow64Pin=1";
 
     public interface OnConfirmCallback {
         void onConfirm(String config);
@@ -41,33 +41,22 @@ public class ExperimentalPerformanceDialog extends ContentDialog {
 
         KeyValueSet config = parseConfig(initialConfig);
 
-        CheckBox cbVblank = findViewById(R.id.CBXPerfVblank);
-        CheckBox cbMaxImages = findViewById(R.id.CBXPerfMaxImages);
-        CheckBox cbNoTimeline = findViewById(R.id.CBXPerfNoTimeline);
-        CheckBox cbVk3d66 = findViewById(R.id.CBXPerfVk3d66);
         CheckBox cbVramCap = findViewById(R.id.CBXPerfVramCap);
         Spinner sVramCapMode = findViewById(R.id.SXPerfVramCapMode);
         TextView tvVramCapMode = findViewById(R.id.TVXPerfVramCapMode);
         CheckBox cbPerfcache = findViewById(R.id.CBXPerfPerfcache);
         CheckBox cbMdiex = findViewById(R.id.CBXPerfMdiex);
         CheckBox cbNramv = findViewById(R.id.CBXPerfNramv);
-        CheckBox cbBcnSoftware = findViewById(R.id.CBXPerfBcnSoftware);
-        CheckBox cbAstcAuto = findViewById(R.id.CBXPerfAstcAuto);
+        CheckBox cbWow64Pin = findViewById(R.id.CBXPerfWow64Pin);
 
         sVramCapMode.setAdapter(new ThemedSpinnerAdapter<>(context,
                 new String[]{"Auto", "2048 MB", "3072 MB", "4092 MB"}));
-
-        cbVblank.setChecked("1".equals(config.get("vblank")));
-        cbMaxImages.setChecked("1".equals(config.get("maxImages")));
-        cbNoTimeline.setChecked("1".equals(config.get("noTimeline")));
-        cbVk3d66.setChecked("1".equals(config.get("vk3d66")));
         cbVramCap.setChecked("1".equals(config.get("vramCap")));
         AppUtils.setSpinnerSelectionFromValue(sVramCapMode, config.get("vramCapMode"));
         cbPerfcache.setChecked("1".equals(config.get("perfcache")));
         cbMdiex.setChecked("1".equals(config.get("mdiex")));
         cbNramv.setChecked("1".equals(config.get("ramAggro")));
-        cbBcnSoftware.setChecked("1".equals(config.get("bcnSoftware")));
-        cbAstcAuto.setChecked("1".equals(config.get("astcAuto")));
+        cbWow64Pin.setChecked(!"0".equals(config.get("wow64Pin")));
 
         Runnable updateVramCapUi = () -> {
             float alpha = cbVramCap.isChecked() ? 1f : 0.45f;
@@ -79,10 +68,6 @@ public class ExperimentalPerformanceDialog extends ContentDialog {
         cbVramCap.setOnCheckedChangeListener((b, checked) -> updateVramCapUi.run());
 
         setOnConfirmCallback(() -> {
-            config.put("vblank", cbVblank.isChecked() ? "1" : "0");
-            config.put("maxImages", cbMaxImages.isChecked() ? "1" : "0");
-            config.put("noTimeline", cbNoTimeline.isChecked() ? "1" : "0");
-            config.put("vk3d66", cbVk3d66.isChecked() ? "1" : "0");
             config.put("vramCap", cbVramCap.isChecked() ? "1" : "0");
             Object mode = sVramCapMode.getSelectedItem();
             String modeValue = mode == null ? "auto" : mode.toString();
@@ -94,8 +79,7 @@ public class ExperimentalPerformanceDialog extends ContentDialog {
             config.put("perfcache", cbPerfcache.isChecked() ? "1" : "0");
             config.put("mdiex", cbMdiex.isChecked() ? "1" : "0");
             config.put("ramAggro", cbNramv.isChecked() ? "1" : "0");
-            config.put("bcnSoftware", cbBcnSoftware.isChecked() ? "1" : "0");
-            config.put("astcAuto", cbAstcAuto.isChecked() ? "1" : "0");
+            config.put("wow64Pin", cbWow64Pin.isChecked() ? "1" : "0");
             callback.onConfirm(config.toString());
         });
     }

@@ -212,8 +212,23 @@ public class ShortcutSettingsDialog extends ContentDialog {
                     }
 
                     @Override
+                    public boolean isVsyncOff() {
+                        return "1".equals(GraphicsDriverConfigDialog
+                                .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()))
+                                .getOrDefault("vblankOff", "0"));
+                    }
+
+                    @Override
+                    public boolean isUnlimitedImages() {
+                        return "1".equals(GraphicsDriverConfigDialog
+                                .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()))
+                                .getOrDefault("unlimitedImages", "0"));
+                    }
+
+                    @Override
                     public void apply(String gpuName, String presentMode,
-                                      int textureFilterMode, boolean swapRedBlue) {
+                                      int textureFilterMode, boolean swapRedBlue,
+                                      boolean vsyncOff, boolean unlimitedImages) {
                         HashMap<String, String> config = GraphicsDriverConfigDialog
                                 .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()));
                         config.put("gpuName", gpuName);
