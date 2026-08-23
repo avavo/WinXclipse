@@ -266,20 +266,6 @@ public abstract class WineUtils {
      * exposed by WinHandler.  Exclusive XInput hides the virtual HID mirrors
      * from DirectInput so games do not see every controller twice.
      */
-    /**
-     * Pins Wine's builtin wined3d to the GL renderer.  This Proton arm64ec
-     * build otherwise defaults wined3d to its Vulkan backend, whose swapchain
-     * path dies with "Unsupported alpha mode" + a failed vkDestroySurfaceKHR
-     * assert on Xclipse devices (PES 2018 crash signature).  GL routes through
-     * zink into the wrapper ICD instead, matching the bionic base behavior.
-     */
-    public static void setDirect3DRenderer(Container container, String renderer) {
-        File userRegFile = new File(container.getRootDir(), ".wine/user.reg");
-        try (WineRegistryEditor registryEditor = new WineRegistryEditor(userRegFile)) {
-            registryEditor.setStringValue("Software\\Wine\\Direct3D", "renderer", renderer);
-        }
-    }
-
     public static void setJoystickRegistryKeys(Container container, boolean dinputEnabled, boolean exclusiveXInput) {
         File userRegFile = new File(container.getRootDir(), ".wine/user.reg");
         final String joysticksKey = "Software\\Wine\\DirectInput\\Joysticks";

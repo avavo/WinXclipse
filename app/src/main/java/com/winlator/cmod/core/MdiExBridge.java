@@ -1,8 +1,8 @@
 package com.winlator.cmod.core;
 
 /**
- * Reads the MdiEx device classification and per-Xclipse policy that also
- * feeds the guest-side driver stack through the MDIEX_PROFILE environment.
+ * Reads the MdiEx per-Xclipse policy profile that also feeds the
+ * guest-side driver stack through the MDIEX_PROFILE environment.
  */
 public final class MdiExBridge {
     static {
@@ -12,7 +12,4 @@ public final class MdiExBridge {
     private MdiExBridge() {}
 
     public static native String nativeProfileName();
-    public static native String nativeSocName();
-    public static native int nativeRamGB();
-    public static native String nativePolicySummary();
 }

@@ -43,46 +43,6 @@ public abstract class GPUInformation {
         return getInfo().rdna;
     }
 
-    public static boolean isRDNA2() {
-        return getRDNAVersion() == 2;
-    }
-
-    public static boolean isRDNA3() {
-        return getRDNAVersion() == 3;
-    }
-
-    public static boolean isRDNA4() {
-        return getRDNAVersion() == 4;
-    }
-
-    public static boolean isXclipse530() {
-        return getXclipseModel() == 530;
-    }
-
-    public static boolean isXclipse540() {
-        return getXclipseModel() == 540;
-    }
-
-    public static boolean isXclipse550() {
-        return getXclipseModel() == 550;
-    }
-
-    public static boolean isXclipse920() {
-        return getXclipseModel() == 920;
-    }
-
-    public static boolean isXclipse940() {
-        return getXclipseModel() == 940;
-    }
-
-    public static boolean isXclipse950() {
-        return getXclipseModel() == 950;
-    }
-
-    public static boolean isXclipse960() {
-        return getXclipseModel() == 960;
-    }
-
     public static String getExynosModel() {
         switch (getXclipseModel()) {
             case 530: return "Exynos 1480";

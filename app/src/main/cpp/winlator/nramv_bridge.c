@@ -32,26 +32,6 @@ Java_com_winlator_cmod_core_Nramv_nativeFlush(JNIEnv *env, jclass clazz) {
     return nramv_flush();
 }
 
-JNIEXPORT jlongArray JNICALL
-Java_com_winlator_cmod_core_Nramv_nativeGetStats(JNIEnv *env, jclass clazz) {
-    (void)clazz;
-    nramv_stats_t stats;
-    if (nramv_get_stats(&stats) != NRAMV_OK) return NULL;
-
-    jlongArray arr = (*env)->NewLongArray(env, 5);
-    if (!arr) return NULL;
-
-    jlong buf[5] = {
-        (jlong) stats.total_kb,
-        (jlong) stats.free_kb,
-        (jlong) stats.available_kb,
-        (jlong) stats.cached_kb,
-        (jlong) stats.fragmentation
-    };
-    (*env)->SetLongArrayRegion(env, arr, 0, 5, buf);
-    return arr;
-}
-
 JNIEXPORT jstring JNICALL
 Java_com_winlator_cmod_core_Nramv_nativeVersion(JNIEnv *env, jclass clazz) {
     (void)clazz;

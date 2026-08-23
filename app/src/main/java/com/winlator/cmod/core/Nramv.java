@@ -59,6 +59,5 @@ public final class Nramv {
     public static native void nativeShutdown();
     public static native int nativeApplyProfile(int profile);
     public static native int nativeFlush();
-    public static native long[] nativeGetStats();
     public static native String nativeVersion();
 }
