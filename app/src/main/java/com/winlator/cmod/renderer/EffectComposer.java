@@ -129,7 +129,10 @@ public class EffectComposer {
 
     public synchronized void addEffect(Effect effect) {
         if (!effects.contains(effect)) {
-            effects.add(effect);
+            // EASU must always run first: it consumes the reduced-resolution
+            // scene buffer; every other effect works on full-size buffers.
+            if (effect instanceof FSREasuEffect) effects.add(0, effect);
+            else effects.add(effect);
 //            Log.d(TAG, "Effect added: " + effect.getClass().getSimpleName());
         } else {
 //            Log.d(TAG, "Effect already present: " + effect.getClass().getSimpleName());
@@ -227,7 +230,7 @@ public class EffectComposer {
 //            Log.d(TAG, "Framebuffer cleared");
 
             // Render the effect
-            renderEffect(effect, useScene && effect == effects.get(0));
+            renderEffect(effect, useScene && effect instanceof FSREasuEffect);
 //            Log.d(TAG, "Effect rendered: " + effect.getClass().getSimpleName());
 
             // Swap the read and write buffers

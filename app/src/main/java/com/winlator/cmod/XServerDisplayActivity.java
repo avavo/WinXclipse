@@ -115,6 +115,7 @@ import com.winlator.cmod.math.Mathf;
 import com.winlator.cmod.math.XForm;
 import com.winlator.cmod.midi.MidiHandler;
 import com.winlator.cmod.midi.MidiManager;
+import com.winlator.cmod.renderer.EffectComposer;
 import com.winlator.cmod.renderer.GLRenderer;
 import com.winlator.cmod.renderer.effects.CRTEffect;
 import com.winlator.cmod.renderer.effects.ColorEffect;
@@ -2071,28 +2072,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 || "1".equals(graphicsDriverConfig.getOrDefault("fsrUpscale", "0")));
         String fsrQuality = fsrLegacyMode ? fsrRaw
                 : graphicsDriverConfig.getOrDefault("fsrQuality", "balanced");
-        if (fsrOn && fsrUpscale) {
-            // Full FSR1 pipeline: composite at reduced resolution, EASU upscale, RCAS.
-            // The mode directly sets the internal resolution factor so the effect
-            // is visible regardless of the container screen size.
-            float factor = "performance".equals(fsrQuality) ? 2.0f
-                    : "quality".equals(fsrQuality) ? 1.5f : 1.7f;
-            renderer.getEffectComposer().setSceneScale(factor);
-            renderer.getEffectComposer().addEffect(new FSREasuEffect());
-            float stops = "performance".equals(fsrQuality) ? 0.7f
-                    : "quality".equals(fsrQuality) ? 1.5f : 1.0f;
-            renderer.getEffectComposer().addEffect(new FSREffect(stops));
-            Log.i("FSRDebug", "FSR1 upscale active: quality=" + fsrQuality
-                    + " factor=" + factor + " stops=" + stops);
-        } else if (fsrOn) {
-            // Sharpening only (RCAS at native resolution).
-            renderer.getEffectComposer().addEffect(new FSREffect(1.0f));
-            Log.i("FSRDebug", "FSR1 sharpening only (no upscale)");
-        } else {
-            Log.i("FSRDebug", "FSR off: fsrRaw=" + fsrRaw
-                    + " fsrUpscale=" + graphicsDriverConfig.getOrDefault("fsrUpscale", "0")
-                    + " textureFilterMode=" + textureFilterMode);
-        }
+        String fsrState = !fsrOn ? "off" : !fsrUpscale ? "on" : fsrQuality;
+        applyFsrRuntime(renderer, fsrState);
 
         if (shortcut != null) {
             if (shortcut.getExtra("forceFullscreen", "0").equals("1")) renderer.setForceFullscreenWMClass(shortcut.wmClass);
@@ -2272,6 +2253,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         final int itemBilinear = 0x710002;
         final int itemNearest = 0x710003;
         final int itemSwapRedBlue = 0x710004;
+        final int itemFsrMenu = 0x710005;
         PopupMenu popup = new PopupMenu(this, anchor);
         popup.getMenu().add(0, R.id.main_menu_screen_effects, 0, R.string.screen_effect);
         popup.getMenu().add(0, itemFakeHdr, 1, R.string.fake_hdr)
@@ -2287,7 +2269,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         popup.getMenu().add(0, R.id.main_menu_toggle_fullscreen, 5, R.string.toggle_fullscreen);
         popup.getMenu().add(0, R.id.main_menu_magnifier, 6, R.string.magnifier);
         popup.getMenu().add(0, R.id.main_menu_pip_mode, 7, R.string.pip_mode);
+        popup.getMenu().add(0, itemFsrMenu, 8, "AMD FSR");
         popup.setOnMenuItemClickListener(item -> {
+            if (item.getItemId() == itemFsrMenu) {
+                showFsrSidebarMenu(renderer, anchor);
+                return true;
+            }
             if (item.getItemId() == itemFakeHdr) {
                 setFakeHdrEnabled(renderer,
                         renderer.getEffectComposer().getEffect(HDREffect.class) == null, true);
@@ -2315,6 +2302,75 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         if (enabled && current == null) renderer.getEffectComposer().addEffect(new HDREffect());
         else if (!enabled && current != null) renderer.getEffectComposer().removeEffect(current);
         if (persist) persistRuntimeVideoOption("fakeHDR", enabled ? "1" : "0");
+    }
+
+    /** Current FSR state: "off", "on" (sharpen only) or quality/balanced/performance. */
+    private String fsrRuntimeState = "off";
+
+    /**
+     * Applies an FSR1 state live: "off", "on" (RCAS sharpening at native
+     * resolution) or quality/balanced/performance (EASU upscale at display/1.5,
+     * /1.7 or /2.0 plus RCAS). Also persists the choice for the next sessions.
+     */
+    private void applyFsrRuntime(GLRenderer renderer, String state) {
+        fsrRuntimeState = state == null ? "off" : state;
+        EffectComposer composer = renderer.getEffectComposer();
+        FSREasuEffect easu = composer.getEffect(FSREasuEffect.class);
+        if (easu != null) composer.removeEffect(easu);
+        FSREffect rcas = composer.getEffect(FSREffect.class);
+        if (rcas != null) composer.removeEffect(rcas);
+        composer.setSceneScale(0);
+        if ("on".equals(fsrRuntimeState)) {
+            composer.addEffect(new FSREffect(1.0f));
+            Log.i("FSRDebug", "FSR1 sharpening only (no upscale)");
+        } else if (!"off".equals(fsrRuntimeState)) {
+            float factor = "performance".equals(fsrRuntimeState) ? 2.0f
+                    : "quality".equals(fsrRuntimeState) ? 1.5f : 1.7f;
+            float stops = "performance".equals(fsrRuntimeState) ? 0.7f
+                    : "quality".equals(fsrRuntimeState) ? 1.5f : 1.0f;
+            composer.setSceneScale(factor);
+            composer.addEffect(new FSREasuEffect());
+            composer.addEffect(new FSREffect(stops));
+            Log.i("FSRDebug", "FSR1 upscale active: state=" + fsrRuntimeState
+                    + " factor=" + factor + " stops=" + stops);
+        } else {
+            Log.i("FSRDebug", "FSR off");
+        }
+    }
+
+    private void showFsrSidebarMenu(GLRenderer renderer, View anchor) {
+        final int fsrGroup = 0x720000;
+        final int itemFsrOff = 0x720001;
+        final int itemFsrSharp = 0x720002;
+        final int itemFsrQuality = 0x720003;
+        final int itemFsrBalanced = 0x720004;
+        final int itemFsrPerf = 0x720005;
+        PopupMenu popup = new PopupMenu(this, anchor);
+        popup.getMenu().add(fsrGroup, itemFsrOff, 0, "FSR: Off")
+                .setCheckable(true).setChecked("off".equals(fsrRuntimeState));
+        popup.getMenu().add(fsrGroup, itemFsrSharp, 1, "FSR: Sharpen only")
+                .setCheckable(true).setChecked("on".equals(fsrRuntimeState));
+        popup.getMenu().add(fsrGroup, itemFsrQuality, 2, "FSR: Quality (1.5x)")
+                .setCheckable(true).setChecked("quality".equals(fsrRuntimeState));
+        popup.getMenu().add(fsrGroup, itemFsrBalanced, 3, "FSR: Balanced (1.7x)")
+                .setCheckable(true).setChecked("balanced".equals(fsrRuntimeState));
+        popup.getMenu().add(fsrGroup, itemFsrPerf, 4, "FSR: Performance (2.0x)")
+                .setCheckable(true).setChecked("performance".equals(fsrRuntimeState));
+        popup.getMenu().setGroupCheckable(fsrGroup, true, true);
+        popup.setOnMenuItemClickListener(item -> {
+            String state;
+            int id = item.getItemId();
+            if (id == itemFsrOff) state = "off";
+            else if (id == itemFsrSharp) state = "on";
+            else if (id == itemFsrQuality) state = "quality";
+            else if (id == itemFsrBalanced) state = "balanced";
+            else if (id == itemFsrPerf) state = "performance";
+            else return false;
+            applyFsrRuntime(renderer, state);
+            persistRuntimeVideoOption("fsrMode", state);
+            return true;
+        });
+        popup.show();
     }
 
     private void persistRuntimeVideoOption(String key, String value) {
