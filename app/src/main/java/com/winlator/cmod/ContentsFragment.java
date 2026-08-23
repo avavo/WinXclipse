@@ -2,6 +2,7 @@ package com.winlator.cmod;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.net.Uri;
@@ -660,9 +661,10 @@ public class ContentsFragment extends Fragment {
                 downloadDialog.setProgress(0);
 
                 Intent intent = new Intent();
+                Context appContext = requireContext().getApplicationContext();
                 new Thread(() -> {
                     long timestamp = System.currentTimeMillis();
-                    File output = new File(getContext().getCacheDir(), "temp_" + timestamp);
+                    File output = new File(appContext.getCacheDir(), "temp_" + timestamp);
                     boolean downloaded = Downloader.downloadFile(profile.remoteUrl, output, progress -> {
                         downloadDialog.setProgress(progress);
                         if (getActivity() != null) {
@@ -675,7 +677,11 @@ public class ContentsFragment extends Fragment {
                     } else {
                         FileUtils.delete(output);
                     }
-                    getActivity().runOnUiThread(() -> {
+                    // The fragment can be detached while the download runs;
+                    // getActivity() is then null and must not be dereferenced.
+                    Activity host = getActivity();
+                    if (host == null) return;
+                    host.runOnUiThread(() -> {
                         downloadDialog.close();
                         holder.progressBar.setVisibility(View.GONE);
                         holder.ibDownload.setVisibility(View.VISIBLE);
