@@ -69,7 +69,10 @@ public abstract class FileUtils {
     }
 
     public static String readString(File file) {
-        return new String(read(file), StandardCharsets.UTF_8);
+        // Same policy as the asset variant: unreadable files must surface as
+        // parse errors at the call sites, never as an NPE from new String(null).
+        byte[] data = read(file);
+        return data != null ? new String(data, StandardCharsets.UTF_8) : "";
     }
 
     public static String readString(Context context, Uri uri) {
