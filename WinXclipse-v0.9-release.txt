@@ -133,7 +133,7 @@ Follow-up Fixes
 - Experimental BCN defaults the BCn Emulation Cache to 1 when nothing was configured.
 - Startup Selection fixed: Essential keeps essential+protected services and Aggressive keeps only protected ones; previously both behaved identically because of an inverted condition.
 - Bundled vkd3d-proton-3.0.1b.wcp installs automatically and appears in the DXVK+VKD3D selector. VKD3D extraction also matches the "-0" suffixed bundled archives (vkd3d-2.8-0.tzst etc.) that previously failed silently.
-- Per-SoC RAM tiers are known to the detector (8 GB for Exynos 1480/1580/1680/2200/2400e devices, 12 GB for every 2600 device) and back up the unified-memory VRAM cap when the kernel report is unavailable.
+- Per-SoC RAM tiers are known to the detector (8 GB for Exynos 1480/1580/1680/2200 devices, 12 GB for every 2600 device) and back up the unified-memory VRAM cap when the kernel report is unavailable; Xclipse 940/950 ship with varying RAM and stay unknown rather than being guessed.
 
 Credits
 
