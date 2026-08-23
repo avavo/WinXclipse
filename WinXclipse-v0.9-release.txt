@@ -135,6 +135,7 @@ Follow-up Fixes
 - Bundled vkd3d-proton-3.0.1b.wcp installs automatically and appears in the DXVK+VKD3D selector. VKD3D extraction also matches the "-0" suffixed bundled archives (vkd3d-2.8-0.tzst etc.) that previously failed silently.
 - Per-SoC RAM tiers are known to the detector (8 GB for Exynos 1480/1580/1680/2200 devices, 12 GB for every 2600 device) and back up the unified-memory VRAM cap when the kernel report is unavailable; Xclipse 940/950 ship with varying RAM and stay unknown rather than being guessed.
 - Code review of the pre-0.9 rounds removed dead leftovers: the never-invoked Proton 9 ARM64EC symlink bridge (it pointed to a hardcoded external Wine contents path that no longer matches any flow), an always-true conditional around the evshim shared-memory id, and release builds no longer compile with verbose process debugging on.
+- Deeper review of the 0.8.x rounds hardened bundled-asset reads: a missing JSON asset now surfaces as a handled parse error instead of a NullPointerException when opening the Video configuration or the container editor.
 
 Credits
 
