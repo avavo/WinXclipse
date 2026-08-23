@@ -52,7 +52,7 @@ add_library(winlator SHARED
 # LD_PRELOAD case only; inside libwinlator they must stay compiled out so the
 # app process keeps using libc's allocator untouched.
 set_source_files_properties(winxclipse_policy_engine/MdiEx_MemShim_0.5.0/wxp_memshim.c PROPERTIES
-        COMPILE_DEFINITIONS MDIEX_MEMSHIM_ENABLE_INTERPOSE_SYMBOLS=0)
+        COMPILE_DEFINITIONS WXP_MEMSHIM_ENABLE_INTERPOSE_SYMBOLS=0)
 
 target_include_directories(winlator PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/winxclipse_policy_engine/MdiEx_Core_1.0.0
