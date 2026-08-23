@@ -168,7 +168,7 @@ public class SettingsFragment extends Fragment {
         // Initialize the Dark Mode checkbox
         cbDarkMode = view.findViewById(R.id.CBDarkMode);
         cbFollowSystemTheme = view.findViewById(R.id.CBFollowSystemTheme);
-        boolean followSystemTheme = preferences.getBoolean(AppUtils.PREF_FOLLOW_SYSTEM_THEME, false);
+        boolean followSystemTheme = preferences.getBoolean(AppUtils.PREF_FOLLOW_SYSTEM_THEME, true);
         cbDarkMode.setChecked(preferences.getBoolean(AppUtils.PREF_DARK_MODE, true));
         cbFollowSystemTheme.setChecked(followSystemTheme);
         cbDarkMode.setEnabled(!followSystemTheme);
