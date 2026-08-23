@@ -119,6 +119,7 @@ import com.winlator.cmod.renderer.GLRenderer;
 import com.winlator.cmod.renderer.effects.CRTEffect;
 import com.winlator.cmod.renderer.effects.ColorEffect;
 import com.winlator.cmod.renderer.effects.FSREffect;
+import com.winlator.cmod.renderer.effects.FSREasuEffect;
 import com.winlator.cmod.renderer.effects.FXAAEffect;
 import com.winlator.cmod.renderer.effects.HDREffect;
 import com.winlator.cmod.renderer.effects.NTSCCombinedEffect;
@@ -2059,14 +2060,27 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 ? "1".equals(shortcut.getExtra("fakeHDR", container.getExtra("fakeHDR", "0")))
                 : "1".equals(container.getExtra("fakeHDR", "0"));
         if (fakeHdr) renderer.getEffectComposer().addEffect(new HDREffect());
-        String fsrMode = shortcut != null
+        String fsrRaw = shortcut != null
                 ? shortcut.getExtra("fsrMode", graphicsDriverConfig.getOrDefault("fsrMode", "off"))
                 : graphicsDriverConfig.getOrDefault("fsrMode", "off");
-        if (textureFilterMode == 2 || !"off".equals(fsrMode)) {
-            float stops = "performance".equals(fsrMode) ? 0.7f
-                    : "balanced".equals(fsrMode) ? 1.0f
-                    : "quality".equals(fsrMode) ? 1.5f : 1.0f;
+        // Legacy configs stored the mode directly in fsrMode; that implies upscale.
+        boolean fsrLegacyMode = fsrRaw.equals("quality") || fsrRaw.equals("balanced")
+                || fsrRaw.equals("performance");
+        boolean fsrOn = fsrLegacyMode || "on".equals(fsrRaw) || textureFilterMode == 2;
+        boolean fsrUpscale = fsrOn && (fsrLegacyMode
+                || "1".equals(graphicsDriverConfig.getOrDefault("fsrUpscale", "0")));
+        String fsrQuality = fsrLegacyMode ? fsrRaw
+                : graphicsDriverConfig.getOrDefault("fsrQuality", "balanced");
+        if (fsrOn && fsrUpscale) {
+            // Full FSR1 pipeline: composite at reduced resolution, EASU upscale, RCAS.
+            renderer.getEffectComposer().setSceneUpscale(true);
+            renderer.getEffectComposer().addEffect(new FSREasuEffect());
+            float stops = "performance".equals(fsrQuality) ? 0.7f
+                    : "quality".equals(fsrQuality) ? 1.5f : 1.0f;
             renderer.getEffectComposer().addEffect(new FSREffect(stops));
+        } else if (fsrOn) {
+            // Sharpening only (RCAS at native resolution).
+            renderer.getEffectComposer().addEffect(new FSREffect(1.0f));
         }
 
         if (shortcut != null) {

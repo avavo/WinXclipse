@@ -54,6 +54,10 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
     private boolean magnifierEnabled = true;
     public int surfaceWidth;
     public int surfaceHeight;
+    // Size of the target the scene is currently composited into. Equals the
+    // surface size except during the reduced-resolution FSR scene pass.
+    private int renderTargetWidth;
+    private int renderTargetHeight;
     private final EffectComposer effectComposer;
     private volatile int fpsLimit;
     private volatile int textureFilterMode;
@@ -104,8 +108,31 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
 
         surfaceWidth = width;
         surfaceHeight = height;
+        renderTargetWidth = width;
+        renderTargetHeight = height;
         viewTransformation.update(width, height, xServer.screenInfo.width, xServer.screenInfo.height);
         viewportNeedsUpdate = true;
+    }
+
+    /**
+     * Switches the size of the scene render target (and the matching view
+     * transformation). Used by EffectComposer to composite the X server
+     * content into a reduced-resolution buffer for FSR upscaling.
+     */
+    public void setRenderTargetSize(int width, int height) {
+        if (renderTargetWidth == width && renderTargetHeight == height) return;
+        renderTargetWidth = width;
+        renderTargetHeight = height;
+        viewTransformation.update(width, height, xServer.screenInfo.width, xServer.screenInfo.height);
+        viewportNeedsUpdate = true;
+    }
+
+    public int getXScreenWidth() {
+        return xServer.screenInfo.width;
+    }
+
+    public int getXScreenHeight() {
+        return xServer.screenInfo.height;
     }
 
     @Override
@@ -131,7 +158,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
         // Update the viewport if necessary
         if (viewportNeedsUpdate && magnifierEnabled) {
             if (fullscreen) {
-                GLES20.glViewport(0, 0, surfaceWidth, surfaceHeight);
+                GLES20.glViewport(0, 0, renderTargetWidth, renderTargetHeight);
             }
             else {
                 GLES20.glViewport(viewTransformation.viewOffsetX, viewTransformation.viewOffsetY, viewTransformation.viewWidth, viewTransformation.viewHeight);

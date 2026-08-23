@@ -4,6 +4,7 @@ import android.opengl.GLES20;
 import android.util.Log;
 
 import com.winlator.cmod.renderer.effects.Effect;
+import com.winlator.cmod.renderer.effects.FSREasuEffect;
 import com.winlator.cmod.renderer.effects.ToonEffect;
 import com.winlator.cmod.renderer.material.ShaderMaterial;
 
@@ -19,14 +20,31 @@ public class EffectComposer {
     private final List<Effect> effects = new ArrayList<>();
     private RenderTarget readBuffer;
     private RenderTarget writeBuffer;
+    private RenderTarget sceneBuffer;
     private int bufferWidth;
     private int bufferHeight;
+    private int sceneBufferWidth;
+    private int sceneBufferHeight;
+    private boolean sceneUpscale;
     private final GLRenderer renderer;
 
     // Constructor
     public EffectComposer(GLRenderer renderer) {
         this.renderer = renderer;
 //        Log.d(TAG, "EffectComposer created");
+    }
+
+    /**
+     * Enables FSR1-style upscaling: the X server content is composited into a
+     * reduced scene buffer and the first effect (FSREasuEffect) upscales it to
+     * the display, where RCAS then runs. Must be called before effects are added.
+     */
+    public synchronized void setSceneUpscale(boolean enabled) {
+        this.sceneUpscale = enabled;
+    }
+
+    public synchronized boolean isSceneUpscale() {
+        return sceneUpscale;
     }
 
     // Initializes the buffers if they are not already initialized,
@@ -39,6 +57,7 @@ public class EffectComposer {
 
         if (readBuffer != null && writeBuffer != null
                 && bufferWidth == width && bufferHeight == height) {
+            initSceneBuffer(width, height);
             return;
         }
 
@@ -53,6 +72,51 @@ public class EffectComposer {
         bufferWidth = width;
         bufferHeight = height;
 //        Log.d(TAG, "Initialized buffers with size: " + width + "x" + height);
+        initSceneBuffer(width, height);
+    }
+
+    /**
+     * Allocates the reduced scene buffer for FSR upscaling. The scene buffer
+     * holds the X server content at (at most) the X screen resolution, so the
+     * EASU pass receives true low-resolution input instead of an already
+     * bilinear-stretched image.
+     */
+    private void initSceneBuffer(int surfaceWidth, int surfaceHeight) {
+        if (!sceneUpscale) {
+            releaseSceneBuffer();
+            return;
+        }
+
+        int screenW = renderer.getXScreenWidth();
+        int screenH = renderer.getXScreenHeight();
+        if (screenW <= 0 || screenH <= 0) {
+            releaseSceneBuffer();
+            return;
+        }
+
+        float scale = Math.min(1.0f, Math.min(
+                (float) surfaceWidth / screenW, (float) surfaceHeight / screenH));
+        int sceneW = Math.max(1, Math.round(screenW * scale));
+        int sceneH = Math.max(1, Math.round(screenH * scale));
+
+        if (sceneBuffer != null && sceneBufferWidth == sceneW && sceneBufferHeight == sceneH) {
+            return;
+        }
+
+        releaseSceneBuffer();
+        sceneBuffer = new RenderTarget();
+        sceneBuffer.allocateFramebuffer(sceneW, sceneH);
+        sceneBufferWidth = sceneW;
+        sceneBufferHeight = sceneH;
+    }
+
+    private void releaseSceneBuffer() {
+        if (sceneBuffer != null) {
+            sceneBuffer.destroy();
+            sceneBuffer = null;
+        }
+        sceneBufferWidth = 0;
+        sceneBufferHeight = 0;
     }
 
     private void releaseBuffers() {
@@ -64,6 +128,7 @@ public class EffectComposer {
             writeBuffer.destroy();
             writeBuffer = null;
         }
+        releaseSceneBuffer();
     }
 
     public synchronized void addEffect(Effect effect) {
@@ -93,7 +158,7 @@ public class EffectComposer {
         return null;
     }
 
-    // Checks if there are any effects present
+    // Checks if there are effects present
     public synchronized boolean hasEffects() {
         boolean hasEffects = !effects.isEmpty();
 //        Log.d(TAG, "hasEffects() called. Effects present: " + hasEffects);
@@ -124,9 +189,17 @@ public class EffectComposer {
 
         initBuffers();
 
+        boolean useScene = sceneUpscale && sceneBuffer != null;
+
         // Set up framebuffer if there are effects to render
         if (hasEffects()) {
-            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, readBuffer.getFramebuffer());
+            if (useScene) {
+                // Scene pass: composite the X server content at reduced resolution.
+                GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, sceneBuffer.getFramebuffer());
+                renderer.setRenderTargetSize(sceneBufferWidth, sceneBufferHeight);
+            } else {
+                GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, readBuffer.getFramebuffer());
+            }
 //            Log.d(TAG, "Binding to readBuffer framebuffer: " + readBuffer.getFramebuffer());
         } else {
             GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
@@ -142,6 +215,9 @@ public class EffectComposer {
             boolean renderToScreen = effect == effects.get(effects.size() - 1);
             int targetFramebuffer = renderToScreen ? 0 : writeBuffer.getFramebuffer();
 
+            // Restore full-size render target for effect passes.
+            if (useScene) renderer.setRenderTargetSize(bufferWidth, bufferHeight);
+
             // Bind appropriate framebuffer
             GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, targetFramebuffer);
 //            Log.d(TAG, "Binding to " + (renderToScreen ? "screen" : "writeBuffer") + " framebuffer: " + targetFramebuffer);
@@ -155,7 +231,7 @@ public class EffectComposer {
 //            Log.d(TAG, "Framebuffer cleared");
 
             // Render the effect
-            renderEffect(effect);
+            renderEffect(effect, useScene && effect == effects.get(0));
 //            Log.d(TAG, "Effect rendered: " + effect.getClass().getSimpleName());
 
             // Swap the read and write buffers
@@ -163,12 +239,14 @@ public class EffectComposer {
 //            Log.d(TAG, "Buffers swapped");
         }
 
+        if (useScene) renderer.setRenderTargetSize(bufferWidth, bufferHeight);
+
         isRendering = false; // Reset flag after rendering
     }
 
     // Renders a single effect
-    private void renderEffect(Effect effect) {
-//        Log.d(TAG, "renderEffect() called for: " + effect.getClass().getSimpleName());
+    private void renderEffect(Effect effect, boolean fromSceneBuffer) {
+//        Log.d(TAG, "renderEffect() called");
 
         ShaderMaterial material = effect.getMaterial();
         if (material == null) {
@@ -184,10 +262,38 @@ public class EffectComposer {
 //        Log.d(TAG, "Quad vertices bound to program ID: " + material.programId);
 
         // Set uniform values
-        material.setUniformVec2("resolution", renderer.surfaceWidth, renderer.surfaceHeight);
-        GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, readBuffer.getTextureId());
-        material.setUniformInt("screenTexture", 0);
+        if (fromSceneBuffer && effect instanceof FSREasuEffect) {
+            FSREasuEffect easu = (FSREasuEffect) effect;
+            int screenW = renderer.getXScreenWidth();
+            int screenH = renderer.getXScreenHeight();
+            // Aspect-fit rect of the X screen on the display (letterbox preserved).
+            float aspect = Math.min(renderer.surfaceWidth / (float) screenW,
+                    renderer.surfaceHeight / (float) screenH);
+            int dstW = Math.round(screenW * aspect);
+            int dstH = Math.round(screenH * aspect);
+            int dstOffX = (renderer.surfaceWidth - dstW) / 2;
+            int dstOffYGl = (renderer.surfaceHeight - dstH) / 2;
+            // V-down offset to match the shader's coordinate space.
+            int dstOffYDown = renderer.surfaceHeight - dstOffYGl - dstH;
+            easu.setMapping(sceneBufferWidth, sceneBufferHeight,
+                    0, 0, sceneBufferWidth, sceneBufferHeight,
+                    dstOffX, dstOffYDown, dstW, dstH, renderer.surfaceHeight);
+            material.setUniformVec2("resolution", renderer.surfaceWidth, renderer.surfaceHeight);
+            material.setUniformVec4("uCon0", easu.getCon0());
+            material.setUniformVec4("uDstRect", easu.getDstRect());
+            material.setUniformFloat("uOutH", easu.getOutHeight());
+            material.setUniformVec2("uTexel", 1.0f / sceneBufferWidth, 1.0f / sceneBufferHeight);
+
+            GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, sceneBuffer.getTextureId());
+            material.setUniformInt("screenTexture", 0);
+        } else {
+            material.setUniformVec2("resolution", renderer.surfaceWidth, renderer.surfaceHeight);
+            GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D,
+                    fromSceneBuffer ? sceneBuffer.getTextureId() : readBuffer.getTextureId());
+            material.setUniformInt("screenTexture", 0);
+        }
 //        Log.d(TAG, "Uniforms set: resolution=" + renderer.surfaceWidth + "x" + renderer.surfaceHeight + ", screenTexture=" + readBuffer.getTextureId());
 
         // Draw the quad

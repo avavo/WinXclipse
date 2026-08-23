@@ -628,6 +628,21 @@ public class ContainerDetailFragment extends Fragment {
                                 .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()))
                                 .getOrDefault("fsrMode", "off");
                     }
+
+                    @Override
+                    public String getFsrUpscale() {
+                        return GraphicsDriverConfigDialog
+                                .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()))
+                                .getOrDefault("fsrUpscale", "0");
+                    }
+
+                    @Override
+                    public String getFsrQuality() {
+                        return GraphicsDriverConfigDialog
+                                .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()))
+                                .getOrDefault("fsrQuality", "balanced");
+                    }
+
                     @Override
                     public boolean isVsyncOff() {
                         return "1".equals(GraphicsDriverConfigDialog
@@ -645,13 +660,16 @@ public class ContainerDetailFragment extends Fragment {
                     @Override
                     public void apply(String gpuName, String presentMode,
                                       int textureFilterMode, boolean swapRedBlue,
-                                      String fsrMode, boolean vsyncOff,
+                                      String fsrMode, String fsrUpscale,
+                                      String fsrQuality, boolean vsyncOff,
                                       boolean unlimitedImages) {
                         HashMap<String, String> config = GraphicsDriverConfigDialog
                                 .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()));
                         config.put("gpuName", gpuName);
                         config.put("presentMode", presentMode);
                         config.put("fsrMode", fsrMode == null ? "off" : fsrMode);
+                        config.put("fsrUpscale", fsrUpscale == null ? "0" : fsrUpscale);
+                        config.put("fsrQuality", fsrQuality == null ? "balanced" : fsrQuality);
                         config.put("vblankOff", vsyncOff ? "1" : "0");
                         config.put("unlimitedImages", unlimitedImages ? "1" : "0");
                         vGraphicsDriverConfig.setTag(

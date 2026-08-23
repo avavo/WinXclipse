@@ -99,6 +99,13 @@ public class ShaderMaterial {
         }
     }
 
+    public void setUniformVec4(String uniformName, float[] values) {
+        int location = getUniformLocation(uniformName);
+        if (location != -1) {
+            GLES20.glUniform4fv(location, 1, values, 0);
+        }
+    }
+
     public void setUniformInt(String uniformName, int value) {
         int location = getUniformLocation(uniformName);
         if (location != -1) {
