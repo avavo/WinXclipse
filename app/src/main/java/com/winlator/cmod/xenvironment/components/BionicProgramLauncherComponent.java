@@ -286,11 +286,7 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         envVars.put("EVSHIM_GAMEPAD_DIR", gamepadDir.getAbsolutePath());
 
 
-        if (true) {
-
-            envVars.put("EVSHIM_SHM_ID", 1);
-
-        }
+        envVars.put("EVSHIM_SHM_ID", "1");
 
         addBox64EnvVars(envVars, enableBox86_64Logs);
 

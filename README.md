@@ -102,7 +102,7 @@ Version 0.9 focuses on the video and audio configuration tabs, shortcut artwork,
 - Native X11 blits (`copyAreaOp`, `fillRect`, `drawLine`) now process whole 32-bit pixels instead of byte-per-pixel loops — NEON-friendly and lighter on the shared memory bus that the CPU translation layers (FEXCore/Box64) and the Xclipse GPU compete for.
 - The evshim shim resolved `/proc/self/fd/N` via procfs on **every** `read()`/`ioctl()` inside guest processes; the verdict is cached per fd and invalidated on close/open.
 - ALSA pacer thread no longer requests max `SCHED_FIFO`, EGL display is resolved once across all `EGLImage` create/destroy calls, JNI method lookups run only once.
-- Experimental Performance reports a unified-memory-aware VRAM cap (3/8 of total RAM, clamped 2–4 GB) when Max Device Memory is left unset, so games cannot over-commit shared RAM until Android kills Wine.
+- Experimental Performance reports a unified-memory-aware VRAM cap when Max Device Memory is left unset: 2048 MB on 8 GB-class devices (including any 8 GB Xclipse 940/950), 4092 MB on 12 GB-class and above — the real device memory is queried at launch, so games cannot over-commit shared RAM until Android kills Wine.
 
 #### ARM64EC / FEXCore game compatibility (PES 2018 round)
 

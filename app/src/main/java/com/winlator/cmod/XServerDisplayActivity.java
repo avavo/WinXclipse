@@ -3007,8 +3007,10 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     /**
      * RAM and VRAM are the same LPDDR pool on Exynos, so reporting the whole
      * device memory as VRAM invites games to over-commit and triggers OOM
-     * kills of the Wine tree. Under the opt-in performance profile, report a
-     * conservative slice instead: 3/8 of total RAM clamped to 2-4 GB.
+     * kills of the Wine tree. Under the opt-in performance profile the real
+     * device memory is queried: 8 GB-class devices get a conservative 2048 MB
+     * cap, 12 GB-class (and above) keep the 4092 MB ceiling. Fixed-tier SoCs
+     * back this up when the kernel report is unavailable.
      */
     private int suggestVramCap() {
         ActivityManager activityManager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
@@ -3025,8 +3027,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             if (typicalRamGB <= 0) return 0;
             totalMB = typicalRamGB * 1024L;
         }
-        long capMB = Math.min(4096, Math.max(2048, totalMB * 3 / 8));
-        return (int)(capMB / 256 * 256);
+        // Android reports usable RAM below the marketing size (a "12 GB"
+        // device usually lands near 11 GB), so split the tiers at 10 GB.
+        return totalMB >= 10240 ? 4092 : 2048;
     }
 
     private void copyFile(File sourceFile, File destFile) throws IOException {
@@ -3575,63 +3578,4 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         // Register the callback with the system.
         audioManager.registerAudioDeviceCallback(audioDeviceCallback, new Handler(Looper.getMainLooper()));
     }
-    private void ensureProton9Arm64EcRuntime() {
-        try {
-            File rootDir = imageFs.getRootDir();
-
-            File baseWine = new File(rootDir, "../contents/Wine/10-arm64ec-0").getCanonicalFile();
-            File protonDir = new File(rootDir, "opt/proton-9.0-arm64ec");
-
-            File protonWineLib = new File(protonDir, "lib/wine");
-            protonWineLib.mkdirs();
-
-            ensureSymlink(new File(baseWine, "bin"), new File(protonDir, "bin"));
-            ensureSymlink(new File(baseWine, "share"), new File(protonDir, "share"));
-            ensureSymlink(new File(baseWine, "lib/wine/aarch64-unix"), new File(protonWineLib, "aarch64-unix"));
-            ensureSymlink(new File(baseWine, "lib/wine/aarch64-windows"), new File(protonWineLib, "aarch64-windows"));
-            ensureSymlink(new File(baseWine, "lib/wine/i386-windows"), new File(protonWineLib, "i386-windows"));
-
-            new File(rootDir, "home/xuser/.fex-emu/AppConfig").mkdirs();
-
-            Log.d("XServerDisplayActivity", "Proton 9 ARM64EC runtime links verified.");
-        }
-        catch (Exception e) {
-            Log.e("XServerDisplayActivity", "Failed to verify Proton 9 ARM64EC runtime links", e);
-        }
-    }
-
-    private void ensureSymlink(File target, File link) {
-        try {
-            if (target == null || !target.exists()) {
-                Log.w("XServerDisplayActivity", "Symlink target missing: " + target);
-                return;
-            }
-
-            File parent = link.getParentFile();
-            if (parent != null) parent.mkdirs();
-
-            if (link.exists()) {
-                String canonicalTarget = target.getCanonicalPath();
-                String canonicalLink = link.getCanonicalPath();
-
-                if (canonicalTarget.equals(canonicalLink)) {
-                    return;
-                }
-
-                File backup = new File(link.getParentFile(), link.getName() + ".bak");
-                if (backup.exists()) FileUtils.delete(backup);
-
-                Log.w("XServerDisplayActivity", "Replacing existing runtime path with symlink: " + link.getAbsolutePath());
-                if (!link.renameTo(backup)) {
-                    FileUtils.delete(link);
-                }
-            }
-
-            FileUtils.symlink(target.getAbsolutePath(), link.getAbsolutePath());
-        }
-        catch (Exception e) {
-            Log.e("XServerDisplayActivity", "Failed to create symlink: " + link + " -> " + target, e);
-        }
-    }
-
 }

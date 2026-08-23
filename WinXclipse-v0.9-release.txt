@@ -86,7 +86,7 @@ Native and Memory Optimizations
 - The evshim input shim resolved /proc/self/fd/N through procfs on every single read() and ioctl() call inside guest processes; the verdict is now cached per file descriptor and invalidated on close/open.
 - The ALSA pacer thread no longer requests maximum SCHED_FIFO real-time priority, so it cannot preempt render or X11 threads on the big cores.
 - The EGL display handle is resolved once and shared across all AHardwareBuffer EGLImage create/destroy calls, and remaining JNI method lookups run only once instead of per message.
-- Under Experimental Performance with Max Device Memory unset, the wrapper now reports a unified-memory-aware VRAM cap (3/8 of total RAM, clamped to 2-4 GB) instead of unlimited device memory, preventing games from over-committing the shared RAM pool until Android kills Wine.
+- Under Experimental Performance with Max Device Memory unset, the wrapper now reports a unified-memory-aware VRAM cap instead of unlimited device memory: the device RAM is queried at launch and 8 GB-class devices (including 8 GB Xclipse 940/950) get 2048 MB while 12 GB-class devices get 4092 MB, preventing games from over-committing the shared RAM pool until Android kills Wine.
 
 ARM64EC and FEXCore Game Compatibility
 
@@ -134,6 +134,7 @@ Follow-up Fixes
 - Startup Selection fixed: Essential keeps essential+protected services and Aggressive keeps only protected ones; previously both behaved identically because of an inverted condition.
 - Bundled vkd3d-proton-3.0.1b.wcp installs automatically and appears in the DXVK+VKD3D selector. VKD3D extraction also matches the "-0" suffixed bundled archives (vkd3d-2.8-0.tzst etc.) that previously failed silently.
 - Per-SoC RAM tiers are known to the detector (8 GB for Exynos 1480/1580/1680/2200 devices, 12 GB for every 2600 device) and back up the unified-memory VRAM cap when the kernel report is unavailable; Xclipse 940/950 ship with varying RAM and stay unknown rather than being guessed.
+- Code review of the pre-0.9 rounds removed dead leftovers: the never-invoked Proton 9 ARM64EC symlink bridge (it pointed to a hardcoded external Wine contents path that no longer matches any flow), an always-true conditional around the evshim shared-memory id, and release builds no longer compile with verbose process debugging on.
 
 Credits
 
