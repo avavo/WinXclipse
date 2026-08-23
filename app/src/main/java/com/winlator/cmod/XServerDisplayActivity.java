@@ -3059,9 +3059,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             if (activityManager != null) {
                 ActivityManager.MemoryInfo memoryInfo = new ActivityManager.MemoryInfo();
                 activityManager.getMemoryInfo(memoryInfo);
-                long totalGB = memoryInfo.totalMem / (1024L * 1024L * 1024L);
-                if (totalGB > 0 && totalGB < 8) profile = Nramv.PROFILE_LIGHT;
-                else if (totalGB >= 12 && experimentalPerformance) profile = Nramv.PROFILE_AGGRESSIVE;
+                long totalMB = memoryInfo.totalMem / (1024L * 1024L);
+                if (totalMB > 0 && totalMB < 6500) profile = Nramv.PROFILE_LIGHT;
+                else if (totalMB >= 10240 && experimentalPerformance) profile = Nramv.PROFILE_AGGRESSIVE;
             }
             Nramv.nativeApplyProfile(profile);
             Log.i("GraphicsDriverExtraction", "NRAMV profile=" + profile + " version=" + Nramv.nativeVersion());
