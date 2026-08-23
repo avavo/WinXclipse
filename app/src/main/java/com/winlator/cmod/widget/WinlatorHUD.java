@@ -274,6 +274,17 @@ public class WinlatorHUD extends View {
     }
 
     private void updateRamAlert(int ramPercent) {
+        // NRAMV escalation is independent of the user-visible warning toggle:
+        // crossing into the danger band forces the aggressive reclaim pass
+        // once, and dropping back below it (with hysteresis) restores the
+        // session baseline. Native flush has its own cooldown/emergency rules.
+        boolean inDanger = ramPercent >= ramBlinkThreshold;
+        if (inDanger && !ramAlertActive) {
+            com.winlator.cmod.core.Nramv.escalate();
+        } else if (!inDanger && ramAlertActive && ramPercent < ramBlinkThreshold - 6) {
+            com.winlator.cmod.core.Nramv.restoreBaseline();
+        }
+
         if (!ramWarningEnabled) {
             if (ramAlertActive) {
                 ramAlertActive = false;

@@ -1822,8 +1822,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         }
 
         // NRAMV unified-memory manager runs in our process for every session;
-        // its aggressiveness follows device RAM and the opt-in performance flag.
-        applyNramvProfile(experimentalPerformance);
+        // its baseline trim level follows device RAM while live escalation is
+        // driven by the HUD RAM alert through Nramv.escalate().
+        applyNramvProfile();
 
         // Create our overall XEnvironment with various components
         environment = new XEnvironment(this, imageFs);
@@ -3050,21 +3051,28 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     /** Starts the NRAMV memory manager and selects its aggressiveness from the
      * device RAM: LIGHT below 8 GB, MEDIUM on 8 GB-class, AGGRESSIVE only on
      * 12 GB-class devices with Experimental Performance enabled. */
-    private void applyNramvProfile(boolean experimentalPerformance) {
+    private void applyNramvProfile() {
         try {
             if (Nramv.nativeInit() != 0) return;
 
-            int profile = Nramv.PROFILE_MEDIUM;
+            /* Marketing size is not usable size: an "8 GB" Exynos 2400e may
+             * expose as little as ~6.6 GB while mid-range x80 devices keep
+             * nearly the full amount. Absolute-MB tiering therefore
+             * misclassifies; every known Xclipse model starts at MEDIUM and
+             * relies on live escalation (engine thresholds plus the HUD RAM
+             * alert forcing AGGRESSIVE) to react to real pressure.
+             * Only genuinely small devices drop to LIGHT. */
+            int baseline = Nramv.PROFILE_MEDIUM;
             ActivityManager activityManager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
-            if (activityManager != null) {
+            if (activityManager != null && !GPUInformation.isXclipse()) {
                 ActivityManager.MemoryInfo memoryInfo = new ActivityManager.MemoryInfo();
                 activityManager.getMemoryInfo(memoryInfo);
                 long totalMB = memoryInfo.totalMem / (1024L * 1024L);
-                if (totalMB > 0 && totalMB < 6500) profile = Nramv.PROFILE_LIGHT;
-                else if (totalMB >= 10240 && experimentalPerformance) profile = Nramv.PROFILE_AGGRESSIVE;
+                if (totalMB > 0 && totalMB < 4600) baseline = Nramv.PROFILE_LIGHT;
             }
-            Nramv.nativeApplyProfile(profile);
-            Log.i("GraphicsDriverExtraction", "NRAMV profile=" + profile + " version=" + Nramv.nativeVersion());
+            Nramv.setBaselineProfile(baseline);
+            Nramv.restoreBaseline();
+            Log.i("GraphicsDriverExtraction", "NRAMV baseline=" + baseline + " version=" + Nramv.nativeVersion());
         }
         catch (Throwable t) {
             Log.w("GraphicsDriverExtraction", "NRAMV unavailable", t);
