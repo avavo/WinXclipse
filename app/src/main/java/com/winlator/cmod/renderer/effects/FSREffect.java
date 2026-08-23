@@ -8,7 +8,7 @@ import com.winlator.cmod.renderer.material.ShaderMaterial;
  * Sharpening, faithfully ported from ffx_fsr1.h v1.20210629 (MIT).
  *
  * Runs as a screen-space pass at display resolution. Sharpness follows the
- * spec's stop scale: exp2(-stops); this build pins 1.0 stop of reduction.
+ * spec's stop scale: exp2(-stops).
  */
 public class FSREffect extends Effect {
     /** Sharpness in FSR stops: exp2(-stops). Lower internal resolution
@@ -85,8 +85,8 @@ public class FSREffect extends Effect {
                     "    float lobeG=max(-hitMinG,hitMaxG);",
                     "    float lobeB=max(-hitMinB,hitMaxB);",
                     "    float lobe=max(-FSR_RCAS_LIMIT,min(max3F1(lobeR,lobeG,lobeB),0.0));",
-                    "    // Transform from stops to linear value: exp2(-sharpness), 1 stop.",
-                    "    lobe*=" + stops + ";",
+                    "    // Transform from stops to linear value: exp2(-sharpness), as in FsrRcasCon().",
+                    "    lobe*=exp2(-" + stops + ");",
                     "    // Apply noise removal.",
                     "    lobe*=nz;",
                     "    // Resolve, which needs the medium precision rcp approximation to",

@@ -40,7 +40,6 @@ public class VideoConfigDialog extends ContentDialog {
         Spinner textureFilter = findViewById(R.id.SVideoTextureFilter);
         CheckBox swapRedBlue = findViewById(R.id.CBVideoSwapRedBlue);
         Spinner fsrMode = findViewById(R.id.SVideoFsr);
-        Spinner fsrMode = findViewById(R.id.SVideoFsr);
         CheckBox vsyncOff = findViewById(R.id.CBVideoVsyncOff);
         CheckBox unlimitedImages = findViewById(R.id.CBVideoUnlimitedImages);
 
@@ -58,7 +57,6 @@ public class VideoConfigDialog extends ContentDialog {
         AppUtils.setSpinnerSelectionFromValue(presentMode, config.getPresentMode());
         textureFilter.setSelection(Math.max(0, Math.min(config.getTextureFilterMode(), 2)));
         swapRedBlue.setChecked(config.isSwapRedBlue());
-        AppUtils.setSpinnerSelectionFromValue(fsrMode, config.getFsrMode());
         fsrMode.setAdapter(new ThemedSpinnerAdapter<>(context,
                 Arrays.asList("Off", "Quality (1.5x)", "Balanced (1.7x)", "Performance (2.0x)")));
         AppUtils.setSpinnerSelectionFromValue(fsrMode, config.getFsrMode());
@@ -68,7 +66,7 @@ public class VideoConfigDialog extends ContentDialog {
 
         setOnConfirmCallback(() -> config.apply(
                 selectedValue(gpuName), selectedValue(presentMode),
-                textureFilter.getSelectedItemPosition(), swapRedBlue,
+                textureFilter.getSelectedItemPosition(), swapRedBlue.isChecked(),
                 selectedValue(fsrMode).isEmpty() ? "off" : selectedValue(fsrMode),
                 vsyncOff.isChecked(), unlimitedImages.isChecked()));
     }

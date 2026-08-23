@@ -74,4 +74,14 @@ public class RenderTarget extends Texture {
     public int getFramebuffer() {
         return framebuffer;
     }
+
+    // Deletes the framebuffer and the attached texture.
+    @Override
+    public void destroy() {
+        if (framebuffer != 0) {
+            GLES20.glDeleteFramebuffers(1, new int[]{framebuffer}, 0);
+            framebuffer = 0;
+        }
+        super.destroy();
+    }
 }

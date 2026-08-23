@@ -212,6 +212,13 @@ public class ShortcutSettingsDialog extends ContentDialog {
                     }
 
                     @Override
+                    public String getFsrMode() {
+                        return GraphicsDriverConfigDialog
+                                .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()))
+                                .getOrDefault("fsrMode", "off");
+                    }
+
+                    @Override
                     public boolean isVsyncOff() {
                         return "1".equals(GraphicsDriverConfigDialog
                                 .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()))
@@ -228,11 +235,13 @@ public class ShortcutSettingsDialog extends ContentDialog {
                     @Override
                     public void apply(String gpuName, String presentMode,
                                       int textureFilterMode, boolean swapRedBlue,
-                                      boolean vsyncOff, boolean unlimitedImages) {
+                                      String fsrMode, boolean vsyncOff,
+                                      boolean unlimitedImages) {
                         HashMap<String, String> config = GraphicsDriverConfigDialog
                                 .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()));
                         config.put("gpuName", gpuName);
                         config.put("presentMode", presentMode);
+                        config.put("fsrMode", fsrMode == null ? "off" : fsrMode);
                         vGraphicsDriverConfig.setTag(
                                 GraphicsDriverConfigDialog.toGraphicsDriverConfig(config));
                         rendererFilterMode[0] = textureFilterMode;

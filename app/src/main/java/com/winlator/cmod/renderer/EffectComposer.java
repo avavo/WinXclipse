@@ -19,6 +19,8 @@ public class EffectComposer {
     private final List<Effect> effects = new ArrayList<>();
     private RenderTarget readBuffer;
     private RenderTarget writeBuffer;
+    private int bufferWidth;
+    private int bufferHeight;
     private final GLRenderer renderer;
 
     // Constructor
@@ -27,20 +29,40 @@ public class EffectComposer {
 //        Log.d(TAG, "EffectComposer created");
     }
 
-    // Initializes the buffers if they are not already initialized
+    // Initializes the buffers if they are not already initialized,
+    // reallocating them whenever the surface size changes.
     private void initBuffers() {
 //        Log.d(TAG, "initBuffers() called");
 
-        if (readBuffer == null) {
-            readBuffer = new RenderTarget();
-            readBuffer.allocateFramebuffer(renderer.getSurfaceWidth(), renderer.getSurfaceHeight());
-//            Log.d(TAG, "Initialized readBuffer with size: " + renderer.getSurfaceWidth() + "x" + renderer.getSurfaceHeight());
+        int width = renderer.getSurfaceWidth();
+        int height = renderer.getSurfaceHeight();
+
+        if (readBuffer != null && writeBuffer != null
+                && bufferWidth == width && bufferHeight == height) {
+            return;
         }
 
-        if (writeBuffer == null) {
-            writeBuffer = new RenderTarget();
-            writeBuffer.allocateFramebuffer(renderer.getSurfaceWidth(), renderer.getSurfaceHeight());
-//            Log.d(TAG, "Initialized writeBuffer with size: " + renderer.getSurfaceWidth() + "x" + renderer.getSurfaceHeight());
+        releaseBuffers();
+
+        readBuffer = new RenderTarget();
+        readBuffer.allocateFramebuffer(width, height);
+
+        writeBuffer = new RenderTarget();
+        writeBuffer.allocateFramebuffer(width, height);
+
+        bufferWidth = width;
+        bufferHeight = height;
+//        Log.d(TAG, "Initialized buffers with size: " + width + "x" + height);
+    }
+
+    private void releaseBuffers() {
+        if (readBuffer != null) {
+            readBuffer.destroy();
+            readBuffer = null;
+        }
+        if (writeBuffer != null) {
+            writeBuffer.destroy();
+            writeBuffer = null;
         }
     }
 
