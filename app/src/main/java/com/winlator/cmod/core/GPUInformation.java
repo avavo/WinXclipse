@@ -116,11 +116,6 @@ public abstract class GPUInformation {
         }
     }
 
-    /** Relative GPU size classes used by session tuning. */
-    public static final int GPU_TINY = 0;   // 1-2 WGP  (Xclipse 530/540)
-    public static final int GPU_MID = 1;    // ~3 WGP   (Xclipse 920, 550)
-    public static final int GPU_BIG = 2;    // 6-8 WGP  (Xclipse 940/950/960)
-
     /**
      * Unified-memory VRAM ceiling for the detected Xclipse, in MB, following
      * the per-model tuning table: the 1-2 WGP mid-rangers (530/540), the
