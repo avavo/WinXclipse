@@ -112,6 +112,81 @@
                 </LinearLayout>
             </LinearLayout>
 
+            <LinearLayout
+                android:id="@+id/LLFsrContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/video_fsr" />
+
+                    <Spinner
+                        style="@style/ComboBox"
+                        android:layout_width="match_parent"
+                        android:id="@+id/SContainerFsr"
+                        android:focusable="true"
+                        android:focusableInTouchMode="true"
+                        android:clickable="true"
+                        android:spinnerMode="dialog" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/LLContainerFsrUpscale"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:layout_marginLeft="8dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/video_fsr_upscale" />
+
+                    <Spinner
+                        style="@style/ComboBox"
+                        android:layout_width="match_parent"
+                        android:id="@+id/SContainerFsrUpscale"
+                        android:focusable="true"
+                        android:focusableInTouchMode="true"
+                        android:clickable="true"
+                        android:spinnerMode="dialog" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/LLContainerFsrMode"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:layout_marginLeft="8dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/video_fsr_mode" />
+
+                    <Spinner
+                        style="@style/ComboBox"
+                        android:layout_width="match_parent"
+                        android:id="@+id/SContainerFsrMode"
+                        android:focusable="true"
+                        android:focusableInTouchMode="true"
+                        android:clickable="true"
+                        android:spinnerMode="dialog" />
+                </LinearLayout>
+            </LinearLayout>
+
+
 
             <LinearLayout
                 android:id="@+id/LLWineVersion"

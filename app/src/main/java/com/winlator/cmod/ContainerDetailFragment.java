@@ -369,8 +369,58 @@ public class ContainerDetailFragment extends Fragment {
 
         loadScreenSizeSpinner(view, isEditMode() ? container.getScreenSize() : Container.DEFAULT_SCREEN_SIZE);
 
+        final Spinner sContainerFsr = view.findViewById(R.id.SContainerFsr);
+        final Spinner sContainerFsrUpscale = view.findViewById(R.id.SContainerFsrUpscale);
+        final Spinner sContainerFsrMode = view.findViewById(R.id.SContainerFsrMode);
+        final View llContainerFsrUpscale = view.findViewById(R.id.LLContainerFsrUpscale);
+        final View llContainerFsrMode = view.findViewById(R.id.LLContainerFsrMode);
+        sContainerFsr.setAdapter(new ThemedSpinnerAdapter<>(context, Arrays.asList("Off", "On")));
+        sContainerFsrUpscale.setAdapter(new ThemedSpinnerAdapter<>(context, Arrays.asList("Off", "On")));
+        sContainerFsrMode.setAdapter(new ThemedSpinnerAdapter<>(context, Arrays.asList(
+                "Quality (1.5x)", "Balanced (1.7x)", "Performance (2.0x)")));
+        String containerFsr = "off";
+        String containerFsrUpscale = "0";
+        String containerFsrQuality = "balanced";
+        if (containerFsr.equals("quality") || containerFsr.equals("balanced")
+                || containerFsr.equals("performance")) {
+            containerFsrQuality = containerFsr;
+            containerFsrUpscale = "1";
+            containerFsr = "on";
+        }
+        AppUtils.setSpinnerSelectionFromValue(sContainerFsr, containerFsr.equals("on") ? "On" : "Off");
+        AppUtils.setSpinnerSelectionFromValue(sContainerFsrUpscale, containerFsrUpscale.equals("1") ? "On" : "Off");
+        AppUtils.setSpinnerSelectionFromValue(sContainerFsrMode, containerFsrQuality.equals("quality")
+                ? "Quality (1.5x)" : containerFsrQuality.equals("performance")
+                ? "Performance (2.0x)" : "Balanced (1.7x)");
+        Runnable updateFsrVisibility = () -> {
+            boolean fsrOn = "On".equals(sContainerFsr.getSelectedItem());
+            boolean upscaleOn = fsrOn && "On".equals(sContainerFsrUpscale.getSelectedItem());
+            llContainerFsrUpscale.setVisibility(fsrOn ? View.VISIBLE : View.GONE);
+            llContainerFsrMode.setVisibility(upscaleOn ? View.VISIBLE : View.GONE);
+        };
+        updateFsrVisibility.run();
+        sContainerFsr.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                updateFsrVisibility.run();
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+            }
+        });
+        sContainerFsrUpscale.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                updateFsrVisibility.run();
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+            }
+        });
+
         final Spinner sGraphicsDriver = view.findViewById(R.id.SGraphicsDriver);
-        
         final Spinner sDXWrapper = view.findViewById(R.id.SDXWrapper);
         final Spinner sDDrawrapper = view.findViewById(R.id.SDDrawrapper);
 
@@ -379,6 +429,27 @@ public class ContainerDetailFragment extends Fragment {
 
         final View vGraphicsDriverConfig = view.findViewById(R.id.BTGraphicsDriverConfig);
         vGraphicsDriverConfig.setTag(isEditMode() ? container.getGraphicsDriverConfig() : Container.DEFAULT_GRAPHICSDRIVERCONFIG);
+
+        // Load saved FSR state (Display section) from the driver config tag.
+        {
+            HashMap<String, String> fsrConfig = GraphicsDriverConfigDialog.parseGraphicsDriverConfig(
+                    String.valueOf(vGraphicsDriverConfig.getTag()));
+            containerFsr = fsrConfig.getOrDefault("fsrMode", "off");
+            containerFsrUpscale = fsrConfig.getOrDefault("fsrUpscale", "0");
+            containerFsrQuality = fsrConfig.getOrDefault("fsrQuality", "balanced");
+            if (containerFsr.equals("quality") || containerFsr.equals("balanced")
+                    || containerFsr.equals("performance")) {
+                containerFsrQuality = containerFsr;
+                containerFsrUpscale = "1";
+                containerFsr = "on";
+            }
+            AppUtils.setSpinnerSelectionFromValue(sContainerFsr, containerFsr.equals("on") ? "On" : "Off");
+            AppUtils.setSpinnerSelectionFromValue(sContainerFsrUpscale, containerFsrUpscale.equals("1") ? "On" : "Off");
+            AppUtils.setSpinnerSelectionFromValue(sContainerFsrMode, containerFsrQuality.equals("quality")
+                    ? "Quality (1.5x)" : containerFsrQuality.equals("performance")
+                    ? "Performance (2.0x)" : "Balanced (1.7x)");
+            updateFsrVisibility.run();
+        }
         final int[] rendererFilterMode = {0};
         try {
             rendererFilterMode[0] = Integer.parseInt(isEditMode()
@@ -702,6 +773,17 @@ public class ContainerDetailFragment extends Fragment {
                 String envVars = envVarsView.getEnvVars();
                 String graphicsDriver = StringUtils.parseIdentifier(sGraphicsDriver.getSelectedItem());
                 String graphicsDriverConfig = vGraphicsDriverConfig.getTag().toString();
+                // Persist the Display-section FSR spinners into the driver config.
+                {
+                    HashMap<String, String> fsrConfigConfirm = GraphicsDriverConfigDialog.parseGraphicsDriverConfig(graphicsDriverConfig);
+                    fsrConfigConfirm.put("fsrMode", "On".equals(sContainerFsr.getSelectedItem()) ? "on" : "off");
+                    fsrConfigConfirm.put("fsrUpscale", "On".equals(sContainerFsrUpscale.getSelectedItem()) ? "1" : "0");
+                    String fsrQualitySelected = String.valueOf(sContainerFsrMode.getSelectedItem());
+                    fsrConfigConfirm.put("fsrQuality", fsrQualitySelected.startsWith("Quality") ? "quality"
+                            : fsrQualitySelected.startsWith("Performance") ? "performance" : "balanced");
+                    graphicsDriverConfig = GraphicsDriverConfigDialog.toGraphicsDriverConfig(fsrConfigConfirm);
+                    vGraphicsDriverConfig.setTag(graphicsDriverConfig);
+                }
                 String dxwrapper = getDXWrapperIdentifier(sDXWrapper.getSelectedItem());
                 String dxwrapperConfig = vDXWrapperConfig.getTag().toString();
                 String ddrawrapper = DXVKConfigDialog.parseConfig(dxwrapperConfig).get("ddrawrapper");

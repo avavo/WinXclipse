@@ -2073,14 +2073,25 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 : graphicsDriverConfig.getOrDefault("fsrQuality", "balanced");
         if (fsrOn && fsrUpscale) {
             // Full FSR1 pipeline: composite at reduced resolution, EASU upscale, RCAS.
-            renderer.getEffectComposer().setSceneUpscale(true);
+            // The mode directly sets the internal resolution factor so the effect
+            // is visible regardless of the container screen size.
+            float factor = "performance".equals(fsrQuality) ? 2.0f
+                    : "quality".equals(fsrQuality) ? 1.5f : 1.7f;
+            renderer.getEffectComposer().setSceneScale(factor);
             renderer.getEffectComposer().addEffect(new FSREasuEffect());
             float stops = "performance".equals(fsrQuality) ? 0.7f
                     : "quality".equals(fsrQuality) ? 1.5f : 1.0f;
             renderer.getEffectComposer().addEffect(new FSREffect(stops));
+            Log.i("FSRDebug", "FSR1 upscale active: quality=" + fsrQuality
+                    + " factor=" + factor + " stops=" + stops);
         } else if (fsrOn) {
             // Sharpening only (RCAS at native resolution).
             renderer.getEffectComposer().addEffect(new FSREffect(1.0f));
+            Log.i("FSRDebug", "FSR1 sharpening only (no upscale)");
+        } else {
+            Log.i("FSRDebug", "FSR off: fsrRaw=" + fsrRaw
+                    + " fsrUpscale=" + graphicsDriverConfig.getOrDefault("fsrUpscale", "0")
+                    + " textureFilterMode=" + textureFilterMode);
         }
 
         if (shortcut != null) {

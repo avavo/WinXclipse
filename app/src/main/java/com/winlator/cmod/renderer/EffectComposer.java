@@ -25,7 +25,8 @@ public class EffectComposer {
     private int bufferHeight;
     private int sceneBufferWidth;
     private int sceneBufferHeight;
-    private boolean sceneUpscale;
+    /** Upscale factor for the FSR scene buffer (1.5/1.7/2.0); <= 1 disables. */
+    private volatile float sceneScale = 0.0f;
     private final GLRenderer renderer;
 
     // Constructor
@@ -36,15 +37,16 @@ public class EffectComposer {
 
     /**
      * Enables FSR1-style upscaling: the X server content is composited into a
-     * reduced scene buffer and the first effect (FSREasuEffect) upscales it to
-     * the display, where RCAS then runs. Must be called before effects are added.
+     * scene buffer at display/factor resolution and the first effect
+     * (FSREasuEffect) upscales it to the display, where RCAS then runs.
+     * Must be called before effects are added. A factor <= 1 disables it.
      */
-    public synchronized void setSceneUpscale(boolean enabled) {
-        this.sceneUpscale = enabled;
+    public synchronized void setSceneScale(float factor) {
+        this.sceneScale = factor > 1.0001f ? factor : 0.0f;
     }
 
     public synchronized boolean isSceneUpscale() {
-        return sceneUpscale;
+        return sceneScale > 0.0f;
     }
 
     // Initializes the buffers if they are not already initialized,
@@ -77,27 +79,19 @@ public class EffectComposer {
 
     /**
      * Allocates the reduced scene buffer for FSR upscaling. The scene buffer
-     * holds the X server content at (at most) the X screen resolution, so the
-     * EASU pass receives true low-resolution input instead of an already
-     * bilinear-stretched image.
+     * is display/factor, so the chosen mode (1.5x/1.7x/2.0x) directly sets
+     * the internal rendering resolution and the EASU pass receives true
+     * low-resolution input instead of an already bilinear-stretched image.
      */
     private void initSceneBuffer(int surfaceWidth, int surfaceHeight) {
-        if (!sceneUpscale) {
+        float factor = sceneScale;
+        if (factor <= 1.0001f) {
             releaseSceneBuffer();
             return;
         }
 
-        int screenW = renderer.getXScreenWidth();
-        int screenH = renderer.getXScreenHeight();
-        if (screenW <= 0 || screenH <= 0) {
-            releaseSceneBuffer();
-            return;
-        }
-
-        float scale = Math.min(1.0f, Math.min(
-                (float) surfaceWidth / screenW, (float) surfaceHeight / screenH));
-        int sceneW = Math.max(1, Math.round(screenW * scale));
-        int sceneH = Math.max(1, Math.round(screenH * scale));
+        int sceneW = Math.max(1, Math.round(surfaceWidth / factor));
+        int sceneH = Math.max(1, Math.round(surfaceHeight / factor));
 
         if (sceneBuffer != null && sceneBufferWidth == sceneW && sceneBufferHeight == sceneH) {
             return;
@@ -108,6 +102,8 @@ public class EffectComposer {
         sceneBuffer.allocateFramebuffer(sceneW, sceneH);
         sceneBufferWidth = sceneW;
         sceneBufferHeight = sceneH;
+        Log.i(TAG, "FSR scene buffer: " + sceneW + "x" + sceneH
+                + " (factor " + factor + ", display " + surfaceWidth + "x" + surfaceHeight + ")");
     }
 
     private void releaseSceneBuffer() {
@@ -189,7 +185,7 @@ public class EffectComposer {
 
         initBuffers();
 
-        boolean useScene = sceneUpscale && sceneBuffer != null;
+        boolean useScene = sceneScale > 0.0f && sceneBuffer != null;
 
         // Set up framebuffer if there are effects to render
         if (hasEffects()) {
