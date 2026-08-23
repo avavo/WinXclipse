@@ -22,8 +22,8 @@ public class ALSAClient {
     private int frameBytes;
     private ByteBuffer sharedBuffer;
     private boolean playing = false;
-    private long streamPtr = 0;
-    private long mirrorStreamPtr = 0;
+    private volatile long streamPtr = 0;
+    private volatile long mirrorStreamPtr = 0;
 
     private boolean reflectorMode;
 
@@ -163,43 +163,49 @@ public class ALSAClient {
         }
 
         // --- REFLECTOR MODE LOGIC ---
-        // The pacer (streamPtr) is safe. We only need to rebuild the hardware stream (mirrorStreamPtr).
-        if (mirrorStreamPtr != 0) {
-            System.out.println("Tearing down old playback stream...");
-            stop(mirrorStreamPtr);
-            close(mirrorStreamPtr);
-            mirrorStreamPtr = 0;
-        }
-
-        final int MAX_RETRIES = 5;
-        final int RETRY_DELAY_MS = 200;
-
-        for (int i = 0; i < MAX_RETRIES; i++) {
-            System.out.println("Attempting to rebuild playback stream (Attempt " + (i + 1) + ")");
-            long newStreamPtr = create(dataType.ordinal(), channelCount, sampleRate, bufferSize);
-
-            if (newStreamPtr > 0) {
-                if (playing) {
-                    int result = start(newStreamPtr);
-                    if (result == 0) { // AAUDIO_OK
-                        mirrorStreamPtr = newStreamPtr;
-                        System.out.println("Successfully resumed playback on new stream.");
-                        return;
-                    } else {
-                        System.out.println("Failed to start new stream, result code: " + result + ". Retrying...");
-                        close(newStreamPtr);
-                    }
-                } else {
-                    mirrorStreamPtr = newStreamPtr;
-                    System.out.println("Successfully created new stream while paused.");
-                    return;
-                }
+        // The pacer (streamPtr) is safe. We only need to rebuild the hardware stream
+        // (mirrorStreamPtr). The retry loop sleeps up to ~1 s and this method runs on
+        // the main-thread AudioDeviceCallback, so the rebuild happens on a worker.
+        Thread rebuildThread = new Thread(() -> {
+            if (mirrorStreamPtr != 0) {
+                System.out.println("Tearing down old playback stream...");
+                stop(mirrorStreamPtr);
+                close(mirrorStreamPtr);
+                mirrorStreamPtr = 0;
             }
-            try {
-                Thread.sleep(RETRY_DELAY_MS);
-            } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
-        }
-        System.out.println("Failed to rebuild playback stream after " + MAX_RETRIES + " attempts.");
+
+            final int MAX_RETRIES = 5;
+            final int RETRY_DELAY_MS = 200;
+
+            for (int i = 0; i < MAX_RETRIES; i++) {
+                System.out.println("Attempting to rebuild playback stream (Attempt " + (i + 1) + ")");
+                long newStreamPtr = create(dataType.ordinal(), channelCount, sampleRate, bufferSize);
+
+                if (newStreamPtr > 0) {
+                    if (playing) {
+                        int result = start(newStreamPtr);
+                        if (result == 0) { // AAUDIO_OK
+                            mirrorStreamPtr = newStreamPtr;
+                            System.out.println("Successfully resumed playback on new stream.");
+                            return;
+                        } else {
+                            System.out.println("Failed to start new stream, result code: " + result + ". Retrying...");
+                            close(newStreamPtr);
+                        }
+                    } else {
+                        mirrorStreamPtr = newStreamPtr;
+                        System.out.println("Successfully created new stream while paused.");
+                        return;
+                    }
+                }
+                try {
+                    Thread.sleep(RETRY_DELAY_MS);
+                } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
+            }
+            System.out.println("Failed to rebuild playback stream after " + MAX_RETRIES + " attempts.");
+        }, "ALSADeviceRebuild");
+        rebuildThread.setDaemon(true);
+        rebuildThread.start();
     }
 
     public int pointer() {

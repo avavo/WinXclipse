@@ -116,6 +116,19 @@ public abstract class GPUInformation {
         }
     }
 
+    /**
+     * Default BCn compute-emulation backend for the detected GPU generation,
+     * used only when the user never picked one explicitly. The RDNA ISA docs
+     * define the VOPD dual-issue VALU encoding from RDNA3 onwards (wave32),
+     * which roughly doubles per-SIMD ALU throughput for independent ops like
+     * the BCn transcode kernels; RDNA2 has no dual-issue and the Xclipse
+     * 530/540 also expose very few WGPs, so there the lighter software path
+     * is preferred by default.
+     */
+    public static String defaultBcnEmulationType() {
+        return getRDNAVersion() == 2 ? "software" : "compute";
+    }
+
     public native static String getVersion();
     public native static String getRenderer();
     public native static long getMemorySize();

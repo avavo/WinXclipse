@@ -137,6 +137,7 @@ Follow-up Fixes
 - Code review of the pre-0.9 rounds removed dead leftovers: the never-invoked Proton 9 ARM64EC symlink bridge (it pointed to a hardcoded external Wine contents path that no longer matches any flow), an always-true conditional around the evshim shared-memory id, and release builds no longer compile with verbose process debugging on.
 - Deeper review of the 0.8.x rounds hardened unreadable-file handling everywhere: missing bundled JSON assets or local files (driver meta.json, content profiles) now surface as handled parse errors instead of NullPointerExceptions when opening dialogs, listing contents, or syncing drivers.
 - Downloads started from the Contents screen no longer crash when that screen is closed before the transfer finishes.
+- Per the AMD RDNA ISA manuals (VOPD dual-issue VALU exists only from RDNA3 onwards; RDNA2 executes wave64 as two wave32 passes and has no dual issue), the BCn emulation backend defaults by GPU generation when unset: software on RDNA2 Xclipse models (530/540/920) and compute on RDNA3/RDNA4 (550/940/950/960). Explicit selections always take precedence.
 
 Credits
 

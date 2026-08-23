@@ -2931,7 +2931,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         if (experimentalBCN) {
             String bcnEmulation = graphicsDriverConfig.getOrDefault("bcnEmulation", "auto");
             boolean computeEmulation = !"software".equalsIgnoreCase(
-                    graphicsDriverConfig.getOrDefault("bcnEmulationType", "compute"));
+                    graphicsDriverConfig.getOrDefault("bcnEmulationType",
+                            GPUInformation.defaultBcnEmulationType()));
             String bcnEmulationCache = graphicsDriverConfig.getOrDefault("bcnEmulationCache", "1");
             boolean astcTranscode = "1".equals(graphicsDriverConfig.getOrDefault("astcTranscode", "0"));
             boolean etc2Transcode = "1".equals(graphicsDriverConfig.getOrDefault("etc2Transcode", "0"));

@@ -45,7 +45,7 @@ VkInstance create_instance() {
 std::vector<VkPhysicalDevice> get_physical_devices(VkInstance instance) {
     VkResult result = VK_ERROR_UNKNOWN;
     std::vector<VkPhysicalDevice> physical_devices;
-    uint32_t deviceCount;
+    uint32_t deviceCount = 0;
 
     PFN_vkEnumeratePhysicalDevices enumeratePhysicalDevices = (PFN_vkEnumeratePhysicalDevices)gip(instance, "vkEnumeratePhysicalDevices");
 
@@ -78,6 +78,7 @@ Java_com_winlator_cmod_core_GPUInformation_getVersion(JNIEnv *env, jclass obj) {
         uint32_t vk_driver_major = VK_VERSION_MAJOR(props.driverVersion);
         uint32_t vk_driver_minor = VK_VERSION_MINOR(props.driverVersion);
         uint32_t vk_driver_patch = VK_VERSION_PATCH(props.driverVersion);
+        free(driverVersion);
         asprintf(&driverVersion, "%d.%d.%d", vk_driver_major, vk_driver_minor,
                  vk_driver_patch);
     }
@@ -102,6 +103,7 @@ Java_com_winlator_cmod_core_GPUInformation_getRenderer(JNIEnv *env, jclass obj) 
 
     for (const auto &pdevice: get_physical_devices(instance)) {
         getPhysicalDeviceProperties(pdevice, &props);
+        free(renderer);
         asprintf(&renderer, "%s", props.deviceName);
     }
 

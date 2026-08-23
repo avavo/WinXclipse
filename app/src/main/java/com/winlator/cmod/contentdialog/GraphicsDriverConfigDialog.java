@@ -181,7 +181,8 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
         AppUtils.setSpinnerSelectionFromValue(bcnEmulationSpinner,
                 config.getOrDefault("bcnEmulation", "auto"));
         AppUtils.setSpinnerSelectionFromValue(bcnTypeSpinner,
-                config.getOrDefault("bcnEmulationType", "compute"));
+                config.getOrDefault("bcnEmulationType",
+                        GPUInformation.defaultBcnEmulationType()));
         AppUtils.setSpinnerSelectionFromValue(bcnCacheSpinner,
                 config.getOrDefault("bcnEmulationCache", experimentalBcn ? "1" : "0"));
         astcTranscodeCheckBox.setChecked("1".equals(config.getOrDefault("astcTranscode", "0")));

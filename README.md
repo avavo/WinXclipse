@@ -103,6 +103,7 @@ Version 0.9 focuses on the video and audio configuration tabs, shortcut artwork,
 - The evshim shim resolved `/proc/self/fd/N` via procfs on **every** `read()`/`ioctl()` inside guest processes; the verdict is cached per fd and invalidated on close/open.
 - ALSA pacer thread no longer requests max `SCHED_FIFO`, EGL display is resolved once across all `EGLImage` create/destroy calls, JNI method lookups run only once.
 - Experimental Performance reports a unified-memory-aware VRAM cap when Max Device Memory is left unset: 2048 MB on 8 GB-class devices (including any 8 GB Xclipse 940/950), 4092 MB on 12 GB-class and above — the real device memory is queried at launch, so games cannot over-commit shared RAM until Android kills Wine.
+- Grounded in AMD's RDNA ISA reference manuals: the BCn emulation backend now defaults per GPU generation when nothing was configured explicitly — **software** on RDNA2 (Xclipse 530/540/920: native wave32 with no dual-issue VALU, and very few WGPs on the 530/540, so compute transcodes steal rendering ALU) and **compute** on RDNA3/RDNA4 (550/940/950/960: the VOPD dual-issue encoding executes two independent VALU ops per cycle in wave32, roughly doubling transcode throughput). Explicit choices always win over these defaults.
 
 #### ARM64EC / FEXCore game compatibility (PES 2018 round)
 
