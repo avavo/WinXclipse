@@ -412,6 +412,8 @@ public class SettingsFragment extends Fragment {
         final CheckBox cbOpenInBrowser = view.findViewById(R.id.CBOpenWithAndroidBrowser);
         cbOpenInBrowser.setChecked(preferences.getBoolean("open_with_android_browser", false));
 
+        final CheckBox cbLockLandscape = view.findViewById(R.id.CBLockLandscape);
+        cbLockLandscape.setChecked(preferences.getBoolean("lock_landscape", true));
         final CheckBox cbShareClipboard = view.findViewById(R.id.CBShareAndroidClipboard);
         cbShareClipboard.setChecked(preferences.getBoolean("share_android_clipboard", false));
 
@@ -464,6 +466,7 @@ public class SettingsFragment extends Fragment {
             editor.putBoolean("touchscreen_toggle", cbXTouchscreenToggle.isChecked()); // Save touchscreen toggle state
             editor.putBoolean("enable_file_provider", cbEnableFileProvider.isChecked());
             editor.putBoolean("open_with_android_browser", cbOpenInBrowser.isChecked());
+            editor.putBoolean("lock_landscape", cbLockLandscape.isChecked());
             editor.putBoolean("share_android_clipboard", cbShareClipboard.isChecked());
             editor.putBoolean("enable_peb_logs", CBEnablePebLogs.isChecked());
 

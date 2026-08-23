@@ -99,6 +99,8 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         isDarkMode = AppUtils.isDarkMode(this);
         setTheme(isDarkMode ? R.style.AppTheme_Dark : R.style.AppTheme);
         super.onCreate(savedInstanceState);
+        if (PreferenceManager.getDefaultSharedPreferences(this).getBoolean("lock_landscape", true))
+            setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
 
         // Initialize the controller management system
         ControllerManager.getInstance().init(getApplicationContext());

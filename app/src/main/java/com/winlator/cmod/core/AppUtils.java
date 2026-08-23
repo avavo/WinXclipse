@@ -48,7 +48,7 @@ public abstract class AppUtils {
 
     public static boolean isDarkMode(Context context) {
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
-        if (preferences.getBoolean(PREF_FOLLOW_SYSTEM_THEME, false)) {
+        if (preferences.getBoolean(PREF_FOLLOW_SYSTEM_THEME, true)) {
             int nightMode = context.getResources().getConfiguration().uiMode
                     & Configuration.UI_MODE_NIGHT_MASK;
             boolean darkMode = nightMode == Configuration.UI_MODE_NIGHT_YES;

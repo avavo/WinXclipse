@@ -625,7 +625,14 @@
                             android:layout_gravity="left|center"
                             android:text="@string/open_with_android_browser" />
 
-                        <CheckBox
+                                            <CheckBox
+                        android:id="@+id/CBLockLandscape"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="left|center"
+                        android:checked="true"
+                        android:text="@string/lock_landscape" />
+<CheckBox
                             android:id="@+id/CBShareAndroidClipboard"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"

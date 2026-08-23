@@ -645,7 +645,8 @@ public class ContainerDetailFragment extends Fragment {
                     @Override
                     public void apply(String gpuName, String presentMode,
                                       int textureFilterMode, boolean swapRedBlue,
-                                      boolean vsyncOff, boolean unlimitedImages) {
+                                      String fsrMode, boolean vsyncOff,
+                                      boolean unlimitedImages) {
                         HashMap<String, String> config = GraphicsDriverConfigDialog
                                 .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()));
                         config.put("gpuName", gpuName);
