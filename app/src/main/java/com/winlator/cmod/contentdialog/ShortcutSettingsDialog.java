@@ -35,6 +35,7 @@ import com.winlator.cmod.container.Shortcut;
 import com.winlator.cmod.contents.ContentProfile;
 import com.winlator.cmod.contents.ContentsManager;
 import com.winlator.cmod.core.AppUtils;
+import com.winlator.cmod.contentdialog.ExperimentalPerformanceDialog;
 import com.winlator.cmod.core.DefaultVersion;
 import com.winlator.cmod.core.EnvVars;
 import com.winlator.cmod.core.KeyValueSet;
@@ -424,12 +425,23 @@ public class ShortcutSettingsDialog extends ContentDialog {
         cbExperimentalPerformance.setChecked("1".equals(shortcut.getExtra(
                 "experimentalPerformance", containerExperimentalPerformance ? "1" : "0")));
 
+        final String containerXPerfConfig = shortcut.container.getExtra("xperfConfig", "");
+        final String[] pendingXPerfConfig = { shortcut.getExtra("xperfConfig", containerXPerfConfig) };
+
         final CheckBox cbExperimentalBCN = findViewById(R.id.CBExperimentalBCN);
         final boolean containerExperimentalBCN = "1".equals(
                 shortcut.container.getExtra("experimentalBCN", "0"));
         cbExperimentalBCN.setChecked("1".equals(shortcut.getExtra(
                 "experimentalBCN", containerExperimentalBCN ? "1" : "0")));
 
+        findViewById(R.id.BTExperimentalPerformanceConfig).setOnClickListener(v -> {
+            if (!cbExperimentalPerformance.isChecked()) {
+                AppUtils.showToast(context, R.string.xperf_need_master);
+                return;
+            }
+            new ExperimentalPerformanceDialog(context, pendingXPerfConfig[0],
+                    cfg -> pendingXPerfConfig[0] = cfg == null ? "" : cfg).show();
+        });
         findViewById(R.id.BTExperimentalPerformanceHelp).setOnClickListener(v ->
                 AppUtils.showHelpBox(context, v, R.string.experimental_performance_description));
         findViewById(R.id.BTExperimentalBCNHelp).setOnClickListener(v ->
@@ -575,6 +587,8 @@ public class ShortcutSettingsDialog extends ContentDialog {
                 shortcut.putExtra("experimentalPerformance",
                         experimentalPerformance == containerExperimentalPerformance
                                 ? null : (experimentalPerformance ? "1" : "0"));
+                String savedXPerf = pendingXPerfConfig[0] == null ? "" : pendingXPerfConfig[0];
+                shortcut.putExtra("xperfConfig", savedXPerf.equals(containerXPerfConfig) ? null : savedXPerf);
 
                 boolean experimentalBCN = cbExperimentalBCN.isChecked();
                 shortcut.putExtra("experimentalBCN",

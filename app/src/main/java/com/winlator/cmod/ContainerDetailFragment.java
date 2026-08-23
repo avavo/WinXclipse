@@ -43,6 +43,7 @@ import com.winlator.cmod.contentdialog.AddEnvVarDialog;
 import com.winlator.cmod.contentdialog.AudioConfigDialog;
 import com.winlator.cmod.contentdialog.ContentDialog;
 import com.winlator.cmod.contentdialog.DXVKConfigDialog;
+import com.winlator.cmod.contentdialog.ExperimentalPerformanceDialog;
 import com.winlator.cmod.contentdialog.GraphicsDriverConfigDialog;
 import com.winlator.cmod.contentdialog.ShortcutSettingsDialog;
 import com.winlator.cmod.contentdialog.VideoConfigDialog;
@@ -97,6 +98,7 @@ public class ContainerDetailFragment extends Fragment {
     private static Container container;
     private PreloaderDialog preloaderDialog;
     private JSONArray gpuCards;
+    private String xperfConfig = "";
     private Callback<String> openDirectoryCallback;
 
     private static boolean isDarkMode;
@@ -508,6 +510,7 @@ public class ContainerDetailFragment extends Fragment {
         final CheckBox cbExperimentalPerformance = view.findViewById(R.id.CBExperimentalPerformance);
         cbExperimentalPerformance.setChecked(isEditMode()
                 && "1".equals(container.getExtra("experimentalPerformance", "0")));
+        xperfConfig = isEditMode() ? container.getExtra("xperfConfig", "") : "";
 
         final CheckBox cbExperimentalBCN = view.findViewById(R.id.CBExperimentalBCN);
         cbExperimentalBCN.setChecked(isEditMode()
@@ -515,6 +518,14 @@ public class ContainerDetailFragment extends Fragment {
 
         view.findViewById(R.id.BTExperimentalPerformanceHelp).setOnClickListener(v ->
                 AppUtils.showHelpBox(context, v, R.string.experimental_performance_description));
+        view.findViewById(R.id.BTExperimentalPerformanceConfig).setOnClickListener(v -> {
+            if (!cbExperimentalPerformance.isChecked()) {
+                AppUtils.showToast(context, R.string.xperf_need_master);
+                return;
+            }
+            new ExperimentalPerformanceDialog(context, xperfConfig,
+                    cfg -> xperfConfig = cfg == null ? "" : cfg).show();
+        });
         view.findViewById(R.id.BTExperimentalBCNHelp).setOnClickListener(v ->
                 AppUtils.showHelpBox(context, v, R.string.experimental_bcn_description));
 
@@ -740,6 +751,8 @@ public class ContainerDetailFragment extends Fragment {
                     container.setControllerMapping(controllerMapping);
                     container.setGstreamerWorkaround(gstreamerWorkaround);
                     container.putExtra("experimentalPerformance", experimentalPerformance ? "1" : null);
+                    container.putExtra("xperfConfig",
+                            experimentalPerformance && !xperfConfig.isEmpty() ? xperfConfig : null);
                     container.putExtra("experimentalBCN", experimentalBCN ? "1" : null);
                     container.putExtra("rendererFilterMode",
                             rendererFilterMode[0] != 0 ? String.valueOf(rendererFilterMode[0]) : null);
@@ -791,6 +804,9 @@ public class ContainerDetailFragment extends Fragment {
                             || audioVolume[0] != 100) {
                         JSONObject extraData = new JSONObject();
                         if (experimentalPerformance) extraData.put("experimentalPerformance", "1");
+                        if (experimentalPerformance && !xperfConfig.isEmpty()) {
+                            extraData.put("xperfConfig", xperfConfig);
+                        }
                         if (experimentalBCN) extraData.put("experimentalBCN", "1");
                         if (rendererFilterMode[0] != 0) {
                             extraData.put("rendererFilterMode", String.valueOf(rendererFilterMode[0]));

@@ -73,6 +73,7 @@ import com.winlator.cmod.container.Shortcut;
 import com.winlator.cmod.contentdialog.ContentDialog;
 import com.winlator.cmod.contentdialog.ControllerAssignmentDialog;
 import com.winlator.cmod.contentdialog.DXVKConfigDialog;
+import com.winlator.cmod.contentdialog.ExperimentalPerformanceDialog;
 import com.winlator.cmod.contentdialog.DebugDialog;
 import com.winlator.cmod.contentdialog.GraphicsDriverConfigDialog;
 import com.winlator.cmod.contentdialog.ScreenEffectDialog;
@@ -203,6 +204,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     private String dxwrapper = Container.DEFAULT_DXWRAPPER;
     private String ddrawrapper = Container.DEFAULT_DDRAWRAPPER;
     private KeyValueSet dxwrapperConfig;
+    private KeyValueSet xperfConfig = new KeyValueSet(ExperimentalPerformanceDialog.DEFAULT_CONFIG);
     private String startupSelection;
     private WineInfo wineInfo;
     private final EnvVars envVars = new EnvVars();
@@ -1805,20 +1807,32 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         if (shortcut != null && shortcut.hasExtra("experimentalPerformance")) {
             experimentalPerformance = "1".equals(shortcut.getExtra("experimentalPerformance"));
         }
+        String xperfRaw = shortcut != null && shortcut.hasExtra("xperfConfig")
+                ? shortcut.getExtra("xperfConfig")
+                : container.getExtra("xperfConfig", "");
+        xperfConfig = ExperimentalPerformanceDialog.parseConfig(xperfRaw);
         if (experimentalPerformance) {
-            // Opt-in and fully reversible runtime defaults.
+            // Opt-in and fully reversible runtime defaults. Each piece is
+            // individually switchable via the Experimental Performance tuning
+            // dialog (container extra "xperfConfig", shortcut-overridable);
+            // keys default to the historical all-on behaviour.
             // WRAPPER_MAX_IMAGE_COUNT is applied here on purpose: it runs after
             // extractGraphicsDriverFiles(), so the opt-in value overrides the
             // present-mode-derived swapchain limit.
-            envVars.put("WRAPPER_MAX_IMAGE_COUNT", "0");
-            envVars.put("DXVK_DISABLE_TIMELINE_SEMAPHORES", "1");
-            envVars.put("VKD3D_SHADER_MODEL", "6_6");
-            envVars.put("vblank_mode", "0");
-            // MdiEx per-SoC policy profile consumed by the guest driver stack.
-            try { envVars.put("MDIEX_PROFILE", MdiExBridge.nativeProfileName()); }
-            catch (Throwable t) { Log.w("GraphicsDriverExtraction", "MdiExBridge unavailable", t); }
-            // LayerCache Helix pipeline/texture caches, Xclipse only.
-            if (GPUInformation.isXclipse()) installPerfCacheLayer(envVars);
+            if ("1".equals(xperfConfig.get("maxImages")))
+                envVars.put("WRAPPER_MAX_IMAGE_COUNT", "0");
+            if ("1".equals(xperfConfig.get("noTimeline")))
+                envVars.put("DXVK_DISABLE_TIMELINE_SEMAPHORES", "1");
+            if ("1".equals(xperfConfig.get("vk3d66")))
+                envVars.put("VKD3D_SHADER_MODEL", "6_6");
+            if ("1".equals(xperfConfig.get("vblank")))
+                envVars.put("vblank_mode", "0");
+            if ("1".equals(xperfConfig.get("mdiex"))) {
+                try { envVars.put("MDIEX_PROFILE", MdiExBridge.nativeProfileName()); }
+                catch (Throwable t) { Log.w("GraphicsDriverExtraction", "MdiExBridge unavailable", t); }
+            }
+            if ("1".equals(xperfConfig.get("perfcache")) && GPUInformation.isXclipse())
+                installPerfCacheLayer(envVars);
         }
 
         // NRAMV unified-memory manager runs in our process for every session;
@@ -2907,8 +2921,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 envVars.put("WRAPPER_VMEM_MAX_SIZE", maxDeviceMemory);
                 envVars.put("UTIL_LAYER_VMEM_MAX_SIZE", maxDeviceMemory);
             }
-            else if (isExperimentalPerformanceActive()) {
-                int vramCap = suggestVramCap();
+            else if (isExperimentalPerformanceActive() && "1".equals(xperfConfig.get("vramCap"))) {
+                String capMode = xperfConfig.get("vramCapMode");
+                int vramCap = "2048".equals(capMode) ? 2048
+                        : "3072".equals(capMode) ? 3072
+                        : "4092".equals(capMode) ? 4092
+                        : suggestVramCap();
                 if (vramCap > 0) {
                     envVars.put("WRAPPER_VMEM_MAX_SIZE", String.valueOf(vramCap));
                     envVars.put("UTIL_LAYER_VMEM_MAX_SIZE", String.valueOf(vramCap));
@@ -3055,20 +3073,21 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         try {
             if (Nramv.nativeInit() != 0) return;
 
-            /* Marketing size is not usable size: an "8 GB" Exynos 2400e may
-             * expose as little as ~6.6 GB while mid-range x80 devices keep
-             * nearly the full amount. Absolute-MB tiering therefore
-             * misclassifies; every known Xclipse model starts at MEDIUM and
-             * relies on live escalation (engine thresholds plus the HUD RAM
-             * alert forcing AGGRESSIVE) to react to real pressure.
-             * Only genuinely small devices drop to LIGHT. */
-            int baseline = Nramv.PROFILE_MEDIUM;
-            ActivityManager activityManager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
-            if (activityManager != null && !GPUInformation.isXclipse()) {
-                ActivityManager.MemoryInfo memoryInfo = new ActivityManager.MemoryInfo();
-                activityManager.getMemoryInfo(memoryInfo);
-                long totalMB = memoryInfo.totalMem / (1024L * 1024L);
-                if (totalMB > 0 && totalMB < 4600) baseline = Nramv.PROFILE_LIGHT;
+            boolean aggro = isExperimentalPerformanceActive()
+                    && "1".equals(xperfConfig.get("nramvAggro"));
+            int baseline;
+            if (aggro) baseline = Nramv.PROFILE_AGGRESSIVE;
+            else {
+                ActivityManager activityManager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+                long totalMB = 0;
+                if (activityManager != null) {
+                    ActivityManager.MemoryInfo memoryInfo = new ActivityManager.MemoryInfo();
+                    activityManager.getMemoryInfo(memoryInfo);
+                    totalMB = memoryInfo.totalMem / (1024L * 1024L);
+                }
+                if (totalMB > 0 && totalMB < 6500) baseline = Nramv.PROFILE_AGGRESSIVE;
+                else if (totalMB > 0 && totalMB < 10240) baseline = Nramv.PROFILE_MEDIUM;
+                else baseline = Nramv.PROFILE_LIGHT;
             }
             Nramv.setBaselineProfile(baseline);
             Nramv.restoreBaseline();

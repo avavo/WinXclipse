@@ -604,6 +604,14 @@
                             android:layout_weight="1"
                             android:text="@string/experimental_performance" />
                         <ImageView
+                            android:id="@+id/BTExperimentalPerformanceConfig"
+                            android:layout_width="26dp"
+                            android:layout_height="26dp"
+                            android:layout_marginEnd="8dp"
+                            android:contentDescription="@string/experimental_performance_config"
+                            android:src="@drawable/icon_settings"
+                            app:tint="?colorAccent" />
+                        <ImageView
                             android:id="@+id/BTExperimentalPerformanceHelp"
                             android:layout_width="26dp"
                             android:layout_height="26dp"

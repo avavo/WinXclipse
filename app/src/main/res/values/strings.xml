@@ -305,6 +305,17 @@
     <string name="experimental">Experimental</string>
     <string name="experimental_performance">Experimental Performance</string>
     <string name="experimental_performance_description">Optional runtime performance tweaks. May improve demanding games, but compatibility can vary.</string>
+    <string name="experimental_performance_config">Tuning</string>
+    <string name="xperf_vblank">Disable vsync wait (vblank_mode=0)</string>
+    <string name="xperf_max_images">Unlimited swapchain images</string>
+    <string name="xperf_no_timeline">DXVK: disable timeline semaphores</string>
+    <string name="xperf_vk3d66">VKD3D: force shader model 6.6</string>
+    <string name="xperf_vram_cap">Auto VRAM cap (unified memory)</string>
+    <string name="xperf_vram_cap_mode">VRAM cap size</string>
+    <string name="xperf_perfcache">LayerCache Helix caches</string>
+    <string name="xperf_mdiex">MdiEx per-SoC policy</string>
+    <string name="xperf_nramv">NRAMV aggressive reclaim</string>
+    <string name="xperf_need_master">Enable Experimental Performance first</string>
     <string name="experimental_bcn">Experimental BCN Support</string>
     <string name="experimental_bcn_description">Loads the WinXclipse 0.8.6 BCN compatibility layer. Disabled by default for maximum driver compatibility.</string>
     <string name="bcn_emulation">BCn Emulation</string>
