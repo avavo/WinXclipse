@@ -11,8 +11,12 @@ import com.winlator.cmod.renderer.material.ShaderMaterial;
  * spec's stop scale: exp2(-stops); this build pins 1.0 stop of reduction.
  */
 public class FSREffect extends Effect {
-    public FSREffect() {
+    /** Sharpness in FSR stops: exp2(-stops). Lower internal resolution
+     * (Performance) pairs with stronger sharpening. */
+    private final float stops;
+    public FSREffect(float stops) {
         super();
+        this.stops = stops;
     }
 
     @Override
@@ -82,7 +86,7 @@ public class FSREffect extends Effect {
                     "    float lobeB=max(-hitMinB,hitMaxB);",
                     "    float lobe=max(-FSR_RCAS_LIMIT,min(max3F1(lobeR,lobeG,lobeB),0.0));",
                     "    // Transform from stops to linear value: exp2(-sharpness), 1 stop.",
-                    "    lobe*=0.5;",
+                    "    lobe*=" + stops + ";",
                     "    // Apply noise removal.",
                     "    lobe*=nz;",
                     "    // Resolve, which needs the medium precision rcp approximation to",

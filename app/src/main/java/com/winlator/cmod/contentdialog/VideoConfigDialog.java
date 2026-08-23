@@ -22,10 +22,12 @@ public class VideoConfigDialog extends ContentDialog {
         String getPresentMode();
         int getTextureFilterMode();
         boolean isSwapRedBlue();
+        String getFsrMode();
         boolean isVsyncOff();
         boolean isUnlimitedImages();
         void apply(String gpuName, String presentMode, int textureFilterMode,
-                   boolean swapRedBlue, boolean vsyncOff, boolean unlimitedImages);
+                   boolean swapRedBlue, String fsrMode,
+                   boolean vsyncOff, boolean unlimitedImages);
     }
 
     public VideoConfigDialog(Context context, Config config) {
@@ -37,12 +39,16 @@ public class VideoConfigDialog extends ContentDialog {
         Spinner presentMode = findViewById(R.id.SVideoPresentMode);
         Spinner textureFilter = findViewById(R.id.SVideoTextureFilter);
         CheckBox swapRedBlue = findViewById(R.id.CBVideoSwapRedBlue);
+        Spinner fsrMode = findViewById(R.id.SVideoFsr);
         CheckBox vsyncOff = findViewById(R.id.CBVideoVsyncOff);
         CheckBox unlimitedImages = findViewById(R.id.CBVideoUnlimitedImages);
 
         gpuName.setAdapter(new ThemedSpinnerAdapter<>(context, loadGpuNames(context)));
         presentMode.setAdapter(new ThemedSpinnerAdapter<>(context,
                 Arrays.asList(context.getResources().getStringArray(R.array.present_mode_entries))));
+        textureFilter.setAdapter(new ThemedSpinnerAdapter<>(context,
+        fsrMode.setAdapter(new ThemedSpinnerAdapter<>(context,
+                Arrays.asList("Off", "Quality (1.5x)", "Balanced (1.7x)", "Performance (2.0x)")));
         textureFilter.setAdapter(new ThemedSpinnerAdapter<>(context,
                 Arrays.asList(context.getString(R.string.bilinear),
                         context.getString(R.string.nearest_neighbor),
@@ -54,13 +60,15 @@ public class VideoConfigDialog extends ContentDialog {
         AppUtils.setSpinnerSelectionFromValue(presentMode, config.getPresentMode());
         textureFilter.setSelection(Math.max(0, Math.min(config.getTextureFilterMode(), 2)));
         swapRedBlue.setChecked(config.isSwapRedBlue());
+        AppUtils.setSpinnerSelectionFromValue(fsrMode, config.getFsrMode());
         vsyncOff.setChecked(config.isVsyncOff());
         unlimitedImages.setChecked(config.isUnlimitedImages());
         applyTheme(context, gpuName, presentMode, textureFilter);
 
         setOnConfirmCallback(() -> config.apply(
                 selectedValue(gpuName), selectedValue(presentMode),
-                textureFilter.getSelectedItemPosition(), swapRedBlue.isChecked(),
+                textureFilter.getSelectedItemPosition(), swapRedBlue,
+                selectedValue(fsrMode).isEmpty() ? "off" : selectedValue(fsrMode),
                 vsyncOff.isChecked(), unlimitedImages.isChecked()));
     }
 

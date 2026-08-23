@@ -305,6 +305,7 @@
     <string name="experimental">Experimental</string>
     <string name="experimental_performance">Experimental Performance</string>
     <string name="experimental_performance_description">Optional runtime performance tweaks. May improve demanding games, but compatibility can vary.</string>
+    <string name="video_fsr">AMD FSR</string>
     <string name="video_vsync_off">Disable vsync wait</string>
     <string name="video_unlimited_images">Unlimited swapchain images</string>
     <string name="dxvk_no_timeline">Disable timeline semaphores</string>

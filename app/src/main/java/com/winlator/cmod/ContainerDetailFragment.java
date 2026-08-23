@@ -623,6 +623,12 @@ public class ContainerDetailFragment extends Fragment {
                     }
 
                     @Override
+                    public String getFsrMode() {
+                        return GraphicsDriverConfigDialog
+                                .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()))
+                                .getOrDefault("fsrMode", "off");
+                    }
+                    @Override
                     public boolean isVsyncOff() {
                         return "1".equals(GraphicsDriverConfigDialog
                                 .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()))
@@ -644,6 +650,7 @@ public class ContainerDetailFragment extends Fragment {
                                 .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()));
                         config.put("gpuName", gpuName);
                         config.put("presentMode", presentMode);
+                        config.put("fsrMode", fsrMode == null ? "off" : fsrMode);
                         config.put("vblankOff", vsyncOff ? "1" : "0");
                         config.put("unlimitedImages", unlimitedImages ? "1" : "0");
                         vGraphicsDriverConfig.setTag(

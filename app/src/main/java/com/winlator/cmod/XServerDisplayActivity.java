@@ -2057,7 +2057,15 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 ? "1".equals(shortcut.getExtra("fakeHDR", container.getExtra("fakeHDR", "0")))
                 : "1".equals(container.getExtra("fakeHDR", "0"));
         if (fakeHdr) renderer.getEffectComposer().addEffect(new HDREffect());
-        if (textureFilterMode == 2) renderer.getEffectComposer().addEffect(new FSREffect());
+        String fsrMode = shortcut != null
+                ? shortcut.getExtra("fsrMode", graphicsDriverConfig.getOrDefault("fsrMode", "off"))
+                : graphicsDriverConfig.getOrDefault("fsrMode", "off");
+        if (textureFilterMode == 2 || !"off".equals(fsrMode)) {
+            float stops = "performance".equals(fsrMode) ? 0.7f
+                    : "balanced".equals(fsrMode) ? 1.0f
+                    : "quality".equals(fsrMode) ? 1.5f : 1.0f;
+            renderer.getEffectComposer().addEffect(new FSREffect(stops));
+        }
 
         if (shortcut != null) {
             if (shortcut.getExtra("forceFullscreen", "0").equals("1")) renderer.setForceFullscreenWMClass(shortcut.wmClass);
