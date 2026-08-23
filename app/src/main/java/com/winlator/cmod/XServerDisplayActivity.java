@@ -87,6 +87,8 @@ import com.winlator.cmod.core.EnvVars;
 import com.winlator.cmod.core.EnvironmentManager;
 import com.winlator.cmod.core.FileUtils;
 import com.winlator.cmod.core.GPUInformation;
+import com.winlator.cmod.core.MdiExBridge;
+import com.winlator.cmod.core.Nramv;
 import com.winlator.cmod.core.KeyValueSet;
 import com.winlator.cmod.core.OnExtractFileListener;
 import com.winlator.cmod.core.PreloaderDialog;
@@ -1047,6 +1049,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             hudDataSource.stop();
             hudDataSource = null;
         }
+        try { Nramv.nativeShutdown(); } catch (Throwable ignored) {}
         super.onDestroy();
     }
 
@@ -1811,7 +1814,16 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             envVars.put("DXVK_DISABLE_TIMELINE_SEMAPHORES", "1");
             envVars.put("VKD3D_SHADER_MODEL", "6_6");
             envVars.put("vblank_mode", "0");
+            // MdiEx per-SoC policy profile consumed by the guest driver stack.
+            try { envVars.put("MDIEX_PROFILE", MdiExBridge.nativeProfileName()); }
+            catch (Throwable t) { Log.w("GraphicsDriverExtraction", "MdiExBridge unavailable", t); }
+            // LayerCache Helix pipeline/texture caches, Xclipse only.
+            if (GPUInformation.isXclipse()) installPerfCacheLayer(envVars);
         }
+
+        // NRAMV unified-memory manager runs in our process for every session;
+        // its aggressiveness follows device RAM and the opt-in performance flag.
+        applyNramvProfile(experimentalPerformance);
 
         // Create our overall XEnvironment with various components
         environment = new XEnvironment(this, imageFs);
@@ -2937,16 +2949,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             boolean astcTranscode = "1".equals(graphicsDriverConfig.getOrDefault("astcTranscode", "0"));
             boolean etc2Transcode = "1".equals(graphicsDriverConfig.getOrDefault("etc2Transcode", "0"));
 
-            if (computeEmulation && !astcTranscode && !etc2Transcode
-                    && GPUInformation.isRDNA2()) {
-                // Every RDNA2 Xclipse decodes ASTC in hardware and none has the
-                // dual-issue VALU that makes compute transcoding cheap, so the
-                // transcode path wins by default on the whole generation.
-                astcTranscode = true;
-                Log.i("GraphicsDriverExtraction",
-                        "Defaulting BCn-to-ASTC transcode on RDNA2 (hardware ASTC decode)");
-            }
-
             // Winlator-Mali mapping: none->0, partial->1, full->2, auto->3.
             String emulateBcn;
             boolean computeLayerActive = false;
@@ -3008,6 +3010,67 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         return experimental;
     }
 
+    /** Vulkan layer manifest for LayerCache Helix; library_path must match
+     * the CMake output name so the loader finds the .so next to it. */
+    private static final String PERF_CACHE_LAYER_JSON =
+            "{\n" +
+            "  \"file_format_version\": \"1.2.0\",\n" +
+            "  \"layer\": {\n" +
+            "    \"name\": \"VK_LAYER_PERFCACHE_HELIX\",\n" +
+            "    \"type\": \"GLOBAL\",\n" +
+            "    \"library_path\": \"libVkLayer_PerfCache.so\",\n" +
+            "    \"api_version\": \"1.3.0\",\n" +
+            "    \"implementation_version\": \"116\",\n" +
+            "    \"description\": \"LayerCache Helix pipeline/texture caches\",\n" +
+            "    \"disable_environment\": { \"PERFCACHE_DISABLE\": \"1\" },\n" +
+            "    \"enable_environment\": { \"ENABLE_PERFCACHE_LAYER\": \"1\" }\n" +
+            "  }\n" +
+            "}\n";
+
+    /** Deploys the LayerCache Helix manifest + library into imagefs and turns
+     * the layer on through its enable_environment key. */
+    private void installPerfCacheLayer(EnvVars envVars) {
+        try {
+            File usrLib = new File(imageFs.getRootDir(), "usr/lib");
+            if (!usrLib.isDirectory()) usrLib.mkdirs();
+            File soSrc = new File(getApplicationInfo().nativeLibraryDir, "libVkLayer_PerfCache.so");
+            if (!soSrc.isFile()) return;
+            File soDst = new File(usrLib, "libVkLayer_PerfCache.so");
+            copyFile(soSrc, soDst);
+            FileUtils.writeString(new File(usrLib, "VkLayer_perfcache.json"), PERF_CACHE_LAYER_JSON);
+            envVars.put("VK_LAYER_PATH", usrLib.getAbsolutePath());
+            envVars.put("ENABLE_PERFCACHE_LAYER", "1");
+            Log.i("GraphicsDriverExtraction", "LayerCache Helix deployed to " + usrLib);
+        }
+        catch (Exception e) {
+            Log.w("GraphicsDriverExtraction", "PerfCache layer deployment failed", e);
+        }
+    }
+
+    /** Starts the NRAMV memory manager and selects its aggressiveness from the
+     * device RAM: LIGHT below 8 GB, MEDIUM on 8 GB-class, AGGRESSIVE only on
+     * 12 GB-class devices with Experimental Performance enabled. */
+    private void applyNramvProfile(boolean experimentalPerformance) {
+        try {
+            if (Nramv.nativeInit() != 0) return;
+
+            int profile = Nramv.PROFILE_MEDIUM;
+            ActivityManager activityManager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+            if (activityManager != null) {
+                ActivityManager.MemoryInfo memoryInfo = new ActivityManager.MemoryInfo();
+                activityManager.getMemoryInfo(memoryInfo);
+                long totalGB = memoryInfo.totalMem / (1024L * 1024L * 1024L);
+                if (totalGB > 0 && totalGB < 8) profile = Nramv.PROFILE_LIGHT;
+                else if (totalGB >= 12 && experimentalPerformance) profile = Nramv.PROFILE_AGGRESSIVE;
+            }
+            Nramv.nativeApplyProfile(profile);
+            Log.i("GraphicsDriverExtraction", "NRAMV profile=" + profile + " version=" + Nramv.nativeVersion());
+        }
+        catch (Throwable t) {
+            Log.w("GraphicsDriverExtraction", "NRAMV unavailable", t);
+        }
+    }
+
     /**
      * RAM and VRAM are the same LPDDR pool on Exynos, so reporting the whole
      * device memory as VRAM invites games to over-commit and triggers OOM
@@ -3015,8 +3078,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
      * device memory is queried: 8 GB-class devices get a conservative 2048 MB
      * cap, 12 GB-class (and above) keep the 4092 MB ceiling. Fixed-tier SoCs
      * back this up when the kernel report is unavailable.
-     */
-    private int suggestVramCap() {
+     */    private int suggestVramCap() {
         ActivityManager activityManager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
         long totalMB = 0;
         if (activityManager != null) {

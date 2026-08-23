@@ -122,36 +122,21 @@ public abstract class GPUInformation {
     public static final int GPU_BIG = 2;    // 6-8 WGP  (Xclipse 940/950/960)
 
     /**
-     * Size class of the detected Xclipse, from public die information:
-     * 530=1 WGP, 540=2 WGP, 920~3 WGP (384 SP), 940=6 WGP, 950/960=8 WGP.
-     * Unknown models map to MID.
+     * Unified-memory VRAM ceiling for the detected Xclipse, in MB, following
+     * the per-model tuning table: the 1-2 WGP mid-rangers (530/540), the
+     * ~3 WGP 920 and the RDNA3 550 stay at 2048 MB regardless of device RAM;
+     * the flagship 940/950 ship with varying RAM so they follow the RAM-based
+     * split (2048 MB on 8 GB-class, 4092 MB on 12 GB-class); the 8 WGP 960
+     * always gets the full 4092 MB. Returns 0 when no model override exists.
      */
-    public static int getGpuTier() {
+    public static int getModelVramCapMB() {
         switch (getXclipseModel()) {
             case 530:
             case 540:
-                return GPU_TINY;
-            case 940:
-            case 950:
-            case 960:
-                return GPU_BIG;
-            default:
-                return GPU_MID;
-        }
-    }
-
-    /**
-     * Unified-memory VRAM ceiling for the detected GPU, in MB. A tiny GPU can
-     * never consume what the RAM-based formula would grant, and granting a
-     * big GPU less than its share wastes it. Returns 0 when unknown.
-     */
-    public static int getModelVramCapMB() {
-        switch (getGpuTier()) {
-            case GPU_TINY:
+            case 550:
+            case 920:
                 return 2048;
-            case GPU_MID:
-                return 3072;
-            case GPU_BIG:
+            case 960:
                 return 4092;
             default:
                 return 0;
@@ -159,16 +144,24 @@ public abstract class GPUInformation {
     }
 
     /**
-     * Default BCn compute-emulation backend for the detected GPU generation,
-     * used only when the user never picked one explicitly. The RDNA ISA docs
-     * define the VOPD dual-issue VALU encoding from RDNA3 onwards (wave32),
-     * which roughly doubles per-SIMD ALU throughput for independent ops like
-     * the BCn transcode kernels; RDNA2 has no dual-issue and the Xclipse
-     * 530/540 also expose very few WGPs, so there the lighter software path
-     * is preferred by default.
+     * Whether the detected SoC has dedicated LITTLE efficiency cores. All
+     * supported Exynos models do except the Exynos 2600, whose deca-core
+     * layout is one prime plus nine performance mid-cores; excluding its
+     * "slowest" cluster from emulation pinning would only waste throughput.
+     */
+    public static boolean hasLittleCores() {
+        return getXclipseModel() != 960;
+    }
+
+    /**
+     * Default BCn backend for every detected model: the compute path wins on
+     * the whole Xclipse family (the wrapper transcode kernels stay cheap even
+     * on the small WGPs, and hardware ASTC decode remains selectable
+     * separately). Kept as a method so generation-specific exceptions can be
+     * reintroduced in one place if ever needed.
      */
     public static String defaultBcnEmulationType() {
-        return getRDNAVersion() == 2 ? "software" : "compute";
+        return "compute";
     }
 
     public native static String getVersion();

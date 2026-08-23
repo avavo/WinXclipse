@@ -25,6 +25,11 @@ public abstract class CpuClusters {
         int numProcessors = Runtime.getRuntime().availableProcessors();
         if (numProcessors <= 1) return "0";
 
+        // The Exynos 2600 has no LITTLE cluster at all: its deca layout is one
+        // prime plus nine performance mids, so excluding the slowest cluster
+        // would only throw away real throughput for 32-bit guests.
+        if (!GPUInformation.hasLittleCores()) return allCPUList(numProcessors);
+
         Map<Long, List<Integer>> clustersByFreq = new LinkedHashMap<>();
         for (int cpu = 0; cpu < numProcessors; cpu++) {
             long maxFreq = readMaxFrequencyKHz(cpu);

@@ -97,9 +97,9 @@ Version 0.9 focuses on the video and audio configuration tabs, shortcut artwork,
 
 - Fixed ARM64EC guests dying silently before creating any window when running the bundled Proton arm64ec under FEXCore: the launcher requested the legacy `libarm64ecfex.dll` bridge instead of `libwow64fex.dll`, so every 64-bit game on this path exited at startup (black screen, only Wine services left). The correct bridge is now requested automatically per package.
 
-#### Per-model GPU tuning
+#### Per-model GPU and CPU tuning
 
-Session tuning is keyed off the detected Xclipse model, using public die data (530=1 WGP, 540=2 WGP, 920≈3 WGP/384 SP, 940=6 WGP, 950/960=8 WGP): the Experimental Performance VRAM cap is intersected with a per-model ceiling (2048 MB tiny / 3072 MB mid / 4092 MB big), the auto ASTC-transcode default covers every RDNA2 model (hardware ASTC decode, no dual-issue VALU), and the BCn backend defaults to compute only on RDNA3/RDNA4 where VOPD dual-issue makes it cheap.
+Session tuning is keyed off the detected Exynos/Xclipse pair. GPU side, using public die data (530=1 WGP, 540=2 WGP, 920≈3 WGP/384 SP, 550 mid-range RDNA3, 940=6 WGP, 950/960=8 WGP): the BCn backend defaults to **compute** on every model, and the Experimental Performance VRAM cap follows a per-model ceiling — **2048 MB** fixed on the 530/540/550/920, RAM-following (2048/4092 MB) on the 940/950, and the full **4092 MB** on the 960. CPU side: the WoW64 performance-core default excludes the LITTLE cluster on every model that has one; the Exynos 2600's deca layout has no LITTLE cores at all (1 prime + 9 performance mids), so its guests may use every core.
 
 #### Native and memory optimizations (unified LPDDR awareness)
 
