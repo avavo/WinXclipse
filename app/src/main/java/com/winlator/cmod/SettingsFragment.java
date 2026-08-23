@@ -190,6 +190,11 @@ public class SettingsFragment extends Fragment {
             updateTheme(AppUtils.isDarkMode(context));
         });
 
+        view.findViewById(R.id.BTHelpDarkMode).setOnClickListener(v ->
+                AppUtils.showHelpBox(context, v, R.string.help_dark_mode));
+        view.findViewById(R.id.BTHelpFollowSystemTheme).setOnClickListener(v ->
+                AppUtils.showHelpBox(context, v, R.string.help_follow_system_theme));
+
         // Initialize Big Picture Mode Checkbox
         cbEnableBigPictureMode = view.findViewById(R.id.CBEnableBigPictureMode);
         cbEnableBigPictureMode.setChecked(preferences.getBoolean("enable_big_picture_mode", false));
@@ -414,6 +419,8 @@ public class SettingsFragment extends Fragment {
 
         final CheckBox cbLockLandscape = view.findViewById(R.id.CBLockLandscape);
         cbLockLandscape.setChecked(preferences.getBoolean("lock_landscape", true));
+        view.findViewById(R.id.BTHelpLockLandscape).setOnClickListener(v ->
+                AppUtils.showHelpBox(context, v, R.string.help_lock_landscape));
         final CheckBox cbShareClipboard = view.findViewById(R.id.CBShareAndroidClipboard);
         cbShareClipboard.setChecked(preferences.getBoolean("share_android_clipboard", false));
 

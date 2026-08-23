@@ -307,6 +307,9 @@
     <string name="experimental_performance_description">Optional runtime performance tweaks. May improve demanding games, but compatibility can vary.</string>
     <string name="video_fsr">AMD FSR</string>
     <string name="lock_landscape">Lock landscape rotation (portrait outside containers)</string>
+    <string name="help_lock_landscape">When enabled, containers always run in landscape (horizontal) mode and the app returns to portrait automatically when you exit. Turn this off if you want free rotation.</string>
+    <string name="help_follow_system_theme">When enabled, the app automatically matches your Android dark/light mode. The Dark Mode checkbox below is disabled while this is on.</string>
+    <string name="help_dark_mode">Forces the app to use the dark theme. Only works when "Follow Android System Theme" is off.</string>
     <string name="video_vsync_off">Disable vsync wait</string>
     <string name="video_unlimited_images">Unlimited swapchain images</string>
     <string name="dxvk_no_timeline">Disable timeline semaphores</string>

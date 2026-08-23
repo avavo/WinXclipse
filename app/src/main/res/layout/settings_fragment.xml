@@ -195,17 +195,35 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
                 <LinearLayout style="@style/FieldSet">
-                    <CheckBox
-                        android:id="@+id/CBDarkMode"
-                        android:layout_width="wrap_content"
+                    <LinearLayout
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="@string/enable_dark_mode" />
+                        android:orientation="horizontal">
+                        <CheckBox
+                            android:id="@+id/CBDarkMode"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/enable_dark_mode" />
+                        <ImageView
+                            android:id="@+id/BTHelpDarkMode"
+                            android:layout_gravity="center"
+                            style="@style/HelpButton" />
+                    </LinearLayout>
 
-                    <CheckBox
-                        android:id="@+id/CBFollowSystemTheme"
-                        android:layout_width="wrap_content"
+                    <LinearLayout
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="@string/follow_system_theme" />
+                        android:orientation="horizontal">
+                        <CheckBox
+                            android:id="@+id/CBFollowSystemTheme"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/follow_system_theme" />
+                        <ImageView
+                            android:id="@+id/BTHelpFollowSystemTheme"
+                            android:layout_gravity="center"
+                            style="@style/HelpButton" />
+                    </LinearLayout>
                 </LinearLayout>
                 <TextView
                     android:id="@+id/TVTheme"
@@ -625,13 +643,22 @@
                             android:layout_gravity="left|center"
                             android:text="@string/open_with_android_browser" />
 
-                                            <CheckBox
-                        android:id="@+id/CBLockLandscape"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_gravity="left|center"
-                        android:checked="true"
-                        android:text="@string/lock_landscape" />
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal">
+                            <CheckBox
+                                android:id="@+id/CBLockLandscape"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_gravity="left|center"
+                                android:checked="true"
+                                android:text="@string/lock_landscape" />
+                            <ImageView
+                                android:id="@+id/BTHelpLockLandscape"
+                                android:layout_gravity="center"
+                                style="@style/HelpButton" />
+                        </LinearLayout>
 <CheckBox
                             android:id="@+id/CBShareAndroidClipboard"
                             android:layout_width="wrap_content"
