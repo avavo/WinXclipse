@@ -21,22 +21,12 @@ WinXclipse is experimental. Performance, stability, graphics-driver behavior, an
 
 Use it at your own risk and test each configuration individually.
 
-## Downloads
-
-Runtime packages (Wine/Proton, FEXCore, Box64, DXVK, VKD3D) and Xclipse drivers are discovered dynamically from GitHub releases, without requiring a new APK for every uploaded asset:
-
-- WinXclipse releases: https://github.com/avavo/WinXclipse/releases
-- ExynosTools: https://github.com/WearyConcern1165/ExynosTools/releases
-- MdiEx: https://github.com/avavo/MdiEx/releases
-
-Only install packages intended for your architecture, GPU, and runtime type. An entry appearing in Downloads does not guarantee that it is compatible with every device or game.
-
 ## Credits
 
 WinXclipse builds upon the work of:
 
 - [Winlator](https://github.com/brunodev85/winlator) by Brunodev85
-- Winlator CMOD by coffincolors and Pipetto-crypto
+- [Winlator CMOD] (https://github.com/coffincolors/winlator/tree/cmod_v13.1) by coffincolors and Pipetto-crypto 
 - Winlator Glibc by longjunyu2
 - Winlator OpenXR by lvonasek
 - [Winlator Mali](https://github.com/GunaCharanTeja/WinlatorMali) for ports and implementation references
@@ -45,4 +35,4 @@ WinXclipse builds upon the work of:
 - [MdiEx](https://github.com/avavo/MdiEx) for Xclipse driver resources
 - Wrappers from [Leegao](https://github.com/leegao/bionic-vulkan-wrapper), [GameNative](https://github.com/utkarshdalal/GameNative), [Ref4ik-v6](https://github.com/REF4IK/CronyX-), and Kirimu
 
-WinXclipse Exynos/Xclipse adaptation by Álvaro
+Winlator Xclipse adaptation by Álvaro
