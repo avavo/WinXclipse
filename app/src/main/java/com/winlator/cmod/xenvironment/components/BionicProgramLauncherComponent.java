@@ -146,6 +146,32 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         if (containerDataChanged) container.saveData();
     }
 
+    private void populateSysWow64() {
+        try {
+            Context context = environment.getContext();
+            File rootDir = environment.getImageFs().getRootDir();
+            File sysWow64 = new File(rootDir, "/home/xuser/.wine/drive_c/windows/syswow64");
+            if (!sysWow64.isDirectory() || new File(sysWow64, "kernel32.dll").isFile()) return;
+
+            File wineLibRoot = wineProfile != null && wineProfile.wineLibPath != null
+                    ? ContentsManager.getSourceFile(context, wineProfile, wineProfile.wineLibPath)
+                    : new File(environment.getImageFs().getWinePath(), "lib");
+            File i386Dir = new File(wineLibRoot, "wine/i386-windows");
+            if (!new File(i386Dir, "kernel32.dll").isFile()) return;
+
+            File[] dlls = i386Dir.listFiles((dir, name) -> name.toLowerCase().endsWith(".dll"));
+            if (dlls == null) return;
+            int copied = 0;
+            for (File dll : dlls) {
+                File target = new File(sysWow64, dll.getName());
+                if (!target.isFile() && FileUtils.copy(dll, target)) copied++;
+            }
+            Log.i("BionicProgramLauncherComponent", "Populated syswow64 with " + copied + " i386 DLLs from " + wineLibRoot);
+        } catch (Exception e) {
+            Log.w("BionicProgramLauncherComponent", "syswow64 population failed", e);
+        }
+    }
+
     public BionicProgramLauncherComponent(ContentsManager contentsManager, ContentProfile wineProfile, Shortcut shortcut) {
         this.contentsManager = contentsManager;
         this.wineProfile = wineProfile;
@@ -159,6 +185,7 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
                 extractEmulatorsDlls();
             else
                 extractBox86_64Files();
+            populateSysWow64();
 //            checkDependencies();
             // If we end up needing to inject winebus.so into user installed contents
 //            EvshimPatcher.patchWineTree(

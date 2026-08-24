@@ -281,6 +281,8 @@ public class ContainerManager {
             return;
         }
 
+        int copied = 0;
+        int skipped = 0;
         for (File file : srcfiles) {
             String dllName = file.getName();
             if (dllName.equals("iexplore.exe") && wineInfo.isArm64EC() && srcName.equals("aarch64-windows")) {
@@ -289,15 +291,17 @@ public class ContainerManager {
             }
 
             File dstFile = new File(dstDir, dllName);
-            if (dstFile.exists()) continue;
+            if (dstFile.exists()) { skipped++; continue; }
 
             if (onExtractFileListener != null) {
                 dstFile = onExtractFileListener.onExtractFile(dstFile, 0);
-                if (dstFile == null) continue;
+                if (dstFile == null) { skipped++; continue; }
             }
 
-            FileUtils.copy(file, dstFile);
+            if (FileUtils.copy(file, dstFile)) copied++; else skipped++;
         }
+        Log.i("ContainerManager", "extractCommonDlls " + srcName + " -> " + dstName
+                + ": source=" + srcfiles.length + " copied=" + copied + " skipped=" + skipped);
     }
 
     public boolean extractContainerPatternFile(Container container, String wineVersion, ContentsManager contentsManager, File containerDir, OnExtractFileListener onExtractFileListener) {
@@ -307,6 +311,13 @@ public class ContainerManager {
         File wineLibDir = runtimeProfile != null
                 ? ContentsManager.getSourceFile(context, runtimeProfile, runtimeProfile.wineLibPath)
                 : runtimeRoot != null ? new File(runtimeRoot, "lib/wine") : null;
+        if (wineLibDir != null) {
+            File directArchDir = new File(wineLibDir, "i386-windows");
+            if (!directArchDir.isDirectory()) {
+                File nestedWineDir = new File(wineLibDir, "wine");
+                if (new File(nestedWineDir, "i386-windows").isDirectory()) wineLibDir = nestedWineDir;
+            }
+        }
         String containerPattern = wineVersion + "_container_pattern.tzst";
         boolean result = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context, containerPattern, containerDir, onExtractFileListener);
 
@@ -321,6 +332,7 @@ public class ContainerManager {
 
         if (result) {
             try {
+                Log.i("ContainerManager", "extractContainerPatternFile: populating DLL dirs (arm64EC=" + wineInfo.isArm64EC() + ", wineLibDir=" + wineLibDir + ")");
                 if (wineInfo.isArm64EC())
                     extractCommonDlls(wineInfo, wineLibDir, "aarch64-windows", "system32", containerDir, onExtractFileListener); // arm64ec only
                 else
