@@ -1,6 +1,6 @@
 # WinXclipse
 
-WinXclipse is an experimental Android project based on Winlator CMOD and adapted for Samsung Exynos devices with Xclipse GPUs.
+WinXclipse is an Android project based on Winlator CMOD and adapted for Samsung Exynos devices with Xclipse GPUs.
 
 ## What is WinXclipse?
 
