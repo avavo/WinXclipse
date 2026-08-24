@@ -625,11 +625,15 @@ public class ContainerDetailFragment extends Fragment {
                     @Override
                     public String getFsrMode() {
                         // Effective value: the runtime FSR menu persists its
-                        // choice as a container extra that overrides the config.
-                        return container.getExtra("fsrMode",
-                                GraphicsDriverConfigDialog
-                                        .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()))
-                                        .getOrDefault("fsrMode", "off"));
+                        // choice as a container extra that overrides the
+                        // config (edit mode only; container is null when
+                        // creating a new container).
+                        String runtime = container != null
+                                ? container.getExtra("fsrMode", null) : null;
+                        if (runtime != null) return runtime;
+                        return GraphicsDriverConfigDialog
+                                .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()))
+                                .getOrDefault("fsrMode", "off");
                     }
 
                     @Override
