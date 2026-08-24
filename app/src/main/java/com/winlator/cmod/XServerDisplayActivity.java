@@ -48,6 +48,7 @@ import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.PopupMenu;
 import android.widget.SeekBar;
+import android.widget.AdapterView;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -127,6 +128,8 @@ import com.winlator.cmod.renderer.effects.NTSCCombinedEffect;
 import com.winlator.cmod.renderer.effects.ToonEffect;
 import com.winlator.cmod.widget.HudDataSource;
 import com.winlator.cmod.widget.ThemedSpinnerAdapter;
+
+import java.util.Arrays;
 import com.winlator.cmod.widget.WinlatorHUD;
 import com.winlator.cmod.widget.InputControlsView;
 import com.winlator.cmod.widget.LogView;
@@ -2061,22 +2064,35 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 ? "1".equals(shortcut.getExtra("fakeHDR", container.getExtra("fakeHDR", "0")))
                 : "1".equals(container.getExtra("fakeHDR", "0"));
         if (fakeHdr) renderer.getEffectComposer().addEffect(new HDREffect());
-        // Runtime FSR menu persists the state as a shortcut/container extra;
-        // fall back to the driver config for older setups.
-        String fsrRaw = GraphicsDriverConfigDialog.normalizeFsrValue(
+        // FSR is controlled by the texture filter selection (2 = FSR). The
+        // upscale/mode keys come from the driver config; runtime menu changes
+        // are persisted as extras that take precedence over the config.
+        String upscaleExtra = shortcut != null
+                ? shortcut.getExtra("fsrUpscale", container.getExtra("fsrUpscale", null))
+                : container.getExtra("fsrUpscale", null);
+        String qualityExtra = shortcut != null
+                ? shortcut.getExtra("fsrQuality", container.getExtra("fsrQuality", null))
+                : container.getExtra("fsrQuality", null);
+        boolean fsrOn = textureFilterMode == 2;
+        // Legacy migration: old builds stored an explicit fsrMode key. Carry it
+        // over once (and only while the filter was never changed away from FSR).
+        String legacyFsr = GraphicsDriverConfigDialog.normalizeFsrValue(
                 shortcut != null
                         ? shortcut.getExtra("fsrMode", graphicsDriverConfig.getOrDefault("fsrMode", "off"))
                         : graphicsDriverConfig.getOrDefault("fsrMode", "off"));
-        // Legacy configs stored the mode directly in fsrMode; that implies upscale.
-        boolean fsrLegacyMode = !fsrRaw.equals("on") && !fsrRaw.equals("off");
-        boolean fsrOn = fsrLegacyMode || "on".equals(fsrRaw) || textureFilterMode == 2;
-        boolean fsrUpscale = fsrOn && (fsrLegacyMode
-                || "1".equals(graphicsDriverConfig.getOrDefault("fsrUpscale", "0")));
-        String fsrQualityRaw = fsrLegacyMode ? fsrRaw
-                : graphicsDriverConfig.getOrDefault("fsrQuality", "balanced");
-        String fsrQualityNorm = GraphicsDriverConfigDialog.normalizeFsrValue(fsrQualityRaw);
-        String fsrQuality = fsrQualityNorm.equals("quality")
-                || fsrQualityNorm.equals("performance") ? fsrQualityNorm : "balanced";
+        boolean explicitFsrSetting = (shortcut != null && shortcut.hasExtra("fsrMode"))
+                || graphicsDriverConfig.containsKey("fsrMode");
+        if (!explicitFsrSetting && !fsrOn && !legacyFsr.equals("off")) {
+            fsrOn = true;
+            renderer.setTextureFilterMode(2);
+        }
+        boolean fsrUpscale = fsrOn && "1".equals(
+                upscaleExtra != null ? upscaleExtra
+                        : graphicsDriverConfig.getOrDefault("fsrUpscale", "0"));
+        String fsrQualityNorm = GraphicsDriverConfigDialog.normalizeFsrValue(
+                qualityExtra != null ? qualityExtra
+                        : graphicsDriverConfig.getOrDefault("fsrQuality", "balanced"));
+        String fsrQuality = GraphicsDriverConfigDialog.normalizeFsrValue(fsrQualityNorm);
         String fsrState = !fsrOn ? "off" : !fsrUpscale ? "on" : fsrQuality;
         applyFsrRuntime(renderer, fsrState);
 
@@ -2240,66 +2256,178 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     }
 
     private void showSidebarInputMenu(View anchor) {
-        PopupMenu popup = new PopupMenu(this, anchor);
-        popup.getMenu().add(0, R.id.main_menu_relative_mouse, 0, R.string.relative_mouse_movement)
-                .setCheckable(true).setChecked(isRelativeMouseMovement);
-        popup.getMenu().add(0, R.id.main_menu_keyboard, 1, R.string.keyboard);
-        popup.getMenu().add(0, R.id.main_menu_input_controls, 2, R.string.input_controls);
-        popup.getMenu().add(0, R.id.main_menu_controller_assignment, 3, R.string.controller_manager);
-        popup.getMenu().add(0, R.id.main_menu_motion_controls, 4, R.string.motion_controls);
-        popup.setOnMenuItemClickListener(this::onNavigationItemSelected);
-        popup.show();
+        final ContentDialog dialog = new ContentDialog(this, R.layout.sidebar_input_dialog);
+        dialog.setTitle(R.string.input_controls);
+        dialog.setIcon(R.drawable.icon_settings);
+
+        CheckBox cbRelative = dialog.findViewById(R.id.CBInputRelativeMouse);
+        cbRelative.setChecked(isRelativeMouseMovement);
+
+        dialog.findViewById(R.id.BTInputKeyboard).setOnClickListener(v -> {
+            dialog.dismiss();
+            AppUtils.showKeyboard(this);
+        });
+        dialog.findViewById(R.id.BTInputInputControls).setOnClickListener(v -> {
+            dialog.dismiss();
+            showInputControlsDialog();
+        });
+        dialog.findViewById(R.id.BTInputControllers).setOnClickListener(v -> {
+            dialog.dismiss();
+            ControllerAssignmentDialog.show(this, winHandler);
+            winHandler.clearIgnoredDevices();
+        });
+        dialog.findViewById(R.id.BTInputMotion).setOnClickListener(v -> {
+            dialog.dismiss();
+            MotionControls.getInstance(this).attach(winHandler).showContentDialog(this, null);
+        });
+
+        dialog.setOnConfirmCallback(() -> {
+            if (cbRelative.isChecked() != isRelativeMouseMovement) {
+                isRelativeMouseMovement = cbRelative.isChecked();
+                container.setRelativeMouseMovement(isRelativeMouseMovement);
+                xServer.setRelativeMouseMovement(isRelativeMouseMovement);
+                if (!isRelativeMouseMovement) {
+                    releasePointerCaptureIfNeeded("toggle-off");
+                    touchpadView.setOnCapturedPointerListener(null);
+                    Toast.makeText(this, R.string.relative_mouse_disabled, Toast.LENGTH_SHORT).show();
+                } else {
+                    Toast.makeText(this, R.string.relative_mouse_enabled, Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+        dialog.show();
     }
 
     private void showSidebarDisplayMenu(View anchor) {
         GLRenderer renderer = getXServerView().getRenderer();
-        final int filterGroup = 0x710000;
-        final int itemFakeHdr = 0x710001;
-        final int itemBilinear = 0x710002;
-        final int itemNearest = 0x710003;
-        final int itemSwapRedBlue = 0x710004;
-        final int itemFsrMenu = 0x710005;
-        PopupMenu popup = new PopupMenu(this, anchor);
-        popup.getMenu().add(0, R.id.main_menu_screen_effects, 0, R.string.screen_effect);
-        popup.getMenu().add(0, itemFakeHdr, 1, R.string.fake_hdr)
-                .setCheckable(true)
-                .setChecked(renderer.getEffectComposer().getEffect(HDREffect.class) != null);
-        popup.getMenu().add(filterGroup, itemBilinear, 2, R.string.bilinear)
-                .setCheckable(true).setChecked(renderer.getTextureFilterMode() == 0);
-        popup.getMenu().add(filterGroup, itemNearest, 3, R.string.nearest_neighbor)
-                .setCheckable(true).setChecked(renderer.getTextureFilterMode() == 1);
-        popup.getMenu().setGroupCheckable(filterGroup, true, true);
-        popup.getMenu().add(0, itemSwapRedBlue, 4, R.string.swap_red_blue_channels)
-                .setCheckable(true).setChecked(renderer.isSwapRedBlue());
-        popup.getMenu().add(0, R.id.main_menu_toggle_fullscreen, 5, R.string.toggle_fullscreen);
-        popup.getMenu().add(0, R.id.main_menu_magnifier, 6, R.string.magnifier);
-        popup.getMenu().add(0, R.id.main_menu_pip_mode, 7, R.string.pip_mode);
-        popup.getMenu().add(0, itemFsrMenu, 8, "AMD FSR");
-        popup.setOnMenuItemClickListener(item -> {
-            if (item.getItemId() == itemFsrMenu) {
-                showFsrSidebarMenu(renderer, anchor);
-                return true;
+        final ContentDialog dialog = new ContentDialog(this, R.layout.sidebar_display_dialog);
+        dialog.setTitle(R.string.menu_section_display);
+        dialog.setIcon(R.drawable.icon_settings);
+
+        CheckBox cbHdr = dialog.findViewById(R.id.CBDisplayFakeHdr);
+        cbHdr.setChecked(renderer.getEffectComposer().getEffect(HDREffect.class) != null);
+
+        Spinner sFilter = dialog.findViewById(R.id.SDisplayTextureFilter);
+        sFilter.setAdapter(new ThemedSpinnerAdapter<>(this, Arrays.asList(
+                getString(R.string.bilinear), getString(R.string.nearest_neighbor), "FSR")));
+        sFilter.setSelection(renderer.getTextureFilterMode() == 1 ? 1
+                : renderer.getTextureFilterMode() == 2 ? 2 : 0);
+
+        Spinner sFsrUpscale = dialog.findViewById(R.id.SDisplayFsrUpscale);
+        sFsrUpscale.setAdapter(new ThemedSpinnerAdapter<>(this, Arrays.asList("Off", "On")));
+        View llFsrUpscale = dialog.findViewById(R.id.LLDisplayFsrUpscale);
+
+        Spinner sFsrMode = dialog.findViewById(R.id.SDisplayFsrMode);
+        sFsrMode.setAdapter(new ThemedSpinnerAdapter<>(this, Arrays.asList(
+                "Fidelity (1.3x)", "Quality (1.5x)", "Balanced (1.7x)",
+                "Performance (2.0x)", "Ultra Performance (2.5x)")));
+        View llFsrMode = dialog.findViewById(R.id.LLDisplayFsrMode);
+
+        int modeIndex = 0;
+        switch (fsrRuntimeState) {
+            case "fidelity": modeIndex = 0; break;
+            case "quality": modeIndex = 1; break;
+            case "balanced": modeIndex = 2; break;
+            case "performance": modeIndex = 3; break;
+            case "ultraperformance": modeIndex = 4; break;
+        }
+        sFsrMode.setSelection(modeIndex);
+        boolean upscaleOn = !"off".equals(fsrRuntimeState) && !"on".equals(fsrRuntimeState);
+        sFsrUpscale.setSelection(upscaleOn ? 1 : 0);
+
+        Runnable updateVisibility = () -> {
+            boolean fsrSelected = sFilter.getSelectedItemPosition() == 2;
+            boolean ups = fsrSelected && "On".equals(sFsrUpscale.getSelectedItem());
+            llFsrUpscale.setVisibility(fsrSelected ? View.VISIBLE : View.GONE);
+            llFsrMode.setVisibility(ups ? View.VISIBLE : View.GONE);
+        };
+        updateVisibility.run();
+        AdapterView.OnItemSelectedListener visibilityListener = new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                updateVisibility.run();
             }
-            if (item.getItemId() == itemFakeHdr) {
-                setFakeHdrEnabled(renderer,
-                        renderer.getEffectComposer().getEffect(HDREffect.class) == null, true);
-                return true;
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
             }
-            if (item.getItemId() == itemBilinear || item.getItemId() == itemNearest) {
-                int mode = item.getItemId() == itemNearest ? 1 : 0;
-                renderer.setTextureFilterMode(mode);
-                persistRuntimeVideoOption("rendererFilterMode", String.valueOf(mode));
-                return true;
-            }
-            if (item.getItemId() == itemSwapRedBlue) {
-                boolean enabled = !renderer.isSwapRedBlue();
-                renderer.setSwapRedBlue(enabled);
-                persistRuntimeVideoOption("rendererSwapRB", enabled ? "1" : "0");
-                return true;
-            }
-            return onNavigationItemSelected(item);
+        };
+        sFilter.setOnItemSelectedListener(visibilityListener);
+        sFsrUpscale.setOnItemSelectedListener(visibilityListener);
+
+        CheckBox cbSwapRB = dialog.findViewById(R.id.CBDisplaySwapRB);
+        cbSwapRB.setChecked(renderer.isSwapRedBlue());
+
+        dialog.findViewById(R.id.BTDisplayScreenEffects).setOnClickListener(v -> {
+            dialog.dismiss();
+            openScreenEffectsDialog();
         });
-        popup.show();
+        dialog.findViewById(R.id.BTDisplayFullscreen).setOnClickListener(v -> {
+            dialog.dismiss();
+            renderer.toggleFullscreen();
+            touchpadView.toggleFullscreen();
+        });
+        dialog.findViewById(R.id.BTDisplayMagnifier).setOnClickListener(v -> {
+            dialog.dismiss();
+            toggleMagnifier();
+        });
+        dialog.findViewById(R.id.BTDisplayPip).setOnClickListener(v -> {
+            dialog.dismiss();
+            enterPictureInPictureMode();
+        });
+
+        dialog.setOnConfirmCallback(() -> {
+            setFakeHdrEnabled(renderer, cbHdr.isChecked(), true);
+            int filterSelection = sFilter.getSelectedItemPosition();
+            renderer.setTextureFilterMode(filterSelection == 1 ? 1 : filterSelection == 2 ? 2 : 0);
+            persistRuntimeVideoOption("rendererFilterMode", String.valueOf(filterSelection));
+            renderer.setSwapRedBlue(cbSwapRB.isChecked());
+            persistRuntimeVideoOption("rendererSwapRB", cbSwapRB.isChecked() ? "1" : "0");
+            if (filterSelection == 2) {
+                boolean ups = "On".equals(sFsrUpscale.getSelectedItem());
+                int qualityIndex = Math.max(0, sFsrMode.getSelectedItemPosition());
+                String[] states = {"fidelity", "quality", "balanced", "performance", "ultraperformance"};
+                String state = ups ? states[qualityIndex] : "on";
+                applyFsrRuntime(renderer, state);
+                persistRuntimeVideoOption("fsrUpscale", ups ? "1" : "0");
+                if (ups) persistRuntimeVideoOption("fsrQuality", state);
+            } else {
+                applyFsrRuntime(renderer, "off");
+            }
+        });
+        dialog.show();
+    }
+
+    private void openScreenEffectsDialog() {
+        ScreenEffectDialog dlg = new ScreenEffectDialog(this);
+        dlg.setOnConfirmCallback(() -> {
+            GLRenderer r = xServerView.getRenderer();
+            ColorEffect color = r.getEffectComposer().getEffect(ColorEffect.class);
+            FXAAEffect fxaa = r.getEffectComposer().getEffect(FXAAEffect.class);
+            CRTEffect crt   = r.getEffectComposer().getEffect(CRTEffect.class);
+            ToonEffect toon = r.getEffectComposer().getEffect(ToonEffect.class);
+            NTSCCombinedEffect ntsc = r.getEffectComposer().getEffect(NTSCCombinedEffect.class);
+            dlg.applyEffects(color, r, fxaa, crt, toon, ntsc);
+        });
+        dlg.show();
+    }
+
+    private void toggleMagnifier() {
+        GLRenderer renderer = getXServerView().getRenderer();
+        if (magnifierView == null) {
+            FrameLayout container = findViewById(R.id.FLXServerDisplay);
+            magnifierView = new MagnifierView(this);
+            magnifierView.setZoomButtonCallback(value -> {
+                renderer.setMagnifierZoom(Mathf.clamp(renderer.getMagnifierZoom() + value, 1.0f, 3.0f));
+                magnifierView.setZoomValue(renderer.getMagnifierZoom());
+            });
+            magnifierView.setZoomValue(renderer.getMagnifierZoom());
+            magnifierView.setHideButtonCallback(() -> {
+                container.removeView(magnifierView);
+                magnifierView = null;
+            });
+            container.addView(magnifierView);
+        }
     }
 
     private void setFakeHdrEnabled(GLRenderer renderer, boolean enabled, boolean persist) {
@@ -2314,8 +2442,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     /**
      * Applies an FSR1 state live: "off", "on" (RCAS sharpening at native
-     * resolution) or quality/balanced/performance (EASU upscale at display/1.5,
-     * /1.7 or /2.0 plus RCAS). Also persists the choice for the next sessions.
+     * resolution) or fidelity/quality/balanced/performance/ultraperformance
+     * (EASU upscale at display/1.3, /1.5, /1.7, /2.0 or /2.5 plus RCAS).
+     * Keeps the texture filter selection in sync and persists the choice.
      */
     private void applyFsrRuntime(GLRenderer renderer, String state) {
         fsrRuntimeState = state == null ? "off" : state;
@@ -2326,19 +2455,20 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         if (rcas != null) composer.removeEffect(rcas);
         composer.setSceneScale(0);
         if ("on".equals(fsrRuntimeState)) {
+            renderer.setTextureFilterMode(2);
             composer.addEffect(new FSREffect(1.0f));
             Log.i("FSRDebug", "FSR1 sharpening only (no upscale)");
         } else if (!"off".equals(fsrRuntimeState)) {
-            float factor = "performance".equals(fsrRuntimeState) ? 2.0f
-                    : "quality".equals(fsrRuntimeState) ? 1.5f : 1.7f;
-            float stops = "performance".equals(fsrRuntimeState) ? 0.7f
-                    : "quality".equals(fsrRuntimeState) ? 1.5f : 1.0f;
+            float factor = GraphicsDriverConfigDialog.fsrFactorForMode(fsrRuntimeState);
+            float stops = GraphicsDriverConfigDialog.fsrStopsForMode(fsrRuntimeState);
+            renderer.setTextureFilterMode(2);
             composer.setSceneScale(factor);
             composer.addEffect(new FSREasuEffect());
             composer.addEffect(new FSREffect(stops));
             Log.i("FSRDebug", "FSR1 upscale active: state=" + fsrRuntimeState
                     + " factor=" + factor + " stops=" + stops);
         } else {
+            renderer.setTextureFilterMode(0);
             Log.i("FSRDebug", "FSR off");
         }
     }
@@ -2347,32 +2477,46 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         final int fsrGroup = 0x720000;
         final int itemFsrOff = 0x720001;
         final int itemFsrSharp = 0x720002;
+        final int itemFsrFidelity = 0x720006;
         final int itemFsrQuality = 0x720003;
         final int itemFsrBalanced = 0x720004;
         final int itemFsrPerf = 0x720005;
+        final int itemFsrUltra = 0x720007;
         PopupMenu popup = new PopupMenu(this, anchor);
         popup.getMenu().add(fsrGroup, itemFsrOff, 0, "FSR: Off")
                 .setCheckable(true).setChecked("off".equals(fsrRuntimeState));
         popup.getMenu().add(fsrGroup, itemFsrSharp, 1, "FSR: Sharpen only")
                 .setCheckable(true).setChecked("on".equals(fsrRuntimeState));
-        popup.getMenu().add(fsrGroup, itemFsrQuality, 2, "FSR: Quality (1.5x)")
+        popup.getMenu().add(fsrGroup, itemFsrFidelity, 2, "FSR: Fidelity (1.3x)")
+                .setCheckable(true).setChecked("fidelity".equals(fsrRuntimeState));
+        popup.getMenu().add(fsrGroup, itemFsrQuality, 3, "FSR: Quality (1.5x)")
                 .setCheckable(true).setChecked("quality".equals(fsrRuntimeState));
-        popup.getMenu().add(fsrGroup, itemFsrBalanced, 3, "FSR: Balanced (1.7x)")
+        popup.getMenu().add(fsrGroup, itemFsrBalanced, 4, "FSR: Balanced (1.7x)")
                 .setCheckable(true).setChecked("balanced".equals(fsrRuntimeState));
-        popup.getMenu().add(fsrGroup, itemFsrPerf, 4, "FSR: Performance (2.0x)")
+        popup.getMenu().add(fsrGroup, itemFsrPerf, 5, "FSR: Performance (2.0x)")
                 .setCheckable(true).setChecked("performance".equals(fsrRuntimeState));
+        popup.getMenu().add(fsrGroup, itemFsrUltra, 6, "FSR: Ultra Performance (2.5x)")
+                .setCheckable(true).setChecked("ultraperformance".equals(fsrRuntimeState));
         popup.getMenu().setGroupCheckable(fsrGroup, true, true);
         popup.setOnMenuItemClickListener(item -> {
             String state;
             int id = item.getItemId();
             if (id == itemFsrOff) state = "off";
             else if (id == itemFsrSharp) state = "on";
+            else if (id == itemFsrFidelity) state = "fidelity";
             else if (id == itemFsrQuality) state = "quality";
             else if (id == itemFsrBalanced) state = "balanced";
             else if (id == itemFsrPerf) state = "performance";
+            else if (id == itemFsrUltra) state = "ultraperformance";
             else return false;
             applyFsrRuntime(renderer, state);
-            persistRuntimeVideoOption("fsrMode", state);
+            if ("off".equals(state)) {
+                persistRuntimeVideoOption("rendererFilterMode", "0");
+            } else {
+                persistRuntimeVideoOption("rendererFilterMode", "2");
+                persistRuntimeVideoOption("fsrUpscale", "on".equals(state) ? "0" : "1");
+                if (!"on".equals(state)) persistRuntimeVideoOption("fsrQuality", state);
+            }
             return true;
         });
         popup.show();

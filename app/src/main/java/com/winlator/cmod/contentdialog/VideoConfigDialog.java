@@ -19,21 +19,31 @@ import java.util.Arrays;
 
 /** Video options shared by the Wine renderer and the Android compositor. */
 public class VideoConfigDialog extends ContentDialog {
+    /** Display labels of the FSR mode spinner (index maps to normalizeFsrValue tokens). */
+    private static final String[] FSR_MODE_LABELS = {
+            "Fidelity (1.3x)", "Quality (1.5x)", "Balanced (1.7x)",
+            "Performance (2.0x)", "Ultra Performance (2.5x)"
+    };
+    private static final String[] FSR_MODE_VALUES = {
+            "fidelity", "quality", "balanced", "performance", "ultraperformance"
+    };
+
     public interface Config {
         String getGpuName();
         String getPresentMode();
+        /** 0 = bilinear, 1 = nearest, 2 = FSR. */
         int getTextureFilterMode();
         boolean isSwapRedBlue();
-        /** "off", "on" or a legacy mode value (quality/balanced/performance). */
+        /** Legacy FSR mode key, only used to migrate old configs. */
         String getFsrMode();
-        /** "0" or "1": whether the FSR EASU upscaler runs (modes only apply then). */
+        /** "0" or "1": whether the FSR EASU upscaler runs (only when FSR is selected). */
         String getFsrUpscale();
-        /** "quality", "balanced" or "performance". */
+        /** "fidelity", "quality", "balanced", "performance" or "ultraperformance". */
         String getFsrQuality();
         boolean isVsyncOff();
         boolean isUnlimitedImages();
         void apply(String gpuName, String presentMode, int textureFilterMode,
-                   boolean swapRedBlue, String fsrMode, String fsrUpscale,
+                   boolean swapRedBlue, String fsrUpscale,
                    String fsrQuality, boolean vsyncOff, boolean unlimitedImages);
     }
 
@@ -46,7 +56,6 @@ public class VideoConfigDialog extends ContentDialog {
         Spinner presentMode = findViewById(R.id.SVideoPresentMode);
         Spinner textureFilter = findViewById(R.id.SVideoTextureFilter);
         CheckBox swapRedBlue = findViewById(R.id.CBVideoSwapRedBlue);
-        Spinner fsrMode = findViewById(R.id.SVideoFsr);
         Spinner fsrUpscale = findViewById(R.id.SVideoFsrUpscale);
         Spinner fsrQuality = findViewById(R.id.SVideoFsrMode);
         View fsrUpscaleRow = findViewById(R.id.LLVideoFsrUpscale);
@@ -65,46 +74,41 @@ public class VideoConfigDialog extends ContentDialog {
                 Arrays.asList(context.getString(R.string.bilinear),
                         context.getString(R.string.nearest_neighbor),
                         "FSR")));
+        fsrUpscale.setAdapter(new ThemedSpinnerAdapter<>(context, Arrays.asList("Off", "On")));
+        fsrQuality.setAdapter(new ThemedSpinnerAdapter<>(context, Arrays.asList(FSR_MODE_LABELS)));
+
+        // Normalize values persisted by any build (display strings from old
+        // releases, legacy mode tokens, current on/off tokens). A stored FSR
+        // mode other than "off" implies the FSR texture filter selection.
+        int filterMode = Math.max(0, Math.min(config.getTextureFilterMode(), 2));
+        String upscale = config.getFsrUpscale() == null ? "0" : config.getFsrUpscale();
+        String quality = GraphicsDriverConfigDialog.normalizeFsrValue(config.getFsrQuality());
+        String legacyFsr = GraphicsDriverConfigDialog.normalizeFsrValue(config.getFsrMode());
+        if (!legacyFsr.equals("off") && !legacyFsr.equals("on")) {
+            quality = legacyFsr;
+            upscale = "1";
+            filterMode = 2;
+        }
+        if (indexOfFsrMode(quality) == -1) quality = "balanced";
 
         if (!AppUtils.setSpinnerSelectionFromValue(gpuName, config.getGpuName())) {
             AppUtils.setSpinnerSelectionFromValue(gpuName, "Device");
         }
         AppUtils.setSpinnerSelectionFromValue(presentMode, config.getPresentMode());
-        textureFilter.setSelection(Math.max(0, Math.min(config.getTextureFilterMode(), 2)));
+        textureFilter.setSelection(filterMode);
         swapRedBlue.setChecked(config.isSwapRedBlue());
-
-        fsrMode.setAdapter(new ThemedSpinnerAdapter<>(context, Arrays.asList("Off", "On")));
-        fsrUpscale.setAdapter(new ThemedSpinnerAdapter<>(context, Arrays.asList("Off", "On")));
-        fsrQuality.setAdapter(new ThemedSpinnerAdapter<>(context, Arrays.asList(
-                "Quality (1.5x)", "Balanced (1.7x)", "Performance (2.0x)")));
-
-        // Normalize values persisted by any build (display strings from old
-        // releases, legacy mode tokens, current on/off tokens).
-        String fsr = GraphicsDriverConfigDialog.normalizeFsrValue(config.getFsrMode());
-        String upscale = config.getFsrUpscale() == null ? "0" : config.getFsrUpscale();
-        String quality = GraphicsDriverConfigDialog.normalizeFsrValue(config.getFsrQuality());
-        if (!fsr.equals("on") && !fsr.equals("off")) {
-            quality = fsr;
-            upscale = "1";
-            fsr = "on";
-        }
-        if (!quality.equals("quality") && !quality.equals("performance")) quality = "balanced";
-        AppUtils.setSpinnerSelectionFromValue(fsrMode, fsr.equals("on") ? "On" : "Off");
         AppUtils.setSpinnerSelectionFromValue(fsrUpscale, upscale.equals("1") ? "On" : "Off");
-        String qualityFinal = quality;
-        AppUtils.setSpinnerSelectionFromValue(fsrQuality, qualityFinal.equals("quality")
-                ? "Quality (1.5x)" : qualityFinal.equals("performance")
-                ? "Performance (2.0x)" : "Balanced (1.7x)");
+        fsrQuality.setSelection(Math.max(0, indexOfFsrMode(quality)));
 
-        // Upscale row only exists while FSR is on; mode row only while upscale is on.
+        // Upscale row only exists while FSR is selected; mode row only while upscale is on.
         Runnable updateVisibility = () -> {
-            boolean fsrOn = "On".equals(selectedValue(fsrMode));
-            boolean upscaleOn = fsrOn && "On".equals(selectedValue(fsrUpscale));
-            fsrUpscaleRow.setVisibility(fsrOn ? View.VISIBLE : View.GONE);
+            boolean fsrSelected = textureFilter.getSelectedItemPosition() == 2;
+            boolean upscaleOn = fsrSelected && "On".equals(selectedValue(fsrUpscale));
+            fsrUpscaleRow.setVisibility(fsrSelected ? View.VISIBLE : View.GONE);
             fsrQualityRow.setVisibility(upscaleOn ? View.VISIBLE : View.GONE);
         };
         updateVisibility.run();
-        fsrMode.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+        AdapterView.OnItemSelectedListener visibilityListener = new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 updateVisibility.run();
@@ -113,34 +117,30 @@ public class VideoConfigDialog extends ContentDialog {
             @Override
             public void onNothingSelected(AdapterView<?> parent) {
             }
-        });
-        fsrUpscale.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                updateVisibility.run();
-            }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {
-            }
-        });
+        };
+        textureFilter.setOnItemSelectedListener(visibilityListener);
+        fsrUpscale.setOnItemSelectedListener(visibilityListener);
 
         vsyncOff.setChecked(config.isVsyncOff());
         unlimitedImages.setChecked(config.isUnlimitedImages());
-        applyTheme(context, gpuName, presentMode, textureFilter, fsrMode, fsrUpscale, fsrQuality);
+        applyTheme(context, gpuName, presentMode, textureFilter, fsrUpscale, fsrQuality);
 
         setOnConfirmCallback(() -> {
-            String fsrValue = "On".equals(selectedValue(fsrMode)) ? "on" : "off";
             String upscaleValue = "On".equals(selectedValue(fsrUpscale)) ? "1" : "0";
-            String qualitySelected = selectedValue(fsrQuality);
-            String qualityValue = qualitySelected.startsWith("Quality") ? "quality"
-                    : qualitySelected.startsWith("Performance") ? "performance" : "balanced";
+            int qualityIndex = Math.max(0, indexOfFsrMode(selectedValue(fsrQuality)));
             config.apply(
                     selectedValue(gpuName), selectedValue(presentMode),
                     textureFilter.getSelectedItemPosition(), swapRedBlue.isChecked(),
-                    fsrValue, upscaleValue, qualityValue,
+                    upscaleValue, FSR_MODE_VALUES[qualityIndex],
                     vsyncOff.isChecked(), unlimitedImages.isChecked());
         });
+    }
+
+    private static int indexOfFsrMode(String token) {
+        for (int i = 0; i < FSR_MODE_VALUES.length; i++) {
+            if (FSR_MODE_VALUES[i].equals(token)) return i;
+        }
+        return -1;
     }
 
     private static ArrayList<String> loadGpuNames(Context context) {

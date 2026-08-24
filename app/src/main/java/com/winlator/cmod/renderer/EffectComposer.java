@@ -3,6 +3,7 @@ package com.winlator.cmod.renderer;
 import android.opengl.GLES20;
 import android.util.Log;
 
+import com.winlator.cmod.XrActivity;
 import com.winlator.cmod.renderer.effects.Effect;
 import com.winlator.cmod.renderer.effects.FSREasuEffect;
 import com.winlator.cmod.renderer.effects.ToonEffect;
@@ -25,6 +26,12 @@ public class EffectComposer {
     private int bufferHeight;
     private int sceneBufferWidth;
     private int sceneBufferHeight;
+    /** Letterboxed content rect inside the scene buffer, as drawn by the
+     * last scene pass (GL V-up coords; captured from viewTransformation). */
+    private int sceneViewOffsetX;
+    private int sceneViewOffsetYGl;
+    private int sceneViewWidth;
+    private int sceneViewHeight;
     /** Upscale factor for the FSR scene buffer (1.5/1.7/2.0); <= 1 disables. */
     private volatile float sceneScale = 0.0f;
     private final GLRenderer renderer;
@@ -196,6 +203,13 @@ public class EffectComposer {
                 // Scene pass: composite the X server content at reduced resolution.
                 GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, sceneBuffer.getFramebuffer());
                 renderer.setRenderTargetSize(sceneBufferWidth, sceneBufferHeight);
+                // Snapshot the exact rect the scene pass draws into, so EASU
+                // samples the content region instead of guessing it.
+                ViewTransformation vt = renderer.viewTransformation;
+                sceneViewOffsetX = vt.viewOffsetX;
+                sceneViewOffsetYGl = vt.viewOffsetY;
+                sceneViewWidth = vt.viewWidth;
+                sceneViewHeight = vt.viewHeight;
             } else {
                 GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, readBuffer.getFramebuffer());
             }
@@ -280,8 +294,6 @@ public class EffectComposer {
         // Set uniform values
         if (fromSceneBuffer && effect instanceof FSREasuEffect) {
             FSREasuEffect easu = (FSREasuEffect) effect;
-            int screenW = renderer.getXScreenWidth();
-            int screenH = renderer.getXScreenHeight();
             int srcOffX;
             int srcOffYDown;
             int srcViewW;
@@ -290,7 +302,11 @@ public class EffectComposer {
             int dstOffYDown;
             int dstW;
             int dstH;
-            if (renderer.isFullscreen()) {
+            // XR immersive draws the windows stretched across the whole
+            // target (renderWindows(forceFullscreen=true)), same as the
+            // fullscreen toggle.
+            if (renderer.isFullscreen()
+                    || (XrActivity.isEnabled(null) && XrActivity.getImmersive())) {
                 // Fullscreen stretches the X screen across the whole target.
                 srcOffX = 0;
                 srcOffYDown = 0;
@@ -301,24 +317,21 @@ public class EffectComposer {
                 dstW = renderer.surfaceWidth;
                 dstH = renderer.surfaceHeight;
             } else {
-                // Source: the letterboxed content region inside the scene buffer.
-                float sceneAspect = Math.min(sceneBufferWidth / (float) screenW,
-                        sceneBufferHeight / (float) screenH);
-                srcViewW = Math.round(screenW * sceneAspect);
-                srcViewH = Math.round(screenH * sceneAspect);
-                srcOffX = (sceneBufferWidth - srcViewW) / 2;
-                int srcOffYGl = (sceneBufferHeight - srcViewH) / 2;
-                srcOffYDown = sceneBufferHeight - srcOffYGl - srcViewH;
-                // Destination: the letterboxed content region on the display.
-                float dstAspect = Math.min(renderer.surfaceWidth / (float) screenW,
-                        renderer.surfaceHeight / (float) screenH);
-                dstW = Math.round(screenW * dstAspect);
-                dstH = Math.round(screenH * dstAspect);
-                dstOffX = (renderer.surfaceWidth - dstW) / 2;
-                int dstOffYGl = (renderer.surfaceHeight - dstH) / 2;
-                dstOffYDown = renderer.surfaceHeight - dstOffYGl - dstH;
+                // Source: exact letterboxed content rect of the scene pass
+                // (viewTransformation captured while the scene target was
+                // bound). GL V-up offsets are flipped to the shader's V-down.
+                srcOffX = sceneViewOffsetX;
+                srcViewW = sceneViewWidth;
+                srcViewH = sceneViewHeight;
+                srcOffYDown = sceneBufferHeight - sceneViewOffsetYGl - sceneViewHeight;
+                // Destination: viewTransformation was restored to display size
+                // before this pass, so it holds the display content rect.
+                ViewTransformation vt = renderer.viewTransformation;
+                dstOffX = vt.viewOffsetX;
+                dstW = vt.viewWidth;
+                dstH = vt.viewHeight;
+                dstOffYDown = renderer.surfaceHeight - vt.viewOffsetY - vt.viewHeight;
             }
-            // V-down offsets to match the shader's coordinate space.
             easu.setMapping(sceneBufferWidth, sceneBufferHeight,
                     srcOffX, srcOffYDown, srcViewW, srcViewH,
                     dstOffX, dstOffYDown, dstW, dstH, renderer.surfaceHeight);

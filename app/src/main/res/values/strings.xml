@@ -306,7 +306,7 @@
     <string name="experimental_performance">Experimental Performance</string>
     <string name="experimental_performance_description">Optional runtime performance tweaks. May improve demanding games, but compatibility can vary.</string>
     <string name="video_fsr">AMD FSR</string>
-    <string name="video_fsr_upscale">FSR Upscale (render low-res, upscale with EASU)</string>
+    <string name="video_fsr_upscale">FSR Upscale</string>
     <string name="video_fsr_mode">FSR Mode</string>
     <string name="lock_landscape">Lock landscape rotation (portrait outside containers)</string>
     <string name="help_lock_landscape">When enabled, containers always run in landscape (horizontal) mode and the app returns to portrait automatically when you exit. Turn this off if you want free rotation.</string>

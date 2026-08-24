@@ -141,19 +141,43 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
 
     /**
      * Normalizes any FSR mode value persisted by past builds to one of
-     * "off", "on", "quality", "balanced" or "performance". Older releases
-     * stored the spinner's display string ("Off", "Quality (1.5x)",
-     * "Balanced (1.7x)", "Performance (2.0x)"); the current format stores
-     * lowercase tokens.
+     * "off", "on", "fidelity", "quality", "balanced", "performance" or
+     * "ultraperformance". Older releases stored the spinner's display
+     * string ("Off", "Quality (1.5x)", "Balanced (1.7x)",
+     * "Performance (2.0x)"); the current format stores lowercase tokens.
      */
     public static String normalizeFsrValue(String raw) {
         if (raw == null) return "off";
         String value = raw.trim().toLowerCase(Locale.ENGLISH);
+        if (value.startsWith("ultra")) return "ultraperformance";
+        if (value.startsWith("fidelity")) return "fidelity";
         if (value.startsWith("quality")) return "quality";
         if (value.startsWith("balanced")) return "balanced";
         if (value.startsWith("performance")) return "performance";
         if (value.equals("on") || value.equals("1") || value.equals("true")) return "on";
         return "off";
+    }
+
+    /** Upscale factor of the internal FSR scene buffer for a mode token. */
+    public static float fsrFactorForMode(String mode) {
+        switch (mode) {
+            case "fidelity": return 1.3f;
+            case "quality": return 1.5f;
+            case "performance": return 2.0f;
+            case "ultraperformance": return 2.5f;
+            default: return 1.7f;
+        }
+    }
+
+    /** RCAS sharpness (stops) for a mode token: bigger upscale, stronger sharpening. */
+    public static float fsrStopsForMode(String mode) {
+        switch (mode) {
+            case "fidelity": return 1.8f;
+            case "quality": return 1.5f;
+            case "performance": return 0.7f;
+            case "ultraperformance": return 0.4f;
+            default: return 1.0f;
+        }
     }
 
     public static String getExtensionsBlacklist(String graphicsDriverConfig) {

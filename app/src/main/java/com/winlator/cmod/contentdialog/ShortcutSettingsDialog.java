@@ -213,9 +213,12 @@ public class ShortcutSettingsDialog extends ContentDialog {
 
                     @Override
                     public String getFsrMode() {
-                        return GraphicsDriverConfigDialog
-                                .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()))
-                                .getOrDefault("fsrMode", "off");
+                        // Effective value: the runtime FSR menu persists its
+                        // choice as a shortcut extra that overrides the config.
+                        return shortcut.getExtra("fsrMode",
+                                GraphicsDriverConfigDialog
+                                        .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()))
+                                        .getOrDefault("fsrMode", "off"));
                     }
 
                     @Override
@@ -249,16 +252,19 @@ public class ShortcutSettingsDialog extends ContentDialog {
                     @Override
                     public void apply(String gpuName, String presentMode,
                                       int textureFilterMode, boolean swapRedBlue,
-                                      String fsrMode, String fsrUpscale,
+                                      String fsrUpscale,
                                       String fsrQuality, boolean vsyncOff,
                                       boolean unlimitedImages) {
                         HashMap<String, String> config = GraphicsDriverConfigDialog
                                 .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()));
                         config.put("gpuName", gpuName);
                         config.put("presentMode", presentMode);
-                        config.put("fsrMode", fsrMode == null ? "off" : fsrMode);
+                        config.remove("fsrMode");
                         config.put("fsrUpscale", fsrUpscale == null ? "0" : fsrUpscale);
                         config.put("fsrQuality", fsrQuality == null ? "balanced" : fsrQuality);
+                        // Keep the runtime extra in sync so it can't override
+                        // this dialog's value on the next launch.
+                        shortcut.putExtra("fsrMode", null);
                         config.put("vblankOff", vsyncOff ? "1" : "0");
                         config.put("unlimitedImages", unlimitedImages ? "1" : "0");
                         vGraphicsDriverConfig.setTag(
