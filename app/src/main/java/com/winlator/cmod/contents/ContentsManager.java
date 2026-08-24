@@ -118,10 +118,15 @@ public class ContentsManager {
                 try {
                     JSONObject object = content.getJSONObject(i);
                     ContentProfile remoteProfile = new ContentProfile();
-                    remoteProfile.remoteUrl = object.getString("remoteUrl");
+                    remoteProfile.remoteUrl = object.optString("remoteUrl", "");
                     remoteProfile.type = ContentProfile.ContentType.getTypeByName(object.getString("type"));
-                    remoteProfile.verName = object.getString("verName");
-                    remoteProfile.verCode = object.getInt("verCode");
+                    remoteProfile.verName = object.optString("verName", "");
+                    remoteProfile.verCode = object.optInt("verCode", 0);
+                    // Skip poisoned cache entries (older builds stored empty
+                    // names for some release assets).
+                    if (remoteProfile.verName.trim().isEmpty() || remoteProfile.remoteUrl.trim().isEmpty()) {
+                        continue;
+                    }
                     remoteProfiles.add(remoteProfile);
                 } catch (JSONException e) {
                     e.printStackTrace();
@@ -167,10 +172,13 @@ public class ContentsManager {
                 if (profile == null) profile = inferRemoteProfile(tag, asset, name, remoteUrl);
                 else {
                     try {
-                        profile.put("verName", ExternalDownloadCatalog.stripPackageSuffix(name));
+                        String stripped = ExternalDownloadCatalog.stripPackageSuffix(name);
+                        if (stripped.trim().isEmpty()) continue;
+                        profile.put("verName", stripped);
                     }
                     catch (JSONException ignored) {}
                 }
+                if (profile == null || profile.optString("verName", "").trim().isEmpty()) continue;
                 catalog.put(profile);
             }
             refreshedAnyRelease = true;
@@ -263,9 +271,7 @@ public class ContentsManager {
                 || lower.endsWith(".tzst")
                 || lower.endsWith(".zst");
         if (!contentPackage) return false;
-        return !lower.contains("proton.9.0-x86_64")
-                && !lower.contains("proton-9.0-x86_64")
-                && !lower.contains("dxvk-1.7.1")
+        return !lower.contains("dxvk-1.7.1")
                 && !lower.contains("stripped");
     }
 

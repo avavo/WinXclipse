@@ -53,23 +53,18 @@ int wxp_loader_init(void) {
 
     wxp_init_from_env_or_auto();
 
-#if WXP_HAS_NRAMV
-    setenv("NRAMV_ENABLE", "1", 0);
-#else
-    /* Build-time truth wins here: preserving a user-provided "1" when the
-     * library is absent would advertise a ghost module. Very spiritual, very
-     * useless. */
-    setenv("NRAMV_ENABLE", "0", 1);
-#endif
-    setenv("WXP_VERSION", "3.6", 0);
     /* MDIEX_PROFILE is published by Core so later meta overrides cannot leave
      * a stale native_fallback value behind. The loader is not the source of
      * truth, no matter how much it would like a tiny crown. */
+    setenv("MDIEX_VERSION", "3.6", 0);
 
 #ifdef WXP_RUNTIME_MONOLITHIC
     /* In monolithic runtime mode this DSO already contains Core/Loader/Sched/
-     * MemShim/AHB/Surface. Do not dlopen split runtime siblings or the process
-     * can end up with two independent copies of the same counters and hints. */
+     * MemShim/AHB/Surface — and NRAMV is likewise compiled in (rox_*.c), while
+     * Helix is an implicit Vulkan layer discovered through its JSON manifest
+     * by the guest Vulkan loader, not something we dlopen from here.
+     * Do NOT dlopen split runtime siblings or the process can end up with two
+     * independent copies of the same counters and hints. */
     wxp_sched_init();
     wxp_memshim_init();
     wxp_ahb_init();
@@ -83,12 +78,6 @@ int wxp_loader_init(void) {
     try_load("libwxp_memshim.so", 0);
     try_load("libwxp_ahb.so", 0);
     try_load("libwxp_surface.so", 0);
-#endif
-#if WXP_HAS_NRAMV
-    try_load("libnramv.so", 0);
-#endif
-#if WXP_HAS_HELIX
-    try_load("libLayer_Helix.so", 0);
 #endif
     wxp_log_line("WinXclipsePolicyLoader", "loader initialized");
     return 1;

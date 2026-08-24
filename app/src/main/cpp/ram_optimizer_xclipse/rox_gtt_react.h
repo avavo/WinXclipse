@@ -91,6 +91,12 @@ rox_gtt_level_t rox_gtt_classify(const rox_gtt_state_t *state);
 /* Executa reação para nível específico */
 int rox_gtt_react_level(rox_gtt_level_t level);
 
+/* Variante para chamadores que já aplicaram mallopt/heap compact para este
+ * evento (ex.: rox_flush): aplica só as ações de kernel/evento/callback. */
+int rox_gtt_react_level_ex(rox_gtt_level_t level,
+                           const rox_gtt_state_t *state,
+                           int apply_heap_actions);
+
 /* Pipeline completo: read → classify → react */
 int rox_gtt_react(void);
 

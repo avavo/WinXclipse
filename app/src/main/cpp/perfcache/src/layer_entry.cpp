@@ -1,6 +1,6 @@
 // layer_entry.cpp
 //
-// Entry point for VK_LAYER_PERFCACHE.
+// Entry point for VK_LAYER_PERFCACHE_HELIX.
 //
 // Responsibilities:
 //   1. Export the symbols the Android Vulkan loader requires.
@@ -152,6 +152,13 @@ static VKAPI_ATTR VkResult VKAPI_CALL layer_CreateComputePipelines(
     const VkComputePipelineCreateInfo*,
     const VkAllocationCallbacks*, VkPipeline*);
 
+static VKAPI_ATTR VkResult VKAPI_CALL layer_CreateShaderModule(
+    VkDevice, const VkShaderModuleCreateInfo*,
+    const VkAllocationCallbacks*, VkShaderModule*);
+
+static VKAPI_ATTR void VKAPI_CALL layer_DestroyShaderModule(
+    VkDevice, VkShaderModule, const VkAllocationCallbacks*);
+
 static VKAPI_ATTR VkResult VKAPI_CALL layer_MapMemory(
     VkDevice, VkDeviceMemory, VkDeviceSize, VkDeviceSize, VkMemoryMapFlags, void**);
 
@@ -259,6 +266,8 @@ vkGetDeviceProcAddr(VkDevice device, const char* pName) {
     INTERCEPT_DEVICE(DestroyDevice)
     INTERCEPT_DEVICE(CreateGraphicsPipelines)
     INTERCEPT_DEVICE(CreateComputePipelines)
+    INTERCEPT_DEVICE(CreateShaderModule)
+    INTERCEPT_DEVICE(DestroyShaderModule)
     INTERCEPT_DEVICE(MapMemory)
     INTERCEPT_DEVICE(UnmapMemory)
     INTERCEPT_DEVICE(CreateBuffer)
@@ -324,7 +333,9 @@ vkEnumerateInstanceLayerProperties(uint32_t* pCount,
     }
 
     memset(&pProperties[0], 0, sizeof(VkLayerProperties));
-    strncpy(pProperties[0].layerName, "VK_LAYER_PERFCACHE",
+    // Must match the "name" field of the JSON manifest deployed by the app
+    // (VK_LAYER_PERFCACHE_HELIX), otherwise explicit-by-name queries miss us.
+    strncpy(pProperties[0].layerName, "VK_LAYER_PERFCACHE_HELIX",
             VK_MAX_EXTENSION_NAME_SIZE - 1);
     strncpy(pProperties[0].description,
             "Pipeline cache / texture LRU / wave selector / sanitizer",
@@ -360,7 +371,7 @@ vkEnumerateDeviceExtensionProperties(VkPhysicalDevice physDev,
                                      VkExtensionProperties* pProperties) {
     if (!pCount) return VK_ERROR_INITIALIZATION_FAILED;
 
-    if (pLayerName && !strcmp(pLayerName, "VK_LAYER_PERFCACHE")) {
+    if (pLayerName && !strcmp(pLayerName, "VK_LAYER_PERFCACHE_HELIX")) {
         *pCount = 0;
         return VK_SUCCESS;
     }
@@ -602,6 +613,9 @@ static VKAPI_ATTR VkResult VKAPI_CALL layer_CreateDevice(
     LOAD_DEV(CreateComputePipelines);
     LOAD_DEV(DestroyPipeline);
 
+    LOAD_DEV(CreateShaderModule);
+    LOAD_DEV(DestroyShaderModule);
+
     LOAD_DEV(CmdCopyBufferToImage);
     LOAD_DEV(CreateBuffer);
     LOAD_DEV(DestroyBuffer);
@@ -786,6 +800,7 @@ static VKAPI_ATTR void VKAPI_CALL layer_DestroyDevice(
 
     if (!g_settings.disable) {
         pipeline_cache_on_device_destroyed(device, disp);
+        texture_cache_on_device_destroyed();
         perf_metrics_dump();
 
         if (g_settings.metrics_dump_file) {
@@ -1094,12 +1109,85 @@ static VKAPI_ATTR VkResult VKAPI_CALL layer_CreateComputePipelines(
             pCreateInfos, pAllocator, pPipelines);
     }
 
+    bool used_patched_compute = false;
+    const VkComputePipelineCreateInfo* const original_infos = pCreateInfos;
+
     VkPipelineCache effective_cache = pipelineCache;
     if (effective_cache == VK_NULL_HANDLE && !g_conflict.has_pipeline_cache.load(std::memory_order_acquire)) {
         effective_cache = pipeline_cache_get(device);
         if (effective_cache != VK_NULL_HANDLE &&
             g_settings.pipeline_warmup != WarmupMode::OFF) {
             perf_metrics_inc_warmup_cache_touches(createInfoCount);
+        }
+    }
+
+    // Sanitizer for COMPUTE pipelines: required-subgroup-size defects are
+    // primarily a compute-stage phenomenon (DXVK/vkd3d attach the pNext to
+    // the compute shader), but only graphics went through correction 7. Apply
+    // the same invalid-required-subgroup-size strip here.
+    if (g_settings.sanitize_pipelines &&
+        !g_conflict.has_sanitizer.load(std::memory_order_acquire) &&
+        xcache_is_xclipse() && createInfoCount > 0 &&
+        pCreateInfos[0].stage.pNext) {
+
+        VkPhysicalDeviceSubgroupSizeControlProperties sc_props{};
+        sc_props.sType =
+            VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_SIZE_CONTROL_PROPERTIES;
+
+        {
+            std::lock_guard<std::mutex> lk(g_subgroup_lock);
+            auto it = g_subgroup_props.find(device);
+            if (it != g_subgroup_props.end())
+                sc_props = it->second;
+        }
+
+        if (sc_props.minSubgroupSize != 0 && sc_props.maxSubgroupSize != 0) {
+
+            const VkBaseInStructure* p =
+                reinterpret_cast<const VkBaseInStructure*>(pCreateInfos[0].stage.pNext);
+
+            bool invalid = false;
+            bool invalid_is_first = false;
+            uint32_t depth = 0;
+
+            while (p && depth++ < 32) {
+                if (p->sType ==
+                    VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_REQUIRED_SUBGROUP_SIZE_CREATE_INFO) {
+                    const auto* rs =
+                        reinterpret_cast<const VkPipelineShaderStageRequiredSubgroupSizeCreateInfo*>(p);
+
+                    if (rs->requiredSubgroupSize < sc_props.minSubgroupSize ||
+                        rs->requiredSubgroupSize > sc_props.maxSubgroupSize) {
+                        invalid = true;
+                        invalid_is_first = (depth == 1);
+                    }
+                    break;
+                }
+                p = p->pNext;
+            }
+
+            if (invalid) {
+                // Local patched copies: only the stage's pNext pointer is
+                // rewired — first-node offenders are skipped, deeper ones
+                // drop the whole stage chain, mirroring graphics correction 7.
+                VkPipelineShaderStageCreateInfo stage_copy = pCreateInfos[0].stage;
+
+                if (invalid_is_first) {
+                    const auto* first =
+                        reinterpret_cast<const VkBaseInStructure*>(stage_copy.pNext);
+                    stage_copy.pNext = first->pNext;
+                } else {
+                    stage_copy.pNext = nullptr;
+                }
+
+                static thread_local VkComputePipelineCreateInfo patched_storage[1];
+                patched_storage[0] = pCreateInfos[0];
+                patched_storage[0].stage = stage_copy;
+                pCreateInfos = patched_storage;
+                used_patched_compute = true;
+
+                LOGI("Sanitizer: stripped invalid required-subgroup-size from compute stage");
+            }
         }
     }
 
@@ -1118,6 +1206,14 @@ static VKAPI_ATTR VkResult VKAPI_CALL layer_CreateComputePipelines(
 
     perf_metrics_add_compute_pipeline_create_time_us(now_us() - t0);
 
+    // Patched create failed for an unrelated reason: give the untouched
+        // infos one chance before any cache/blacklist fallback.
+    if (r != VK_SUCCESS && used_patched_compute) {
+        r = disp.CreateComputePipelines(
+            device, pipelineCache, createInfoCount,
+            original_infos, pAllocator, pPipelines);
+    }
+
     if (r != VK_SUCCESS && effective_cache != pipelineCache &&
         g_settings.pipeline_blacklist) {
         VkResult fallback = disp.CreateComputePipelines(
@@ -1135,6 +1231,49 @@ static VKAPI_ATTR VkResult VKAPI_CALL layer_CreateComputePipelines(
     }
 
     return r;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  vkCreateShaderModule / vkDestroyShaderModule
+//
+//  Feed content hashes into pipeline_control so pipeline signatures can tell
+//  apart distinct SPIR-V payloads that share fixed-function state.
+// ─────────────────────────────────────────────────────────────────────────────
+
+static VKAPI_ATTR VkResult VKAPI_CALL layer_CreateShaderModule(
+    VkDevice device,
+    const VkShaderModuleCreateInfo* pCreateInfo,
+    const VkAllocationCallbacks* pAllocator,
+    VkShaderModule* pShaderModule) {
+    DeviceDispatch disp{};
+    bool has_disp = get_device_dispatch_copy(device, disp);
+    if (!has_disp || !disp.CreateShaderModule)
+        return VK_ERROR_INITIALIZATION_FAILED;
+
+    VkResult r = disp.CreateShaderModule(device, pCreateInfo, pAllocator, pShaderModule);
+
+    if (r == VK_SUCCESS && !g_settings.disable &&
+        pCreateInfo && pShaderModule && pCreateInfo->pCode && pCreateInfo->codeSize > 0) {
+        xcache_pc_note_shader_module(*pShaderModule,
+                                     pCreateInfo->pCode,
+                                     static_cast<size_t>(pCreateInfo->codeSize));
+    }
+
+    return r;
+}
+
+static VKAPI_ATTR void VKAPI_CALL layer_DestroyShaderModule(
+    VkDevice device,
+    VkShaderModule shaderModule,
+    const VkAllocationCallbacks* pAllocator) {
+    DeviceDispatch disp{};
+    bool has_disp = get_device_dispatch_copy(device, disp);
+    if (!has_disp || !disp.DestroyShaderModule) return;
+
+    if (!g_settings.disable)
+        xcache_pc_forget_shader_module(shaderModule);
+
+    disp.DestroyShaderModule(device, shaderModule, pAllocator);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -48,13 +48,20 @@ int rox_mallopt_apply(rox_profile_t profile)
         return ROPT_ERR_PARAM;
     }
 
-    /* mallopt pode falhar silenciosamente em bionic.
-     * então NÃO usamos isso como critério de erro. */
-    (void)mallopt(M_TRIM_THRESHOLD, trim_threshold);
-    (void)mallopt(M_MMAP_THRESHOLD, mmap_threshold);
-    (void)mallopt(M_ARENA_MAX, arena_max);
+    /* mallopt no bionic não honra M_TRIM/M_MMAP/Arena (só decay/purge):
+     * retorna 0 para opções não suportadas. Se NENHUMA opção foi aceita,
+     * reportar NODEV em vez de OK — antes, o perfil "aplicado" era mentira
+     * e mascarava por que a RAM não caía. Em glibc os três costumam ser
+     * honrados e seguimos reportando OK. */
+    {
+        int honored = 0;
 
-    return ROPT_OK;
+        honored += mallopt(M_TRIM_THRESHOLD, trim_threshold) ? 1 : 0;
+        honored += mallopt(M_MMAP_THRESHOLD, mmap_threshold) ? 1 : 0;
+        honored += mallopt(M_ARENA_MAX, arena_max) ? 1 : 0;
+
+        return honored > 0 ? ROPT_OK : ROPT_ERR_NODEV;
+    }
 #endif
 }
 

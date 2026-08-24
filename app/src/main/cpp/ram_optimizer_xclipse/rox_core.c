@@ -21,6 +21,10 @@
 #include <unistd.h>
 #include <pthread.h>
 
+#if defined(__ANDROID__)
+#include <android/log.h>
+#endif
+
 #include "rox.h"
 #include "rox_gtt_react.h"
 #include "rox_internal.h"
@@ -288,13 +292,29 @@ int rox_init(void)
         }
     }
 
-    rox_ringbuf_init();
+    {
+        int rb = rox_ringbuf_init();
+
+        if (rb != ROPT_OK) {
+            /* Telemetria indisponível não deve abortar a sessão, mas o
+             * retorno ignorado escondia a falha por completo. */
+#if defined(__ANDROID__)
+            __android_log_print(ANDROID_LOG_WARN, "ROpt",
+                                "ringbuf init failed: %d", rb);
+#endif
+        }
+    }
 
     atomic_store(&g_initialized, 1);
 
     pthread_mutex_unlock(&g_state_lock);
 
     return ROPT_OK;
+}
+
+int rox_core_is_initialized(void)
+{
+    return atomic_load(&g_initialized);
 }
 
 /* ───────────────────────────────────────────── */
@@ -316,6 +336,10 @@ void rox_shutdown(void)
     atomic_store(&g_initialized, 0);
 
     atomic_thread_fence(memory_order_seq_cst);
+
+    /* Devolve tuning de alocação ao estado neutro (inclui desligar o
+     * M_PERTURB, que sem isso ficava ligado para sempre no processo). */
+    (void)rox_mallopt_reset();
 
     rox_ringbuf_destroy();
 
@@ -559,28 +583,24 @@ int rox_flush(void)
     rox_feedback_post_flush(&fb_snap, flush_profile);
 
     /*
-     * Detecção de fragmentação de heap.
-     * Executado após post_flush para que get_ineffective_count()
-     * reflita o flush atual e não o anterior.
+     * Detecção de heap efetivamente desperdiçado: só re-perturba quando os
+     * flushes não estão surtindo efeito. O antigo gatilho (rss/vsz < 30%)
+     * era ~sempre verdade num emulador — o VSZ inclui gigabytes de VA
+     * reservado (Wine/Vulkan/shm) — então o M_PERTURB ligava na primeira
+     * flush e ficava preso, desacelerando TODA alocação do processo.
      */
-    {
-        long long rss = rox_smaps_rss_kb();
-        long long vsz = rox_self_vsz_kb();
-
-        if (rss > 0 && vsz > 0) {
-            if ((rss * 100 / vsz) < 30 ||
-                rox_feedback_get_ineffective_count() >= 2) {
-
-                /*
-                 * ROPT_ERR_NODEV esperado em bionic.
-                 * Descarte explícito.
-                 */
-                (void)rox_mallopt_apply_perturb();
-            }
-        }
+    if (rox_feedback_get_ineffective_count() >= 3) {
+        /*
+         * ROPT_ERR_NODEV esperado em bionic.
+         * Descarte explícito.
+         */
+        (void)rox_mallopt_apply_perturb();
     }
 
-    ret = rox_gtt_react_level(gtt_level);
+    /* Heap actions já rodaram acima; a reação GTT aqui é só a parte de
+     * kernel/eventos. Sem isso, mallopt+compact rodavam duas vezes por
+     * flush sob g_state_lock. */
+    ret = rox_gtt_react_level_ex(gtt_level, &gtt, 0);
 
     if (ret != ROPT_OK) {
 

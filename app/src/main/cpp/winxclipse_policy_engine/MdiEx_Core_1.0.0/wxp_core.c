@@ -482,6 +482,15 @@ static void finalize_ram_and_profile(int ram) {
             (ram > 8) ? "exynos2400_12gb" :
             "exynos2400_auto";
     }
+    else if (ram > 0 && ram <= 8 &&
+             strstr(g_info.package_profile, "_12gb_") != NULL) {
+        /* O sufixo _12gb_safe é uma reivindicação real de recurso: um device
+         * de 8 GB não deve recebê-lo só porque o SoC tem variante de 12 GB.
+         * Cai para o perfil genérico que os guests já conhecem (o mesmo dos
+         * SoCs desconhecidos) em vez de anunciar uma classe de memória que
+         * o hardware não tem. */
+        g_info.package_profile = "native_fallback";
+    }
 }
 
 static void publish_profile_env_unlocked(void) {

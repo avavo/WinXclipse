@@ -5,15 +5,16 @@
 //  dispatch_table.h
 //  Per-instance and per-device function pointer tables.
 //
-//  The Vulkan loader identifies dispatchable objects by their first word
-//  (the dispatch key), which is a pointer to the driver's vtable.  We store
-//  our own tables keyed on that same pointer so that multiple VkInstance /
-//  VkDevice objects can coexist correctly.
+//  Our tables are keyed on the OBJECT HANDLE itself. The Vulkan loader's own
+//  "dispatch key" (the driver vtable pointer stored in the first word) is
+//  SHARED by every object created from the same ICD, so using it here would
+//  collide distinct VkInstance/VkDevice handles and let the Destroy{Instance,
+//  Device} of one object erase another object's entry.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Canonical "dispatch key" helper used by the Vulkan loader convention.
+// Key for our per-object maps: the handle value itself.
 static inline void* dispatch_key(const void* handle) {
-    return *reinterpret_cast<void* const*>(handle);
+    return const_cast<void*>(handle);
 }
 
 struct InstanceDispatch {
@@ -40,6 +41,10 @@ struct DeviceDispatch {
     PFN_vkCreateGraphicsPipelines    CreateGraphicsPipelines    = nullptr;
     PFN_vkCreateComputePipelines     CreateComputePipelines     = nullptr;
     PFN_vkDestroyPipeline           DestroyPipeline           = nullptr;
+
+    // Shader module tracking (content hashes for pipeline signatures)
+    PFN_vkCreateShaderModule         CreateShaderModule         = nullptr;
+    PFN_vkDestroyShaderModule        DestroyShaderModule        = nullptr;
 
     // Texture upload interception
     PFN_vkCmdCopyBufferToImage       CmdCopyBufferToImage       = nullptr;

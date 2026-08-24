@@ -118,14 +118,21 @@ int rox_psi_read(rox_psi_t *out)
     out->available = 1;
 
     while (fgets(line, sizeof(line), f)) {
+        /* Parse verificado: linha truncada/formato inesperado deixaria os
+         * campos em 0 e o módulo concluiria "sem pressão" silenciosamente. */
         if (strncmp(line, "some", 4) == 0) {
-            (void)sscanf(line, "some avg10=%f avg60=%f",
-                         &out->some_avg10, &out->some_avg60);
+            if (sscanf(line, "some avg10=%f avg60=%f",
+                       &out->some_avg10, &out->some_avg60) != 2) {
+                out->available = 0;
+                break;
+            }
         }
 
         if (strncmp(line, "full", 4) == 0) {
-            (void)sscanf(line, "full avg10=%f avg60=%f",
-                         &out->full_avg10, &out->full_avg60);
+            if (sscanf(line, "full avg10=%f avg60=%f",
+                       &out->full_avg10, &out->full_avg60) != 2) {
+                out->full_avg10 = -1.0f; /* marca full indisponível */
+            }
         }
     }
 

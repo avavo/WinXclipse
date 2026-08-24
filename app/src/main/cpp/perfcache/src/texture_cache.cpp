@@ -164,7 +164,9 @@ static std::string dirname_of(const std::string& path) {
     return path.substr(0, slash);
 }
 
-static void fsync_parent_dir(const std::string& path) {
+// Mantida para referência: a gravação do cache deixou de fsyncar (best-effort;
+// hits nunca afetam rendering), então o fsync de diretório também saiu.
+[[maybe_unused]] static void fsync_parent_dir(const std::string& path) {
     std::string dir = dirname_of(path);
     if (dir.empty()) return;
 
@@ -189,6 +191,10 @@ static uint64_t max_texture_payload_bytes() {
 
     return mb * 1024ull * 1024ull;
 }
+
+// Hard ceiling for what try_record_upload will copy off a persistent map.
+// Independent of the disk budget: bounds the worst-case per-upload stall.
+static constexpr uint64_t kMaxRecordedUploadBytes = 16ull * 1024ull * 1024ull;
 
 static uint64_t disk_limit_bytes() {
     uint64_t mb = static_cast<uint64_t>(g_settings.texture_cache_disk_mb);
@@ -404,8 +410,61 @@ static bool write_all_fd(int fd, const void* data, size_t size) {
     return true;
 }
 
+// Oldest-first eviction: without it the cache froze permanently once full —
+// the first game to fill the quota starved every later session forever.
+// Caller must hold s_disk_lock (and the file lock).
+static void evict_oldest_locked(uint64_t target_bytes) {
+    const std::string dir = g_settings.texture_cache_dir;
+
+    DIR* d = opendir(dir.c_str());
+    if (!d) return;
+
+    struct Entry {
+        std::string path;
+        uint64_t size;
+        long long mtime;
+    };
+
+    std::vector<Entry> entries;
+    struct dirent* de;
+
+    while ((de = readdir(d))) {
+        if (de->d_name[0] == '.') continue;
+
+        std::string path = dir;
+        if (!path.empty() && path.back() != '/') path += '/';
+        path += de->d_name;
+
+        struct stat st{};
+        if (stat(path.c_str(), &st) != 0 || !S_ISREG(st.st_mode)) continue;
+
+        entries.push_back({path,
+                           static_cast<uint64_t>(st.st_size),
+                           static_cast<long long>(st.st_mtime)});
+    }
+
+    closedir(d);
+
+    std::sort(entries.begin(), entries.end(),
+              [](const Entry& a, const Entry& b) { return a.mtime < b.mtime; });
+
+    uint64_t used = disk_used_bytes_locked();
+
+    for (const auto& e : entries) {
+        if (used <= target_bytes) break;
+
+        if (remove(e.path.c_str()) == 0)
+            used = (used > e.size) ? used - e.size : 0;
+    }
+}
+
 static void write_to_disk(const TexEntry& e) {
     if (e.data.empty())
+        return;
+
+    // Recording cap mirrors try_record_upload; read-side still honors the
+    // configured budget for pre-existing larger entries.
+    if (e.data.size() > kMaxRecordedUploadBytes)
         return;
 
     std::lock_guard<std::mutex> lk(s_disk_lock);
@@ -434,14 +493,12 @@ static void write_to_disk(const TexEntry& e) {
         return;
     }
 
-    if (limit > 0 &&
-        disk_used_bytes_locked() + payload.size() + sizeof(TexCacheHeader) > limit) {
-        LOGV("texture_cache: disk limit reached, skipping key %016llx",
-             static_cast<unsigned long long>(e.key));
-        return;
-    }
-
     ensure_dir(g_settings.texture_cache_dir);
+
+    // Over budget: evict oldest entries down to ~90% of the quota instead of
+    // refusing every new write from now on.
+    if (limit > 0 && disk_used_bytes_locked() + payload.size() > limit)
+        evict_oldest_locked(limit - limit / 10);
 
     const std::string path = key_to_path(e.key);
 
@@ -473,11 +530,11 @@ static void write_to_disk(const TexEntry& e) {
     hdr.mip_levels = e.mip_levels;
     hdr.data_size  = static_cast<uint64_t>(e.data.size());
 
+    // Sem fsync de arquivo nem de diretório: cache hits NUNCA afetam o
+    // rendering (só contam métricas), então durabilidade aqui não compra
+    // nada — e o fsync por textura era um stall no meio da gravação.
     bool ok = write_all_fd(fd, &hdr, sizeof(hdr)) &&
               write_all_fd(fd, payload.data(), payload.size());
-
-    if (ok && fsync(fd) != 0)
-        ok = false;
 
     if (close(fd) != 0)
         ok = false;
@@ -492,15 +549,6 @@ static void write_to_disk(const TexEntry& e) {
         LOGE("texture_cache: rename failed %s -> %s: %s",
              tmp_path.c_str(), path.c_str(), strerror(errno));
         remove(tmp_path.c_str());
-        return;
-    }
-
-    fsync_parent_dir(path);
-
-    if (limit > 0 && disk_used_bytes_locked() > limit) {
-        remove(path.c_str());
-        LOGV("texture_cache: post-write limit exceeded, removed key %016llx",
-             static_cast<unsigned long long>(e.key));
         return;
     }
 
@@ -767,6 +815,14 @@ static std::mutex s_buf_lock;
 static std::unordered_map<VkDeviceMemory, BufferMapping> s_mappings;
 static std::unordered_map<VkBuffer, BufferBinding> s_buffer_bindings;
 
+void texture_cache_on_device_destroyed() {
+    // The maps are process-global (not keyed per device), so a destroyed
+    // device drops them all — same discipline as the other per-device maps.
+    std::lock_guard<std::mutex> lk(s_buf_lock);
+    s_mappings.clear();
+    s_buffer_bindings.clear();
+}
+
 void texture_cache_on_map_memory(VkDeviceMemory mem,
                                   VkDeviceSize offset,
                                   VkDeviceSize size,
@@ -909,7 +965,12 @@ static void try_record_upload(VkBuffer src_buffer,
         if (want > max_available)
             want = max_available;
 
-        if (want == 0 || want > max_texture_payload_bytes())
+        // Recording cap: a multi-MB memcpy + RLE + directory stat + sync on
+        // the command-buffer-recording thread is exactly the mid-frame hitch
+        // this cache must not cause. Large atlases rarely dedupe anyway.
+        if (want == 0 ||
+            want > std::min<uint64_t>(max_texture_payload_bytes(),
+                                      kMaxRecordedUploadBytes))
             return;
 
         const uint8_t* ptr =

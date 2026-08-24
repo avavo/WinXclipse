@@ -630,19 +630,19 @@ void xcache_settings_init() {
 
     g_settings.pipeline_cache_dir =
         env_or("PERFCACHE_PIPELINE_CACHE_DIR",
-               "/data/local/tmp/layercache/pipeline");
+               "/usr/var/cache/layercache/pipeline");
 
     g_settings.texture_cache_dir =
         env_or("PERFCACHE_TEXTURE_CACHE_DIR",
-               "/data/local/tmp/layercache/textures");
+               "/usr/var/cache/layercache/textures");
 
     g_settings.config_path =
         env_or("PERFCACHE_CONFIG_PATH",
-               "/data/local/tmp/layercache/profiles.json");
+               "/usr/var/cache/layercache/profiles.json");
 
     g_settings.metrics_dump_path =
         env_or("PERFCACHE_METRICS_PATH",
-               "/data/local/tmp/layercache/metrics.jsonl");
+               "/usr/var/cache/layercache/metrics.jsonl");
 
     g_settings.log_level =
         static_cast<int>(env_u32("PERFCACHE_LOG_LEVEL", 2));

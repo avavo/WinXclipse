@@ -709,10 +709,14 @@ public class ContainerDetailFragment extends Fragment {
                 String envVars = envVarsView.getEnvVars();
                 String graphicsDriver = StringUtils.parseIdentifier(sGraphicsDriver.getSelectedItem());
                 String graphicsDriverConfig = vGraphicsDriverConfig.getTag().toString();
-                // The runtime FSR extra must not override the Video Configuration
+                // The runtime FSR extras must not override the Video Configuration
                 // dialog on the next launch (edit mode only: in create mode the
                 // container object does not exist yet).
-                if (container != null) container.putExtra("fsrMode", null);
+                if (container != null) {
+                    container.putExtra("fsrMode", null);
+                    container.putExtra("fsrUpscale", null);
+                    container.putExtra("fsrQuality", null);
+                }
                 String dxwrapper = getDXWrapperIdentifier(sDXWrapper.getSelectedItem());
                 String dxwrapperConfig = vDXWrapperConfig.getTag().toString();
                 String ddrawrapper = DXVKConfigDialog.parseConfig(dxwrapperConfig).get("ddrawrapper");

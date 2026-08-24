@@ -98,6 +98,8 @@ public class WinlatorHUD extends View {
     private final int ramBlinkThreshold;
     private final int ramWarningThreshold;
     private boolean ramAlertActive = false;
+    /** Latches an NRAMV escalation until RAM drops back below the hysteresis band. */
+    private boolean ramEscalated = false;
     private boolean ramWarningEnabled = true;
     private boolean ramHelpPressed = false;
 
@@ -275,14 +277,19 @@ public class WinlatorHUD extends View {
 
     private void updateRamAlert(int ramPercent) {
         // NRAMV escalation is independent of the user-visible warning toggle:
-        // crossing into the danger band forces the aggressive reclaim pass
-        // once, and dropping back below it (with hysteresis) restores the
-        // session baseline. Native flush has its own cooldown/emergency rules.
+        // crossing into the danger band forces ONE aggressive reclaim pass,
+        // and dropping back below it (with hysteresis) restores the session
+        // baseline. ramEscalated latches the excursion so the pass cannot
+        // re-fire every tick while RAM stays high - previously, with warnings
+        // disabled, the visual flag was cleared each tick and escalation
+        // re-ran its full maps/pageout sweep every update.
         boolean inDanger = ramPercent >= ramBlinkThreshold;
-        if (inDanger && !ramAlertActive) {
+        if (inDanger && !ramEscalated) {
             com.winlator.cmod.core.RamOptimizerXclipse.escalate();
-        } else if (!inDanger && ramAlertActive && ramPercent < ramBlinkThreshold - 6) {
+            ramEscalated = true;
+        } else if (!inDanger && ramEscalated && ramPercent < ramBlinkThreshold - 6) {
             com.winlator.cmod.core.RamOptimizerXclipse.restoreBaseline();
+            ramEscalated = false;
         }
 
         if (!ramWarningEnabled) {

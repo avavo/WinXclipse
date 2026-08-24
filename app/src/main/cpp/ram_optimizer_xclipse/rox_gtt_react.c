@@ -256,6 +256,24 @@ static long long gtt_mono_sec(void)
     return (long long)ts.tv_sec;
 }
 
+/* Valor original de vm.vfs_cache_pressure capturado antes da primeira
+ * escrita; -1 enquanto nada foi lido/escrito. Restaurar para um valor
+ * hardcodado sobrescreveria o tuning real do dispositivo. */
+static int g_vfs_pressure_original = -1;
+
+static int read_current_cache_pressure(void)
+{
+    FILE *f = fopen("/proc/sys/vm/vfs_cache_pressure", "r");
+    int v = -1;
+
+    if (!f)
+        return -1;
+    if (fscanf(f, "%d", &v) != 1)
+        v = -1;
+    fclose(f);
+    return v;
+}
+
 static void try_kernel_compact(void)
 {
     FILE *f = fopen("/proc/sys/vm/compact_memory", "w");
@@ -268,7 +286,12 @@ static void try_kernel_compact(void)
 
 static void try_cache_pressure(int value)
 {
-    FILE *f = fopen("/proc/sys/vm/vfs_cache_pressure", "w");
+    FILE *f;
+
+    if (g_vfs_pressure_original < 0)
+        g_vfs_pressure_original = read_current_cache_pressure();
+
+    f = fopen("/proc/sys/vm/vfs_cache_pressure", "w");
     if (!f)
         return;
 
@@ -289,7 +312,8 @@ static void maybe_restore_cache_pressure(void)
         return;
 
     if (gtt_mono_sec() >= restore_at) {
-        try_cache_pressure(100);
+        if (g_vfs_pressure_original > 0)
+            try_cache_pressure(g_vfs_pressure_original);
         atomic_store(&g_cache_pressure_restore_at, 0);
     }
 }
@@ -303,13 +327,18 @@ static rox_profile_t profile_for_level(rox_gtt_level_t level)
     return ROPT_PROFILE_LIGHT;
 }
 
-static int gtt_react_level_with_state(rox_gtt_level_t level,
-                                      const rox_gtt_state_t *state)
+static int gtt_react_level_ex_impl(rox_gtt_level_t level,
+                                   const rox_gtt_state_t *state,
+                                   int apply_heap_actions)
 {
     rox_profile_t profile;
-    int ret;
+    int ret = ROPT_OK;
     int mr;
     int gtt_pct = state ? state->gtt_pressure_pct : -1;
+
+    /* Caminhos externos (psi/compat) podiam reagir fora da sessão. */
+    if (!rox_core_is_initialized())
+        return ROPT_ERR_INIT;
 
     maybe_restore_cache_pressure();
 
@@ -321,11 +350,16 @@ static int gtt_react_level_with_state(rox_gtt_level_t level,
 
     profile = profile_for_level(level);
 
-    mr = rox_mallopt_apply(profile);
-    if (mr != ROPT_OK && mr != ROPT_ERR_NODEV)
-        return mr;
+    /* apply_heap_actions=0: o chamador (rox_flush) já aplicou mallopt e
+     * compactou o heap para este evento — repetir aqui só queimava CPU
+     * rodando a varredura de maps duas vezes sob g_state_lock. */
+    if (apply_heap_actions) {
+        mr = rox_mallopt_apply(profile);
+        if (mr != ROPT_OK && mr != ROPT_ERR_NODEV)
+            return mr;
 
-    ret = rox_heap_compact(profile);
+        ret = rox_heap_compact(profile);
+    }
 
     if (level >= ROPT_GTT_MEDIUM)
         try_kernel_compact();
@@ -468,15 +502,10 @@ rox_gtt_level_t rox_gtt_classify(const rox_gtt_state_t *state)
         return ROPT_GTT_NORMAL;
 
     if (!state->gtt_available) {
-        int gpu = state->gpu_utilization_pct;
-
-        if (gpu >= 90)
-            return ROPT_GTT_AGGRESSIVE;
-        if (gpu >= 75)
-            return ROPT_GTT_MEDIUM;
-        if (gpu >= 50)
-            return ROPT_GTT_LIGHT;
-
+        /* Sem nós de GTT não há leitura de pressão de memória de GPU.
+         * Utilização de GPU alta é carga, não pressão — inferir AGGRESSIVE
+         * daqui varria o heap continuamente em jogos GPU-bound. Fica NORMAL
+         * e as reações ficam a cargo dos sinais de RAM/PSI. */
         return ROPT_GTT_NORMAL;
     }
 
@@ -517,9 +546,16 @@ rox_gtt_level_t rox_gtt_classify(const rox_gtt_state_t *state)
     return ROPT_GTT_NORMAL;
 }
 
+int rox_gtt_react_level_ex(rox_gtt_level_t level,
+                           const rox_gtt_state_t *state,
+                           int apply_heap_actions)
+{
+    return gtt_react_level_ex_impl(level, state, apply_heap_actions);
+}
+
 int rox_gtt_react_level(rox_gtt_level_t level)
 {
-    return gtt_react_level_with_state(level, NULL);
+    return gtt_react_level_ex_impl(level, NULL, 1);
 }
 
 int rox_gtt_react(void)
@@ -533,7 +569,7 @@ int rox_gtt_react(void)
         return ret;
 
     level = rox_gtt_classify(&state);
-    return gtt_react_level_with_state(level, &state);
+    return gtt_react_level_ex_impl(level, &state, 1);
 }
 
 int rox_gtt_diagnose(rox_gtt_diag_t *out)

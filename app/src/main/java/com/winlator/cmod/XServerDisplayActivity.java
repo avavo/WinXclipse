@@ -1060,7 +1060,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             hudDataSource.stop();
             hudDataSource = null;
         }
-        try { RamOptimizerXclipse.nativeShutdown(); } catch (Throwable ignored) {}
+        try { RamOptimizerXclipse.shutdown(); } catch (Throwable ignored) {}
         super.onDestroy();
     }
 
@@ -2255,6 +2255,16 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         sidebarHandler.post(sidebarStatusRunnable);
     }
 
+    /** Applies the app's dialog-button look (matches Cancel/OK) to a button. */
+    private static void styleDialogButton(View button) {
+        button.setBackgroundResource(R.drawable.button_neutral);
+        if (button instanceof android.widget.Button) {
+            android.widget.Button b = (android.widget.Button) button;
+            b.setTextColor(0xFFFFFFFF);
+            b.setAllCaps(false);
+        }
+    }
+
     private void showSidebarInputMenu(View anchor) {
         final ContentDialog dialog = new ContentDialog(this, R.layout.sidebar_input_dialog);
         dialog.setTitle(R.string.input_controls);
@@ -2262,6 +2272,11 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         CheckBox cbRelative = dialog.findViewById(R.id.CBInputRelativeMouse);
         cbRelative.setChecked(isRelativeMouseMovement);
+
+        styleDialogButton(dialog.findViewById(R.id.BTInputKeyboard));
+        styleDialogButton(dialog.findViewById(R.id.BTInputInputControls));
+        styleDialogButton(dialog.findViewById(R.id.BTInputControllers));
+        styleDialogButton(dialog.findViewById(R.id.BTInputMotion));
 
         dialog.findViewById(R.id.BTInputKeyboard).setOnClickListener(v -> {
             dialog.dismiss();
@@ -2357,6 +2372,11 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         CheckBox cbSwapRB = dialog.findViewById(R.id.CBDisplaySwapRB);
         cbSwapRB.setChecked(renderer.isSwapRedBlue());
+
+        styleDialogButton(dialog.findViewById(R.id.BTDisplayScreenEffects));
+        styleDialogButton(dialog.findViewById(R.id.BTDisplayFullscreen));
+        styleDialogButton(dialog.findViewById(R.id.BTDisplayMagnifier));
+        styleDialogButton(dialog.findViewById(R.id.BTDisplayPip));
 
         dialog.findViewById(R.id.BTDisplayScreenEffects).setOnClickListener(v -> {
             dialog.dismiss();
@@ -3289,17 +3309,37 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             "}\n";
 
     /** Deploys the LayerCache Helix manifest + library into imagefs and turns
-     * the layer on through its enable_environment key. */
+     * the layer on through its enable_environment key. Cache directories are
+     * pre-created under the guest's /usr/var/cache (writable by our uid) and
+     * exported explicitly, so the layer never falls back to unwritable
+     * hardcoded paths. VK_LAYER_PATH is composed with the launcher's default
+     * layer directories instead of replacing them, keeping the BCN/util
+     * layers discoverable while Helix is enabled. */
     private void installPerfCacheLayer(EnvVars envVars) {
         try {
-            File usrLib = new File(imageFs.getRootDir(), "usr/lib");
+            File rootDir = imageFs.getRootDir();
+            File usrLib = new File(rootDir, "usr/lib");
             if (!usrLib.isDirectory()) usrLib.mkdirs();
             File soSrc = new File(getApplicationInfo().nativeLibraryDir, "libVkLayer_PerfCache.so");
             if (!soSrc.isFile()) return;
             File soDst = new File(usrLib, "libVkLayer_PerfCache.so");
             copyFile(soSrc, soDst);
             FileUtils.writeString(new File(usrLib, "VkLayer_perfcache.json"), PERF_CACHE_LAYER_JSON);
-            envVars.put("VK_LAYER_PATH", usrLib.getAbsolutePath());
+
+            // Pre-create the guest-visible cache dirs the layer defaults to.
+            String cacheBase = rootDir.getPath() + "/usr/var/cache/layercache";
+            for (String sub : new String[]{"pipeline", "textures"}) {
+                File dir = new File(cacheBase, sub);
+                if (!dir.isDirectory()) dir.mkdirs();
+            }
+
+            String implicitDir = rootDir.getPath() + "/usr/share/vulkan/implicit_layer.d";
+            String explicitDir = rootDir.getPath() + "/usr/share/vulkan/explicit_layer.d";
+            envVars.put("VK_LAYER_PATH",
+                    usrLib.getAbsolutePath() + ":" + implicitDir + ":" + explicitDir);
+            envVars.put("PERFCACHE_PIPELINE_CACHE_DIR", cacheBase + "/pipeline");
+            envVars.put("PERFCACHE_TEXTURE_CACHE_DIR", cacheBase + "/textures");
+            envVars.put("PERFCACHE_METRICS_PATH", cacheBase + "/metrics.jsonl");
             envVars.put("ENABLE_PERFCACHE_LAYER", "1");
             Log.i("GraphicsDriverExtraction", "LayerCache Helix deployed to " + usrLib);
         }

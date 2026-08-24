@@ -52,7 +52,14 @@ public class ExperimentalPerformanceDialog extends ContentDialog {
         sVramCapMode.setAdapter(new ThemedSpinnerAdapter<>(context,
                 new String[]{"Auto", "2048 MB", "3072 MB", "4092 MB"}));
         cbVramCap.setChecked("1".equals(config.get("vramCap")));
-        AppUtils.setSpinnerSelectionFromValue(sVramCapMode, config.get("vramCapMode"));
+        // Stored values are bare tokens ("2048"); spinner entries carry the
+        // unit suffix ("2048 MB"), so translate before matching by value.
+        String capMode = config.get("vramCapMode");
+        if ("2048".equals(capMode)) capMode = "2048 MB";
+        else if ("3072".equals(capMode)) capMode = "3072 MB";
+        else if ("4092".equals(capMode)) capMode = "4092 MB";
+        else if ("auto".equalsIgnoreCase(capMode) || capMode == null || capMode.isEmpty()) capMode = "Auto";
+        AppUtils.setSpinnerSelectionFromValue(sVramCapMode, capMode);
         cbPerfcache.setChecked("1".equals(config.get("perfcache")));
         cbMdiex.setChecked("1".equals(config.get("mdiex")));
         cbNramv.setChecked("1".equals(config.get("ramAggro")));

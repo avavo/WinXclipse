@@ -86,7 +86,7 @@ static void format_event(const rox_event_t *e, rox_event_fmt_t *f)
     else
         snprintf(f->psi, sizeof(f->psi), "%u", e->psi_level);
 
-    if (e->gtt_pressure_pct == 0xFFu)
+    if (e->gtt_pressure_pct == 0xFFFFFFFFu) /* sentinela "inválido" do ringbuf */
         snprintf(f->gtt_pct, sizeof(f->gtt_pct), "--");
     else
         snprintf(f->gtt_pct, sizeof(f->gtt_pct), "%u%%", e->gtt_pressure_pct);

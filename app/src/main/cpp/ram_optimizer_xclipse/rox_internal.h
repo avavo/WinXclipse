@@ -42,6 +42,11 @@ int rox_heap_madvise_free(void);
 /* orquestração por perfil */
 int rox_heap_compact(rox_profile_t profile);
 
+/* Estado do ciclo de vida do core (1 = inicializado, 0 = não/shutdown).
+ * Camadas de reação chamadas por caminhos externos (compat/emulador)
+ * usam isto para não rodar sweeps fora da sessão. */
+int rox_core_is_initialized(void);
+
 /* ═══════════════════════════════════════════════
  * MALLOPT / GLIBC TUNING
  * ═══════════════════════════════════════════════ */

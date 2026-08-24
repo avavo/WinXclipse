@@ -719,9 +719,11 @@ public class ShortcutSettingsDialog extends ContentDialog {
                 String cpuListWoW64 = cpuListViewWoW64.getCheckedCPUListAsString();
                 shortcut.putExtra("cpuListWoW64", !cpuListWoW64.equals(shortcut.container.getCPUListWoW64(true)) ? cpuListWoW64 : null);
 
-                // The runtime FSR extra must not override the driver config on
-                // the next launch; clear it only when the dialog is confirmed.
+                // The runtime FSR extras must not override the driver config on
+                // the next launch; clear them only when the dialog is confirmed.
                 shortcut.putExtra("fsrMode", null);
+                shortcut.putExtra("fsrUpscale", null);
+                shortcut.putExtra("fsrQuality", null);
 
                 // Save all changes to the shortcut
                 shortcut.saveData();

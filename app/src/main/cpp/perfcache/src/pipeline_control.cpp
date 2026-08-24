@@ -4,6 +4,7 @@
 
 #include <vulkan/vulkan.h>
 
+#include <atomic>
 #include <cerrno>
 #include <cstdio>
 #include <cstdlib>
@@ -17,6 +18,7 @@
 
 #include <mutex>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 
 static constexpr size_t kMaxControlEntries = 65536;
@@ -125,19 +127,51 @@ static uint64_t stable_pnext_hash(uint64_t h, const void* pNext) {
 // Stage hash
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Content hashes of live shader modules, registered by the CreateShaderModule
+// hook. Without this, two different SPIR-V payloads sharing the same
+// fixed-function state produce identical signatures and one failing variant
+// poisons unrelated pipelines (blacklist) or skips their warmup.
+static std::unordered_map<VkShaderModule, uint64_t> s_shader_module_hashes;
+
+void xcache_pc_note_shader_module(VkShaderModule module,
+                                  const void* code, size_t codeBytes) {
+    if (module == VK_NULL_HANDLE || !code || codeBytes == 0) return;
+
+    uint64_t h = 1469598103934665603ull;
+    h = fnv1a_bytes(h, code, codeBytes);
+
+    std::lock_guard<std::mutex> lk(s_lock);
+    s_shader_module_hashes[module] = h;
+}
+
+void xcache_pc_forget_shader_module(VkShaderModule module) {
+    if (module == VK_NULL_HANDLE) return;
+
+    std::lock_guard<std::mutex> lk(s_lock);
+    s_shader_module_hashes.erase(module);
+}
+
+static uint64_t shader_module_hash(VkShaderModule module) {
+    if (module == VK_NULL_HANDLE) return 0;
+
+    // Safe to lock here: every caller builds signatures BEFORE taking s_lock.
+    std::lock_guard<std::mutex> lk(s_lock);
+    auto it = s_shader_module_hashes.find(module);
+    return it != s_shader_module_hashes.end() ? it->second : 0;
+}
+
 static uint64_t stable_stage_hash(uint64_t h,
                                   const VkPipelineShaderStageCreateInfo& st) {
-    // Do NOT hash Vulkan handles. Shader module/layout/renderPass handles are
-    // process-local values and change across launches.
-    //
-    // Important limitation:
-    // Without vkCreateShaderModule tracking, we cannot hash SPIR-V contents here.
-    // So this signature is stable but not perfect. Stable-but-imperfect beats
-    // "address hash that forgets everything after restart", that tiny tragedy.
+    // Vulkan handles are process-local and change across launches, so they are
+    // not hashed directly — EXCEPT for shader modules, which contribute their
+    // registered CONTENT hash (see xcache_pc_note_shader_module). That keeps
+    // signatures stable within a session while separating distinct SPIR-V
+    // payloads; across sessions those bits simply never match stale entries.
 
     h = fnv1a_mix(h, st.flags);
     h = fnv1a_mix(h, st.stage);
     h = fnv1a_cstr(h, st.pName);
+    h = fnv1a_mix(h, shader_module_hash(st.module));
     h = stable_pnext_hash(h, st.pNext);
 
     if (st.pSpecializationInfo) {
@@ -367,6 +401,16 @@ uint64_t pipeline_signature_compute(const VkComputePipelineCreateInfo& ci) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 static void ensure_dir(const std::string& dir) {
+    static std::atomic<bool> s_dir_ok{false};
+
+    // Memoized: the ControlFileLock constructor runs ensure_dir on EVERY
+    // blacklist/warmup append; during shader-compilation storms that meant a
+    // component walk per new pipeline under contention. The Java side
+    // pre-creates the directories, so one successful pass per process is
+    // enough. (Failure is not cached — a later attempt may succeed.)
+    if (s_dir_ok.load(std::memory_order_acquire))
+        return;
+
     if (dir.empty()) return;
 
     std::string cur;
@@ -407,6 +451,8 @@ static void ensure_dir(const std::string& dir) {
 
         pos = next + 1;
     }
+
+    s_dir_ok.store(true, std::memory_order_release);
 }
 
 static std::string uuid_hex(const VkPhysicalDeviceProperties& props) {
@@ -559,7 +605,11 @@ static void append_set_locked(const std::string& path, uint64_t h) {
             remaining -= static_cast<size_t>(written);
         }
 
-        fsync(fd);
+        // Sem fsync aqui: estes arquivos são dicas best-effort (blacklist/
+        // warmup), e um fsync por linha dentro do append — que roda sob
+        // s_lock durante storms de compilação de shaders — custava spikes
+        // de frame time proporcionais ao número de pipelines novos. A
+        // página fica no page cache e o kernel resolve.
     }
 
     close(fd);

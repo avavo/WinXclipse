@@ -12,9 +12,12 @@
 //                                        transparent pass-through (matches the
 //                                        manifest's disable_environment key)
 //   PERFCACHE_PIPELINE_CACHE_DIR   path for pipeline cache files
-//                                  default: /data/local/tmp/layercache/pipeline
+//                                  default: /usr/var/cache/layercache/pipeline
 //   PERFCACHE_TEXTURE_CACHE_DIR    path for texture cache files
-//                                  default: /data/local/tmp/layercache/textures
+//                                  default: /usr/var/cache/layercache/textures
+//                                  (guest-relative; the Java side deploys the
+//                                  layer into imagefs and pre-creates these
+//                                  directories so the guest UID can write)
 //   PERFCACHE_TEXTURE_CACHE_MB     RAM limit for in-memory texture LRU (MB)
 //                                  default: 256
 //   PERFCACHE_TEXTURE_CACHE_DISK_MB disk limit for texture cache (MB)
@@ -47,10 +50,10 @@ enum class SanitizerMode : uint32_t {
 struct LayerSettings {
     bool        disable                  = false;
 
-    std::string pipeline_cache_dir       = "/data/local/tmp/layercache/pipeline";
-    std::string texture_cache_dir        = "/data/local/tmp/layercache/textures";
-    std::string config_path              = "/data/local/tmp/layercache/profiles.json";
-    std::string metrics_dump_path        = "/data/local/tmp/layercache/metrics.jsonl";
+    std::string pipeline_cache_dir       = "/usr/var/cache/layercache/pipeline";
+    std::string texture_cache_dir        = "/usr/var/cache/layercache/textures";
+    std::string config_path              = "/usr/var/cache/layercache/profiles.json";
+    std::string metrics_dump_path        = "/usr/var/cache/layercache/metrics.jsonl";
 
     uint32_t    texture_cache_mb         = 256;
     uint32_t    texture_cache_disk_mb    = 512;
@@ -69,7 +72,9 @@ struct LayerSettings {
 
     // Performance features selected for LayerCache/MdiEx cooperation.
     WarmupMode    pipeline_warmup        = WarmupMode::LIGHT;
-    bool          pipeline_warmup_precreate = true;
+    // Pre-creating pipelines doubles the first-encounter compile cost on the
+    // app's own thread; keep it opt-in instead of the default.
+    bool          pipeline_warmup_precreate = false;
     bool          pipeline_blacklist     = true;
     uint32_t      small_upload_fast_kb   = 64;
     bool          upload_deduplication   = true;

@@ -518,7 +518,9 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
     }
 
     public void setTextureFilterMode(int textureFilterMode) {
-        this.textureFilterMode = textureFilterMode == 1 ? 1 : 0;
+        // Raw value: 0 = bilinear, 1 = nearest, 2 = FSR (sharpen/upscale states).
+        // Sampling stays NEAREST only for 1; everything else uses LINEAR.
+        this.textureFilterMode = textureFilterMode;
         xServerView.requestRender();
     }
 

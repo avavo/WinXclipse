@@ -6,6 +6,10 @@
 // Cache namespace / driver identity
 void texture_cache_set_driver_identity(const VkPhysicalDeviceProperties& props);
 
+// Drops tracking maps (mappings/buffer bindings) left over from a destroyed
+// device so they cannot accumulate across sessions in the same process.
+void texture_cache_on_device_destroyed();
+
 // Memory map tracking (called from layer_entry.cpp intercepts)
 void texture_cache_on_map_memory(VkDeviceMemory mem,
                                   VkDeviceSize   offset,

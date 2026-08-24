@@ -41,6 +41,10 @@ void rox_thermal_init(void)
     struct dirent *e;
     char path[512];
     char type[64];
+    char fallback_path[512];
+    int fallback_temp = -1;
+
+    fallback_path[0] = '\0';
 
     while ((e = readdir(dir))) {
 
@@ -71,14 +75,34 @@ void rox_thermal_init(void)
             break;
         }
 
-        if (g_thermal_path[0] == '\0') {
-            snprintf(g_thermal_path, sizeof(g_thermal_path),
+        /* Sem zona preferida (cpu/pkg/soc), não pegar a primeira da ordem
+         * de readdir — em Exynos costuma ser bateria/wifi/charger, que
+         * nunca atinge o limiar HOT e deixava o guard térmico cego.
+         * Amostra cada candidata uma vez e guarda a mais quente. */
+        if (fallback_path[0] == '\0' || fallback_temp < 0 ||
+            g_thermal_path[0] == '\0') {
+            snprintf(path, sizeof(path),
                      "/sys/class/thermal/%s/temp",
                      e->d_name);
+
+            f = fopen(path, "r");
+            if (f) {
+                int t = -1;
+                if (fscanf(f, "%d", &t) == 1 && t > fallback_temp) {
+                    fallback_temp = t;
+                    snprintf(fallback_path, sizeof(fallback_path),
+                             "/sys/class/thermal/%s/temp",
+                             e->d_name);
+                }
+                fclose(f);
+            }
         }
     }
 
     closedir(dir);
+
+    if (g_thermal_path[0] == '\0' && fallback_path[0] != '\0')
+        snprintf(g_thermal_path, sizeof(g_thermal_path), "%s", fallback_path);
 
     /* FIX Bug 5: publica o path com release fence para garantir que
      * qualquer thread que observe path_ready=1 veja o path completo. */
