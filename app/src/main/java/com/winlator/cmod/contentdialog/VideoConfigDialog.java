@@ -84,9 +84,11 @@ public class VideoConfigDialog extends ContentDialog {
         String upscale = config.getFsrUpscale() == null ? "0" : config.getFsrUpscale();
         String quality = GraphicsDriverConfigDialog.normalizeFsrValue(config.getFsrQuality());
         String legacyFsr = GraphicsDriverConfigDialog.normalizeFsrValue(config.getFsrMode());
-        if (!legacyFsr.equals("off") && !legacyFsr.equals("on")) {
-            quality = legacyFsr;
-            upscale = "1";
+        if (!legacyFsr.equals("off")) {
+            // Any legacy FSR setting (including sharpen-only "on") maps to the
+            // FSR texture filter entry; modes also imply upscale.
+            upscale = legacyFsr.equals("on") ? "0" : "1";
+            quality = legacyFsr.equals("on") ? quality : legacyFsr;
             filterMode = 2;
         }
         if (indexOfFsrMode(quality) == -1) quality = "balanced";

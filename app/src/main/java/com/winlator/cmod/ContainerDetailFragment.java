@@ -673,9 +673,6 @@ public class ContainerDetailFragment extends Fragment {
                         config.remove("fsrMode");
                         config.put("fsrUpscale", fsrUpscale == null ? "0" : fsrUpscale);
                         config.put("fsrQuality", fsrQuality == null ? "balanced" : fsrQuality);
-                        // Keep the runtime extra in sync so it can't override
-                        // this dialog's value on the next launch.
-                        container.putExtra("fsrMode", null);
                         config.put("vblankOff", vsyncOff ? "1" : "0");
                         config.put("unlimitedImages", unlimitedImages ? "1" : "0");
                         vGraphicsDriverConfig.setTag(

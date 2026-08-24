@@ -271,18 +271,18 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                     }
                     if (exists) continue;
 
-                    // Success marker present but content missing on disk: it
-                    // was uninstalled through the UI. Drop the stale marker so
-                    // this launch reinstalls the embedded asset (previously it
-                    // could only come back by clearing app data).
-                    if (installedAssets.remove(asset)) {
-                        PreferenceManager.getDefaultSharedPreferences(MainActivity.this)
-                                .edit()
-                                .putStringSet(PREF_INSTALLED_ASSET_CONTENTS, installedAssets)
-                                .apply();
-                    }
+                    // Installed successfully in a previous launch (the marker
+                    // covers bundles whose on-disk version dir never matches
+                    // the parsed file name). Uninstalling through the UI
+                    // clears the markers, so this never blocks a reinstall.
+                    if (installedAssets.contains(asset)) continue;
 
                     toInstall.add(asset);
+                }
+
+                if (!toInstall.isEmpty()) {
+                    Log.i("ContentsDebug", "Asset contents to install: " + toInstall
+                            + " | installed types=" + installed);
                 }
 
                 if (toInstall.isEmpty()) {
@@ -356,7 +356,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         });
     }
 
-    private static final String PREF_INSTALLED_ASSET_CONTENTS = "installed_asset_contents";
+    public static final String PREF_INSTALLED_ASSET_CONTENTS = "installed_asset_contents";
 
     /**
      * Bundle-type prefixes found in asset file names. Longest match wins so

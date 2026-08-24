@@ -262,9 +262,6 @@ public class ShortcutSettingsDialog extends ContentDialog {
                         config.remove("fsrMode");
                         config.put("fsrUpscale", fsrUpscale == null ? "0" : fsrUpscale);
                         config.put("fsrQuality", fsrQuality == null ? "balanced" : fsrQuality);
-                        // Keep the runtime extra in sync so it can't override
-                        // this dialog's value on the next launch.
-                        shortcut.putExtra("fsrMode", null);
                         config.put("vblankOff", vsyncOff ? "1" : "0");
                         config.put("unlimitedImages", unlimitedImages ? "1" : "0");
                         vGraphicsDriverConfig.setTag(
@@ -721,6 +718,10 @@ public class ShortcutSettingsDialog extends ContentDialog {
 
                 String cpuListWoW64 = cpuListViewWoW64.getCheckedCPUListAsString();
                 shortcut.putExtra("cpuListWoW64", !cpuListWoW64.equals(shortcut.container.getCPUListWoW64(true)) ? cpuListWoW64 : null);
+
+                // The runtime FSR extra must not override the driver config on
+                // the next launch; clear it only when the dialog is confirmed.
+                shortcut.putExtra("fsrMode", null);
 
                 // Save all changes to the shortcut
                 shortcut.saveData();

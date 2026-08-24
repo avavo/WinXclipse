@@ -2449,26 +2449,20 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     private void applyFsrRuntime(GLRenderer renderer, String state) {
         fsrRuntimeState = state == null ? "off" : state;
         EffectComposer composer = renderer.getEffectComposer();
-        FSREasuEffect easu = composer.getEffect(FSREasuEffect.class);
-        if (easu != null) composer.removeEffect(easu);
-        FSREffect rcas = composer.getEffect(FSREffect.class);
-        if (rcas != null) composer.removeEffect(rcas);
-        composer.setSceneScale(0);
         if ("on".equals(fsrRuntimeState)) {
             renderer.setTextureFilterMode(2);
-            composer.addEffect(new FSREffect(1.0f));
+            composer.setFsrEffects(null, new FSREffect(1.0f), 0);
             Log.i("FSRDebug", "FSR1 sharpening only (no upscale)");
         } else if (!"off".equals(fsrRuntimeState)) {
             float factor = GraphicsDriverConfigDialog.fsrFactorForMode(fsrRuntimeState);
             float stops = GraphicsDriverConfigDialog.fsrStopsForMode(fsrRuntimeState);
             renderer.setTextureFilterMode(2);
-            composer.setSceneScale(factor);
-            composer.addEffect(new FSREasuEffect());
-            composer.addEffect(new FSREffect(stops));
+            composer.setFsrEffects(new FSREasuEffect(), new FSREffect(stops), factor);
             Log.i("FSRDebug", "FSR1 upscale active: state=" + fsrRuntimeState
                     + " factor=" + factor + " stops=" + stops);
         } else {
             renderer.setTextureFilterMode(0);
+            composer.setFsrEffects(null, null, 0);
             Log.i("FSRDebug", "FSR off");
         }
     }

@@ -31,6 +31,12 @@ public class FSREasuEffect extends Effect {
                            float srcViewW, float srcViewH,
                            float dstOffX, float dstOffY,
                            float dstViewW, float dstViewH, int surfaceH) {
+        // Guard against degenerate surfaces (e.g. during rotation): a zero
+        // viewport would produce infinite con0 values and a black screen.
+        srcViewW = Math.max(1f, srcViewW);
+        srcViewH = Math.max(1f, srcViewH);
+        dstViewW = Math.max(1f, dstViewW);
+        dstViewH = Math.max(1f, dstViewH);
         float rcpOutX = 1.0f / dstViewW;
         float rcpOutY = 1.0f / dstViewH;
         con0[0] = srcViewW * rcpOutX;
@@ -58,7 +64,9 @@ public class FSREasuEffect extends Effect {
     private class FSREasuMaterial extends ScreenMaterial {
         FSREasuMaterial() {
             super();
-            setUniformNames(new String[]{"resolution", "screenTexture", "uCon0",
+            // No "resolution" uniform: the EASU shader works from gl_FragCoord,
+            // uOutH and the mapping rects instead.
+            setUniformNames(new String[]{"screenTexture", "uCon0",
                     "uDstRect", "uOutH", "uTexel"});
         }
 

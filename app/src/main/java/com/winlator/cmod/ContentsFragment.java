@@ -643,6 +643,13 @@ public class ContentsFragment extends Fragment {
                                 }
                             }
                             manager.removeContent(profile);
+                            // Drop the bundled-asset success markers so an
+                            // uninstalled embedded bundle is offered for
+                            // reinstall on the next app launch.
+                            PreferenceManager.getDefaultSharedPreferences(getContext())
+                                    .edit()
+                                    .remove(MainActivity.PREF_INSTALLED_ASSET_CONTENTS)
+                                    .apply();
                             loadContentList();
                         });
                     }

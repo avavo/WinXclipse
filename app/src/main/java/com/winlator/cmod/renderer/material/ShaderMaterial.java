@@ -92,7 +92,15 @@ public class ShaderMaterial {
         programId = 0;
     }
 
+    private boolean isRegistered(String name) {
+        // Effects may set uniforms the shader does not declare (e.g. the
+        // composer pushes "resolution" to every pass); skip silently instead
+        // of logging an error every frame.
+        return uniforms.containsKey(name);
+    }
+
     public void setUniformVec2(String uniformName, float x, float y) {
+        if (!isRegistered(uniformName)) return;
         int location = getUniformLocation(uniformName);
         if (location != -1) {
             GLES20.glUniform2f(location, x, y);
@@ -100,6 +108,7 @@ public class ShaderMaterial {
     }
 
     public void setUniformVec4(String uniformName, float[] values) {
+        if (!isRegistered(uniformName)) return;
         int location = getUniformLocation(uniformName);
         if (location != -1) {
             GLES20.glUniform4fv(location, 1, values, 0);
@@ -107,6 +116,7 @@ public class ShaderMaterial {
     }
 
     public void setUniformInt(String uniformName, int value) {
+        if (!isRegistered(uniformName)) return;
         int location = getUniformLocation(uniformName);
         if (location != -1) {
             GLES20.glUniform1i(location, value);
@@ -114,16 +124,16 @@ public class ShaderMaterial {
     }
 
     public void setUniformFloat(String name, float value) {
+        if (!isRegistered(name)) return;
         int location = getUniformLocation(name);
         if (location >= 0) {
             GLES20.glUniform1f(location, value);
-        } else {
-            Log.e("ScreenMaterial", "Uniform location for " + name + " not found!");
         }
     }
 
 
     public void setUniformFloatArray(String uniformName, float[] values) {
+        if (!isRegistered(uniformName)) return;
         int location = getUniformLocation(uniformName);
         if (location != -1) {
             GLES20.glUniform1fv(location, values.length, values, 0);
@@ -131,6 +141,7 @@ public class ShaderMaterial {
     }
 
     public void setUniformColor(String uniformName, int color) {
+        if (!isRegistered(uniformName)) return;
         int location = getUniformLocation(uniformName);
         if (location != -1) {
             float red = Color.red(color) / 255.0f;
@@ -141,11 +152,10 @@ public class ShaderMaterial {
     }
 
     public void setUniformVec3(String uniformName, float x, float y, float z) {
+        if (!isRegistered(uniformName)) return;
         int location = getUniformLocation(uniformName);
         if (location != -1) {
             GLES20.glUniform3f(location, x, y, z);
-        } else {
-            Log.e("ShaderMaterial", "Uniform location for " + uniformName + " not found!");
         }
     }
 

@@ -63,6 +63,14 @@ public class RenderTarget extends Texture {
                 GLES20.GL_TEXTURE_2D, textureId, 0
         );
 
+        // Fail loudly if the driver could not complete the FBO: rendering into
+        // an incomplete framebuffer silently produces a black screen.
+        int status = GLES20.glCheckFramebufferStatus(GLES20.GL_FRAMEBUFFER);
+        if (status != GLES20.GL_FRAMEBUFFER_COMPLETE) {
+            android.util.Log.e("RenderTarget", "Framebuffer incomplete (0x"
+                    + Integer.toHexString(status) + ") for " + width + "x" + height);
+        }
+
         // Unbind the texture.
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0);
 

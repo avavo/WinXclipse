@@ -6,6 +6,7 @@ import android.util.Log;
 import com.winlator.cmod.XrActivity;
 import com.winlator.cmod.renderer.effects.Effect;
 import com.winlator.cmod.renderer.effects.FSREasuEffect;
+import com.winlator.cmod.renderer.effects.FSREffect;
 import com.winlator.cmod.renderer.effects.ToonEffect;
 import com.winlator.cmod.renderer.material.ShaderMaterial;
 
@@ -181,6 +182,35 @@ public class EffectComposer {
         renderer.xServerView.requestRender();
     }
 
+    /**
+     * Swaps the FSR passes and the scene scale in a single synchronized step
+     * so a render can never observe a half-applied state (old RCAS consuming
+     * the low-res scene buffer without EASU, or mapping with the wrong scale).
+     * A factor <= 1 disables the scene buffer.
+     */
+    public synchronized void setFsrEffects(FSREasuEffect easu, FSREffect rcas, float sceneScaleFactor) {
+        this.sceneScale = sceneScaleFactor > 1.0001f ? sceneScaleFactor : 0.0f;
+        for (int i = effects.size() - 1; i >= 0; i--) {
+            Effect e = effects.get(i);
+            if (e instanceof FSREasuEffect || e instanceof FSREffect) effects.remove(i);
+        }
+        if (easu != null) effects.add(0, easu);
+        if (rcas != null) {
+            if (easu != null) effects.add(1, rcas);
+            else effects.add(rcas);
+        }
+        renderer.xServerView.requestRender();
+    }
+
+    /**
+     * Drops all allocated buffers. Must be called when the EGL context is
+     * (re)created: the old FBOs/textures belong to the destroyed context and
+     * reusing them would render black until the surface size changes.
+     */
+    public synchronized void invalidateBuffers() {
+        releaseBuffers();
+    }
+
     // Renders all the effects in the composer
     public synchronized void render() {
         // Check for recursive rendering
@@ -335,7 +365,6 @@ public class EffectComposer {
             easu.setMapping(sceneBufferWidth, sceneBufferHeight,
                     srcOffX, srcOffYDown, srcViewW, srcViewH,
                     dstOffX, dstOffYDown, dstW, dstH, renderer.surfaceHeight);
-            material.setUniformVec2("resolution", renderer.surfaceWidth, renderer.surfaceHeight);
             material.setUniformVec4("uCon0", easu.getCon0());
             material.setUniformVec4("uDstRect", easu.getDstRect());
             material.setUniformFloat("uOutH", easu.getOutHeight());
