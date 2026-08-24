@@ -336,7 +336,7 @@ public class EffectComposer {
             // target (renderWindows(forceFullscreen=true)), same as the
             // fullscreen toggle.
             if (renderer.isFullscreen()
-                    || (XrActivity.isEnabled(null) && XrActivity.getImmersive())) {
+                    || (XrActivity.isEnabled(null) && XrActivity.getInstance().getImmersive())) {
                 // Fullscreen stretches the X screen across the whole target.
                 srcOffX = 0;
                 srcOffYDown = 0;

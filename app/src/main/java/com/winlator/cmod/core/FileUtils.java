@@ -168,14 +168,16 @@ public abstract class FileUtils {
             if (callback != null) callback.call(dstFile);
 
             String[] filenames = srcFile.list();
+            boolean allSuccess = true;
             if (filenames != null) {
                 for (String filename : filenames) {
                     if (!copy(new File(srcFile, filename), new File(dstFile, filename), callback)) {
                         Log.e(TAG, "Failed to copy directory: " + srcFile.getAbsolutePath());
-                        // Continue copying other files even if one fails
+                        allSuccess = false;
                     }
                 }
             }
+            return allSuccess;
         } else {
             File parent = dstFile.getParentFile();
             if (!srcFile.exists() || (parent != null && !parent.exists() && !parent.mkdirs())) return false;
@@ -189,11 +191,9 @@ public abstract class FileUtils {
             } catch (IOException e) {
                 e.printStackTrace();
                 Log.e(TAG, "Failed to copy file: " + srcFile.getAbsolutePath() + " to " + dstFile.getAbsolutePath(), e);
-                // Log error but don't return false, so we skip this file and continue with others
-                return true;
+                return false;
             }
         }
-        return true;
     }
 
 

@@ -371,6 +371,10 @@ public class Container {
         }
     }
 
+    public boolean hasExtra(String name) {
+        return extraData != null && extraData.has(name);
+    }
+
     public void putExtra(String name, Object value) {
         if (extraData == null) extraData = new JSONObject();
         try {
@@ -457,6 +461,10 @@ public class Container {
 
             @Override
             public String[] next() {
+                if (index[0] <= 0) {
+                    index[0] = -1;
+                    return new String[]{"", ""};
+                }
                 item[0] = String.valueOf(drives.charAt(index[0]-1));
                 int nextIndex = drives.indexOf(":", index[0]+1);
                 item[1] = drives.substring(index[0]+1, nextIndex != -1 ? nextIndex-1 : drives.length());

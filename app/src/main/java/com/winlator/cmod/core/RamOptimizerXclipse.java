@@ -2,6 +2,7 @@ package com.winlator.cmod.core;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Java handle for the NRAMV unified-memory manager compiled into
@@ -28,6 +29,15 @@ public final class RamOptimizerXclipse {
             });
 
     private static volatile int baselineProfile = PROFILE_MEDIUM;
+
+    /**
+     * Generation of the current native session. shutdownFor(long) captures
+     * it at request time and re-checks on the driver thread: a queued
+     * shutdown from a destroyed activity must never kill the nativeInit of
+     * a session that started afterwards (fast activity recreation), or the
+     * whole new session silently degrades to ERR_INIT no-ops.
+     */
+    private static final AtomicLong SESSION_GEN = new AtomicLong(0);
 
     static {
         System.loadLibrary("winlator");
@@ -57,9 +67,26 @@ public final class RamOptimizerXclipse {
      * take the native state lock, which an in-flight flush holds for its whole
      * compaction sweep; running it inline from onDestroy would block the UI
      * thread behind that sweep.
+     *
+     * Use {@link #beginSession()}/{@link #shutdownFor(long)} so a shutdown
+     * enqueued by an outgoing activity is discarded if a new session has
+     * already initialized.
      */
     public static void shutdown() {
         EXECUTOR.execute(RamOptimizerXclipse::nativeShutdown);
+    }
+
+    /** Starts a logical session and returns its generation token. */
+    public static long beginSession() {
+        return SESSION_GEN.incrementAndGet();
+    }
+
+    /** Like {@link #shutdown()}, but a no-op if a newer session began. */
+    public static void shutdownFor(long sessionGen) {
+        EXECUTOR.execute(() -> {
+            if (sessionGen != SESSION_GEN.get()) return;
+            nativeShutdown();
+        });
     }
 
     public static int initBaseline() {

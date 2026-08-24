@@ -50,6 +50,8 @@
                     <CheckBox android:id="@+id/CBHudGPU" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Show GPU Load" />
                     <CheckBox android:id="@+id/CBHudCPU" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Show CPU Load" />
                     <CheckBox android:id="@+id/CBHudCPUTemp" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Show CPU Temperature" />
+                    <CheckBox android:id="@+id/CBHudGPUTemp" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Show GPU Temperature" />
+                    <CheckBox android:id="@+id/CBHudSOC" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Show SoC Model" />
                     <CheckBox android:id="@+id/CBHudRAM" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Show RAM Usage" />
                     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal">
                         <CheckBox android:id="@+id/CBHudRamWarning" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/disable_ram_warning" />

@@ -379,12 +379,13 @@ public class ContainerDetailFragment extends Fragment {
         final View vGraphicsDriverConfig = view.findViewById(R.id.BTGraphicsDriverConfig);
         vGraphicsDriverConfig.setTag(isEditMode() ? container.getGraphicsDriverConfig() : Container.DEFAULT_GRAPHICSDRIVERCONFIG);
 
-        final int[] rendererFilterMode = {0};
-        try {
-            rendererFilterMode[0] = Integer.parseInt(isEditMode()
-                    ? container.getExtra("rendererFilterMode", "0") : "0");
-        }
-        catch (NumberFormatException ignored) {
+        final int[] rendererFilterMode = {-1};
+        if (isEditMode() && container.hasExtra("rendererFilterMode")) {
+            try {
+                rendererFilterMode[0] = Integer.parseInt(container.getExtra("rendererFilterMode", "0"));
+            }
+            catch (NumberFormatException ignored) {
+            }
         }
         final boolean[] rendererSwapRB = {isEditMode()
                 && "1".equals(container.getExtra("rendererSwapRB", "0"))};
@@ -624,13 +625,8 @@ public class ContainerDetailFragment extends Fragment {
 
                     @Override
                     public String getFsrMode() {
-                        // Effective value: the runtime FSR menu persists its
-                        // choice as a container extra that overrides the
-                        // config (edit mode only; container is null when
-                        // creating a new container).
-                        String runtime = container != null
-                                ? container.getExtra("fsrMode", null) : null;
-                        if (runtime != null) return runtime;
+                        // Legacy FSR mode key: nothing writes it anymore, it is
+                        // only read to migrate configs from older builds.
                         return GraphicsDriverConfigDialog
                                 .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()))
                                 .getOrDefault("fsrMode", "off");
@@ -638,16 +634,18 @@ public class ContainerDetailFragment extends Fragment {
 
                     @Override
                     public String getFsrUpscale() {
-                        return GraphicsDriverConfigDialog
+                        String fallback = GraphicsDriverConfigDialog
                                 .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()))
                                 .getOrDefault("fsrUpscale", "0");
+                        return container != null ? container.getExtra("fsrUpscale", fallback) : fallback;
                     }
 
                     @Override
                     public String getFsrQuality() {
-                        return GraphicsDriverConfigDialog
+                        String fallback = GraphicsDriverConfigDialog
                                 .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()))
                                 .getOrDefault("fsrQuality", "balanced");
+                        return container != null ? container.getExtra("fsrQuality", fallback) : fallback;
                     }
 
                     @Override
@@ -813,7 +811,7 @@ public class ContainerDetailFragment extends Fragment {
                             experimentalPerformance && !xperfConfig.isEmpty() ? xperfConfig : null);
                     container.putExtra("experimentalBCN", experimentalBCN ? "1" : null);
                     container.putExtra("rendererFilterMode",
-                            rendererFilterMode[0] != 0 ? String.valueOf(rendererFilterMode[0]) : null);
+                            rendererFilterMode[0] > 0 ? String.valueOf(rendererFilterMode[0]) : null);
                     container.putExtra("rendererSwapRB", rendererSwapRB[0] ? "1" : null);
                     container.putExtra("audioVolume",
                             audioVolume[0] != 100 ? String.valueOf(audioVolume[0]) : null);
@@ -858,7 +856,7 @@ public class ContainerDetailFragment extends Fragment {
                     data.put("controllerMapping", controllerMapping);
                     data.put("gstreamerWorkaround", gstreamerWorkaround);
                     if (experimentalPerformance || experimentalBCN
-                            || rendererFilterMode[0] != 0 || rendererSwapRB[0]
+                            || rendererFilterMode[0] > 0 || rendererSwapRB[0]
                             || audioVolume[0] != 100) {
                         JSONObject extraData = new JSONObject();
                         if (experimentalPerformance) extraData.put("experimentalPerformance", "1");
@@ -866,7 +864,7 @@ public class ContainerDetailFragment extends Fragment {
                             extraData.put("xperfConfig", xperfConfig);
                         }
                         if (experimentalBCN) extraData.put("experimentalBCN", "1");
-                        if (rendererFilterMode[0] != 0) {
+                        if (rendererFilterMode[0] > 0) {
                             extraData.put("rendererFilterMode", String.valueOf(rendererFilterMode[0]));
                         }
                         if (rendererSwapRB[0]) extraData.put("rendererSwapRB", "1");

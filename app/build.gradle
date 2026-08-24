@@ -29,14 +29,27 @@ android {
         buildConfig true
     }
 
-    // Keep the signing certificate stable so future APKs can update these
+// Keep the signing certificate stable so future APKs can update these
     // installations in place without deleting containers, saves or settings.
+    def keystoreProps = new Properties()
+    def keystorePropsFile = rootProject.file('local.properties')
+    if (keystorePropsFile.exists()) {
+        keystoreProps.load(new FileInputStream(keystorePropsFile))
+    }
+    // NOTE: locals are prefixed with `ks` on purpose — naming them exactly
+    // like the signingConfig fields makes Groovy resolve the statement
+    // `storePassword storePassword` as String.call(String) at configuration
+    // time ("No signature of method: java.lang.String.call()").
+    def ksStorePassword = keystoreProps.getProperty('keystore.storePassword', System.getenv('KEYSTORE_STORE_PASSWORD') ?: 'android')
+    def ksKeyAlias = keystoreProps.getProperty('keystore.keyAlias', System.getenv('KEYSTORE_KEY_ALIAS') ?: 'androiddebugkey')
+    def ksKeyPassword = keystoreProps.getProperty('keystore.keyPassword', System.getenv('KEYSTORE_KEY_PASSWORD') ?: 'android')
+
     signingConfigs {
         winxclipseUpdate {
             storeFile file('winxclipse-update.keystore')
-            storePassword 'android'
-            keyAlias 'androiddebugkey'
-            keyPassword 'android'
+            storePassword ksStorePassword
+            keyAlias ksKeyAlias
+            keyPassword ksKeyPassword
         }
     }
 
@@ -44,6 +57,9 @@ android {
         applicationId "com.win.xclipse"
         minSdkVersion 26
 
+        // Must stay <= 28: Android 10+ (W^X policy) blocks exec() of binaries
+        // inside the app's data dir (ImageFS wine/pulseaudio) when targetSdk >= 29,
+        // causing "error=13, Permission denied" at container startup.
         targetSdkVersion 28
 
         versionCode 23
@@ -153,7 +169,6 @@ dependencies {
     implementation 'com.kohlschutter.junixsocket:junixsocket-native-common:2.6.0'
     annotationProcessor 'com.github.bumptech.glide:compiler:4.11.0'
     implementation 'com.google.android.flexbox:flexbox:3.0.0'
-    implementation 'com.google.android.material:material:1.6.1'
 }
 
 

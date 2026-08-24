@@ -60,6 +60,8 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
     private int renderTargetHeight;
     private final EffectComposer effectComposer;
     private volatile int fpsLimit;
+    public static final int TEXTURE_FILTER_NONE = 3;
+    private int lastForcedFilter = GLES20.GL_LINEAR;
     private volatile int textureFilterMode;
     private volatile boolean swapRedBlue;
 
@@ -155,8 +157,9 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
         boolean xrFrame = false;
         boolean xrImmersive = false;
         if (XrActivity.isEnabled(null)) {
-            xrImmersive = XrActivity.getImmersive();
-            xrFrame = XrActivity.getInstance().beginFrame(xrImmersive, XrActivity.getSBS());
+            XrActivity xr = XrActivity.getInstance();
+            xrImmersive = xr.getImmersive();
+            xrFrame = xr.beginFrame(xrImmersive, xr.getSBS());
         }
 
         // Update the viewport if necessary
@@ -227,7 +230,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
         // Finalize XR frame if supported
         if (xrFrame) {
             XrActivity.getInstance().endFrame();
-            XrActivity.updateControllers();
+            XrActivity.getInstance().updateControllers();
             xServerView.requestRender();
         }
     }
@@ -297,12 +300,22 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
             GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture.getTextureId());
             if (material == windowMaterial) {
-                int filter = textureFilterMode == 1 ? GLES20.GL_NEAREST : GLES20.GL_LINEAR;
-                if (texture.getMagFilter() != filter || texture.getMinFilter() != filter) {
-                    texture.setMagFilter(filter);
-                    texture.setMinFilter(filter);
-                    GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, filter);
-                    GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, filter);
+                if (textureFilterMode != TEXTURE_FILTER_NONE) {
+                    int filter = textureFilterMode == 1 ? GLES20.GL_NEAREST : GLES20.GL_LINEAR;
+                    if (texture.getMagFilter() != filter || texture.getMinFilter() != filter) {
+                        texture.setMagFilter(filter);
+                        texture.setMinFilter(filter);
+                        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, filter);
+                        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, filter);
+                    }
+                    lastForcedFilter = filter;
+                } else if (lastForcedFilter != GLES20.GL_LINEAR
+                        && texture.getMagFilter() == lastForcedFilter
+                        && texture.getMinFilter() == lastForcedFilter) {
+                    texture.setMagFilter(GLES20.GL_LINEAR);
+                    texture.setMinFilter(GLES20.GL_LINEAR);
+                    GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR);
+                    GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR);
                 }
             }
             GLES20.glUniform1i(material.getUniformLocation("texture"), 0);

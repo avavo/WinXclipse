@@ -662,6 +662,8 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                     "Ubuntu RootFs (<a href=\"https://releases.ubuntu.com/focal\">Focal Fossa</a>)",
                     "Wine (<a href=\"https://www.winehq.org\">winehq.org</a>)",
                     "Box86/Box64 by <a href=\"https://github.com/ptitSeb\">ptitseb</a>",
+                    "FEX-Emu (<a href=\"https://github.com/FEX-Emu/FEX\">GitHub</a>)",
+                    "AMD FidelityFX Super Resolution (<a href=\"https://github.com/GPUOpen-Effects/FidelityFX-FSR\">GitHub</a>)",
                     "PRoot (<a href=\"https://proot-me.github.io\">proot-me.github.io</a>)",
                     "Mesa (Zink/VirGL) (<a href=\"https://www.mesa3d.org\">mesa3d.org</a>)",
                     "DXVK (<a href=\"https://github.com/doitsujin/dxvk\">github.com/doitsujin/dxvk</a>)",

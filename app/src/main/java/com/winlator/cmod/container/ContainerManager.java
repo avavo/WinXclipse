@@ -200,24 +200,13 @@ public class ContainerManager {
 
         Container dstContainer = new Container(id, this);
         dstContainer.setRootDir(dstDir);
+        try {
+            dstContainer.loadData(new JSONObject(FileUtils.readString(srcContainer.getConfigFile())));
+        } catch (JSONException e) {
+            FileUtils.delete(dstDir);
+            return;
+        }
         dstContainer.setName(srcContainer.getName() + " (" + context.getString(R.string._copy) + ")");
-        dstContainer.setScreenSize(srcContainer.getScreenSize());
-        dstContainer.setEnvVars(srcContainer.getEnvVars());
-        dstContainer.setCPUList(srcContainer.getCPUList());
-        dstContainer.setCPUListWoW64(srcContainer.getCPUListWoW64());
-        dstContainer.setGraphicsDriver(srcContainer.getGraphicsDriver());
-        dstContainer.setDXWrapper(srcContainer.getDXWrapper());
-        dstContainer.setDXWrapperConfig(srcContainer.getDXWrapperConfig());
-        dstContainer.setAudioDriver(srcContainer.getAudioDriver());
-        dstContainer.setWinComponents(srcContainer.getWinComponents());
-        dstContainer.setDrives(srcContainer.getDrives());
-        dstContainer.setShowFPS(srcContainer.isShowFPS());
-        dstContainer.setWoW64Mode(srcContainer.isWoW64Mode());
-        dstContainer.setStartupSelection(srcContainer.getStartupSelection());
-        dstContainer.setBox64Preset(srcContainer.getBox64Preset());
-        dstContainer.setDesktopTheme(srcContainer.getDesktopTheme());
-        dstContainer.setRcfileId(srcContainer.getRCFileId());
-        dstContainer.setWineVersion(srcContainer.getWineVersion());
         dstContainer.saveData();
 
         maxContainerId++;
@@ -257,6 +246,10 @@ public class ContainerManager {
 
     public int getNextContainerId() {
         return maxContainerId + 1;
+    }
+
+    public void reloadContainers() {
+        loadContainers();
     }
 
     public Container getContainerById(int id) {

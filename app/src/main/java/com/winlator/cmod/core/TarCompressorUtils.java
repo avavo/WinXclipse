@@ -33,6 +33,7 @@ public abstract class TarCompressorUtils {
 
     private static final byte[] XZ_MAGIC = {(byte) 0xFD, 0x37, 0x7A, 0x58, 0x5A, 0x00};
     private static final byte[] ZSTD_MAGIC = {0x28, (byte) 0xB5, 0x2F, (byte) 0xFD};
+    private static final String TAG = "TarCompressorUtils";
 
     // Interface to define the exclusion filter
     public interface ExclusionFilter {
@@ -196,12 +197,24 @@ public abstract class TarCompressorUtils {
                     if (!isInside(destinationRoot, file)) return false;
                 }
 
-                if (entry.isDirectory()) {
+if (entry.isDirectory()) {
                     if (!file.isDirectory()) file.mkdirs();
                 }
                 else {
                     if (entry.isSymbolicLink()) {
-                        FileUtils.symlink(entry.getLinkName(), file.getAbsolutePath());
+                        String linkName = entry.getLinkName();
+                        File linkTarget = new File(file.getParentFile(), linkName);
+                        try {
+                            linkTarget = linkTarget.getCanonicalFile();
+                            if (!isInside(destinationRoot, linkTarget)) {
+                                Log.e(TAG, "Symlink target outside destination root: " + linkName);
+                                return false;
+                            }
+                        } catch (IOException e) {
+                            Log.e(TAG, "Failed to resolve symlink target: " + linkName, e);
+                            return false;
+                        }
+                        FileUtils.symlink(linkName, file.getAbsolutePath());
                     }
                     else {
                         File parent = file.getParentFile();

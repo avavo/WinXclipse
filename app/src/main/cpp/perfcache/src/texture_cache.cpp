@@ -23,6 +23,7 @@
 #include "perf_metrics.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cerrno>
 #include <cstdint>
 #include <cstdio>
@@ -102,6 +103,16 @@ static uint64_t next_tick() {
 }
 
 static void ensure_dir(const std::string& dir) {
+    // Memoized like pipeline_control: DiskFileLock runs ensure_dir on EVERY
+    // disk lookup/write; during texture streaming that was a component walk
+    // of mkdir() syscalls per upload. The Java side pre-creates the dirs and
+    // the driver-identity suffix is applied once at device creation (before
+    // any I/O), so one successful pass per process is enough.
+    static std::atomic<bool> s_dir_ok{false};
+
+    if (s_dir_ok.load(std::memory_order_acquire))
+        return;
+
     if (dir.empty()) return;
 
     std::string cur;
@@ -142,6 +153,8 @@ static void ensure_dir(const std::string& dir) {
 
         pos = next + 1;
     }
+
+    s_dir_ok.store(true, std::memory_order_release);
 }
 
 static std::string key_to_path(uint64_t key) {

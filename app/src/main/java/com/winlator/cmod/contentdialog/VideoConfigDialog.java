@@ -31,7 +31,7 @@ public class VideoConfigDialog extends ContentDialog {
     public interface Config {
         String getGpuName();
         String getPresentMode();
-        /** 0 = bilinear, 1 = nearest, 2 = FSR. */
+        /** 0 = bilinear, 1 = nearest, 2 = FSR, 3 = none; -1 = not set. */
         int getTextureFilterMode();
         boolean isSwapRedBlue();
         /** Legacy FSR mode key, only used to migrate old configs. */
@@ -73,20 +73,24 @@ public class VideoConfigDialog extends ContentDialog {
         textureFilter.setAdapter(new ThemedSpinnerAdapter<>(context,
                 Arrays.asList(context.getString(R.string.bilinear),
                         context.getString(R.string.nearest_neighbor),
-                        "FSR")));
+                        "FSR", "None")));
         fsrUpscale.setAdapter(new ThemedSpinnerAdapter<>(context, Arrays.asList("Off", "On")));
         fsrQuality.setAdapter(new ThemedSpinnerAdapter<>(context, Arrays.asList(FSR_MODE_LABELS)));
 
         // Normalize values persisted by any build (display strings from old
         // releases, legacy mode tokens, current on/off tokens). A stored FSR
         // mode other than "off" implies the FSR texture filter selection.
-        int filterMode = Math.max(0, Math.min(config.getTextureFilterMode(), 2));
+        int rawFilterMode = config.getTextureFilterMode();
+        boolean filterExplicit = rawFilterMode >= 0;
+        int filterMode = Math.max(0, Math.min(filterExplicit ? rawFilterMode : 0, 3));
         String upscale = config.getFsrUpscale() == null ? "0" : config.getFsrUpscale();
         String quality = GraphicsDriverConfigDialog.normalizeFsrValue(config.getFsrQuality());
         String legacyFsr = GraphicsDriverConfigDialog.normalizeFsrValue(config.getFsrMode());
-        if (!legacyFsr.equals("off")) {
+        if (!legacyFsr.equals("off") && !filterExplicit) {
             // Any legacy FSR setting (including sharpen-only "on") maps to the
-            // FSR texture filter entry; modes also imply upscale.
+            // FSR texture filter entry; modes also imply upscale. Skipped when
+            // an explicit texture-filter selection was already persisted, so a
+            // newer Bilinear/None choice is not silently reverted to FSR.
             upscale = legacyFsr.equals("on") ? "0" : "1";
             quality = legacyFsr.equals("on") ? quality : legacyFsr;
             filterMode = 2;
@@ -129,7 +133,8 @@ public class VideoConfigDialog extends ContentDialog {
 
         setOnConfirmCallback(() -> {
             String upscaleValue = "On".equals(selectedValue(fsrUpscale)) ? "1" : "0";
-            int qualityIndex = Math.max(0, indexOfFsrMode(selectedValue(fsrQuality)));
+            int qualityIndex = Math.max(0, Math.min(fsrQuality.getSelectedItemPosition(),
+                    FSR_MODE_VALUES.length - 1));
             config.apply(
                     selectedValue(gpuName), selectedValue(presentMode),
                     textureFilter.getSelectedItemPosition(), swapRedBlue.isChecked(),

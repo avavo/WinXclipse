@@ -46,7 +46,6 @@ import android.widget.CheckBox;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
-import android.widget.PopupMenu;
 import android.widget.SeekBar;
 import android.widget.AdapterView;
 import android.widget.Spinner;
@@ -201,6 +200,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     private ImageFs imageFs;
     private WinlatorHUD frameRating = null;
     private HudDataSource hudDataSource = null;
+    private long mRamOptSession = 0;
     private Runnable editInputControlsCallback;
     private Shortcut shortcut;
     private String graphicsDriver = Container.DEFAULT_GRAPHICS_DRIVER;
@@ -359,10 +359,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         preloaderDialog = new PreloaderDialog(this);
         preferences = PreferenceManager.getDefaultSharedPreferences(this);
 
-
-        // Check for Dark Mode
-        isDarkMode = AppUtils.isDarkMode(this);
-
         boolean isOpenWithAndroidBrowser = preferences.getBoolean("open_with_android_browser", false);
         boolean isShareAndroidClipboard = preferences.getBoolean("share_android_clipboard", false);
 
@@ -391,7 +387,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
         gyroSensor = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
 
-        boolean gyroEnabled = preferences.getBoolean("gyro_enabled", false);
+        boolean gyroEnabled = preferences.getBoolean("gyro_enabled", true);
 
         if (gyroEnabled) {
             // Register the sensor event listener
@@ -1060,7 +1056,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             hudDataSource.stop();
             hudDataSource = null;
         }
-        try { RamOptimizerXclipse.shutdown(); } catch (Throwable ignored) {}
+        try { RamOptimizerXclipse.shutdownFor(mRamOptSession); } catch (Throwable ignored) {}
         super.onDestroy();
     }
 
@@ -2055,6 +2051,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             textureFilterMode = Integer.parseInt(value);
         }
         catch (Exception ignored) {}
+        textureFilterMode = Math.max(0, Math.min(textureFilterMode, 3));
         renderer.setTextureFilterMode(textureFilterMode);
         boolean swapRedBlue = shortcut != null
                 ? "1".equals(shortcut.getExtra("rendererSwapRB", container.getExtra("rendererSwapRB", "0")))
@@ -2074,17 +2071,28 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 ? shortcut.getExtra("fsrQuality", container.getExtra("fsrQuality", null))
                 : container.getExtra("fsrQuality", null);
         boolean fsrOn = textureFilterMode == 2;
-        // Legacy migration: old builds stored an explicit fsrMode key. Carry it
-        // over once (and only while the filter was never changed away from FSR).
+        // Legacy migration: old builds stored an explicit fsrMode key (driver
+        // config or shortcut extra) instead of the texture filter selection.
+        // Carry it over, but only while the filter was never changed away from
+        // FSR: the new UI persists its selection as the rendererFilterMode
+        // extra, whose presence means fsrMode must no longer override it.
         String legacyFsr = GraphicsDriverConfigDialog.normalizeFsrValue(
                 shortcut != null
                         ? shortcut.getExtra("fsrMode", graphicsDriverConfig.getOrDefault("fsrMode", "off"))
                         : graphicsDriverConfig.getOrDefault("fsrMode", "off"));
-        boolean explicitFsrSetting = (shortcut != null && shortcut.hasExtra("fsrMode"))
-                || graphicsDriverConfig.containsKey("fsrMode");
-        if (!explicitFsrSetting && !fsrOn && !legacyFsr.equals("off")) {
+        boolean filterNeverPersisted = !(shortcut != null
+                ? shortcut.hasExtra("rendererFilterMode") || container.hasExtra("rendererFilterMode")
+                : container.hasExtra("rendererFilterMode"));
+        if (filterNeverPersisted && !legacyFsr.equals("off")) {
             fsrOn = true;
             renderer.setTextureFilterMode(2);
+            if (!legacyFsr.equals("on")) {
+                // A legacy quality mode implies EASU upscale at that mode,
+                // mirroring the VideoConfigDialog migration; "on" maps to
+                // sharpen-only (fsrUpscale falls back to "0" below).
+                if (upscaleExtra == null) upscaleExtra = "1";
+                if (qualityExtra == null) qualityExtra = legacyFsr;
+            }
         }
         boolean fsrUpscale = fsrOn && "1".equals(
                 upscaleExtra != null ? upscaleExtra
@@ -2324,9 +2332,10 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         Spinner sFilter = dialog.findViewById(R.id.SDisplayTextureFilter);
         sFilter.setAdapter(new ThemedSpinnerAdapter<>(this, Arrays.asList(
-                getString(R.string.bilinear), getString(R.string.nearest_neighbor), "FSR")));
-        sFilter.setSelection(renderer.getTextureFilterMode() == 1 ? 1
-                : renderer.getTextureFilterMode() == 2 ? 2 : 0);
+                getString(R.string.bilinear), getString(R.string.nearest_neighbor),
+                "FSR", "None")));
+        int filterMode = renderer.getTextureFilterMode();
+        sFilter.setSelection(filterMode >= 0 && filterMode <= 3 ? filterMode : 0);
 
         Spinner sFsrUpscale = dialog.findViewById(R.id.SDisplayFsrUpscale);
         sFsrUpscale.setAdapter(new ThemedSpinnerAdapter<>(this, Arrays.asList("Off", "On")));
@@ -2399,7 +2408,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         dialog.setOnConfirmCallback(() -> {
             setFakeHdrEnabled(renderer, cbHdr.isChecked(), true);
             int filterSelection = sFilter.getSelectedItemPosition();
-            renderer.setTextureFilterMode(filterSelection == 1 ? 1 : filterSelection == 2 ? 2 : 0);
+            renderer.setTextureFilterMode(Math.max(0, Math.min(filterSelection, 3)));
             persistRuntimeVideoOption("rendererFilterMode", String.valueOf(filterSelection));
             renderer.setSwapRedBlue(cbSwapRB.isChecked());
             persistRuntimeVideoOption("rendererSwapRB", cbSwapRB.isChecked() ? "1" : "0");
@@ -2481,59 +2490,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             Log.i("FSRDebug", "FSR1 upscale active: state=" + fsrRuntimeState
                     + " factor=" + factor + " stops=" + stops);
         } else {
-            renderer.setTextureFilterMode(0);
             composer.setFsrEffects(null, null, 0);
             Log.i("FSRDebug", "FSR off");
         }
-    }
-
-    private void showFsrSidebarMenu(GLRenderer renderer, View anchor) {
-        final int fsrGroup = 0x720000;
-        final int itemFsrOff = 0x720001;
-        final int itemFsrSharp = 0x720002;
-        final int itemFsrFidelity = 0x720006;
-        final int itemFsrQuality = 0x720003;
-        final int itemFsrBalanced = 0x720004;
-        final int itemFsrPerf = 0x720005;
-        final int itemFsrUltra = 0x720007;
-        PopupMenu popup = new PopupMenu(this, anchor);
-        popup.getMenu().add(fsrGroup, itemFsrOff, 0, "FSR: Off")
-                .setCheckable(true).setChecked("off".equals(fsrRuntimeState));
-        popup.getMenu().add(fsrGroup, itemFsrSharp, 1, "FSR: Sharpen only")
-                .setCheckable(true).setChecked("on".equals(fsrRuntimeState));
-        popup.getMenu().add(fsrGroup, itemFsrFidelity, 2, "FSR: Fidelity (1.3x)")
-                .setCheckable(true).setChecked("fidelity".equals(fsrRuntimeState));
-        popup.getMenu().add(fsrGroup, itemFsrQuality, 3, "FSR: Quality (1.5x)")
-                .setCheckable(true).setChecked("quality".equals(fsrRuntimeState));
-        popup.getMenu().add(fsrGroup, itemFsrBalanced, 4, "FSR: Balanced (1.7x)")
-                .setCheckable(true).setChecked("balanced".equals(fsrRuntimeState));
-        popup.getMenu().add(fsrGroup, itemFsrPerf, 5, "FSR: Performance (2.0x)")
-                .setCheckable(true).setChecked("performance".equals(fsrRuntimeState));
-        popup.getMenu().add(fsrGroup, itemFsrUltra, 6, "FSR: Ultra Performance (2.5x)")
-                .setCheckable(true).setChecked("ultraperformance".equals(fsrRuntimeState));
-        popup.getMenu().setGroupCheckable(fsrGroup, true, true);
-        popup.setOnMenuItemClickListener(item -> {
-            String state;
-            int id = item.getItemId();
-            if (id == itemFsrOff) state = "off";
-            else if (id == itemFsrSharp) state = "on";
-            else if (id == itemFsrFidelity) state = "fidelity";
-            else if (id == itemFsrQuality) state = "quality";
-            else if (id == itemFsrBalanced) state = "balanced";
-            else if (id == itemFsrPerf) state = "performance";
-            else if (id == itemFsrUltra) state = "ultraperformance";
-            else return false;
-            applyFsrRuntime(renderer, state);
-            if ("off".equals(state)) {
-                persistRuntimeVideoOption("rendererFilterMode", "0");
-            } else {
-                persistRuntimeVideoOption("rendererFilterMode", "2");
-                persistRuntimeVideoOption("fsrUpscale", "on".equals(state) ? "0" : "1");
-                if (!"on".equals(state)) persistRuntimeVideoOption("fsrQuality", state);
-            }
-            return true;
-        });
-        popup.show();
     }
 
     private void persistRuntimeVideoOption(String key, String value) {
@@ -2830,6 +2789,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         CheckBox cbWrapper = dialog.findViewById(R.id.CBHudWrapper);
         CheckBox cbLocked = dialog.findViewById(R.id.CBHudLocked);
         CheckBox cbCpuTemp = dialog.findViewById(R.id.CBHudCPUTemp);
+        CheckBox cbSoc = dialog.findViewById(R.id.CBHudSOC);
+        CheckBox cbGpuTemp = dialog.findViewById(R.id.CBHudGPUTemp);
         CheckBox cbRamWarning = dialog.findViewById(R.id.CBHudRamWarning);
         SeekBar sbAlpha = dialog.findViewById(R.id.SBHudAlpha);
         SeekBar sbScale = dialog.findViewById(R.id.SBHudScale);
@@ -2838,7 +2799,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         Spinner spPreset = dialog.findViewById(R.id.SPHudPreset);
 
         frameRating.syncCheckboxes(cbFps, cbGpu, cbCpu, cbBatt, cbGraph, cbRend,
-                cbRam, cbBattPct, cbMono, cbBorder, cbCompact, cbWrapper, cbLocked, cbCpuTemp);
+                cbRam, cbBattPct, cbMono, cbBorder, cbCompact, cbWrapper, cbLocked, cbCpuTemp, cbSoc, cbGpuTemp);
         cbEnable.setChecked(frameRating.isUserEnabled());
         cbVert.setChecked(frameRating.isVertical());
 
@@ -2874,6 +2835,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         cbWrapper.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(12, checked));
         cbLocked.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(13, checked));
         cbCpuTemp.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(14, checked));
+        cbSoc.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(15, checked));
+        cbGpuTemp.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(16, checked));
         cbVert.setOnCheckedChangeListener((v, checked) -> frameRating.setVertical(checked));
         cbRamWarning.setChecked(!frameRating.isRamWarningEnabled());
         cbRamWarning.setOnCheckedChangeListener((v, checked) -> frameRating.setRamWarningEnabled(!checked));
@@ -3353,6 +3316,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
      * 12 GB-class devices with Experimental Performance enabled. */
     private void applyRamOptimizerProfile() {
         try {
+            mRamOptSession = RamOptimizerXclipse.beginSession();
             if (RamOptimizerXclipse.nativeInit() != 0) return;
 
             boolean aggro = isExperimentalPerformanceActive()

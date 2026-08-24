@@ -134,12 +134,88 @@ public class XServer {
         return new SingleXLock(lockable);
     }
 
+    public XLock lock(Lockable lockable, long timeoutMs) {
+        return new TimedXLock(lockable, timeoutMs);
+    }
+
     public XLock lock(Lockable... lockables) {
         return new MultiXLock(lockables);
     }
 
+    public XLock lock(long timeoutMs, Lockable... lockables) {
+        return new TimedMultiXLock(lockables, timeoutMs);
+    }
+
     public XLock lockAll() {
         return new MultiXLock(Lockable.values());
+    }
+
+    private class TimedXLock implements XLock {
+        private final ReentrantLock lock;
+        private final boolean acquired;
+
+        private TimedXLock(Lockable lockable, long timeoutMs) {
+            this.lock = locks.get(lockable);
+            boolean ok;
+            try {
+                ok = lock.tryLock(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                ok = false;
+            }
+            acquired = ok;
+            if (!acquired) {
+                throw new IllegalStateException("Failed to acquire lock " + lockable + " within " + timeoutMs + "ms");
+            }
+        }
+
+        @Override
+        public void close() {
+            if (acquired) lock.unlock();
+        }
+    }
+
+    private class TimedMultiXLock implements XLock {
+        private final Lockable[] lockables;
+        private final boolean[] acquired;
+
+        private TimedMultiXLock(Lockable[] lockables, long timeoutMs) {
+            this.lockables = lockables;
+            this.acquired = new boolean[lockables.length];
+            boolean allAcquired = true;
+            long startTime = System.currentTimeMillis();
+            for (int i = 0; i < lockables.length; i++) {
+                long remaining = timeoutMs - (System.currentTimeMillis() - startTime);
+                if (remaining <= 0) {
+                    allAcquired = false;
+                    break;
+                }
+                ReentrantLock lock = locks.get(lockables[i]);
+                try {
+                    acquired[i] = lock.tryLock(remaining, java.util.concurrent.TimeUnit.MILLISECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    acquired[i] = false;
+                }
+                if (!acquired[i]) {
+                    allAcquired = false;
+                    break;
+                }
+            }
+            if (!allAcquired) {
+                for (int i = 0; i < lockables.length; i++) {
+                    if (acquired[i]) locks.get(lockables[i]).unlock();
+                }
+                throw new IllegalStateException("Failed to acquire all locks within " + timeoutMs + "ms");
+            }
+        }
+
+        @Override
+        public void close() {
+            for (int i = lockables.length - 1; i >= 0; i--) {
+                if (acquired[i]) locks.get(lockables[i]).unlock();
+            }
+        }
     }
 
     public Extension getExtensionByName(String name) {

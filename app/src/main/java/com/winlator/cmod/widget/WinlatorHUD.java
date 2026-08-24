@@ -12,6 +12,7 @@ import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.RectF;
 import android.graphics.Typeface;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.AttributeSet;
@@ -50,7 +51,9 @@ public class WinlatorHUD extends View {
     public static final int SHOW_WRAPPER  = 1<<11;
     public static final int SHOW_CPU_TEMP = 1<<12;
     public static final int SHOW_LOCKED   = 1<<13;
-    private static final int SHOW_DEFAULT = SHOW_FPS | SHOW_RENDERER | SHOW_WRAPPER | SHOW_CPU | SHOW_RAM | SHOW_BATT | SHOW_MONO | SHOW_BORDER;
+    public static final int SHOW_SOC      = 1<<14;
+    public static final int SHOW_GPU_TEMP = 1<<15;
+    private static final int SHOW_DEFAULT = SHOW_FPS | SHOW_RENDERER | SHOW_WRAPPER | SHOW_GPU | SHOW_CPU | SHOW_RAM | SHOW_BATT | SHOW_BORDER | SHOW_SOC;
 
     private static final int C_WHITE = Color.WHITE;
     private static final int C_GPU  = Color.rgb(0xE0,0x40,0xFB);
@@ -86,14 +89,15 @@ public class WinlatorHUD extends View {
     private final RectF bgRect = new RectF();
     private final RectF ramHelpHitRect = new RectF();
 
-    private float wLabelGpu, wLabelCpu, wLabelRam, wLabelPwr, wLabelTmp, wLabelCTmp, wLabelFps, wLabelApex, wSep;
+    private float wLabelGpu, wLabelCpu, wLabelRam, wLabelPwr, wLabelTmp, wLabelCTmp, wLabelGTmp, wLabelFps, wLabelApex, wSep;
     private float wVal100pct, wValFps, wValWatt, wValTemp, wValBInfo;
 
     private boolean layoutDirty = true;
 
     private String strGpu = "N/A", strCpu = "N/A", strRam = "N/A";
-    private String strPwr = "N/A", strTmp = "", strCTmp = "", strFps = "0", strPct = "";
+    private String strPwr = "N/A", strTmp = "", strCTmp = "", strGTmp = "", strFps = "0", strPct = "";
     private String strRend = "OpenGL", strWrapper = "WineD3D";
+    private final String strSoc;
     private boolean snapCharging = false;
     private final int ramBlinkThreshold;
     private final int ramWarningThreshold;
@@ -114,7 +118,7 @@ public class WinlatorHUD extends View {
     private boolean apexActive = false;
     private int apexMultiplier = 2;
 
-    private int snapGpu=-1, snapCpu=-1, snapMw=-1, snapTmp=-1, snapCTmp=-1, snapPct=-1, snapRam=-1;
+    private int snapGpu=-1, snapCpu=-1, snapMw=-1, snapTmp=-1, snapCTmp=-1, snapGTmp=-1, snapPct=-1, snapRam=-1;
     private String rendererLabel = "OpenGL";
     private boolean isNative = false;
 
@@ -164,6 +168,7 @@ public class WinlatorHUD extends View {
         GRAW   = 70f * d;
         CORNER = 5f * d;
         initPaints();
+        strSoc = getSocName();
         loadPrefs();
         setLayerType(LAYER_TYPE_HARDWARE, null);
     }
@@ -211,6 +216,7 @@ public class WinlatorHUD extends View {
         wLabelPwr  = pBat.measureText("PWR ");
         wLabelTmp  = pTmp.measureText("TMP ");
         wLabelCTmp = pTmp.measureText("CTMP ");
+        wLabelGTmp = pTmp.measureText("GTMP ");
         wLabelFps  = pFps.measureText("FPS ");
         wLabelApex = pFps.measureText("Apex ");
         wSep       = pSep.measureText(" | ");
@@ -223,6 +229,42 @@ public class WinlatorHUD extends View {
 
     public void setDataSource(HudDataSource ds) { this.dataSource = ds; }
 
+    private static String getSocName() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            String model = Build.SOC_MODEL;
+            if (model != null && !model.isEmpty() && !"unknown".equalsIgnoreCase(model)) {
+                String mfg = Build.SOC_MANUFACTURER;
+                String mapped = mapExynosModel(model);
+                if (mapped == null && mfg != null && !mfg.isEmpty()) {
+                    mapped = mapExynosModel(mfg + " " + model);
+                }
+                if (mapped != null) return mapped;
+                if (mfg != null && !mfg.isEmpty() && !"unknown".equalsIgnoreCase(mfg)
+                        && !model.regionMatches(true, 0, mfg, 0, mfg.length())) {
+                    return mfg + " " + model;
+                }
+                return model;
+            }
+        }
+        if (Build.HARDWARE != null && !Build.HARDWARE.isEmpty()) {
+            String mapped = mapExynosModel(Build.HARDWARE);
+            return mapped != null ? mapped : Build.HARDWARE;
+        }
+        return "SoC";
+    }
+
+    private static String mapExynosModel(String model) {
+        String m = model.toLowerCase(Locale.US);
+        if (m.contains("s5e9945") || m.contains("universal2400")) return "Exynos 2400";
+        if (m.contains("s5e9925") || m.contains("universal2200")) return "Exynos 2200";
+        if (m.contains("s5e9955")) return "Exynos 2500";
+        if (m.contains("s5e9965")) return "Exynos 2600";
+        if (m.contains("s5e8845") || m.contains("universal1480")) return "Exynos 1480";
+        if (m.contains("s5e8855")) return "Exynos 1580";
+        if (m.contains("s5e8865")) return "Exynos 1680";
+        return null;
+    }
+
     public void onFrame() { frameAccum.incrementAndGet(); }
 
     public void update() { onFrame(); }
@@ -231,7 +273,7 @@ public class WinlatorHUD extends View {
         long now = System.nanoTime();
         if (lastFpsNs == 0) lastFpsNs = now;
         long dt = now - lastFpsNs;
-        if (dt >= 350_000_000L) {
+        if (dt >= 950_000_000L) {
             int f = frameAccum.getAndSet(0);
             snapFps = f * 1_000_000_000f / dt;
             lastFpsNs = now;
@@ -255,6 +297,7 @@ public class WinlatorHUD extends View {
             int mw = dataSource.batteryMw.get();
             int tm = dataSource.batteryTempC.get();
             int ctm = dataSource.cpuTempC.get();
+            int gtm = dataSource.gpuTempC.get();
             int pc = dataSource.batteryPct.get();
             int rm = dataSource.ramUsagePct.get();
 
@@ -264,6 +307,7 @@ public class WinlatorHUD extends View {
             updateRamAlert(rm);
             if (tm != snapTmp)  { snapTmp = tm; strTmp = tm > 0 ? tm + "°C" : ""; }
             if (ctm != snapCTmp) { snapCTmp = ctm; strCTmp = ctm > 0 ? ctm + "°C" : ""; }
+            if (gtm != snapGTmp) { snapGTmp = gtm; strGTmp = gtm > 0 ? gtm + "°C" : ""; }
             if (pc != snapPct)  { snapPct = pc; strPct = pc >= 0 ? pc + "%" : ""; }
             if (mw != snapMw) {
                 snapMw = mw;
@@ -439,10 +483,30 @@ public class WinlatorHUD extends View {
             float baseline = getBaseline(compact ? pTmp : pVal, 0, rowH);
             if (!strCTmp.isEmpty() || !compact) {
                 if (!compact) { c.drawText("CTMP ", x, baseline, pTmp); x += wLabelCTmp; }
-                float vw = Math.max((compact ? pTmp : pVal).measureText(strCTmp), wValTemp);
-                c.drawText(strCTmp, x, baseline, compact ? pTmp : pVal);
+                String shown = strCTmp.isEmpty() ? "N/A" : strCTmp;
+                float vw = Math.max((compact ? pTmp : pVal).measureText(shown), wValTemp);
+                c.drawText(shown, x, baseline, compact ? pTmp : pVal);
                 x += vw;
             }
+            first = false;
+        }
+        if ((showMask & SHOW_GPU_TEMP) != 0) {
+            if (!first) x += drawSep(c, x, 0);
+            float baseline = getBaseline(compact ? pTmp : pVal, 0, rowH);
+            if (!strGTmp.isEmpty() || !compact) {
+                if (!compact) { c.drawText("GTMP ", x, baseline, pTmp); x += wLabelGTmp; }
+                String shown = strGTmp.isEmpty() ? "N/A" : strGTmp;
+                float vw = Math.max((compact ? pTmp : pVal).measureText(shown), wValTemp);
+                c.drawText(shown, x, baseline, compact ? pTmp : pVal);
+                x += vw;
+            }
+            first = false;
+        }
+        if ((showMask & SHOW_SOC) != 0) {
+            if (!first) x += drawSep(c, x, 0);
+            float baseline = getBaseline(pRend, 0, rowH);
+            c.drawText(strSoc, x, baseline, pRend);
+            x += pRend.measureText(strSoc);
             first = false;
         }
         if ((showMask & SHOW_FPS) != 0) {
@@ -522,9 +586,23 @@ public class WinlatorHUD extends View {
             if (!strCTmp.isEmpty() || !compact) {
                 float bl = getBaseline(compact ? pTmp : pVal, y, lineH);
                 if (!compact) c.drawText("CTMP ", PAD, bl, pTmp);
-                c.drawText(strCTmp, PAD + (compact ? 0 : wLabelCTmp), bl, compact ? pTmp : pVal);
+                String shown = strCTmp.isEmpty() && !compact ? "N/A" : strCTmp;
+                c.drawText(shown, PAD + (compact ? 0 : wLabelCTmp), bl, compact ? pTmp : pVal);
                 y += lineH;
             }
+        }
+        if ((showMask & SHOW_GPU_TEMP) != 0) {
+            if (!strGTmp.isEmpty() || !compact) {
+                float bl = getBaseline(compact ? pTmp : pVal, y, lineH);
+                if (!compact) c.drawText("GTMP ", PAD, bl, pTmp);
+                String shown = strGTmp.isEmpty() && !compact ? "N/A" : strGTmp;
+                c.drawText(shown, PAD + (compact ? 0 : wLabelGTmp), bl, compact ? pTmp : pVal);
+                y += lineH;
+            }
+        }
+        if ((showMask & SHOW_SOC) != 0) {
+            c.drawText(strSoc, PAD, getBaseline(pRend, y, lineH), pRend);
+            y += lineH;
         }
         if ((showMask & SHOW_FPS) != 0) {
             float bl = getBaseline(pFps, y, lineH);
@@ -613,6 +691,16 @@ public class WinlatorHUD extends View {
             w += (compact ? 0 : wLabelCTmp) + Math.max((compact ? pTmp : pVal).measureText(strCTmp), wValTemp);
             first = false;
         }
+        if ((showMask & SHOW_GPU_TEMP) != 0) {
+            if (!first) w += drawSep(null, 0, 0);
+            w += (compact ? 0 : wLabelGTmp) + Math.max((compact ? pTmp : pVal).measureText(strGTmp), wValTemp);
+            first = false;
+        }
+        if ((showMask & SHOW_SOC) != 0) {
+            if (!first) w += drawSep(null, 0, 0);
+            w += pRend.measureText(strSoc);
+            first = false;
+        }
         if ((showMask & SHOW_FPS) != 0) {
             if (!first) w += drawSep(null, 0, 0);
             float labelW = apexActive ? wLabelApex : wLabelFps;
@@ -646,6 +734,10 @@ public class WinlatorHUD extends View {
         if ((showMask & SHOW_CPU_TEMP) != 0) {
             w = Math.max(w, PAD * 2 + (compact ? 0 : wLabelCTmp) + Math.max((compact ? pTmp : pVal).measureText(strCTmp), wValTemp));
         }
+        if ((showMask & SHOW_GPU_TEMP) != 0) {
+            w = Math.max(w, PAD * 2 + (compact ? 0 : wLabelGTmp) + Math.max((compact ? pTmp : pVal).measureText(strGTmp), wValTemp));
+        }
+        if ((showMask & SHOW_SOC)       != 0) w = Math.max(w, PAD * 2 + pRend.measureText(strSoc));
         if ((showMask & SHOW_FPS)      != 0) {
             float labelW = apexActive ? wLabelApex : wLabelFps;
             float minValW = apexActive ? pFps.measureText("000 (0x)") : wValFps;
@@ -671,6 +763,8 @@ public class WinlatorHUD extends View {
         if ((showMask & SHOW_RAM)      != 0) r++;
         if ((showMask & SHOW_BATT)     != 0) { r++; if (!strTmp.isEmpty()) r++; }
         if ((showMask & SHOW_CPU_TEMP) != 0) r++;
+        if ((showMask & SHOW_GPU_TEMP) != 0) r++;
+        if ((showMask & SHOW_SOC)      != 0) r++;
         if ((showMask & SHOW_FPS)      != 0) r++;
         return Math.max(1, r);
     }
@@ -758,7 +852,7 @@ public class WinlatorHUD extends View {
     private void scheduleRedraw() {
         if (!redrawScheduled) {
             redrawScheduled = true;
-            uiHandler.postDelayed(redrawRunnable, 400);
+            uiHandler.postDelayed(redrawRunnable, 1000);
         }
     }
 
@@ -936,7 +1030,8 @@ public class WinlatorHUD extends View {
             android.widget.CheckBox cbRam, android.widget.CheckBox cbBattPct,
             android.widget.CheckBox cbMono, android.widget.CheckBox cbBorder,
             android.widget.CheckBox cbCompact, android.widget.CheckBox cbWrapper,
-            android.widget.CheckBox cbLocked, android.widget.CheckBox cbCpuTemp) {
+            android.widget.CheckBox cbLocked, android.widget.CheckBox cbCpuTemp,
+            android.widget.CheckBox cbSoc, android.widget.CheckBox cbGpuTemp) {
         if (cbFps      != null) cbFps.setChecked((showMask & SHOW_FPS)       != 0);
         if (cbGpu      != null) cbGpu.setChecked((showMask & SHOW_GPU)       != 0);
         if (cbCpu      != null) cbCpu.setChecked((showMask & SHOW_CPU)       != 0);
@@ -951,6 +1046,8 @@ public class WinlatorHUD extends View {
         if (cbWrapper  != null) cbWrapper.setChecked((showMask & SHOW_WRAPPER) != 0);
         if (cbLocked   != null) cbLocked.setChecked((showMask & SHOW_LOCKED)  != 0);
         if (cbCpuTemp  != null) cbCpuTemp.setChecked((showMask & SHOW_CPU_TEMP) != 0);
+        if (cbSoc      != null) cbSoc.setChecked((showMask & SHOW_SOC)         != 0);
+        if (cbGpuTemp  != null) cbGpuTemp.setChecked((showMask & SHOW_GPU_TEMP) != 0);
     }
 
     public void setHudScale(float scale) {
@@ -1023,6 +1120,8 @@ public class WinlatorHUD extends View {
             case 12: return SHOW_WRAPPER;
             case 13: return SHOW_LOCKED;
             case 14: return SHOW_CPU_TEMP;
+            case 15: return SHOW_SOC;
+            case 16: return SHOW_GPU_TEMP;
             default: return 0;
         }
     }

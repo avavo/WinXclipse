@@ -52,7 +52,8 @@ public class SaveManager {
             int containerId = saveData.optInt("ContainerID", -1);
             Container container = null;
             if (containerId != -1) {
-                container = containerManager.getContainerById(containerId);  // Retrieve the associated container
+                containerManager.reloadContainers();
+                container = containerManager.getContainerById(containerId);
             }
             return new Save(containerManager, container, file);  // Pass the ContainerManager when creating the Save object
         } catch (JSONException e) {

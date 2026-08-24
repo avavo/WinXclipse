@@ -337,6 +337,12 @@ void rox_shutdown(void)
 
     atomic_thread_fence(memory_order_seq_cst);
 
+    /* Devolve vm.vfs_cache_pressure ao valor capturado se uma excursão
+     * GTT o escreveu e a sessão terminou antes do restore agendado (2 s)
+     * rodar — sem isso o tuning ficava perturbado globalmente até o
+     * reboot. */
+    rox_gtt_force_cache_pressure_restore();
+
     /* Devolve tuning de alocação ao estado neutro (inclui desligar o
      * M_PERTURB, que sem isso ficava ligado para sempre no processo). */
     (void)rox_mallopt_reset();
@@ -525,7 +531,13 @@ int rox_flush(void)
                         (flt_delta * 1000L /
                         ROPT_MAJFLT_SAMPLE_MS);
 
-                    if (rate >=
+                    /* delta >= 2: com janela de 80 ms, UM único major fault
+                     * já produzia rate 12/s (>= threshold 5) e suspendia o
+                     * AGGRESSIVE — inclusive refaults causados pelo próprio
+                     * MADV_PAGEOUT do sweep, auto-suprimindo o otimizador
+                     * exatamente quando a RAM está crítica. */
+                    if (flt_delta >= 2 &&
+                        rate >=
                         ROPT_MAJFLT_RATE_THRESHOLD) {
 
                         rox_ringbuf_push(

@@ -26,6 +26,24 @@ static int is_preferred_zone(const char *name)
             strstr(name, "soc"));
 }
 
+/* Formatos observados em sysfs:
+ *   45000 → milésimos de °C (mainline padrão)
+ *     450 → décimos de °C (vários zones de Exynos)
+ *      45 → °C direto
+ * Mesma heurística do HudDataSource.java. Sem o passo de décimos aqui,
+ * "450" virava 450 °C → ROPT_THERMAL_CRITICAL permanente → o guard
+ * térmico estrangulava todo flush para LIGHT sem sintoma visível. */
+static void thermal_normalize(int *t)
+{
+    if (!t || *t < 0)
+        return;
+
+    if (*t > 5000)
+        *t /= 1000;
+    else if (*t > 200)
+        *t /= 10;
+}
+
 void rox_thermal_init(void)
 {
     /* Garante execução única mesmo sob init concorrente.
@@ -88,11 +106,18 @@ void rox_thermal_init(void)
             f = fopen(path, "r");
             if (f) {
                 int t = -1;
-                if (fscanf(f, "%d", &t) == 1 && t > fallback_temp) {
-                    fallback_temp = t;
-                    snprintf(fallback_path, sizeof(fallback_path),
-                             "/sys/class/thermal/%s/temp",
-                             e->d_name);
+                if (fscanf(f, "%d", &t) == 1) {
+                    /* Normaliza antes de comparar: zonas em unidades
+                     * distintas (m°C vs d°C vs °C) precisam de uma escala
+                     * comum para eleger a mais quente de fato. */
+                    thermal_normalize(&t);
+
+                    if (t > fallback_temp) {
+                        fallback_temp = t;
+                        snprintf(fallback_path, sizeof(fallback_path),
+                                 "/sys/class/thermal/%s/temp",
+                                 e->d_name);
+                    }
                 }
                 fclose(f);
             }
@@ -133,8 +158,11 @@ int rox_thermal_get_temp(void)
 
     fclose(f);
 
-    if (temp > 1000)
-        temp /= 1000;
+    thermal_normalize(&temp);
+
+    /* Sanity: acima de 120 °C é leitura inválida, não térmica real. */
+    if (temp > 120)
+        return -1;
 
     return temp;
 }

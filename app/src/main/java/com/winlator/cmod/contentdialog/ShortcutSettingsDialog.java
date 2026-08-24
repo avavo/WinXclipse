@@ -169,16 +169,29 @@ public class ShortcutSettingsDialog extends ContentDialog {
                 shortcut.getExtra("renderer", containerRenderer));
 
         int parsedContainerRendererFilterMode = 0;
-        int parsedShortcutRendererFilterMode = 0;
-        try {
-            parsedContainerRendererFilterMode = Integer.parseInt(
-                    shortcut.container.getExtra("rendererFilterMode", "0"));
-            parsedShortcutRendererFilterMode = Integer.parseInt(shortcut.getExtra(
-                    "rendererFilterMode", String.valueOf(parsedContainerRendererFilterMode)));
+        boolean containerFilterPersisted = shortcut.container.hasExtra("rendererFilterMode");
+        if (containerFilterPersisted) {
+            try {
+                parsedContainerRendererFilterMode = Integer.parseInt(
+                        shortcut.container.getExtra("rendererFilterMode", "0"));
+            }
+            catch (NumberFormatException ignored) {
+            }
         }
-        catch (NumberFormatException ignored) {
+        final int containerRendererFilterMode = containerFilterPersisted ? parsedContainerRendererFilterMode : 0;
+        int parsedShortcutRendererFilterMode;
+        if (shortcut.hasExtra("rendererFilterMode")) {
+            int value = -1;
+            try {
+                value = Integer.parseInt(shortcut.getExtra("rendererFilterMode", null));
+            }
+            catch (NumberFormatException ignored) {
+            }
+            parsedShortcutRendererFilterMode = value >= 0 ? value : containerRendererFilterMode;
+        } else {
+            parsedShortcutRendererFilterMode = containerFilterPersisted
+                    ? parsedContainerRendererFilterMode : -1;
         }
-        final int containerRendererFilterMode = parsedContainerRendererFilterMode;
         final int[] rendererFilterMode = {parsedShortcutRendererFilterMode};
         final boolean containerRendererSwapRB = "1".equals(
                 shortcut.container.getExtra("rendererSwapRB", "0"));
@@ -213,26 +226,29 @@ public class ShortcutSettingsDialog extends ContentDialog {
 
                     @Override
                     public String getFsrMode() {
-                        // Effective value: the runtime FSR menu persists its
-                        // choice as a shortcut extra that overrides the config.
-                        return shortcut.getExtra("fsrMode",
-                                GraphicsDriverConfigDialog
-                                        .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()))
-                                        .getOrDefault("fsrMode", "off"));
+                        // Legacy FSR mode key: nothing writes it anymore, it is
+                        // only read to migrate configs from older builds.
+                        return GraphicsDriverConfigDialog
+                                .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()))
+                                .getOrDefault("fsrMode", "off");
                     }
 
                     @Override
                     public String getFsrUpscale() {
-                        return GraphicsDriverConfigDialog
+                        String configFallback = GraphicsDriverConfigDialog
                                 .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()))
                                 .getOrDefault("fsrUpscale", "0");
+                        return shortcut.getExtra("fsrUpscale",
+                                shortcut.container.getExtra("fsrUpscale", configFallback));
                     }
 
                     @Override
                     public String getFsrQuality() {
-                        return GraphicsDriverConfigDialog
+                        String configFallback = GraphicsDriverConfigDialog
                                 .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()))
                                 .getOrDefault("fsrQuality", "balanced");
+                        return shortcut.getExtra("fsrQuality",
+                                shortcut.container.getExtra("fsrQuality", configFallback));
                     }
 
                     @Override
@@ -651,7 +667,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
                 shortcut.putExtra("graphicsDriverConfig", !graphicsDriverConfig.equals(shortcut.container.getGraphicsDriverConfig()) ? graphicsDriverConfig : null);
                 shortcut.putExtra("renderer", !renderer.equals(containerRenderer) ? renderer : null);
                 shortcut.putExtra("rendererFilterMode",
-                        rendererFilterMode[0] != containerRendererFilterMode
+                        rendererFilterMode[0] >= 0 && rendererFilterMode[0] != containerRendererFilterMode
                                 ? String.valueOf(rendererFilterMode[0]) : null);
                 shortcut.putExtra("rendererSwapRB",
                         rendererSwapRB[0] != containerRendererSwapRB

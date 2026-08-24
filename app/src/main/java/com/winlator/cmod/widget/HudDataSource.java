@@ -23,6 +23,7 @@ public class HudDataSource {
     public final AtomicInteger batteryMw     = new AtomicInteger(-1);
     public final AtomicInteger batteryTempC  = new AtomicInteger(-1);
     public final AtomicInteger cpuTempC      = new AtomicInteger(-1);
+    public final AtomicInteger gpuTempC      = new AtomicInteger(-1);
     public final AtomicInteger batteryPct    = new AtomicInteger(-1);
     public final AtomicInteger ramUsagePct  = new AtomicInteger(-1);
 
@@ -36,6 +37,9 @@ public class HudDataSource {
     private long lastMaliGpuInfoMs = -1;
     private long lastMaliGpuInfoWallMs = -1;
     private java.util.List<String> discoveredCpuTempPaths = null;
+    private java.util.List<String> discoveredGpuTempPaths = null;
+
+    private static final boolean USE_BATTERY_AS_CPU_FALLBACK = false;
 
     private static final String[] GPU_PATHS = {
         "/sys/class/misc/mali0/device/utilisation",
@@ -104,8 +108,9 @@ public class HudDataSource {
     private void poll() {
         pollGpu();
         pollCpu();
-        pollCpuTemp();
         pollBattery();
+        pollCpuTemp();
+        pollGpuTemp();
         pollRam();
         handler.postDelayed(this::poll, 1500);
     }
@@ -262,7 +267,33 @@ public class HudDataSource {
                 }
             }
         }
+
+        int batt = batteryTempC.get();
+        if (batt > 0 && batt < 120 && USE_BATTERY_AS_CPU_FALLBACK) {
+            // Off by default: mirrors the battery sensor (already shown as TMP),
+            // which confused users into thinking it was a real CPU reading.
+            // Samsung's SELinux policy blocks /sys/class/thermal on recent
+            // firmware, so without root there is no true CPU temp source.
+            cpuTempC.set(batt);
+            return;
+        }
         cpuTempC.set(-1);
+    }
+
+    private void pollGpuTemp() {
+        for (String p : discoverGpuTempPaths()) {
+            int v = readInt(p);
+            if (v > 0) {
+                if (v > 5000) v /= 1000;
+                else if (v > 200) v /= 10;
+
+                if (v > 0 && v < 120) {
+                    gpuTempC.set(v);
+                    return;
+                }
+            }
+        }
+        gpuTempC.set(-1);
     }
 
     private void pollBattery() {
@@ -419,18 +450,75 @@ public class HudDataSource {
         return paths;
     }
     
+    private java.util.List<String> discoverGpuTempPaths() {
+        if (discoveredGpuTempPaths != null) return discoveredGpuTempPaths;
+
+        java.util.List<CpuTempCandidate> candidates = new java.util.ArrayList<>();
+        String[] roots = {"/sys/class/thermal", "/sys/devices/virtual/thermal"};
+
+        for (String root : roots) {
+            File dir = new File(root);
+            if (!dir.exists() || !dir.isDirectory()) continue;
+            File[] files = dir.listFiles();
+            if (files == null) continue;
+            for (File file : files) {
+                if (file.isDirectory() && file.getName().startsWith("thermal_zone")) {
+                    File typeFile = new File(file, "type");
+                    File tempFile = new File(file, "temp");
+                    if (typeFile.exists() && tempFile.exists() && tempFile.canRead()) {
+                        String type = readSysFsString(typeFile.getPath()).trim().toLowerCase(java.util.Locale.US);
+                        int rank = getGpuTempRank(type);
+                        if (rank >= 0) {
+                            candidates.add(new CpuTempCandidate(tempFile.getPath(), rank));
+                        }
+                    }
+                }
+            }
+        }
+
+        java.util.Collections.sort(candidates, (c1, c2) -> Integer.compare(c1.rank, c2.rank));
+
+        java.util.List<String> paths = new java.util.ArrayList<>();
+        for (CpuTempCandidate c : candidates) {
+            if (!paths.contains(c.path)) paths.add(c.path);
+        }
+
+        discoveredGpuTempPaths = paths;
+        return paths;
+    }
+
+    private int getGpuTempRank(String type) {
+        if (type.contains("g3d")) return 0;
+        if (type.contains("gpu")) return 1;
+        if (type.contains("mali")) return 2;
+        if (type.contains("gpufreq")) return 3;
+        return -1;
+    }
+
     private int getCpuTempRank(String type) {
-        if (type.contains("gpu")) return -1;
+        if (type.contains("gpu") || type.contains("g3d")) return -1;
         if (type.contains("cpu-silicon")) return 0;
         if (type.contains("cpu-0")) return 1;
-        if (type.contains("cpu")) return 2;
-        if (type.contains("soc")) return 3;
-        if (type.contains("s5p-tmu")) return 4;
-        if (type.contains("cputop")) return 5;
-        if (type.contains("tsens")) return 6;
-        if (type.contains("cluster")) return 7;
-        if (type.contains("big") || type.contains("little")) return 8;
-        return -1;
+        if (type.contains("cputop")) return 2;
+        if (type.contains("cpu")) return 3;
+        if (type.contains("soc")) return 4;
+        if (type.contains("s5p-tmu") || type.contains("exynos-tmu")) return 5;
+        if (type.contains("acpu") || type.contains("apc0") || type.contains("apc1")) return 6;
+        if (type.contains("tsens")) return 7;
+        if (type.contains("cluster")) return 8;
+        if (type.contains("big") || type.contains("little") || type.contains("mid")) return 9;
+        if (type.contains("acpm")) return 10;
+        if (isExcludedZone(type)) return -1;
+        return 90;
+    }
+
+    private static boolean isExcludedZone(String type) {
+        return type.contains("battery") || type.contains("batt")
+                || type.contains("usb") || type.contains("charger")
+                || type.contains("lcd") || type.contains("display")
+                || type.contains("cam") || type.contains("isp")
+                || type.contains("wifi") || type.contains("modem")
+                || type.contains("pa_thermal");
     }
     
     private static class CpuTempCandidate {

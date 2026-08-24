@@ -18,6 +18,7 @@ NEW
 - DDraw wrapper None option restoring builtin ddraw.dll.
 - Guest stdout/stderr piped to logcat again for readable Wine debug-channel logs.
 - HUD setting to disable the blinking RAM warning and its high-memory dialog.
+- HUD SOC load and GPU temperature elements selectable in the HUD config dialog.
 
 CHANGED
 
@@ -30,6 +31,9 @@ CHANGED
 - Vendored internals rebranded (rox_/wxp_ prefixes) with wire-format env keys preserved.
 - First boot installs base files immediately; permissions requested afterwards.
 - Follow-system theme default on; landscape lock option added.
+- Texture filter gained a fourth "None" mode (bilinear/nearest/FSR/None); FSR choices persist as runtime extras with one-time migration of the legacy fsrMode key.
+- Gyroscope input enabled by default.
+- About dialog and release notes credit FEX-Emu and AMD FidelityFX Super Resolution.
 
 PERFORMANCE
 
@@ -51,6 +55,7 @@ FIXED
 - Video tab renderer choice persists; GPU Name no longer leaks from the Wine-tab spoof spinner; VKD3D extraction matches "-0"-suffixed archives; dead DXVK 1.7.2 duplicate entries cleaned automatically.
 - NPE confirming container creation and opening Video Config in create-container mode; missing/corrupted JSON assets surface as handled errors instead of crashes; downloads no longer crash when the Contents screen closes mid-transfer.
 - Help popups measure wrapped text correctly with themed backgrounds on dark/light themes; HUD degC mojibake; follow-system-theme checkbox default mismatch between UI and runtime.
+- Container failing to start on Android 10+ with "error=13, Permission denied" when launching the Wine/PulseAudio binaries: targetSdkVersion lowered to 28, keeping exec() of binaries inside the app data directory allowed under the Android W^X policy.
 
 Credits
 
@@ -58,6 +63,8 @@ Credits
 - Winlator CMOD by coffincolors and Pipetto-crypto
 - Winlator Glibc by longjunyu2
 - Winlator OpenXR by lvonasek
+- FEX-Emu (https://github.com/FEX-Emu/FEX)
+- AMD FidelityFX Super Resolution (https://github.com/GPUOpen-Effects/FidelityFX-FSR)
 - Ports and implementation references from Winlator Mali
 - Ports from Winlator Ludashi (https://github.com/StevenMXZ/Winlator-Ludashi)
 - ExynosTools and MdiEx for Exynos/Xclipse resources

@@ -44,16 +44,18 @@ public class XrActivity extends XServerDisplayActivity implements TextWatcher {
 
     private static boolean isDeviceDetectionFinished = false;
     private static boolean isDeviceSupported = false;
-    private static boolean isEnabled = false;
-    private static boolean isImmersive = false;
-    private static boolean isSBS = false;
     private static final KeyCharacterMap chars = KeyCharacterMap.load(KeyCharacterMap.VIRTUAL_KEYBOARD);
-    private static final float[] lastAxes = new float[ControllerAxis.values().length];
-    private static final boolean[] lastButtons = new boolean[ControllerButton.values().length];
-    private static String lastText = "";
-    private static float mouseSpeed = 1;
-    private static final float[] smoothedMouse = new float[2];
     private static XrActivity instance;
+
+    // Instance state (was static mutable state)
+    private boolean isEnabled = false;
+    private boolean isImmersive = false;
+    private boolean isSBS = false;
+    private final float[] lastAxes = new float[ControllerAxis.values().length];
+    private final boolean[] lastButtons = new boolean[ControllerButton.values().length];
+    private String lastText = "";
+    private float mouseSpeed = 1;
+    private final float[] smoothedMouse = new float[2];
 
     @Override
     public synchronized void onPause() {
@@ -88,7 +90,7 @@ public class XrActivity extends XServerDisplayActivity implements TextWatcher {
 
     @Override
     public synchronized void afterTextChanged(Editable e) {
-        XServer server = instance.getXServer();
+        XServer server = getXServer();
         EditText text = findViewById(R.id.XRTextInput);
         String s = text.getEditableText().toString();
         if (s.length() > lastText.length()) {
@@ -123,19 +125,23 @@ public class XrActivity extends XServerDisplayActivity implements TextWatcher {
         return instance;
     }
 
-    public static boolean getImmersive() {
+    public boolean getImmersive() {
         return isImmersive;
     }
 
-    public static boolean getSBS() {
+    public boolean getSBS() {
         return isSBS;
     }
 
     public static boolean isEnabled(Context context) {
-        if (context != null) {
-            isEnabled = PreferenceManager.getDefaultSharedPreferences(context).getBoolean("use_xr", true);
+        XrActivity inst = getInstance();
+        if (inst != null && context != null) {
+            inst.isEnabled = PreferenceManager.getDefaultSharedPreferences(context).getBoolean("use_xr", true);
         }
-        return isSupported() && isEnabled;
+        boolean pref = context != null
+                ? PreferenceManager.getDefaultSharedPreferences(context).getBoolean("use_xr", true)
+                : (inst != null && inst.isEnabled);
+        return isSupported() && pref;
     }
 
     public static boolean isSupported() {
@@ -175,11 +181,11 @@ public class XrActivity extends XServerDisplayActivity implements TextWatcher {
         context.finish();
     }
 
-    public static void updateControllers() {
+    public void updateControllers() {
         // Get OpenXR data
-        float[] axes = instance.getAxes();
-        boolean[] buttons = instance.getButtons();
-        int primaryController = instance.container.getPrimaryController();
+        float[] axes = getAxes();
+        boolean[] buttons = getButtons();
+        int primaryController = container.getPrimaryController();
 
         // Primary controller mapping
         ControllerAxis mouseAxisX = primaryController == 0 ? ControllerAxis.L_X : ControllerAxis.R_X;
@@ -199,10 +205,10 @@ public class XrActivity extends XServerDisplayActivity implements TextWatcher {
         ControllerButton secondaryRight = primaryController == 1 ? ControllerButton.L_THUMBSTICK_RIGHT : ControllerButton.R_THUMBSTICK_RIGHT;
         ControllerButton secondaryPress = primaryController == 1 ? ControllerButton.L_THUMBSTICK_PRESS : ControllerButton.R_THUMBSTICK_PRESS;
 
-        try (XLock lock = instance.getXServer().lock(XServer.Lockable.WINDOW_MANAGER, XServer.Lockable.INPUT_DEVICE)) {
+        try (XLock lock = getXServer().lock(XServer.Lockable.WINDOW_MANAGER, XServer.Lockable.INPUT_DEVICE)) {
             // Mouse control with hand
             float f = 0.75f;
-            float meter2px = instance.getXServer().screenInfo.width * 10.0f;
+            float meter2px = getXServer().screenInfo.width * 10.0f;
             float dx = (axes[mouseAxisX.ordinal()] - lastAxes[mouseAxisX.ordinal()]) * meter2px;
             float dy = (axes[mouseAxisY.ordinal()] - lastAxes[mouseAxisY.ordinal()]) * meter2px;
             if ((Math.abs(dx) > 300) || (Math.abs(dy) > 300)) {
@@ -211,9 +217,9 @@ public class XrActivity extends XServerDisplayActivity implements TextWatcher {
             }
 
             // Mouse control with head
-            Pointer mouse = instance.getXServer().pointer;
+            Pointer mouse = getXServer().pointer;
             if (isImmersive) {
-                float angle2px = instance.getXServer().screenInfo.width * 0.05f / f;
+                float angle2px = getXServer().screenInfo.width * 0.05f / f;
                 dx = getAngleDiff(lastAxes[ControllerAxis.HMD_YAW.ordinal()], axes[ControllerAxis.HMD_YAW.ordinal()]) * angle2px;
                 dy = getAngleDiff(lastAxes[ControllerAxis.HMD_PITCH.ordinal()], axes[ControllerAxis.HMD_PITCH.ordinal()]) * angle2px;
                 if (Float.isNaN(dy)) {
@@ -257,12 +263,12 @@ public class XrActivity extends XServerDisplayActivity implements TextWatcher {
 
             // Show system keyboard
             if (getButtonClicked(buttons, primaryPress)) {
-                instance.runOnUiThread(() -> {
+                runOnUiThread(() -> {
                     isSBS = false;
                     isImmersive = false;
-                    instance.resetText();
-                    AppUtils.showKeyboard(instance);
-                    instance.findViewById(R.id.XRTextInput).requestFocus();
+                    resetText();
+                    AppUtils.showKeyboard(this);
+                    findViewById(R.id.XRTextInput).requestFocus();
                 });
             }
 
@@ -272,20 +278,20 @@ public class XrActivity extends XServerDisplayActivity implements TextWatcher {
 
             // Update keyboard
             mapKey(ControllerButton.L_MENU, XKeycode.KEY_ESC.id);
-            mapKey(ControllerButton.R_A, instance.container.getControllerMapping(Container.XrControllerMapping.BUTTON_A));
-            mapKey(ControllerButton.R_B, instance.container.getControllerMapping(Container.XrControllerMapping.BUTTON_B));
-            mapKey(ControllerButton.L_X, instance.container.getControllerMapping(Container.XrControllerMapping.BUTTON_X));
-            mapKey(ControllerButton.L_Y, instance.container.getControllerMapping(Container.XrControllerMapping.BUTTON_Y));
-            mapKey(secondaryGrip, instance.container.getControllerMapping(Container.XrControllerMapping.BUTTON_GRIP));
-            mapKey(secondaryTrigger, instance.container.getControllerMapping(Container.XrControllerMapping.BUTTON_TRIGGER));
-            mapKey(secondaryUp, instance.container.getControllerMapping(Container.XrControllerMapping.THUMBSTICK_UP));
-            mapKey(secondaryDown, instance.container.getControllerMapping(Container.XrControllerMapping.THUMBSTICK_DOWN));
-            mapKey(secondaryLeft, instance.container.getControllerMapping(Container.XrControllerMapping.THUMBSTICK_LEFT));
-            mapKey(secondaryRight, instance.container.getControllerMapping(Container.XrControllerMapping.THUMBSTICK_RIGHT));
+            mapKey(ControllerButton.R_A, container.getControllerMapping(Container.XrControllerMapping.BUTTON_A));
+            mapKey(ControllerButton.R_B, container.getControllerMapping(Container.XrControllerMapping.BUTTON_B));
+            mapKey(ControllerButton.L_X, container.getControllerMapping(Container.XrControllerMapping.BUTTON_X));
+            mapKey(ControllerButton.L_Y, container.getControllerMapping(Container.XrControllerMapping.BUTTON_Y));
+            mapKey(secondaryGrip, container.getControllerMapping(Container.XrControllerMapping.BUTTON_GRIP));
+            mapKey(secondaryTrigger, container.getControllerMapping(Container.XrControllerMapping.BUTTON_TRIGGER));
+            mapKey(secondaryUp, container.getControllerMapping(Container.XrControllerMapping.THUMBSTICK_UP));
+            mapKey(secondaryDown, container.getControllerMapping(Container.XrControllerMapping.THUMBSTICK_DOWN));
+            mapKey(secondaryLeft, container.getControllerMapping(Container.XrControllerMapping.THUMBSTICK_LEFT));
+            mapKey(secondaryRight, container.getControllerMapping(Container.XrControllerMapping.THUMBSTICK_RIGHT));
         }
     }
 
-    private static float getAngleDiff(float oldAngle, float newAngle) {
+    private float getAngleDiff(float oldAngle, float newAngle) {
         float diff = oldAngle - newAngle;
         while (diff > 180) {
             diff -= 360;
@@ -296,12 +302,12 @@ public class XrActivity extends XServerDisplayActivity implements TextWatcher {
         return diff;
     }
 
-    private static boolean getButtonClicked(boolean[] buttons, ControllerButton button) {
+    private boolean getButtonClicked(boolean[] buttons, ControllerButton button) {
         return buttons[button.ordinal()] && !lastButtons[button.ordinal()];
     }
 
-    private static void mapKey(ControllerButton xrButton, byte xKeycode) {
-        Keyboard keyboard = instance.getXServer().keyboard;
+    private void mapKey(ControllerButton xrButton, byte xKeycode) {
+        Keyboard keyboard = getXServer().keyboard;
         if (lastButtons[xrButton.ordinal()]) {
             keyboard.setKeyPress(xKeycode, 0);
         } else {

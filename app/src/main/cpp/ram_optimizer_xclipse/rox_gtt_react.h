@@ -106,6 +106,12 @@ int rox_gtt_diagnose(rox_gtt_diag_t *out);
 /* Callback de eventos de reação */
 void rox_gtt_set_callback(rox_gtt_callback_t cb, void *userdata);
 
+/* Restaura vm.vfs_cache_pressure imediatamente se uma excursão GTT o
+ * deixou elevado e o restore agendado ainda não rodou. Chamado pelo
+ * shutdown: sem isso, a sessão morrendo na janela do timer deixava o
+ * tuning do kernel perturbado até o reboot. */
+void rox_gtt_force_cache_pressure_restore(void);
+
 #ifdef __cplusplus
 }
 #endif

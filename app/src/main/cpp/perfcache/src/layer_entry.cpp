@@ -1125,10 +1125,14 @@ static VKAPI_ATTR VkResult VKAPI_CALL layer_CreateComputePipelines(
     // primarily a compute-stage phenomenon (DXVK/vkd3d attach the pNext to
     // the compute shader), but only graphics went through correction 7. Apply
     // the same invalid-required-subgroup-size strip here.
+    //
+    // The patch buffer must cover the WHOLE batch: replacing pCreateInfos with
+    // a shorter array while keeping createInfoCount hands the driver a
+    // out-of-bounds read for every pipeline after index 0.
+    std::vector<VkComputePipelineCreateInfo> patched_compute;
     if (g_settings.sanitize_pipelines &&
         !g_conflict.has_sanitizer.load(std::memory_order_acquire) &&
-        xcache_is_xclipse() && createInfoCount > 0 &&
-        pCreateInfos[0].stage.pNext) {
+        xcache_is_xclipse() && createInfoCount > 0) {
 
         VkPhysicalDeviceSubgroupSizeControlProperties sc_props{};
         sc_props.sType =
@@ -1143,34 +1147,41 @@ static VKAPI_ATTR VkResult VKAPI_CALL layer_CreateComputePipelines(
 
         if (sc_props.minSubgroupSize != 0 && sc_props.maxSubgroupSize != 0) {
 
-            const VkBaseInStructure* p =
-                reinterpret_cast<const VkBaseInStructure*>(pCreateInfos[0].stage.pNext);
+            uint32_t stripped = 0;
 
-            bool invalid = false;
-            bool invalid_is_first = false;
-            uint32_t depth = 0;
+            for (uint32_t i = 0; i < createInfoCount; ++i) {
+                const VkBaseInStructure* p =
+                    reinterpret_cast<const VkBaseInStructure*>(pCreateInfos[i].stage.pNext);
 
-            while (p && depth++ < 32) {
-                if (p->sType ==
-                    VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_REQUIRED_SUBGROUP_SIZE_CREATE_INFO) {
-                    const auto* rs =
-                        reinterpret_cast<const VkPipelineShaderStageRequiredSubgroupSizeCreateInfo*>(p);
+                bool invalid = false;
+                bool invalid_is_first = false;
+                uint32_t depth = 0;
 
-                    if (rs->requiredSubgroupSize < sc_props.minSubgroupSize ||
-                        rs->requiredSubgroupSize > sc_props.maxSubgroupSize) {
-                        invalid = true;
-                        invalid_is_first = (depth == 1);
+                while (p && depth++ < 32) {
+                    if (p->sType ==
+                        VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_REQUIRED_SUBGROUP_SIZE_CREATE_INFO) {
+                        const auto* rs =
+                            reinterpret_cast<const VkPipelineShaderStageRequiredSubgroupSizeCreateInfo*>(p);
+
+                        if (rs->requiredSubgroupSize < sc_props.minSubgroupSize ||
+                            rs->requiredSubgroupSize > sc_props.maxSubgroupSize) {
+                            invalid = true;
+                            invalid_is_first = (depth == 1);
+                        }
+                        break;
                     }
-                    break;
+                    p = p->pNext;
                 }
-                p = p->pNext;
-            }
 
-            if (invalid) {
+                if (!invalid) continue;
+
+                if (patched_compute.empty())
+                    patched_compute.assign(pCreateInfos, pCreateInfos + createInfoCount);
+
                 // Local patched copies: only the stage's pNext pointer is
                 // rewired — first-node offenders are skipped, deeper ones
                 // drop the whole stage chain, mirroring graphics correction 7.
-                VkPipelineShaderStageCreateInfo stage_copy = pCreateInfos[0].stage;
+                VkPipelineShaderStageCreateInfo stage_copy = patched_compute[i].stage;
 
                 if (invalid_is_first) {
                     const auto* first =
@@ -1180,13 +1191,16 @@ static VKAPI_ATTR VkResult VKAPI_CALL layer_CreateComputePipelines(
                     stage_copy.pNext = nullptr;
                 }
 
-                static thread_local VkComputePipelineCreateInfo patched_storage[1];
-                patched_storage[0] = pCreateInfos[0];
-                patched_storage[0].stage = stage_copy;
-                pCreateInfos = patched_storage;
+                patched_compute[i].stage = stage_copy;
+                ++stripped;
+            }
+
+            if (!patched_compute.empty()) {
+                pCreateInfos = patched_compute.data();
                 used_patched_compute = true;
 
-                LOGI("Sanitizer: stripped invalid required-subgroup-size from compute stage");
+                LOGI("Sanitizer: stripped %u invalid required-subgroup-size node(s) from compute stages",
+                     stripped);
             }
         }
     }

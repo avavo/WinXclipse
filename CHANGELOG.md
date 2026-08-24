@@ -18,6 +18,7 @@ All notable changes between WinXclipse releases, newest first.
 - DDraw wrapper gained a **None** option restoring the builtin ddraw.dll, alongside CnC-DDraw/Dd7To9/WineD3D.
 - Guest stdout/stderr piped to logcat again, so Wine debug channels produce readable backend logs.
 - HUD setting to disable the blinking RAM warning and its high-memory dialog.
+- HUD gains SOC load and GPU temperature elements selectable in the HUD config dialog.
 
 ### Changed
 
@@ -30,6 +31,9 @@ All notable changes between WinXclipse releases, newest first.
 - Vendored internals rebranded (`rox_`/`wxp_` prefixes, file renames) with wire-format env keys preserved.
 - First boot installs base files immediately; storage permissions are requested after installation completes.
 - Follow-system theme enabled by default; landscape lock option added.
+- Texture filter gains a fourth **None** mode (bilinear/nearest/FSR/None); FSR choices now persist as `rendererFilterMode`/`fsrUpscale`/`fsrQuality` runtime extras, with the legacy `fsrMode` key only read once to migrate old configs (quality modes imply EASU upscale).
+- Gyroscope input is enabled by default.
+- About dialog and release notes credit FEX-Emu and AMD FidelityFX Super Resolution.
 
 ### Performance
 
@@ -51,6 +55,7 @@ All notable changes between WinXclipse releases, newest first.
 - Video tab renderer choice persists (startup no longer forces GL back); GPU Name no longer leaks from the Wine-tab spoof spinner; VKD3D extraction matches "-0"-suffixed bundled archives; dead DXVK 1.7.2 duplicate entries cleaned up automatically.
 - NPE confirming container creation and opening Video Config in create-container mode; missing/corrupted JSON assets and local files surface as handled errors instead of NullPointerExceptions; downloads no longer crash when the Contents screen closes mid-transfer.
 - ? help popups measure wrapped text correctly and use themed backgrounds on dark/light; HUD °C mojibake; follow-system-theme checkbox default mismatch between UI and runtime.
+- Container failing to start on Android 10+ with `error=13, Permission denied` when launching the Wine/PulseAudio binaries: `targetSdkVersion` lowered to 28, keeping exec() of binaries inside the app data directory allowed under the Android W^X policy.
 
 ## 0.8.6
 

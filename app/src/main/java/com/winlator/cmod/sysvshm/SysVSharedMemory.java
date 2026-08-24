@@ -69,7 +69,13 @@ public class SysVSharedMemory {
 
     public void deleteAll() {
         synchronized (shmemories) {
-            for (int i = shmemories.size() - 1; i >= 0; i--) delete(shmemories.keyAt(i));
+            int[] keys = new int[shmemories.size()];
+            for (int i = 0; i < keys.length; i++) {
+                keys[i] = shmemories.keyAt(i);
+            }
+            for (int key : keys) {
+                delete(key);
+            }
         }
     }
 
@@ -89,7 +95,7 @@ public class SysVSharedMemory {
         synchronized (shmemories) {
             for (int i = 0; i < shmemories.size(); i++) {
                 SHMemory shmemory = shmemories.valueAt(i);
-                if (shmemory.data == data) {
+                if (shmemory.data != null && shmemory.data == data) {
                     if (shmemory.data != null) {
                         unmapSHMSegment(shmemory.data, shmemory.size);
                         shmemory.data = null;

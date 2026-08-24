@@ -237,6 +237,40 @@ static long long gtt_read_ll(const char *base, const char *file)
     return v;
 }
 
+/* Lê o valor da linha marcada com '*' (nível ATIVO em pp_dpm_sclk:
+ * "0: 280Mhz\n1: 450Mhz\n* 2: 600Mhz"). gtt_read_ll puro pegaria o índice
+ * do primeiro nível ("0") como se fosse a frequência — valor >= 0 falso
+ * que inutilizava o fallback devfreq de cur_freq. */
+static long long gtt_read_ll_marked(const char *base, const char *file)
+{
+    char path[2048];
+    char buf[256];
+    FILE *f;
+    long long v = -1;
+
+    snprintf(path, sizeof(path), "%s/%s", base, file);
+
+    f = fopen(path, "r");
+    if (!f)
+        return -1;
+
+    while (fgets(buf, sizeof(buf), f)) {
+        const char *star = strchr(buf, '*');
+        if (star) {
+            const char *p = star + 1;
+
+            while (*p && *p != '-' && !isdigit((unsigned char)*p))
+                p++;
+            if (*p)
+                v = atoll(p);
+            break;
+        }
+    }
+
+    fclose(f);
+    return v;
+}
+
 static int gtt_read_pct(const char *base, const char *file)
 {
     long long v = gtt_read_ll(base, file);
@@ -256,10 +290,12 @@ static long long gtt_mono_sec(void)
     return (long long)ts.tv_sec;
 }
 
-/* Valor original de vm.vfs_cache_pressure capturado antes da primeira
- * escrita; -1 enquanto nada foi lido/escrito. Restaurar para um valor
- * hardcodado sobrescreveria o tuning real do dispositivo. */
-static int g_vfs_pressure_original = -1;
+/* Valor original de vm.vfs_cache_pressure capturado UMA vez antes da
+ * primeira escrita (-1 enquanto não capturado; 0 é valor legítimo).
+ * Atômico com CAS único: sem isso, duas threads podiam entrar juntas em
+ * try_cache_pressure, a segunda capturando o valor já perturbado pela
+ * primeira (e perpetuando-o como "original"). */
+static atomic_int g_vfs_pressure_original = -1;
 
 static int read_current_cache_pressure(void)
 {
@@ -288,8 +324,14 @@ static void try_cache_pressure(int value)
 {
     FILE *f;
 
-    if (g_vfs_pressure_original < 0)
-        g_vfs_pressure_original = read_current_cache_pressure();
+    if (atomic_load(&g_vfs_pressure_original) < 0) {
+        int expected = -1;
+        int captured = read_current_cache_pressure();
+
+        atomic_compare_exchange_strong(&g_vfs_pressure_original,
+                                       &expected,
+                                       captured);
+    }
 
     f = fopen("/proc/sys/vm/vfs_cache_pressure", "w");
     if (!f)
@@ -312,10 +354,27 @@ static void maybe_restore_cache_pressure(void)
         return;
 
     if (gtt_mono_sec() >= restore_at) {
-        if (g_vfs_pressure_original > 0)
-            try_cache_pressure(g_vfs_pressure_original);
+        int original = atomic_load(&g_vfs_pressure_original);
+
+        /* >= 0: um dispositivo tunado com vfs_cache_pressure=0 também
+         * merece restore. */
+        if (original >= 0)
+            try_cache_pressure(original);
         atomic_store(&g_cache_pressure_restore_at, 0);
     }
+}
+
+void rox_gtt_force_cache_pressure_restore(void)
+{
+    int original;
+
+    /* Só age se há restore pendente (uma excursão escreveu o sysfs). */
+    if (atomic_exchange(&g_cache_pressure_restore_at, 0) == 0)
+        return;
+
+    original = atomic_load(&g_vfs_pressure_original);
+    if (original >= 0)
+        try_cache_pressure(original);
 }
 
 static rox_profile_t profile_for_level(rox_gtt_level_t level)
@@ -459,8 +518,13 @@ int rox_gtt_read(rox_gtt_state_t *out)
     util = gtt_read_pct(base, SGPU_GPU_UTIL_DIRECT);
     cu = gtt_read_pct(base, SGPU_CU_UTIL_DIRECT);
 
-    out->cur_freq_khz = gtt_read_ll(base, SGPU_FREQ_CUR_DIRECT);
-    out->max_freq_khz = gtt_read_ll(base, SGPU_FREQ_MAX_DIRECT);
+    out->cur_freq_khz = gtt_read_ll_marked(base, SGPU_FREQ_CUR_DIRECT);
+    if (out->cur_freq_khz < 0)
+        out->cur_freq_khz = gtt_read_ll(base, SGPU_FREQ_CUR_DIRECT);
+
+    out->max_freq_khz = gtt_read_ll_marked(base, SGPU_FREQ_MAX_DIRECT);
+    if (out->max_freq_khz < 0)
+        out->max_freq_khz = gtt_read_ll(base, SGPU_FREQ_MAX_DIRECT);
 
     if (gtt_find_devfreq_path(base, devfreq, sizeof(devfreq)) == ROPT_OK) {
         long long cur = gtt_read_ll(devfreq, "cur_freq");
