@@ -20,7 +20,7 @@ import com.winlator.cmod.widget.ThemedSpinnerAdapter;
  */
 public class ExperimentalPerformanceDialog extends ContentDialog {
     public static final String DEFAULT_CONFIG =
-            "vramCap=1,vramCapMode=auto,perfcache=1,mdiex=1,ramAggro=0,wow64Pin=1";
+            "vramCap=1,vramCapMode=auto,perfcache=0,mdiex=1,ramAggro=0,wow64Pin=1";
 
     public interface OnConfirmCallback {
         void onConfirm(String config);

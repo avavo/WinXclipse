@@ -67,6 +67,24 @@
   },
   {
     "type": "Proton",
+    "verName": "11.0-2-arm64ec",
+    "verCode": 2,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-wine-proton-v0.8/proton-11.0-2-arm64ec-sdk35.wcp"
+  },
+  {
+    "type": "Proton",
+    "verName": "11.0-2-x86_64",
+    "verCode": 2,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-wine-proton-v0.8/proton-11.0-2-x86_64-sdk35.wcp"
+  },
+  {
+    "type": "Proton",
+    "verName": "9.0-x86_64",
+    "verCode": 0,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-wine-proton-v0.8/Proton.9.0-x86_64.wcp"
+  },
+  {
+    "type": "Proton",
     "verName": "10-arm64ec",
     "verCode": 1000,
     "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-wine-proton-v0.8/proton-10-arm64ec.wcp.xz"

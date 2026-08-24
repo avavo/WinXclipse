@@ -171,12 +171,18 @@ public class ContentsManager {
                 JSONObject profile = findProfileByUrl(bundled, remoteUrl);
                 if (profile == null) profile = inferRemoteProfile(tag, asset, name, remoteUrl);
                 else {
-                    try {
+                    // Bundled metadata is the identity used across the app
+                    // (container selection, dedup on startup); keep its
+                    // verName and only fall back to the raw file name when
+                    // the bundle entry has none.
+                    if (profile.optString("verName", "").trim().isEmpty()) {
                         String stripped = ExternalDownloadCatalog.stripPackageSuffix(name);
                         if (stripped.trim().isEmpty()) continue;
-                        profile.put("verName", stripped);
+                        try {
+                            profile.put("verName", stripped);
+                        }
+                        catch (JSONException ignored) {}
                     }
-                    catch (JSONException ignored) {}
                 }
                 if (profile == null || profile.optString("verName", "").trim().isEmpty()) continue;
                 catalog.put(profile);

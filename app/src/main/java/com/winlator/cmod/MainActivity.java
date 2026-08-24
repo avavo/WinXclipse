@@ -60,6 +60,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -321,6 +322,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                                     if (first) {
                                         first = false;
                                         cm.finishInstallContent(p, this);
+                                        markBundledContent(MainActivity.this, p);
                                         // Re-read: other installs may have
                                         // updated the marker set meanwhile.
                                         Set<String> updated = new HashSet<>(
@@ -357,6 +359,47 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     }
 
     public static final String PREF_INSTALLED_ASSET_CONTENTS = "installed_asset_contents";
+
+    public static final String PREF_BUNDLED_CONTENT_ENTRIES = "bundled_content_entries";
+
+    /**
+     * Type:verName pairs of the contents embedded in the APK. They install
+     * automatically on first boot and containers depend on them, so the
+     * Downloads screen must not offer their removal. The seed covers bundles
+     * installed before this set existed (their on-disk verName comes from the
+     * .wcp manifest and can drift from the asset file name); every successful
+     * asset install is also recorded in PREF_BUNDLED_CONTENT_ENTRIES.
+     */
+    private static final Set<String> BUNDLED_CONTENT_SEED = new HashSet<>(Arrays.asList(
+            "Box64:0.4.4",
+            "DXVK:1.7.2",
+            "DXVK:1.7.3-async",
+            "DXVK:2.6.2-1-gplasync-arm64ec",
+            "FEXCore:2608",
+            "VKD3D:3.0.1"
+));
+
+    /** True when the profile is one of the APK-embedded bundles, which are
+     * reinstalled on every launch and must not be removable. */
+    public static boolean isBundledContent(Context context, ContentProfile profile) {
+        if (profile == null || profile.type == null || profile.verName == null) return false;
+        String key = profile.type + ":" + profile.verName;
+        if (BUNDLED_CONTENT_SEED.contains(key)) return true;
+        Set<String> recorded = PreferenceManager.getDefaultSharedPreferences(context)
+                .getStringSet(PREF_BUNDLED_CONTENT_ENTRIES, new HashSet<>());
+        return recorded.contains(key);
+    }
+
+    /** Records an installed profile as APK-embedded so it stays protected. */
+    public static void markBundledContent(Context context, ContentProfile profile) {
+        if (profile == null || profile.type == null || profile.verName == null) return;
+        Set<String> recorded = new HashSet<>(PreferenceManager
+                .getDefaultSharedPreferences(context)
+                .getStringSet(PREF_BUNDLED_CONTENT_ENTRIES, new HashSet<>()));
+        recorded.add(profile.type + ":" + profile.verName);
+        PreferenceManager.getDefaultSharedPreferences(context)
+                .edit().putStringSet(PREF_BUNDLED_CONTENT_ENTRIES, recorded).apply();
+    }
 
     /**
      * Bundle-type prefixes found in asset file names. Longest match wins so

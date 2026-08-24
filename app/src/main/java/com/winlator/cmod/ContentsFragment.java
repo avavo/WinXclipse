@@ -622,11 +622,17 @@ public class ContentsFragment extends Fragment {
             holder.tvVersionName.setText(getContext().getString(R.string.version) + ": " + profile.verName);
             holder.tvVersionCode.setText(getContext().getString(R.string.version_code) + ": " + profile.verCode);
             holder.ibMenu.setVisibility(profile.remoteUrl == null ? View.VISIBLE : View.GONE);
+            // APK-embedded bundles are reinstalled on every launch and
+            // containers depend on them; only Info is offered for them.
+            boolean bundledContent = profile.remoteUrl == null
+                    && MainActivity.isBundledContent(getContext(), profile);
             holder.ibMenu.setOnClickListener(v -> {
                 PopupMenu selectionMenu = new PopupMenu(getContext(), holder.ibMenu);
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
                     selectionMenu.setForceShowIcon(true);
                 selectionMenu.inflate(R.menu.content_popup_menu);
+                if (bundledContent)
+                    selectionMenu.getMenu().findItem(R.id.remove_content).setVisible(false);
                 selectionMenu.setOnMenuItemClickListener(item -> {
                     int itemId = item.getItemId();
                     if (itemId == R.id.content_info) {

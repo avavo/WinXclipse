@@ -33,6 +33,7 @@ CHANGED
 - Follow-system theme default on; landscape lock option added.
 - Texture filter gained a fourth "None" mode (bilinear/nearest/FSR/None); FSR choices persist as runtime extras with one-time migration of the legacy fsrMode key.
 - Gyroscope input enabled by default.
+- LayerCache Helix (Cache Xclipse pipeline/texture caches) defaults to off under Experimental Performance; enable it in the tuning dialog.
 - About dialog and release notes credit FEX-Emu and AMD FidelityFX Super Resolution.
 
 PERFORMANCE
@@ -56,6 +57,8 @@ FIXED
 - NPE confirming container creation and opening Video Config in create-container mode; missing/corrupted JSON assets surface as handled errors instead of crashes; downloads no longer crash when the Contents screen closes mid-transfer.
 - Help popups measure wrapped text correctly with themed backgrounds on dark/light themes; HUD degC mojibake; follow-system-theme checkbox default mismatch between UI and runtime.
 - Container failing to start on Android 10+ with "error=13, Permission denied" when launching the Wine/PulseAudio binaries: targetSdkVersion lowered to 28, keeping exec() of binaries inside the app data directory allowed under the Android W^X policy.
+- Downloads screen no longer offers removal of the APK-embedded bundles (Box64/DXVK/FEXCore/VKD3D installed on first boot); Info stays available and future bundles are protected automatically.
+- Proton catalog entries with blank names (proton-11.0-2 sdk35 packages) or raw file names fixed; bundled catalog metadata is now authoritative (11.0-2 arm64ec/x86_64 and 9.0-x86_64).
 
 Credits
 

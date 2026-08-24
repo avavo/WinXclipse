@@ -1821,7 +1821,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             // Opt-in and fully reversible runtime defaults. Each piece is
             // individually switchable via the Experimental Performance tuning
             // dialog (container extra "xperfConfig", shortcut-overridable);
-            // keys default to the historical all-on behaviour.
+            // keys default to the historical behaviour except perfcache,
+            // which now stays off unless explicitly enabled.
             // WRAPPER_MAX_IMAGE_COUNT is applied here on purpose: it runs after
             // extractGraphicsDriverFiles(), so the opt-in value overrides the
             // present-mode-derived swapchain limit.
