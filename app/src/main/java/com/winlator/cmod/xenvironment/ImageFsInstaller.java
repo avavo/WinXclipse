@@ -19,6 +19,7 @@ import com.winlator.cmod.contents.ContentsManager;
 import com.winlator.cmod.core.AppUtils;
 import com.winlator.cmod.core.DownloadProgressDialog;
 import com.winlator.cmod.core.FileUtils;
+import com.winlator.cmod.core.OnExtractFileListener;
 import com.winlator.cmod.core.PreloaderDialog;
 import com.winlator.cmod.core.TarCompressorUtils;
 import com.winlator.cmod.core.WineInfo;
@@ -79,20 +80,49 @@ public abstract class ImageFsInstaller {
             final long contentLength = (long)(FileUtils.getSize(activity, "imagefs.tzst") * compressionRatio);
             AtomicLong totalSizeRef = new AtomicLong();
 
+            // 0..78% imagefs, 78..93% wine, 93..100% finalization – bar moves continuously.
             boolean success = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, activity, "imagefs.tzst", rootDir, (file, size) -> {
                 if (size > 0) {
                     long totalSize = totalSizeRef.addAndGet(size);
-                    final int progress = (int)(((float)totalSize / contentLength) * 100);
+                    final int progress = Math.min(78, (int)(((float)totalSize / contentLength) * 78));
                     activity.runOnUiThread(() -> dialog.setProgress(progress));
                 }
                 return file;
             });
 
             if (success) {
-                installWineFromAssets(activity);
-//                installGuestLibs(activity); // If evshim.tzst ends up being used
+                activity.runOnUiThread(() -> dialog.setProgress(78));
+                // Wine: prefer ZSTD (faster) and stream 78..93% per file so 85% no longer appears frozen.
+                String[] versions = activity.getResources().getStringArray(R.array.wine_entries);
+                long totalWineEst = 0;
+                for (String v : versions) {
+                    long s = FileUtils.getSize(activity, v + ".tzst");
+                    if (s == 0) s = FileUtils.getSize(activity, v + ".txz");
+                    totalWineEst += s * 4L;
+                }
+                totalWineEst = Math.max(1, totalWineEst);
+                AtomicLong wineDone = new AtomicLong(0);
+                final long totalWineFinal = totalWineEst;
+                for (String version : versions) {
+                    File outFile = new File(rootDir, "/opt/" + version);
+                    outFile.mkdirs();
+                    OnExtractFileListener wineListener = (file, size) -> {
+                        if (size > 0) {
+                            long d = wineDone.addAndGet(size);
+                            int prog = 78 + (int)Math.min(15, d * 15 / totalWineFinal);
+                            activity.runOnUiThread(() -> dialog.setProgress(Math.min(93, prog)));
+                        }
+                        return file;
+                    };
+                    boolean ok = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, activity, version + ".tzst", outFile, wineListener);
+                    if (!ok) TarCompressorUtils.extract(TarCompressorUtils.Type.XZ, activity, version + ".txz", outFile, wineListener);
+                }
+                activity.runOnUiThread(() -> dialog.setProgress(93));
+                // Finalization (create version file + reset containers) now owns 93..100% so 100% never hangs.
                 imageFs.createImgVersionFile(LATEST_VERSION);
+                activity.runOnUiThread(() -> dialog.setProgress(96));
                 resetContainerImgVersions(activity);
+                activity.runOnUiThread(() -> dialog.setProgress(100));
             }
             else AppUtils.showToast(activity, R.string.unable_to_install_system_files);
 
@@ -118,19 +148,35 @@ public abstract class ImageFsInstaller {
             boolean success = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, activity, "imagefs.tzst", rootDir, (file, size) -> {
                 if (size > 0) {
                     long totalSize = totalSizeRef.addAndGet(size);
-                    final int progress = (int)(((float)totalSize / contentLength) * 100);
+                    final int progress = Math.min(78, (int)(((float)totalSize / contentLength) * 78));
                     activity.runOnUiThread(() -> dialog.setProgress(progress));
                 }
                 return file;
             });
 
-
-
             if (success) {
-                installWineFromAssets(activity);
-//                installGuestLibs(activity); // If evshim.tzst ends up being used
+                activity.runOnUiThread(() -> dialog.setProgress(78));
+                String[] versions = activity.getResources().getStringArray(R.array.wine_entries);
+                long totalWineEst2 = 0;
+                for (String v : versions) { long s = FileUtils.getSize(activity, v + ".tzst"); if (s==0) s = FileUtils.getSize(activity, v + ".txz"); totalWineEst2 += s * 4L; }
+                totalWineEst2 = Math.max(1, totalWineEst2);
+                AtomicLong wineDone2 = new AtomicLong(0);
+                final long totalWineFinal2 = totalWineEst2;
+                for (String version : versions) {
+                    File outFile = new File(rootDir, "/opt/" + version);
+                    outFile.mkdirs();
+                    OnExtractFileListener wl = (file, size) -> {
+                        if (size > 0) { long d = wineDone2.addAndGet(size); int prog = 78 + (int)Math.min(15, d * 15 / totalWineFinal2); activity.runOnUiThread(() -> dialog.setProgress(Math.min(93, prog))); }
+                        return file;
+                    };
+                    boolean ok = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, activity, version + ".tzst", outFile, wl);
+                    if (!ok) TarCompressorUtils.extract(TarCompressorUtils.Type.XZ, activity, version + ".txz", outFile, wl);
+                }
+                activity.runOnUiThread(() -> dialog.setProgress(93));
                 imageFs.createImgVersionFile(LATEST_VERSION);
+                activity.runOnUiThread(() -> dialog.setProgress(96));
                 resetContainerImgVersions(activity);
+                activity.runOnUiThread(() -> dialog.setProgress(100));
             }
             else AppUtils.showToast(activity, R.string.unable_to_install_system_files);
 
@@ -167,21 +213,19 @@ public abstract class ImageFsInstaller {
     }
 
     private static void clearRootDir(File rootDir) {
-        if (rootDir.isDirectory()) {
-            File[] files = rootDir.listFiles();
-            if (files != null) {
-                for (File file : files) {
-                    if (file.isDirectory()) {
-                        String name = file.getName();
-                        if (name.equals("home")) {
-                            continue;
-                        }
-                    }
-                    FileUtils.delete(file);
-                }
-            }
+        if (!rootDir.isDirectory()) { rootDir.mkdirs(); return; }
+        File[] files = rootDir.listFiles();
+        if (files == null) return;
+        // Use native rm -rf for speed (50k+ files in imagefs) – falls back to Java delete.
+        for (File file : files) {
+            if (file.isDirectory() && file.getName().equals("home")) continue;
+            try {
+                Process p = new ProcessBuilder("rm", "-rf", file.getAbsolutePath()).start();
+                p.waitFor();
+                if (!file.exists()) continue;
+            } catch (Exception ignored) {}
+            FileUtils.delete(file);
         }
-        else rootDir.mkdirs();
     }
 
     private static void installGuestLibs(Context ctx) {

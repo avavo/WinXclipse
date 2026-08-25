@@ -425,8 +425,13 @@ public class FileManagerFragment extends Fragment {
         }
         popupMenu.getMenu().add(0, 2, 0, R.string.rename);
         popupMenu.getMenu().add(0, 3, 0, "Delete");
-        popupMenu.getMenu().add(0, 4, 0, R.string.copy);
-        popupMenu.getMenu().add(0, 5, 0, R.string.cut);
+        // Use literal English labels to avoid mixed auto-translation (Copy was showing as Copiar)
+        popupMenu.getMenu().add(0, 4, 0, "Copy");
+        popupMenu.getMenu().add(0, 5, 0, "Cut");
+        // Dedicated Move for Drive C (same as Cut but labelled Move for clarity inside the emulated C:)
+        boolean isDriveCFile = file.getAbsolutePath().contains(".wine/drive_c")
+                || currentDir.getAbsolutePath().contains(".wine/drive_c");
+        if (isDriveCFile) popupMenu.getMenu().add(0, 12, 0, "Move");
         if (!selectedFiles.isEmpty()) popupMenu.getMenu().add(0, 11, 0, "Apply to selected (" + selectedFiles.size() + ")");
         popupMenu.getMenu().add(0, 6, 0, R.string.share);
         popupMenu.getMenu().add(0, 7, 0, R.string.properties);
@@ -453,6 +458,11 @@ public class FileManagerFragment extends Fragment {
                 return true;
             } else if (itemId == 11) {
                 showSelectionOptions(anchor);
+                return true;
+            } else if (itemId == 12) {
+                // Move inside Drive C – same operation as Cut, just clearer label
+                cutFiles(Collections.singletonList(file));
+                Toast.makeText(getContext(), "Cut for move: choose destination then tap Paste", Toast.LENGTH_SHORT).show();
                 return true;
             } else if (itemId == 6) {
                 shareFile(file);
@@ -721,7 +731,8 @@ public class FileManagerFragment extends Fragment {
 
                 boolean success = copyWithProgress(file, destination, copiedSize, totalSize.get());
                 if (success && isCutOperation && !isCancelled.get()) {
-                    deleteRecursiveSafe(file, new AtomicLong(0), 1);
+                    // If fast rename succeeded the source no longer exists – don't re-delete
+                    if (file.exists()) deleteRecursiveSafe(file, new AtomicLong(0), 1);
                 }
                 if (!success) allSuccess = false;
             }
@@ -801,8 +812,12 @@ public class FileManagerFragment extends Fragment {
 
     private void showSelectionOptions(View anchor) {
         PopupMenu popupMenu = new PopupMenu(requireContext(), anchor);
-        popupMenu.getMenu().add(0, 1, 0, R.string.copy);
-        popupMenu.getMenu().add(0, 2, 0, R.string.cut);
+        popupMenu.getMenu().add(0, 1, 0, "Copy");
+        popupMenu.getMenu().add(0, 2, 0, "Cut");
+        // Also expose Move when selection is inside Drive C
+        boolean anyOnDriveC = false;
+        for (File f : selectedFiles) if (f.getAbsolutePath().contains(".wine/drive_c")) { anyOnDriveC = true; break; }
+        if (anyOnDriveC) popupMenu.getMenu().add(0, 5, 0, "Move");
         popupMenu.getMenu().add(0, 3, 0, "Delete");
         popupMenu.getMenu().add(0, 4, 0, "Clear Selection");
 
@@ -810,6 +825,7 @@ public class FileManagerFragment extends Fragment {
             int itemId = item.getItemId();
             if (itemId == 1) copyFiles(new ArrayList<>(selectedFiles));
             else if (itemId == 2) cutFiles(new ArrayList<>(selectedFiles));
+            else if (itemId == 5) { cutFiles(new ArrayList<>(selectedFiles)); Toast.makeText(getContext(), "Cut for move: choose destination then tap Paste", Toast.LENGTH_SHORT).show(); }
             else if (itemId == 3) removeFiles(new ArrayList<>(selectedFiles));
             else if (itemId == 4) clearSelection();
             return true;
@@ -817,8 +833,42 @@ public class FileManagerFragment extends Fragment {
         popupMenu.show();
     }
 
+    /** Fast move via rename when source and destination are on the same filesystem (Drive C). */
+    private boolean tryFastMove(File src, File dst) {
+        try {
+            if (dst.exists()) return false;
+            File parent = dst.getParentFile();
+            if (parent != null && !parent.exists() && !parent.mkdirs()) return false;
+            // File.renameTo is atomic and instant on same mount (Drive C -> Drive C)
+            if (src.renameTo(dst)) return true;
+            // NIO fallback (covers more cases)
+            java.nio.file.Files.move(src.toPath(), dst.toPath());
+            return true;
+        } catch (Exception ignored) { return false; }
+    }
+
     private boolean copyWithProgress(File src, File dst, AtomicLong copiedSize, long totalSize) {
         if (isCancelled.get()) return false;
+        // Fast path for Cut/Move on same filesystem (e.g. moving a huge game inside Drive C)
+        if (isCutOperation) {
+            // Only try fast rename at top level for files/dirs that share the same filesystem.
+            // We detect this by trying renameTo; if it fails we fall back to byte copy.
+            long srcSize = src.isFile() ? src.length() : -1;
+            if (tryFastMove(src, dst)) {
+                long inc = srcSize >= 0 ? srcSize : dst.isFile() ? dst.length() : 0;
+                // For directories the size wasn't known before move; estimate via dst after move
+                if (inc == 0 && dst.isDirectory()) {
+                    // Best effort: mark progress as advanced by the remaining amount for this src.
+                    // Since we already computed totalSize, jump copiedSize forward by at least 1 byte
+                    // so the dialog reaches 100% quickly.
+                    long remaining = totalSize - copiedSize.get();
+                    if (remaining > 0) inc = remaining;
+                }
+                if (inc > 0) copiedSize.addAndGet(inc);
+                fileProgressDialog.update(dst.getName(), copiedSize.get(), totalSize);
+                return true;
+            }
+        }
         if (src.isDirectory()) {
             if (!dst.exists() && !dst.mkdirs()) return false;
             File[] files = src.listFiles();
@@ -835,7 +885,7 @@ public class FileManagerFragment extends Fragment {
                 FileChannel outChannel = out.getChannel();
                 long size = inChannel.size();
                 long position = 0;
-                long bufferSize = 1024 * 1024;
+                long bufferSize = 8L * 1024 * 1024;
 
                 while (position < size) {
                     if (isCancelled.get()) return false;

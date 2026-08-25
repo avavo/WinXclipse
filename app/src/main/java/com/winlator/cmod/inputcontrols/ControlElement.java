@@ -471,13 +471,6 @@ public class ControlElement {
                 float cy = boundingBox.centerY();
                 float halfStroke = strokeWidth * 0.5f;
                 float size = Math.min(boundingBox.width(), boundingBox.height());
-
-                /* image skin replaces the painted petals entirely */
-                if (iconId > 0) {
-                    drawIcon(canvas, cx, cy, size, size, iconId);
-                    break;
-                }
-
                 float petalWidth = size * 0.32f;
                 float gap = size * 0.055f;
                 float cornerRadius = petalWidth * 0.45f;
@@ -600,34 +593,28 @@ public class ControlElement {
                 float radius = boundingBox.width() * 0.5f - strokeWidth * 0.5f;
                 boolean pressed = isEngaged();
 
-                if (iconId > 0) {
-                    /* image skin: base ring comes from the icon, knob stays dynamic */
-                    drawIcon(canvas, cx, cy, boundingBox.width(), boundingBox.height(), iconId);
-                }
-                else {
-                    /* dark base with radial gradient */
-                    paint.setStyle(Paint.Style.FILL);
-                    applyBodyShader(paint, SHADER_SLOT_BODY, cx, cy, radius, pressed);
-                    canvas.drawCircle(cx, cy, radius, paint);
-                    paint.setShader(null);
+                /* dark base with radial gradient */
+                paint.setStyle(Paint.Style.FILL);
+                applyBodyShader(paint, SHADER_SLOT_BODY, cx, cy, radius, pressed);
+                canvas.drawCircle(cx, cy, radius, paint);
+                paint.setShader(null);
 
-                    /* thin light border ring */
-                    paint.setStyle(Paint.Style.STROKE);
-                    paint.setColor(selected ? inputControlsView.getSecondaryColor()
-                            : inputControlsView.getControlBorderColor(pressed));
-                    canvas.drawCircle(cx, cy, radius, paint);
+                /* thin light border ring */
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setColor(selected ? inputControlsView.getSecondaryColor()
+                        : inputControlsView.getControlBorderColor(pressed));
+                canvas.drawCircle(cx, cy, radius, paint);
 
-                    /* tick marks at N/S/E/W inside the rim */
-                    float tickInner = radius * 0.76f;
-                    float tickOuter = radius * 0.88f;
-                    paint.setStrokeWidth(strokeWidth * 1.1f);
-                    paint.setStrokeCap(Paint.Cap.ROUND);
-                    paint.setColor(primaryColor);
-                    canvas.drawLine(cx, cy - tickOuter, cx, cy - tickInner, paint);
-                    canvas.drawLine(cx + tickOuter, cy, cx + tickInner, cy, paint);
-                    canvas.drawLine(cx, cy + tickOuter, cx, cy + tickInner, paint);
-                    canvas.drawLine(cx - tickOuter, cy, cx - tickInner, cy, paint);
-                }
+                /* tick marks at N/S/E/W inside the rim */
+                float tickInner = radius * 0.76f;
+                float tickOuter = radius * 0.88f;
+                paint.setStrokeWidth(strokeWidth * 1.1f);
+                paint.setStrokeCap(Paint.Cap.ROUND);
+                paint.setColor(primaryColor);
+                canvas.drawLine(cx, cy - tickOuter, cx, cy - tickInner, paint);
+                canvas.drawLine(cx + tickOuter, cy, cx + tickInner, cy, paint);
+                canvas.drawLine(cx, cy + tickOuter, cx, cy + tickInner, paint);
+                canvas.drawLine(cx - tickOuter, cy, cx - tickInner, cy, paint);
 
                 /* knob */
                 PointF position = getCurrentPosition();
@@ -648,17 +635,9 @@ public class ControlElement {
             }
 
             case TRACKPAD: {
-                boolean pressed = isEngaged();
-
-                if (iconId > 0) {
-                    /* image skin replaces the painted pad body entirely */
-                    drawIcon(canvas, boundingBox.centerX(), boundingBox.centerY(),
-                            boundingBox.width(), boundingBox.height(), iconId);
-                    break;
-                }
-
                 float radius = boundingBox.height() * 0.15f;
                 float halfStroke = strokeWidth * 0.5f;
+                boolean pressed = isEngaged();
 
                 paint.setStyle(Paint.Style.FILL);
                 applyBodyShader(paint, SHADER_SLOT_BODY, boundingBox.centerX(), boundingBox.centerY(),
