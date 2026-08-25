@@ -27,7 +27,7 @@ apktool.yml
 app/src/main/assets/*
 !app/src/main/assets/fexcore_env_vars.json
 !app/src/main/assets/imagefs.tzst
-!app/src/main/assets/proton-9.0-arm64ec.tzst
+!app/src/main/assets/proton-9.0-arm64ec.txz
 !app/src/main/assets/layers.tzst
 !app/src/main/assets/graphics_driver/
 app/src/main/assets/graphics_driver/*

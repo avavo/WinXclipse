@@ -59,7 +59,8 @@ public abstract class ImageFsInstaller {
         for (String version : versions) {
             File outFile = new File(rootDir, "/opt/" + version);
             outFile.mkdirs();
-            TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, activity, version + ".tzst", outFile);
+            if (!TarCompressorUtils.extract(TarCompressorUtils.Type.XZ, activity, version + ".txz", outFile))
+                TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, activity, version + ".tzst", outFile);
         }
     }
 
