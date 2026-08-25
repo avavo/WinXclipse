@@ -3545,6 +3545,25 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     private static final String TAG = "DXWrapperExtraction";
 
+    /** Locates a bundled dxwrapper archive, preferring xz over legacy zstd and
+     *  probing the "-<build>" suffix variant used by some vkd3d packages. */
+    private String findDxWrapperAsset(String base) {
+        for (String candidate : new String[]{base + ".txz", base + ".tzst", base + "-0.txz", base + "-0.tzst"}) {
+            try {
+                getAssets().open(candidate).close();
+                return candidate;
+            }
+            catch (IOException ignored) {}
+        }
+        return base + ".txz";
+    }
+
+    private boolean extractWrapperArchive(String assetFile, File dest) {
+        TarCompressorUtils.Type type = assetFile.endsWith(".txz")
+                ? TarCompressorUtils.Type.XZ : TarCompressorUtils.Type.ZSTD;
+        return TarCompressorUtils.extract(type, this, assetFile, dest, onExtractFileListener);
+    }
+
     private void extractDXWrapperFiles(String dxwrapper) {
         final String[] dlls = {"d3d10.dll", "d3d10_1.dll", "d3d10core.dll", "d3d11.dll", "d3d12.dll", "d3d12core.dll", "d3d8.dll", "d3d9.dll", "dxgi.dll"};
 
@@ -3557,16 +3576,10 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 Log.d(TAG, "Applying user-defined VKD3D content profile: " + dxwrapper);
                 contentsManager.applyContent(profile);
             } else {
-                // Bundled archives may carry a "-<build>" suffix (e.g. vkd3d-2.8-0.tzst).
-                String assetFile = "dxwrapper/" + dxwrapper + ".tzst";
-                try {
-                    getAssets().open(assetFile).close();
-                }
-                catch (IOException e) {
-                    assetFile = "dxwrapper/" + dxwrapper + "-0.tzst";
-                }
-                Log.d(TAG, "Extracting fallback VKD3D .tzst archive: " + assetFile);
-                TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, assetFile, windowsDir, onExtractFileListener);
+                // Bundled archives may carry a "-<build>" suffix (e.g. vkd3d-2.14.1-0).
+                String assetFile = findDxWrapperAsset("dxwrapper/" + dxwrapper);
+                Log.d(TAG, "Extracting VKD3D archive: " + assetFile);
+                extractWrapperArchive(assetFile, windowsDir);
             }
             Log.d(TAG, "Finished VKD3D extraction for " + dxwrapper);
         } else if (dxwrapper.contains("dxvk")) {
@@ -3584,12 +3597,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 Log.d(TAG, "Applying user-defined DXVK content profile: " + dxwrapper);
                 contentsManager.applyContent(profile);
             } else {
-                Log.d(TAG, "Extracting fallback DXVK .tzst archive: " + dxwrapper);
-                TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "dxwrapper/" + dxwrapper + ".tzst", windowsDir, onExtractFileListener);
+                Log.d(TAG, "Extracting fallback DXVK archive: " + dxwrapper);
+                extractWrapperArchive(findDxWrapperAsset("dxwrapper/" + dxwrapper), windowsDir);
 
                 if (compareVersion(StringUtils.parseNumber(dxwrapper), "2.4") < 0) {
                     Log.d(TAG, "Extracting d8vk as part of DXVK version " + dxwrapper);
-                    TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "dxwrapper/d8vk-" + DefaultVersion.D8VK + ".tzst", windowsDir, onExtractFileListener);
+                    extractWrapperArchive(findDxWrapperAsset("dxwrapper/d8vk-" + DefaultVersion.D8VK), windowsDir);
                 }
             }
         } else if (dxwrapper.contains("wined3d")) {

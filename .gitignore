@@ -44,7 +44,7 @@ app/src/main/assets/contents/*
 !app/src/main/assets/contents/vkd3d-proton-3.0.1b.wcp
 !app/src/main/assets/dxwrapper/
 app/src/main/assets/dxwrapper/*
-!app/src/main/assets/dxwrapper/dxvk-1.11.1-sarek.tzst
+!app/src/main/assets/dxwrapper/dxvk-1.11.1-sarek.txz
 !app/src/main/assets/inputcontrols/
 app/src/main/assets/inputcontrols/*
 !app/src/main/assets/inputcontrols/profiles/
