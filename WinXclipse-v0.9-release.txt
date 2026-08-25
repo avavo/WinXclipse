@@ -7,10 +7,12 @@ What Changed Compared to v0.8.6
 NEW
 
 - AMD FSR 1.1: full FSR1 pipeline (EASU upscaling + RCAS sharpening) ported from the official AMD shader (ffx_fsr1.h v1.20210629). Configurable per container in the Display section and live-applied from the in-session sidebar Display menu; EASU always runs first in the effect chain. Five quality presets from Fidelity to Ultra, each forcing a matching internal render scale (1.5x/1.7x/2.0x), with letterbox-aware EASU mapping of the scene content region.
-- Video tab (ported from Winlator Ludashi) for containers and shortcuts: renderer selection (Vulkan/OpenGL/GDI) as the primary backend switch, GPU name, present mode, texture filtering (hosting the FSR entry), and a red/blue channel swap option.
+- Video tab for containers and shortcuts: renderer selection (Vulkan/OpenGL/GDI) as the primary backend switch, GPU name, present mode, texture filtering (hosting the FSR entry), a red/blue channel swap option, and a refresh rate selector (Auto/60/90/120/144 Hz) requested from the display when a game session starts.
 - Audio driver dialog with volume control; MIDI soundfont managed inside it. PulseAudio is now the default driver.
 - Shortcut artwork with three sources: Browser (SteamGridDB search with EXE-icon fallback, default on first boot), EXE icon, and Custom - settable globally or per shortcut.
 - New dark glassy touchscreen control style: gradient button bodies with thin light borders, four-petal D-pad with chevron arrows and per-direction press highlighting, tick-marked analog sticks, and a matching trackpad.
+- Complete gamepad skin set for the touchscreen controls as selectable image assets - face buttons (A/B/X/Y), shoulders (L1/R1), triggers (L2/R2), stick clicks (L3/R3), Start/Select, a four-way D-pad, an analog stick base ring, and a trackpad - accepted by D-pad, stick, and trackpad elements and pre-applied to both bundled Virtual Gamepad profiles.
+- Update checks run on every launch, prompting at most once every 4 days when a newer GitHub release is available.
 - Exclusive XInput mode for containers and shortcuts; when off, XInput and DInput can be enabled together with the simultaneous-use warning.
 - (?) help buttons across theme, rotation lock, performance, DXVK/VKD3D, video, and graphics dialogs.
 - Experimental Performance tuning dialog with per-feature switches; companion stacks integrated into our own build: MdiEx runtime (device classification, Xclipse policy engine, scheduler nice-biasing, memory shim passive mode), NRAMV unified-memory manager driven from Java, and LayerCache Helix Vulkan layer for pipeline warmup and texture caching.
@@ -59,6 +61,8 @@ FIXED
 - Container failing to start on Android 10+ with "error=13, Permission denied" when launching the Wine/PulseAudio binaries: targetSdkVersion lowered to 28, keeping exec() of binaries inside the app data directory allowed under the Android W^X policy.
 - Downloads screen no longer offers removal of the APK-embedded bundles (Box64/DXVK/FEXCore/VKD3D installed on first boot); Info stays available and future bundles are protected automatically.
 - Proton catalog entries with blank names (proton-11.0-2 sdk35 packages) or raw file names fixed; bundled catalog metadata is now authoritative (11.0-2 arm64ec/x86_64 and 9.0-x86_64).
+- Wine/Proton .tzst archives saved straight into Downloads (no embedded content profile) install normally: a profile is synthesized from the archive's bin/lib layout, and the import picker accepts every common zstd MIME type.
+- Xclipse driver download catalog sources releases from ExynosTools and the WinXclipse drivers_0.9 release.
 
 Credits
 
@@ -69,8 +73,7 @@ Credits
 - FEX-Emu (https://github.com/FEX-Emu/FEX)
 - AMD FidelityFX Super Resolution (https://github.com/GPUOpen-Effects/FidelityFX-FSR)
 - Ports and implementation references from Winlator Mali
-- Ports from Winlator Ludashi (https://github.com/StevenMXZ/Winlator-Ludashi)
-- ExynosTools and MdiEx for Exynos/Xclipse resources
+- ExynosTools for Exynos/Xclipse resources
 - Wrappers from Leegao (https://github.com/leegao/bionic-vulkan-wrapper), GameNative (https://github.com/utkarshdalal/GameNative), Ref4ik-v6 (https://github.com/REF4IK/CronyX-), and Kirimu
 - WinXclipse Exynos/Xclipse adaptation by Alvaro
 
@@ -91,8 +94,7 @@ Updates and Existing Data
 Remote Sources
 
 - ExynosTools: https://github.com/WearyConcern1165/ExynosTools/releases
-- MdiEx: https://github.com/avavo/MdiEx/releases
-- WinXclipse: https://github.com/avavo/WinXclipse/releases
+- WinXclipse drivers: https://github.com/avavo/WinXclipse/releases/tag/drivers_0.9
 
 Status
 

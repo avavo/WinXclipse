@@ -696,7 +696,6 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                     "Based on Winlator by Brunodev85 (<a href=\"https://github.com/brunodev85\">Git</a>)",
                     "Based on Winlator CMod by <a href=\"https://github.com/coffincolors/winlator\">coffincolors</a> and <a href=\"https://github.com/Pipetto-crypto/winlator\">Pipetto-crypto</a>",
                     "Ports from Winlator Mali (<a href=\"https://github.com/GunaCharanTeja/WinlatorMali\">Git</a>)",
-                    "Ports from Winlator Ludashi (<a href=\"https://github.com/StevenMXZ/Winlator-Ludashi\">Git</a>)",
                     "Wrappers from Leegao (<a href=\"https://github.com/leegao/bionic-vulkan-wrapper\">Git</a>), GameNative (<a href=\"https://github.com/utkarshdalal/GameNative\">Git</a>), Ref4ik-v6 (<a href=\"https://github.com/REF4IK/CronyX-\">Git</a>), Kirimu",
                     "Winlator Glibc by longjunyu2 (<a href=\"https://github.com/longjunyu2/winlator/\">Fork</a>)",
                     "Winlator OpenXR by lvonasek (<a href=\"https://github.com/lvonasek\">Git</a>)",
