@@ -28,6 +28,11 @@ public class VideoConfigDialog extends ContentDialog {
             "fidelity", "quality", "balanced", "performance", "ultraperformance"
     };
 
+    /** Tokens persisted in graphicsDriverConfig; index maps to video_refresh_rate_entries. */
+    private static final String[] REFRESH_RATE_VALUES = {
+            "auto", "60", "90", "120", "144"
+    };
+
     public interface Config {
         String getGpuName();
         String getPresentMode();
@@ -42,9 +47,12 @@ public class VideoConfigDialog extends ContentDialog {
         String getFsrQuality();
         boolean isVsyncOff();
         boolean isUnlimitedImages();
+        /** "auto" or a refresh rate in Hz ("60", "90", "120", "144"). */
+        String getRefreshRate();
         void apply(String gpuName, String presentMode, int textureFilterMode,
                    boolean swapRedBlue, String fsrUpscale,
-                   String fsrQuality, boolean vsyncOff, boolean unlimitedImages);
+                   String fsrQuality, boolean vsyncOff, boolean unlimitedImages,
+                   String refreshRate);
     }
 
     public VideoConfigDialog(Context context, Config config) {
@@ -54,6 +62,7 @@ public class VideoConfigDialog extends ContentDialog {
 
         Spinner gpuName = findViewById(R.id.SVideoGPUName);
         Spinner presentMode = findViewById(R.id.SVideoPresentMode);
+        Spinner refreshRate = findViewById(R.id.SVideoRefreshRate);
         Spinner textureFilter = findViewById(R.id.SVideoTextureFilter);
         CheckBox swapRedBlue = findViewById(R.id.CBVideoSwapRedBlue);
         Spinner fsrUpscale = findViewById(R.id.SVideoFsrUpscale);
@@ -70,6 +79,8 @@ public class VideoConfigDialog extends ContentDialog {
         gpuName.setAdapter(new ThemedSpinnerAdapter<>(context, loadGpuNames(context)));
         presentMode.setAdapter(new ThemedSpinnerAdapter<>(context,
                 Arrays.asList(context.getResources().getStringArray(R.array.present_mode_entries))));
+        refreshRate.setAdapter(new ThemedSpinnerAdapter<>(context,
+                Arrays.asList(context.getResources().getStringArray(R.array.video_refresh_rate_entries))));
         textureFilter.setAdapter(new ThemedSpinnerAdapter<>(context,
                 Arrays.asList(context.getString(R.string.bilinear),
                         context.getString(R.string.nearest_neighbor),
@@ -101,6 +112,7 @@ public class VideoConfigDialog extends ContentDialog {
             AppUtils.setSpinnerSelectionFromValue(gpuName, "Device");
         }
         AppUtils.setSpinnerSelectionFromValue(presentMode, config.getPresentMode());
+        refreshRate.setSelection(Math.max(0, indexOfRefreshRate(config.getRefreshRate())));
         textureFilter.setSelection(filterMode);
         swapRedBlue.setChecked(config.isSwapRedBlue());
         AppUtils.setSpinnerSelectionFromValue(fsrUpscale, upscale.equals("1") ? "On" : "Off");
@@ -129,7 +141,7 @@ public class VideoConfigDialog extends ContentDialog {
 
         vsyncOff.setChecked(config.isVsyncOff());
         unlimitedImages.setChecked(config.isUnlimitedImages());
-        applyTheme(context, gpuName, presentMode, textureFilter, fsrUpscale, fsrQuality);
+        applyTheme(context, gpuName, presentMode, textureFilter, fsrUpscale, fsrQuality, refreshRate);
 
         setOnConfirmCallback(() -> {
             String upscaleValue = "On".equals(selectedValue(fsrUpscale)) ? "1" : "0";
@@ -139,7 +151,10 @@ public class VideoConfigDialog extends ContentDialog {
                     selectedValue(gpuName), selectedValue(presentMode),
                     textureFilter.getSelectedItemPosition(), swapRedBlue.isChecked(),
                     upscaleValue, FSR_MODE_VALUES[qualityIndex],
-                    vsyncOff.isChecked(), unlimitedImages.isChecked());
+                    vsyncOff.isChecked(), unlimitedImages.isChecked(),
+                    REFRESH_RATE_VALUES[Math.max(0, Math.min(
+                            refreshRate.getSelectedItemPosition(),
+                            REFRESH_RATE_VALUES.length - 1))]);
         });
     }
 
@@ -148,6 +163,14 @@ public class VideoConfigDialog extends ContentDialog {
             if (FSR_MODE_VALUES[i].equals(token)) return i;
         }
         return -1;
+    }
+
+    private static int indexOfRefreshRate(String token) {
+        if (token == null || token.isEmpty()) return 0;
+        for (int i = 0; i < REFRESH_RATE_VALUES.length; i++) {
+            if (REFRESH_RATE_VALUES[i].equals(token)) return i;
+        }
+        return 0;
     }
 
     private static ArrayList<String> loadGpuNames(Context context) {

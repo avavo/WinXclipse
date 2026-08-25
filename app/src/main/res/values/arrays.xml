@@ -106,6 +106,13 @@
         <item>Normal</item>
         <item>Always</item>
     </string-array>
+    <string-array name="video_refresh_rate_entries">
+        <item>Auto</item>
+        <item>60 Hz</item>
+        <item>90 Hz</item>
+        <item>120 Hz</item>
+        <item>144 Hz</item>
+    </string-array>
     <string-array name="video_memory_size_entries">
         <item>32 MB</item>
         <item>64 MB</item>

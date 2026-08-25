@@ -389,8 +389,13 @@ public class ContentsManager {
 
         File proFile = new File(file, PROFILE_NAME);
         if (!proFile.exists()) {
-            callback.onFailed(InstallFailedReason.ERROR_NOPROFILE, null);
-            return;
+            /* Raw runtime builds (e.g. a Proton .tzst saved straight from the
+               browser into Downloads) often ship without an embedded profile.
+               Synthesize one so they install through the standard flow. */
+            if (!writeSynthesizedRuntimeProfile(file, getDisplayName(context, uri))) {
+                callback.onFailed(InstallFailedReason.ERROR_NOPROFILE, null);
+                return;
+            }
         }
 
         ContentProfile profile = readProfile(proFile);
@@ -472,6 +477,104 @@ public class ContentsManager {
 
     private static void reportInstallProgress(OnInstallProgressCallback callback, int progress) {
         if (callback != null) callback.onProgress(progress);
+    }
+
+    private static String getDisplayName(Context context, Uri uri) {
+        if (uri == null) return "";
+        if ("file".equals(uri.getScheme()) && uri.getPath() != null) {
+            return new File(uri.getPath()).getName();
+        }
+        try (android.database.Cursor cursor = context.getContentResolver().query(
+                uri, null, null, null, null)) {
+            if (cursor != null && cursor.moveToFirst()) {
+                int index = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME);
+                if (index >= 0) {
+                    String name = cursor.getString(index);
+                    if (name != null && !name.isEmpty()) return name;
+                }
+            }
+        }
+        catch (Exception ignored) {
+        }
+        return "";
+    }
+
+    /** Locates the bin/lib layout of a raw Wine/Proton tree and writes a minimal
+     * content profile for it. Returns false when the archive is not a runtime. */
+    private static boolean writeSynthesizedRuntimeProfile(File root, String archiveName) {
+        String name = archiveName == null || archiveName.isEmpty() ? "runtime" : archiveName;
+        String verName = name.replaceFirst("(?i)\\.(tar\\.xz|tar\\.zst|txz|tzst|zst|xz|zip)$", "");
+        if (verName.isEmpty()) return false;
+
+        String binPath = null;
+        for (String candidate : new String[]{"files/bin", "bin"}) {
+            if (containsWineLauncher(new File(root, candidate))) {
+                binPath = candidate;
+                break;
+            }
+        }
+        if (binPath == null) return false;
+
+        String libPath = null;
+        for (String candidate : new String[]{"files/lib", "lib", "files/lib64", "lib64"}) {
+            if (new File(root, candidate).isDirectory()) {
+                libPath = candidate;
+                break;
+            }
+        }
+        if (libPath == null) return false;
+
+        /* The prefix pack is validated as an existing file but is not consumed
+           by the runtime launcher; prefer an embedded pattern archive when one
+           is present and fall back to the wine binary itself. */
+        String prefixPack = findFirstFile(root, ".tzst");
+        if (prefixPack == null) prefixPack = findFirstFile(root, ".txz");
+        if (prefixPack == null) prefixPack = binPath + "/wine";
+
+        try {
+            JSONObject profileJSONObject = new JSONObject();
+            profileJSONObject.put(ContentProfile.MARK_TYPE,
+                    verName.toLowerCase().contains("proton")
+                            ? ContentProfile.ContentType.CONTENT_TYPE_PROTON.toString()
+                            : ContentProfile.ContentType.CONTENT_TYPE_WINE.toString());
+            profileJSONObject.put(ContentProfile.MARK_VERSION_NAME, verName);
+            profileJSONObject.put(ContentProfile.MARK_VERSION_CODE,
+                    Math.abs(verName.hashCode() % 2147483646) + 1);
+            profileJSONObject.put(ContentProfile.MARK_DESC, "");
+            profileJSONObject.put(ContentProfile.MARK_FILE_LIST, new JSONArray());
+
+            JSONObject runtimeJSONObject = new JSONObject();
+            runtimeJSONObject.put(ContentProfile.MARK_WINE_BINPATH, binPath);
+            runtimeJSONObject.put(ContentProfile.MARK_WINE_LIBPATH, libPath);
+            runtimeJSONObject.put(ContentProfile.MARK_WINE_PREFIX_PACK, prefixPack);
+            profileJSONObject.put(ContentProfile.MARK_WINE, runtimeJSONObject);
+
+            return FileUtils.writeString(new File(root, PROFILE_NAME), profileJSONObject.toString(2));
+        }
+        catch (JSONException e) {
+            return false;
+        }
+    }
+
+    private static boolean containsWineLauncher(File dir) {
+        File[] children = dir.listFiles();
+        if (children == null) return false;
+        for (File child : children) {
+            String childName = child.getName().toLowerCase();
+            if (childName.startsWith("wine") && child.isFile()) return true;
+        }
+        return false;
+    }
+
+    private static String findFirstFile(File root, String extension) {
+        File[] children = root.listFiles();
+        if (children == null) return null;
+        for (File child : children) {
+            if (child.isFile() && child.getName().toLowerCase().endsWith(extension)) {
+                return child.getName();
+            }
+        }
+        return null;
     }
 
     public void finishInstallContent(ContentProfile profile, OnInstallFinishedCallback callback) {

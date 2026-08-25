@@ -663,11 +663,18 @@ public class ContainerDetailFragment extends Fragment {
                     }
 
                     @Override
+                    public String getRefreshRate() {
+                        return GraphicsDriverConfigDialog
+                                .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()))
+                                .getOrDefault("refreshRate", "auto");
+                    }
+
+                    @Override
                     public void apply(String gpuName, String presentMode,
                                       int textureFilterMode, boolean swapRedBlue,
                                       String fsrUpscale,
                                       String fsrQuality, boolean vsyncOff,
-                                      boolean unlimitedImages) {
+                                      boolean unlimitedImages, String refreshRate) {
                         HashMap<String, String> config = GraphicsDriverConfigDialog
                                 .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()));
                         config.put("gpuName", gpuName);
@@ -677,6 +684,7 @@ public class ContainerDetailFragment extends Fragment {
                         config.put("fsrQuality", fsrQuality == null ? "balanced" : fsrQuality);
                         config.put("vblankOff", vsyncOff ? "1" : "0");
                         config.put("unlimitedImages", unlimitedImages ? "1" : "0");
+                        config.put("refreshRate", refreshRate == null ? "auto" : refreshRate);
                         vGraphicsDriverConfig.setTag(
                                 GraphicsDriverConfigDialog.toGraphicsDriverConfig(config));
                         AppUtils.setSpinnerSelectionFromValue(sGPUName, gpuName);

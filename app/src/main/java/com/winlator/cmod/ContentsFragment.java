@@ -312,7 +312,9 @@ public class ContentsFragment extends Fragment {
             return;
         }
         importMode = IMPORT_CONTENT;
-        openDocument(new String[]{"application/octet-stream", "application/x-xz", "application/x-zstd"});
+        openDocument(new String[]{"application/octet-stream", "application/x-xz",
+                "application/x-zstd", "application/zstd",
+                "application/x-zstd-compressed-tar", "application/x-compressed-tar"});
     }
 
     private void openDocument(String[] mimeTypes) {

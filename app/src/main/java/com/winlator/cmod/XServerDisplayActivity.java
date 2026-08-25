@@ -655,6 +655,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         graphicsDriver = Container.normalizeGraphicsDriver(graphicsDriver);
 
         this.graphicsDriverConfig = GraphicsDriverConfigDialog.parseGraphicsDriverConfig(graphicsDriverConfig);
+        applyPreferredRefreshRate();
         String configuredDDrawWrapper = DXVKConfigDialog.parseConfig(dxwrapperConfig).get("ddrawrapper");
         if (!configuredDDrawWrapper.isEmpty()) this.ddrawrapper = configuredDDrawWrapper;
 
@@ -1558,6 +1559,22 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     private void openTerminal() {
         Intent intent = new Intent(this, TerminalActivity.class);
         startActivity(intent);
+    }
+
+    /** Requests the display mode closest to the configured refresh rate ("refreshRate" key). */
+    private void applyPreferredRefreshRate() {
+        String rate = graphicsDriverConfig.getOrDefault("refreshRate", "auto");
+        if (rate.isEmpty() || "auto".equals(rate)) return;
+        try {
+            float preferred = Float.parseFloat(rate);
+            android.view.Window window = getWindow();
+            if (window == null) return;
+            android.view.WindowManager.LayoutParams params = window.getAttributes();
+            params.preferredRefreshRate = preferred;
+            window.setAttributes(params);
+        }
+        catch (NumberFormatException ignored) {
+        }
     }
 
     private void setFpsLimit(GLRenderer renderer, int limit, boolean persist) {

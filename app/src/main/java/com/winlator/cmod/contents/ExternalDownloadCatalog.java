@@ -22,10 +22,11 @@ import java.util.Set;
 /** Dynamic catalog for Xclipse driver downloads that can change without an APK update. */
 public final class ExternalDownloadCatalog {
     private static final String TAG = "ExternalDownloadCatalog";
-    private static final String CACHE_KEY = "xclipse_driver_release_cache_v1";
+    private static final String CACHE_KEY = "xclipse_driver_release_cache_v2";
+    /** "owner/name" lists every release; "owner/name@tag" pins one release. */
     private static final String[] DRIVER_REPOSITORIES = {
             "WearyConcern1165/ExynosTools",
-            "avavo/MdiEx"
+            "avavo/WinXclipse@drivers_0.9"
     };
 
     public static final class Item {
@@ -52,6 +53,8 @@ public final class ExternalDownloadCatalog {
         for (String repository : DRIVER_REPOSITORIES) {
             JSONArray releases = fetchReleases(repository);
             if (releases == null) continue;
+            String repositoryName = repository.substring(repository.indexOf('/') + 1)
+                    .replaceFirst("@.*$", "");
             refreshed = true;
             for (int i = 0; i < releases.length(); i++) {
                 JSONObject release = releases.optJSONObject(i);
@@ -70,7 +73,7 @@ public final class ExternalDownloadCatalog {
                     JSONObject item = new JSONObject();
                     try {
                         item.put("name", stripPackageSuffix(fileName));
-                        item.put("detail", repository.substring(repository.indexOf('/') + 1) + " • " + tag);
+                        item.put("detail", repositoryName + " • " + tag);
                         item.put("url", url);
                         combined.put(item);
                     }
@@ -104,7 +107,12 @@ public final class ExternalDownloadCatalog {
     private JSONArray fetchReleases(String repository) {
         HttpURLConnection connection = null;
         try {
-            URL url = new URL("https://api.github.com/repos/" + repository + "/releases?per_page=30");
+            int tagIndex = repository.indexOf('@');
+            String repo = tagIndex >= 0 ? repository.substring(0, tagIndex) : repository;
+            String endpoint = tagIndex >= 0
+                    ? "https://api.github.com/repos/" + repo + "/releases/tags/" + repository.substring(tagIndex + 1)
+                    : "https://api.github.com/repos/" + repo + "/releases?per_page=30";
+            URL url = new URL(endpoint);
             connection = (HttpURLConnection) url.openConnection();
             connection.setConnectTimeout(8000);
             connection.setReadTimeout(15000);

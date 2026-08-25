@@ -24,16 +24,13 @@ public final class UpdateChecker {
             "https://api.github.com/repos/avavo/WinXclipse/releases/latest";
     private static final String RELEASES_URL =
             "https://github.com/avavo/WinXclipse/releases";
-    private static final long CHECK_INTERVAL_MS = 6L * 60L * 60L * 1000L;
-    private static final long REMIND_INTERVAL_MS = 24L * 60L * 60L * 1000L;
+    private static final long PROMPT_INTERVAL_MS = 4L * 24L * 60L * 60L * 1000L;
 
     private UpdateChecker() {}
 
     public static void check(Activity activity) {
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(activity);
         long now = System.currentTimeMillis();
-        if (now - preferences.getLong("update_last_check", 0) < CHECK_INTERVAL_MS) return;
-        preferences.edit().putLong("update_last_check", now).apply();
 
         Executors.newSingleThreadExecutor().execute(() -> {
             HttpURLConnection connection = null;
@@ -55,12 +52,12 @@ public final class UpdateChecker {
                 String tag = release.optString("tag_name", "");
                 if (tag.isEmpty() || compareVersions(tag, BuildConfig.VERSION_NAME) <= 0) return;
                 String page = release.optString("html_url", RELEASES_URL);
-                long lastPrompt = preferences.getLong("update_prompt_" + tag, 0);
-                if (now - lastPrompt < REMIND_INTERVAL_MS) return;
+                long lastPrompt = preferences.getLong("update_last_prompt", 0);
+                if (now - lastPrompt < PROMPT_INTERVAL_MS) return;
 
                 activity.runOnUiThread(() -> {
                     if (activity.isFinishing() || activity.isDestroyed()) return;
-                    preferences.edit().putLong("update_prompt_" + tag,
+                    preferences.edit().putLong("update_last_prompt",
                             System.currentTimeMillis()).apply();
                     new AlertDialog.Builder(activity)
                             .setTitle("WinXclipse update available")
