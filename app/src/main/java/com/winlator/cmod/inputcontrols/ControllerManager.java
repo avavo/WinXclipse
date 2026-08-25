@@ -292,6 +292,25 @@ public class ControllerManager {
         return -1;
     }
 
+    /** Plug-and-play on first input: a gamepad that presses any button is claimed
+     *  immediately by the first slot that has no saved assignment, even if that
+     *  slot was never explicitly enabled, so pads start working without opening
+     *  the assignment dialog. Explicit assignments and pre-enabled free slots
+     *  still take precedence (handled by {@link #assignToFirstEnabledFreeSlot}). */
+    public int autoAssignOnFirstInput(InputDevice device) {
+        int legacy = assignToFirstEnabledFreeSlot(device);
+        if (legacy >= 0) return legacy;
+        if (device == null || !isGameController(device)) return -1;
+        for (int i = 0; i < enabledSlots.length; i++) {
+            if (slotAssignments.get(i) == null) {
+                assignDeviceToSlot(i, device);
+                setSlotEnabled(i, true);
+                return i;
+            }
+        }
+        return -1;
+    }
+
     public boolean hasEnabledUnassignedSlot() {
         for (int i = 0; i < 4; i++) {
             if (enabledSlots[i] && getAssignedDeviceForSlot(i) == null) {

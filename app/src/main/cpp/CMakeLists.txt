@@ -86,6 +86,16 @@ target_link_libraries(winlator
 # ---- EVSHIM (phase-0 stub) -----------------------------------
 add_library(evshim SHARED winlator/evshim.c)
 
+# ---- FAKEINPUT (guest-side evdev interposer, LD_PRELOAD'd into wine) ----
+# Interposes open/ioctl/read/write on the fake /dev/input/eventN files so stock
+# wine enumerates them as HID gamepads, and forwards force-feedback requests to
+# the app over the abstract unix socket "winlator_vibration".
+add_library(fakeinput SHARED winlator/fakeinput.cpp)
+target_compile_options(fakeinput PRIVATE -Wall -Wextra -fvisibility=hidden)
+target_link_libraries(fakeinput log dl)
+set_target_properties(fakeinput PROPERTIES
+        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../jniLibs/${ANDROID_ABI}")
+
 # ---------- SDL2 library (Build from source) ----------
 # Add SDL2 as a library target.
 # This assumes cpp/sdl2 has its own CMakeLists.txt or you list its sources here.

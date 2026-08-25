@@ -4,6 +4,9 @@ import static com.winlator.cmod.inputcontrols.ExternalController.TRIGGER_IS_AXIS
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.net.LocalServerSocket;
+import android.net.LocalSocket;
+import android.os.Build;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.util.Log;
@@ -226,6 +229,7 @@ public class WinHandler {
 
     public void stop() {
         running = false;
+        stopVibrationListener();
 
         for (int i = 0; i < fakeInputWriters.length; i++) {
             if (fakeInputWriters[i] != null) {
@@ -251,7 +255,132 @@ public class WinHandler {
             File staleEvent = new File(fakeInputDir, "event" + i);
             if (staleEvent.exists()) staleEvent.delete();
         }
+        startVibrationListener();
         Log.i(TAG, "Mali fake-input path: " + fakeInputDir.getAbsolutePath());
+    }
+
+    // ============ FakeInput rumble bridge (event-driven, via guest libfakeinput) ============
+
+    private static final String VIBRATION_SOCKET_NAME = "winlator_vibration";
+    private LocalServerSocket vibrationServer;
+    private volatile boolean vibrationRunning;
+    private final java.util.concurrent.ExecutorService vibrationExecutor =
+            java.util.concurrent.Executors.newSingleThreadExecutor();
+
+    /** Listens on the abstract unix socket that libfakeinput.so (LD_PRELOAD'd into
+     *  every wine process) connects to whenever the guest uploads or plays a force
+     *  feedback effect on one of the fake evdev gamepads. Wire format: 8 bytes LE,
+     *  u16 strong, u16 weak, u16 durationMs, u16 slot. */
+    public void startVibrationListener() {
+        if (vibrationRunning) return;
+        vibrationRunning = true;
+        vibrationExecutor.execute(() -> {
+            try {
+                vibrationServer = new LocalServerSocket(VIBRATION_SOCKET_NAME);
+                while (vibrationRunning) {
+                    LocalSocket client;
+                    try {
+                        client = vibrationServer.accept();
+                    } catch (Exception e) {
+                        break; // server closed while blocking in accept()
+                    }
+                    byte[] buf = new byte[8];
+                    int read;
+                    try {
+                        read = client.getInputStream().read(buf);
+                    } catch (Exception e) {
+                        read = -1;
+                    }
+                    if (read == 8) {
+                        int strong = le16(buf, 0);
+                        int weak = le16(buf, 2);
+                        int durationMs = le16(buf, 4);
+                        int slot = le16(buf, 6);
+                        try {
+                            triggerVibration(strong, weak, durationMs, slot);
+                        } catch (Exception e) {
+                            Log.w(TAG, "triggerVibration failed", e);
+                        }
+                    }
+                    try {
+                        client.close();
+                    } catch (Exception ignored) {}
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "vibration listener terminated", e);
+            }
+        });
+    }
+
+    public void stopVibrationListener() {
+        vibrationRunning = false;
+        if (vibrationServer != null) {
+            try {
+                vibrationServer.close();
+            } catch (Exception ignored) {}
+            vibrationServer = null;
+        }
+    }
+
+    private static int le16(byte[] b, int off) {
+        return (b[off] & 0xFF) | ((b[off + 1] & 0xFF) << 8);
+    }
+
+    /** Routes a rumble request coming from the guest to the right actuator: the
+     *  physical pad assigned to the slot when it has motors of its own, otherwise
+     *  the phone's vibrator (which also covers the virtual on-screen gamepad). */
+    private void triggerVibration(int strong, int weak, int durationMs, int slot) {
+        if (slot < 0 || slot >= MAX_PLAYERS) return;
+        if (!controllerManager.isVibrationEnabled(slot)) return;
+        boolean cancel = durationMs == 0 && strong == 0 && weak == 0;
+
+        InputDevice device = controllerManager.getAssignedDeviceForSlot(slot);
+        Vibrator vibrator = null;
+        android.os.VibratorManager vibratorManager = null;
+        boolean dualMotor = false;
+
+        if (device != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            vibratorManager = device.getVibratorManager();
+            int[] ids = vibratorManager != null ? vibratorManager.getVibratorIds() : new int[0];
+            if (ids.length >= 2) dualMotor = true;
+            else if (ids.length == 1) vibrator = vibratorManager.getVibrator(ids[0]);
+        }
+        if (!dualMotor && device != null && (vibrator == null || !vibrator.hasVibrator())) {
+            vibrator = device.getVibrator(); // deprecated pre-S path
+        }
+
+        if (dualMotor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            int[] ids = vibratorManager.getVibratorIds();
+            applyOneShot(vibratorManager.getVibrator(ids[0]), strong, durationMs, cancel);
+            applyOneShot(vibratorManager.getVibrator(ids[1]), weak, durationMs, cancel);
+            return;
+        }
+
+        if (vibrator == null || !vibrator.hasVibrator()) {
+            vibrator = (Vibrator) activity.getSystemService(Context.VIBRATOR_SERVICE);
+        }
+        if (vibrator == null || !vibrator.hasVibrator()) return;
+
+        int intensity = Math.max(strong, weak); // single motor merges both magnitudes
+        applyOneShot(vibrator, intensity, durationMs, cancel);
+    }
+
+    private void applyOneShot(Vibrator vibrator, int magnitude, int durationMs, boolean cancel) {
+        if (vibrator == null || !vibrator.hasVibrator()) return;
+        if (!cancel && magnitude > 0) {
+            int amplitude = clampAmplitude(magnitude);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator.vibrate(VibrationEffect.createOneShot(Math.max(1, durationMs), amplitude));
+            } else {
+                vibrator.vibrate(Math.max(1, durationMs));
+            }
+        } else {
+            vibrator.cancel();
+        }
+    }
+
+    private static int clampAmplitude(int value) { // 0..65535 -> 1..255
+        return Math.min(255, Math.max(1, (int) ((value / 65535.0f) * 255)));
     }
 
     // ========================== Gyro API (called by MotionControls) =========
@@ -370,7 +499,7 @@ public class WinHandler {
 
         int assignedSlot = controllerManager.getSlotForDeviceOrSibling(deviceId);
         if (assignedSlot == -1 && !isVirtualActive()) {
-            assignedSlot = controllerManager.assignToFirstEnabledFreeSlot(device);
+            assignedSlot = controllerManager.autoAssignOnFirstInput(device);
             if (assignedSlot >= 0) refreshControllerMappings();
         }
 
@@ -470,7 +599,7 @@ public class WinHandler {
 
         int assignedSlot = controllerManager.getSlotForDeviceOrSibling(deviceId);
         if (assignedSlot == -1 && !isVirtualActive()) {
-            assignedSlot = controllerManager.assignToFirstEnabledFreeSlot(device);
+            assignedSlot = controllerManager.autoAssignOnFirstInput(device);
             if (assignedSlot >= 0) refreshControllerMappings();
         }
 
