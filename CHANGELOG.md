@@ -22,6 +22,7 @@ All notable changes between WinXclipse releases, newest first.
 - Guest stdout/stderr piped to logcat again, so Wine debug channels produce readable backend logs.
 - HUD setting to disable the blinking RAM warning and its high-memory dialog.
 - HUD gains SOC load and GPU temperature elements selectable in the HUD config dialog.
+- New screen sizes for modern tall panels: 2340x1080 (19.5:9), 2560x1440 (16:9), and 3120x1440 (19.5:9) selectable in container and shortcut settings.
 
 ### Changed
 
@@ -64,6 +65,12 @@ All notable changes between WinXclipse releases, newest first.
 - Proton catalog entries showing blank names (the proton-11.0-2 sdk35 packages) or raw file names: bundled catalog metadata is now authoritative, giving clean names to 11.0-2 (arm64ec/x86_64) and 9.0-x86_64.
 - Wine/Proton `.tzst` archives saved straight into Downloads (no embedded content profile) install normally now: a profile is synthesized from the archive's bin/lib layout, and the import picker accepts every common zstd MIME type.
 - Xclipse driver download catalog sources releases from ExynosTools and the WinXclipse `drivers_0.9` release (the retired MdiEx repository and its cached entries are dropped).
+- First-boot progress moves continuously through imagefs extraction (78%), Wine runtime install (93%) and finalization (96–100%) instead of appearing stalled.
+- X server hardening: DestroySubWindows no longer falls through to ReparentWindow (protocol desync); SYNC AwaitFence blocks without deadlocking the whole server; GrabPointer reads its event-mask from the correct offset so grabs keep delivering button/motion events; malformed client requests (bad enum values, out-of-range indices, oversized properties) return protocol errors instead of killing every connection; large replies survive partial socket writes.
+- Imported containers keep their original configuration — the copied `.container` file is loaded instead of being overwritten with defaults; the DDraw wrapper selection no longer clobbers the DXVK/VKD3D config when loading; content application copies via temp+rename so a failed install never deletes working DLLs; pinned-tag driver catalogs list correctly.
+- Wine registry editor performs complete reads before writing and only replaces system.reg/user.reg with a fully valid clone.
+- Input fixes: multi-binding elements no longer lose their last binding on load; range-button bindings are restored on touch up instead of being wiped into the saved profile; controller axes are clamped after a sensitivity boost (sticks no longer invert at the extreme); disconnected controllers no longer crash the bindings screen.
+- A game exiting normally now tears down the X/audio/handler components and saves playtime exactly like the Exit action does; shortcut extras (execDelay, inputType, sharpness, rcfileId, controlsProfile) parse defensively instead of crashing at launch; several background-thread guards across Saves/Containers/Contents/Settings screens prevent crashes when leaving mid-operation.
 
 ## 0.8.6
 
