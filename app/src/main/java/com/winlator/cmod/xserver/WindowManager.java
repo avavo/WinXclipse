@@ -53,6 +53,64 @@ public class WindowManager extends XResourceManager {
         windows.put(id, rootWindow);
     }
 
+    public void resizeRootWindow(int width, int height) {
+        if (rootWindow.getWidth() == width && rootWindow.getHeight() == height) return;
+        Drawable oldContent = rootWindow.getContent();
+        drawableManager.removeDrawable(oldContent.id);
+        Drawable newContent = drawableManager.createDrawable(oldContent.id, (short)width, (short)height, oldContent.visual);
+        newContent.setOnDrawListener(() -> triggerOnUpdateWindowContent(rootWindow));
+        rootWindow.setContent(newContent);
+        rootWindow.setWidth((short)width);
+        rootWindow.setHeight((short)height);
+        triggerOnUpdateWindowGeometry(rootWindow, true);
+        rootWindow.sendEvent(new com.winlator.cmod.xserver.events.Expose(rootWindow));
+        // Resize desktop / top-level windows that were created to fill the old desktop
+        // (Wine explorer /desktop=shell,WxH). Without this the game's window stays
+        // at 1280x720 inside a 640x360 root and the compositor stretches/clips it,
+        // causing the "janela bugada" reported for RE2 after live FSR resize.
+        Window desktopWindow = null;
+        for (int i = 0; i < windows.size(); i++) {
+            Window w = windows.valueAt(i);
+            if (w == null || w == rootWindow) continue;
+            if (!w.attributes.isMapped()) continue;
+            Window parent = w.getParent();
+            if (parent != rootWindow) continue;
+            // Desktop/explorer window that should fill the root: resize it to new root
+            if (w.getWidth() == oldContent.width && w.getHeight() == oldContent.height) {
+                changeWindowGeometry(w, w.getX(), w.getY(), (short)width, (short)height);
+                desktopWindow = w;
+            }
+        }
+        // Also resize the game's window (child of the desktop) that was at the old
+        // desktop resolution. This forces DXVK/VKD3D to recreate the swapchain at
+        // the new guest size (640x360) so the FPS gain is real and the window
+        // fills the screen correctly instead of being clipped or showing black bars.
+        // Use isApplicationWindow to catch the actual game window even if its size
+        // is slightly off due to decorations or previous FSR steps.
+        Window targetParent = desktopWindow != null ? desktopWindow : rootWindow;
+        for (int i = 0; i < windows.size(); i++) {
+            Window w = windows.valueAt(i);
+            if (w == null || w == rootWindow || w == desktopWindow) continue;
+            if (!w.attributes.isMapped()) continue;
+            if (w.getParent() != targetParent) continue;
+            if (w.isApplicationWindow() || (w.getWidth() == oldContent.width && w.getHeight() == oldContent.height)) {
+                changeWindowGeometry(w, (short)0, (short)0, (short)width, (short)height);
+            }
+        }
+        // Fallback: any other application window anywhere in the tree that still
+        // matches the old desktop size (e.g. override-redirect fullscreen window
+        // that is a direct child of root but was missed above due to parent check).
+        for (int i = 0; i < windows.size(); i++) {
+            Window w = windows.valueAt(i);
+            if (w == null || w == rootWindow || w == desktopWindow) continue;
+            if (!w.isApplicationWindow()) continue;
+            if (!w.attributes.isMapped()) continue;
+            if (w.getWidth() == oldContent.width && w.getHeight() == oldContent.height) {
+                changeWindowGeometry(w, w.getX(), w.getY(), (short)width, (short)height);
+            }
+        }
+    }
+
     public Window getWindow(int id) {
         return windows.get(id);
     }

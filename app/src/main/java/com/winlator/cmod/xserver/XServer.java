@@ -44,6 +44,16 @@ public class XServer {
     private boolean isGrabbed = false;
     private XClient grabbingClient = null;
 
+    public void updateScreenSize(int width, int height) {
+        screenInfo.setSize(width, height);
+        windowManager.resizeRootWindow(width, height);
+        if (renderer != null) {
+            renderer.viewTransformation.update(renderer.surfaceWidth, renderer.surfaceHeight, width, height);
+            renderer.setViewportNeedsUpdate(true);
+            if (renderer.xServerView != null) renderer.xServerView.requestRender();
+        }
+    }
+
     public XServer(ScreenInfo screenInfo) {
         this.screenInfo = screenInfo;
         cursorLocker = new CursorLocker(this);

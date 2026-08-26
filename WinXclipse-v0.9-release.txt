@@ -4,12 +4,13 @@ WinXclipse runs Windows applications on Exynos devices with Xclipse GPUs through
 
 Highlights
 
-- AMD FSR 1.1 upscaling (EASU + RCAS), per container or live from the in-session sidebar.
+- AMD FSR 1.1 upscaling (EASU + RCAS) with real guest render scaling (display/factor) for true FPS gains on GPU-bound titles (RE2) and live desktop resize; per container/shortcut Video Configuration, sidebar Display is now view-only anti-aliasing.
 - Video tab: renderer (Vulkan/OpenGL/GDI), GPU name, present mode, texture filtering, refresh rate; audio driver dialog with volume.
 - Shortcut artwork with SteamGridDB browser, EXE icon, and custom image sources.
 - New dark glassy touchscreen control style with a full gamepad skin set.
 - Experimental Performance tuning: per-model Exynos/Xclipse VRAM caps, BCn backends, CPU cluster scheduling, unified-memory-aware defaults.
 - ARM64EC compatibility fixes, X server hardening, and container boot fixes for raw Wine/Proton .tzst runtimes.
+- Touchscreen haptics now enabled by default; window/fullscreen letterboxing fixed for live FSR switches.
 
 See CHANGELOG.md for the complete list of changes.
 

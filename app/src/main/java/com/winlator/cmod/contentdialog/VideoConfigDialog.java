@@ -94,7 +94,9 @@ public class VideoConfigDialog extends ContentDialog {
         int rawFilterMode = config.getTextureFilterMode();
         boolean filterExplicit = rawFilterMode >= 0;
         int filterMode = Math.max(0, Math.min(filterExplicit ? rawFilterMode : 0, 3));
-        String upscale = config.getFsrUpscale() == null ? "0" : config.getFsrUpscale();
+        // FIX: default to upscale ON when FSR is selected for real FPS gain
+        // (RE2 GPU-bound). Previously default "0" gave sharpen-only with no gain.
+        String upscale = config.getFsrUpscale() == null ? "1" : config.getFsrUpscale();
         String quality = GraphicsDriverConfigDialog.normalizeFsrValue(config.getFsrQuality());
         String legacyFsr = GraphicsDriverConfigDialog.normalizeFsrValue(config.getFsrMode());
         if (!legacyFsr.equals("off") && !filterExplicit) {

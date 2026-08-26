@@ -720,6 +720,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         // this, presets only shrank the final composite - lower resolution
         // on screen with no performance gain.
         sessionStartFsrMode = resolveFsrState();
+        // Store original display size for live FSR resize (RE2 / GPU-bound case).
+        try {
+            ScreenInfo orig = new ScreenInfo(screenSize);
+            originalScreenWidth = orig.width;
+            originalScreenHeight = orig.height;
+        } catch (Exception ignored) {}
         if (!"off".equals(sessionStartFsrMode) && !"on".equals(sessionStartFsrMode)) {
             float factor = GraphicsDriverConfigDialog.fsrFactorForMode(sessionStartFsrMode);
             ScreenInfo configured = new ScreenInfo(screenSize);
@@ -728,10 +734,24 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             if (guestW < configured.width && guestH < configured.height) {
                 fsrGuestWidth = guestW;
                 fsrGuestHeight = guestH;
+                // Keep original for live switching back to native or to another preset.
+                if (originalScreenWidth == 0) {
+                    originalScreenWidth = configured.width;
+                    originalScreenHeight = configured.height;
+                }
                 screenSize = guestW + "x" + guestH;
                 Log.i("FSRDebug", "FSR guest render scale: mode=" + sessionStartFsrMode
                         + " factor=" + factor + " guest=" + guestW + "x" + guestH
                         + " (configured " + configured.width + "x" + configured.height + ")");
+            }
+        } else {
+            // No FSR upscale at start: original == guest (native).
+            if (originalScreenWidth == 0) {
+                try {
+                    ScreenInfo c = new ScreenInfo(screenSize);
+                    originalScreenWidth = c.width;
+                    originalScreenHeight = c.height;
+                } catch (Exception ignored) {}
             }
         }
 
@@ -2423,6 +2443,19 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         boolean upscaleOn = !"off".equals(fsrRuntimeState) && !"on".equals(fsrRuntimeState);
         sFsrUpscale.setSelection(upscaleOn ? 1 : 0);
 
+        // Sidebar FSR is now read-only (anti-aliasing view only):
+        // strength must be changed via Container/Shortcut Video Configuration.
+        // Show current state but block edits.
+        sFilter.setEnabled(false);
+        sFilter.setClickable(false);
+        sFilter.setAlpha(0.6f);
+        sFsrUpscale.setEnabled(false);
+        sFsrUpscale.setClickable(false);
+        sFsrUpscale.setAlpha(0.6f);
+        sFsrMode.setEnabled(false);
+        sFsrMode.setClickable(false);
+        sFsrMode.setAlpha(0.6f);
+
         Runnable updateVisibility = () -> {
             boolean fsrSelected = sFilter.getSelectedItemPosition() == 2;
             boolean ups = fsrSelected && "On".equals(sFsrUpscale.getSelectedItem());
@@ -2430,18 +2463,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             llFsrMode.setVisibility(ups ? View.VISIBLE : View.GONE);
         };
         updateVisibility.run();
-        AdapterView.OnItemSelectedListener visibilityListener = new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                updateVisibility.run();
-            }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {
-            }
-        };
-        sFilter.setOnItemSelectedListener(visibilityListener);
-        sFsrUpscale.setOnItemSelectedListener(visibilityListener);
+        // Listeners removed for read-only sidebar (no live FSR edits here)
 
         CheckBox cbSwapRB = dialog.findViewById(R.id.CBDisplaySwapRB);
         cbSwapRB.setChecked(renderer.isSwapRedBlue());
@@ -2471,22 +2493,11 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         dialog.setOnConfirmCallback(() -> {
             setFakeHdrEnabled(renderer, cbHdr.isChecked(), true);
-            int filterSelection = sFilter.getSelectedItemPosition();
-            renderer.setTextureFilterMode(Math.max(0, Math.min(filterSelection, 3)));
-            persistRuntimeVideoOption("rendererFilterMode", String.valueOf(filterSelection));
+            // FSR is read-only in sidebar (view-only anti-aliasing): strength must be
+            // changed via Container/Shortcut -> Video Configuration. Do not persist
+            // or apply FSR from here to avoid accidental live resolution changes.
             renderer.setSwapRedBlue(cbSwapRB.isChecked());
             persistRuntimeVideoOption("rendererSwapRB", cbSwapRB.isChecked() ? "1" : "0");
-            if (filterSelection == 2) {
-                boolean ups = "On".equals(sFsrUpscale.getSelectedItem());
-                int qualityIndex = Math.max(0, sFsrMode.getSelectedItemPosition());
-                String[] states = {"fidelity", "quality", "balanced", "performance", "ultraperformance"};
-                String state = ups ? states[qualityIndex] : "on";
-                applyFsrRuntime(renderer, state);
-                persistRuntimeVideoOption("fsrUpscale", ups ? "1" : "0");
-                if (ups) persistRuntimeVideoOption("fsrQuality", state);
-            } else {
-                applyFsrRuntime(renderer, "off");
-            }
         });
         dialog.show();
     }
@@ -2536,6 +2547,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
      * upscale preset is active: real render scaling. 0 = not scaled. */
     private int fsrGuestWidth;
     private int fsrGuestHeight;
+    /** Original display resolution before FSR guest scaling (for live resize). */
+    private int originalScreenWidth;
+    private int originalScreenHeight;
     /** Upscale preset active at session start, so live preset changes can
      * tell the user that a different render scale needs a restart. */
     private String sessionStartFsrMode;
@@ -2576,9 +2590,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             }
         }
         if (!fsrOn) return "off";
-        boolean fsrUpscale = "1".equals(
+        // FIX: selecting FSR (filter 2) should default to upscale ON for real
+        // FPS gain (RE2 GPU-bound). Sharpen-only ("on") remains available by
+        // explicitly storing fsrUpscale=0, but unset configs now default to 1.
+        boolean fsrUpscale = !"0".equals(
                 upscaleExtra != null ? upscaleExtra
-                        : graphicsDriverConfig.getOrDefault("fsrUpscale", "0"));
+                        : graphicsDriverConfig.getOrDefault("fsrUpscale", "1"));
         if (!fsrUpscale) return "on";
         return GraphicsDriverConfigDialog.normalizeFsrValue(
                 qualityExtra != null ? qualityExtra
@@ -2603,40 +2620,72 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
      * (EASU upscale at display/1.3, /1.5, /1.7, /2.0 or /2.5 plus RCAS).
      * Keeps the texture filter selection in sync and persists the choice.
      */
+    /**
+     * Applies an FSR1 state live: "off", "on" (RCAS sharpening at native
+     * resolution) or fidelity/quality/balanced/performance/ultraperformance
+     * (EASU upscale at display/1.3, /1.5, /1.7, /2.0 or /2.5 plus RCAS).
+     * Keeps the texture filter selection in sync and persists the choice.
+     * FIX: live mode now actually resizes the X desktop (xServer) so RE2 /
+     * other GPU-bound games see a smaller swapchain and gain FPS without
+     * requiring a full container restart.
+     */
     private void applyFsrRuntime(GLRenderer renderer, String state) {
         fsrRuntimeState = state == null ? "off" : state;
         EffectComposer composer = renderer.getEffectComposer();
         if ("on".equals(fsrRuntimeState)) {
             renderer.setTextureFilterMode(2);
+            // Sharpen only: restore native desktop if we were in guest mode.
+            if (originalScreenWidth > 0 && originalScreenHeight > 0 && xServer != null
+                    && (xServer.screenInfo.width != originalScreenWidth || xServer.screenInfo.height != originalScreenHeight)) {
+                try {
+                    xServer.updateScreenSize(originalScreenWidth, originalScreenHeight);
+                    fsrGuestWidth = 0; fsrGuestHeight = 0;
+                    Log.i("FSRDebug", "FSR sharpen-only: restored native " + originalScreenWidth + "x" + originalScreenHeight);
+                } catch (Exception e) { Log.w("FSRDebug", "Failed to restore native for sharpen-only", e); }
+            }
             composer.setFsrEffects(null, new FSREffect(1.0f), 0, 0);
             Log.i("FSRDebug", "FSR1 sharpening only (no upscale)");
         } else if (!"off".equals(fsrRuntimeState)) {
             float stops = GraphicsDriverConfigDialog.fsrStopsForMode(fsrRuntimeState);
             renderer.setTextureFilterMode(2);
-            if (fsrGuestWidth > 0 && fsrGuestHeight > 0) {
-                // Real render scaling: the guest renders at the reduced X
-                // screen chosen at session start. The scene buffer matches it
-                // 1:1 and EASU performs the single upscale to the display.
-                composer.setFsrEffects(new FSREasuEffect(), new FSREffect(stops),
-                        fsrGuestWidth, fsrGuestHeight);
-                Log.i("FSRDebug", "FSR1 upscale (guest render scale): state=" + fsrRuntimeState
-                        + " guest=" + fsrGuestWidth + "x" + fsrGuestHeight + " stops=" + stops);
-                if (sessionStartFsrMode != null && !sessionStartFsrMode.equals(fsrRuntimeState)) {
-                    float picked = GraphicsDriverConfigDialog.fsrFactorForMode(fsrRuntimeState);
-                    float started = GraphicsDriverConfigDialog.fsrFactorForMode(sessionStartFsrMode);
-                    if (Math.abs(picked - started) > 0.01f) {
-                        runOnUiThread(() -> Toast.makeText(this,
-                                "Render scale changes apply on the next session start",
-                                Toast.LENGTH_LONG).show());
-                    }
+            float factor = GraphicsDriverConfigDialog.fsrFactorForMode(fsrRuntimeState);
+            int targetW = 0, targetH = 0;
+            if (originalScreenWidth > 0 && originalScreenHeight > 0) {
+                targetW = Math.max(64, (Math.round(originalScreenWidth / factor)) & ~1);
+                targetH = Math.max(64, (Math.round(originalScreenHeight / factor)) & ~1);
+            } else if (fsrGuestWidth > 0 && fsrGuestHeight > 0) {
+                // Fallback when original not known (should not happen).
+                targetW = fsrGuestWidth; targetH = fsrGuestHeight;
+            }
+            if (targetW > 0 && targetH > 0 && originalScreenWidth > 0) {
+                // Live desktop resize for true FPS gain (RE2 heavy 3D).
+                if (xServer != null && (xServer.screenInfo.width != targetW || xServer.screenInfo.height != targetH)) {
+                    try {
+                        xServer.updateScreenSize(targetW, targetH);
+                        Log.i("FSRDebug", "FSR live resize: " + originalScreenWidth + "x" + originalScreenHeight + " -> " + targetW + "x" + targetH + " factor=" + factor);
+                    } catch (Exception e) { Log.w("FSRDebug", "Live resize failed", e); }
                 }
+                fsrGuestWidth = targetW; fsrGuestHeight = targetH;
+                composer.setFsrEffects(new FSREasuEffect(), new FSREffect(stops), targetW, targetH);
+                Log.i("FSRDebug", "FSR1 upscale (guest render scale LIVE): state=" + fsrRuntimeState + " guest=" + targetW + "x" + targetH + " stops=" + stops);
+            } else if (fsrGuestWidth > 0 && fsrGuestHeight > 0) {
+                // Legacy path: guest known from startup, keep 1:1.
+                composer.setFsrEffects(new FSREasuEffect(), new FSREffect(stops), fsrGuestWidth, fsrGuestHeight);
+                Log.i("FSRDebug", "FSR1 upscale (guest render scale): state=" + fsrRuntimeState + " guest=" + fsrGuestWidth + "x" + fsrGuestHeight + " stops=" + stops);
             } else {
-                float factor = GraphicsDriverConfigDialog.fsrFactorForMode(fsrRuntimeState);
                 composer.setFsrEffects(new FSREasuEffect(), new FSREffect(stops), factor);
-                Log.i("FSRDebug", "FSR1 upscale active: state=" + fsrRuntimeState
-                        + " factor=" + factor + " stops=" + stops);
+                Log.i("FSRDebug", "FSR1 upscale active: state=" + fsrRuntimeState + " factor=" + factor + " stops=" + stops);
             }
         } else {
+            // FSR off: restore native desktop for full-res rendering.
+            if (originalScreenWidth > 0 && originalScreenHeight > 0 && xServer != null
+                    && (xServer.screenInfo.width != originalScreenWidth || xServer.screenInfo.height != originalScreenHeight)) {
+                try {
+                    xServer.updateScreenSize(originalScreenWidth, originalScreenHeight);
+                    Log.i("FSRDebug", "FSR off: restored native " + originalScreenWidth + "x" + originalScreenHeight);
+                } catch (Exception e) { Log.w("FSRDebug", "Failed to restore native on FSR off", e); }
+            }
+            fsrGuestWidth = 0; fsrGuestHeight = 0;
             composer.setFsrEffects(null, null, 0, 0);
             Log.i("FSRDebug", "FSR off");
         }
@@ -2826,7 +2875,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         cbEnableTimeout.setChecked(preferences.getBoolean("touchscreen_timeout_enabled", false));
 
         final CheckBox cbEnableHaptics = dialog.findViewById(R.id.CBEnableHaptics);
-        cbEnableHaptics.setChecked(preferences.getBoolean("touchscreen_haptics_enabled", false));
+        cbEnableHaptics.setChecked(preferences.getBoolean("touchscreen_haptics_enabled", true));
 
         final CheckBox cbDisableTouchscreenMouse = dialog.findViewById(R.id.CBDisableTouchscreenMouse);
         cbDisableTouchscreenMouse.setChecked(preferences.getBoolean("touchscreen_mouse_disabled", false));
@@ -3028,7 +3077,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         inputControlsView.setShowTouchscreenControls(isShowTouchscreenControls);
 
         boolean isTimeoutEnabled = preferences.getBoolean("touchscreen_timeout_enabled", false);
-        boolean isHapticsEnabled = preferences.getBoolean("touchscreen_haptics_enabled", false);
+        boolean isHapticsEnabled = preferences.getBoolean("touchscreen_haptics_enabled", true);
 
         // Apply these settings as if the user confirmed the dialog
         SharedPreferences.Editor editor = preferences.edit();

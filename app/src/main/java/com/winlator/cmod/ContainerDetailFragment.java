@@ -636,7 +636,7 @@ public class ContainerDetailFragment extends Fragment {
                     public String getFsrUpscale() {
                         String fallback = GraphicsDriverConfigDialog
                                 .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()))
-                                .getOrDefault("fsrUpscale", "0");
+                                .getOrDefault("fsrUpscale", "1");
                         return container != null ? container.getExtra("fsrUpscale", fallback) : fallback;
                     }
 

@@ -237,7 +237,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
                     public String getFsrUpscale() {
                         String configFallback = GraphicsDriverConfigDialog
                                 .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()))
-                                .getOrDefault("fsrUpscale", "0");
+                                .getOrDefault("fsrUpscale", "1");
                         return shortcut.getExtra("fsrUpscale",
                                 shortcut.container.getExtra("fsrUpscale", configFallback));
                     }
