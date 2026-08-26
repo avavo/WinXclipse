@@ -28,23 +28,36 @@ public final class FEXCorePresetManager {
     private static final String NEXT_CUSTOM_PRESET_ID_KEY = "fexcore_next_custom_preset_id";
     private static final String COMPATIBILITY_DEFAULT_MIGRATED_KEY =
             "fexcore_compatibility_default_migrated_v086";
+    private static final String INTERMEDIATE_DEFAULT_MIGRATED_KEY =
+            "fexcore_intermediate_default_migrated_v087";
 
     private FEXCorePresetManager() {}
 
     public static String normalizePresetId(String id) {
-        if (id == null || id.trim().isEmpty()) return FEXCorePreset.COMPATIBILITY;
+        if (id == null || id.trim().isEmpty()) return FEXCorePreset.INTERMEDIATE;
         return id.trim().toUpperCase(Locale.ENGLISH);
     }
 
     public static String getConfiguredDefault(Context context) {
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
         String selected = normalizePresetId(preferences.getString(
-                "fexcore_preset", FEXCorePreset.COMPATIBILITY));
+                "fexcore_preset", FEXCorePreset.INTERMEDIATE));
         if (!preferences.getBoolean(COMPATIBILITY_DEFAULT_MIGRATED_KEY, false)) {
             if (FEXCorePreset.STABILITY.equals(selected)) selected = FEXCorePreset.COMPATIBILITY;
             preferences.edit()
                     .putString("fexcore_preset", selected)
                     .putBoolean(COMPATIBILITY_DEFAULT_MIGRATED_KEY, true)
+                    .apply();
+        }
+        // Intermediate became the factory default; only bump installs that
+        // never explicitly picked Compatibility themselves (still on the old
+        // default value).
+        if (!preferences.getBoolean(INTERMEDIATE_DEFAULT_MIGRATED_KEY, false)
+                && !FEXCorePreset.PERFORMANCE.equals(selected)) {
+            selected = FEXCorePreset.INTERMEDIATE;
+            preferences.edit()
+                    .putString("fexcore_preset", selected)
+                    .putBoolean(INTERMEDIATE_DEFAULT_MIGRATED_KEY, true)
                     .apply();
         }
         return selected;
@@ -331,13 +344,13 @@ public final class FEXCorePresetManager {
     }
 
     public static String getSpinnerSelectedId(Spinner spinner) {
-        if (spinner == null) return FEXCorePreset.COMPATIBILITY;
+        if (spinner == null) return FEXCorePreset.INTERMEDIATE;
         SpinnerAdapter adapter = spinner.getAdapter();
         int position = spinner.getSelectedItemPosition();
         if (adapter != null && position >= 0 && position < adapter.getCount()) {
             Object item = adapter.getItem(position);
             if (item instanceof FEXCorePreset) return ((FEXCorePreset) item).id;
         }
-        return FEXCorePreset.COMPATIBILITY;
+        return FEXCorePreset.INTERMEDIATE;
     }
 }

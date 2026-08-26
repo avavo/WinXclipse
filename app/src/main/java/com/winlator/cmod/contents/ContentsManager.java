@@ -293,6 +293,9 @@ public class ContentsManager {
 
         String versionName = name.replaceFirst(
                 "(?i)(?:\\.wcp(?:\\.xz)?|\\.xz|\\.tzst|\\.zst)$", "");
+        // Drop an embedded wine-/proton- prefix: the content type already
+        // carries it, otherwise the UI shows duplicates like "Proton-proton-...".
+        versionName = versionName.replaceFirst("(?i)^(?:wine|proton)-", "");
         long assetId = asset.optLong("id", 0);
         int versionCode = assetId > 0 ? (int) (assetId % 2147483646L) + 1 : Math.abs(name.hashCode());
         if (versionCode == 0) versionCode = 1;
@@ -330,6 +333,7 @@ public class ContentsManager {
                     if (proFile.exists() && proFile.isFile()) {
                         ContentProfile profile = readProfile(proFile);
                         if (profile != null) {
+                            profile = repairDuplicatedTypeName(profile, proFile);
                             profiles.add(profile);
                             Log.d("ContentsManager", "Local profile loaded: " + profile.verName);
                         } else {
@@ -600,6 +604,42 @@ public class ContentsManager {
         }
 
         callback.onSucceed(profile);
+    }
+
+    /** Older remote-inferred profiles kept the archive's own "proton-"/"wine-"
+     *  prefix inside verName, which duplicates the content-type prefix shown in
+     *  the UI ("Proton-proton-..."). Rename the install directory and rewrite
+     *  profile.json so existing installs display cleanly. */
+    private static ContentProfile repairDuplicatedTypeName(ContentProfile profile, File profileFile) {
+        String lower = profile.verName.toLowerCase(java.util.Locale.ENGLISH);
+        if (profile.type == ContentProfile.ContentType.CONTENT_TYPE_PROTON && lower.startsWith("proton-")) {
+            // fall through to rename below
+        }
+        else if (profile.type == ContentProfile.ContentType.CONTENT_TYPE_WINE && lower.startsWith("wine-")) {
+            // fall through to rename below
+        }
+        else return profile;
+
+        String fixedVerName = profile.verName.substring(lower.indexOf('-') + 1);
+        if (fixedVerName.isEmpty()) return profile;
+
+        File currentDir = profileFile.getParentFile();
+        File parent = currentDir != null ? currentDir.getParentFile() : null;
+        File target = parent != null
+                ? new File(parent, fixedVerName + "-" + profile.verCode) : null;
+        if (target == null || target.exists() || !currentDir.renameTo(target)) {
+            Log.w("ContentsManager", "Could not dedupe content name '" + profile.verName + "'");
+            return profile;
+        }
+        try {
+            JSONObject obj = new JSONObject(FileUtils.readString(new File(target, PROFILE_NAME)));
+            obj.put(ContentProfile.MARK_VERSION_NAME, fixedVerName);
+            FileUtils.writeString(new File(target, PROFILE_NAME), obj.toString(2));
+        }
+        catch (JSONException ignored) {}
+        Log.i("ContentsManager", "Deduped content name '" + profile.verName + "' -> '" + fixedVerName + "'");
+        profile.verName = fixedVerName;
+        return profile;
     }
 
     public ContentProfile readProfile(File file) {

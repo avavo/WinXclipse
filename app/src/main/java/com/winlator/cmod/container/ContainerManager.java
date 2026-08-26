@@ -370,6 +370,7 @@ public class ContainerManager {
         }
 
         if (result) {
+            ensureValidPrefixRegistries(new File(containerDir, ".wine"));
             try {
                 Log.i("ContainerManager", "extractContainerPatternFile: populating DLL dirs (arm64EC=" + wineInfo.isArm64EC() + ", wineLibDir=" + wineLibDir + ")");
                 if (wineInfo.isArm64EC())
@@ -387,25 +388,27 @@ public class ContainerManager {
         return result;
     }
 
-    /** Wine rejects a prefix whose registry files lack the "key" header line, and
-     *  then misdetects its bitness ("64-bit installation ... 32-bit wineserver").
-     *  Make sure the three base registries exist with valid win64 headers. */
+    /** Wine rejects a prefix whose registry files lack the "WINE REGISTRY"
+     *  header line, and then misdetects its bitness ("64-bit installation
+     *  ... 32-bit wineserver"). Make sure the three base registries exist
+     *  with valid win64 headers. */
     public static void ensureValidPrefixRegistries(File prefixDir) {
         if (!prefixDir.isDirectory()) return;
         String[] registries = {"system.reg", "user.reg", "userdef.reg"};
+        java.util.regex.Pattern header = java.util.regex.Pattern.compile("^WINE REGISTRY Version \\d+\\s*$");
         for (String name : registries) {
             File file = new File(prefixDir, name);
             boolean valid = false;
             if (file.isFile() && file.length() >= 4) {
                 try (java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.FileReader(file))) {
                     String firstLine = reader.readLine();
-                    valid = firstLine != null && firstLine.startsWith("key");
+                    valid = firstLine != null && header.matcher(firstLine).matches();
                 }
                 catch (IOException ignored) {}
             }
             if (!valid) {
                 Log.w("ContainerManager", "Rewriting invalid/missing " + name + " header");
-                FileUtils.writeString(file, "key\t00000001\n#arch=win64\n");
+                FileUtils.writeString(file, "WINE REGISTRY Version 2\n#arch=win64\n");
             }
         }
     }

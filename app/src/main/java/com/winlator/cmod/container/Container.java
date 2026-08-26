@@ -521,6 +521,15 @@ data.put("desktopTheme", desktopTheme);
     }
 
 
+    /** Older builds stored content identifiers with a duplicated type prefix
+     *  ("Proton-proton-9.0cmod-...") because remote-inferred verNames kept the
+     *  archive's own prefix; those profiles are renamed on load, so strip the
+     *  duplicate here to keep existing containers pointing at them. */
+    private static String dedupeTypeNamePrefix(String wineVersion) {
+        if (wineVersion == null) return null;
+        return wineVersion.replaceFirst("(?i)^((?:Wine|Proton))-(?:wine|proton)-", "$1-");
+    }
+
     public void loadData(JSONObject data) throws JSONException {
         wineVersion = WineInfo.MAIN_WINE_VERSION.identifier();
         dxwrapperConfig = "";
@@ -599,7 +608,7 @@ data.put("desktopTheme", desktopTheme);
                     break;
                 }
                 case "wineVersion" :
-                    setWineVersion(data.getString(key));
+                    setWineVersion(dedupeTypeNamePrefix(data.getString(key)));
                     break;
                 case "box64Version":
                     setBox64Version(data.getString(key));
@@ -715,7 +724,7 @@ data.put("desktopTheme", desktopTheme);
     }
 
     public static String getFallbackCPUListWoW64() {
-        return CpuClusters.getPerformanceCPUList();
+        return getFallbackCPUList();
     }
 
     // Check if a specific environment variable exists

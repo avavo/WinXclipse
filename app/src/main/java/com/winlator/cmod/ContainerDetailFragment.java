@@ -471,7 +471,7 @@ public class ContainerDetailFragment extends Fragment {
         int inputType = isEditMode() ? container.getInputType() : WinHandler.DEFAULT_INPUT_TYPE;
         cbEnableXInput.setChecked((inputType & WinHandler.FLAG_INPUT_TYPE_XINPUT) != 0);
         cbEnableDInput.setChecked((inputType & WinHandler.FLAG_INPUT_TYPE_DINPUT) != 0);
-        cbExclusiveXInput.setChecked(!isEditMode() || container.isExclusiveXInput());
+        cbExclusiveXInput.setChecked(isEditMode() && container.isExclusiveXInput());
 
         final boolean[] changingInputOptions = {false};
         Runnable updateExclusiveInput = () -> {

@@ -61,7 +61,7 @@ public class WinHandler {
 
     public static final byte FLAG_INPUT_TYPE_XINPUT = 0x04;
     public static final byte FLAG_INPUT_TYPE_DINPUT = 0x08;
-    public static final byte DEFAULT_INPUT_TYPE = FLAG_INPUT_TYPE_XINPUT;
+    public static final byte DEFAULT_INPUT_TYPE = 0;
 
     private DatagramSocket socket;
     private InetAddress localhost;
