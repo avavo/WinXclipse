@@ -328,10 +328,31 @@ public class WinHandler {
 
     /** Routes a rumble request coming from the guest to the right actuator: the
      *  physical pad assigned to the slot when it has motors of its own, otherwise
-     *  the phone's vibrator (which also covers the virtual on-screen gamepad). */
+     *  the phone's vibrator (which also covers the virtual on-screen gamepad).
+     *  FIX: bionic slot-based vibration - guest sends event_number, not XInput slot,
+     *  so map event_number to the actual assigned XInput slot. */
     private void triggerVibration(int strong, int weak, int durationMs, int slot) {
-        if (slot < 0 || slot >= MAX_PLAYERS) return;
         if (!controllerManager.isMasterVibrationEnabled()) return;
+        // slot from guest is event_number (e.g. event5 -> 5), not XInput 0-3.
+        // Map it to the real XInput slot that owns this event device.
+        int xinputSlot = slot;
+        if (slot < 0 || slot >= MAX_PLAYERS || !controllerManager.isSlotEnabled(slot) || !controllerManager.isVibrationEnabled(slot)) {
+            // Fallback: find first enabled slot with vibration that has a device
+            xinputSlot = -1;
+            for (int i = 0; i < MAX_PLAYERS; i++) {
+                if (controllerManager.isSlotEnabled(i) && controllerManager.isVibrationEnabled(i) && controllerManager.getAssignedDeviceForSlot(i) != null) {
+                    xinputSlot = i;
+                    break;
+                }
+            }
+            // If no assigned device, use slot 0 for phone fallback if enabled
+            if (xinputSlot == -1) {
+                if (controllerManager.isSlotEnabled(0) && controllerManager.isVibrationEnabled(0)) xinputSlot = 0;
+                else return;
+            }
+        }
+        slot = xinputSlot;
+        if (slot < 0 || slot >= MAX_PLAYERS) return;
         if (!controllerManager.isVibrationEnabled(slot)) return;
         boolean cancel = durationMs == 0 && strong == 0 && weak == 0;
 

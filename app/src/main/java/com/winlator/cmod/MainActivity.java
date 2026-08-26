@@ -184,6 +184,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 if (maxMode != null) {
                     android.view.WindowManager.LayoutParams params = getWindow().getAttributes();
                     params.preferredDisplayModeId = maxMode.getModeId();
+                    params.preferredRefreshRate = maxMode.getRefreshRate();
                     getWindow().setAttributes(params);
                 }
             }

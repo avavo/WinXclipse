@@ -1660,6 +1660,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         android.view.Window window = getWindow();
         if (window == null) return;
         android.view.WindowManager.LayoutParams params = window.getAttributes();
+        float targetFps = 0;
         try {
             if (rate.isEmpty() || "auto".equals(rate)) {
                 android.view.Display display = getDisplay();
@@ -1673,11 +1674,14 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                     if (maxMode != null) {
                         params.preferredDisplayModeId = maxMode.getModeId();
                         params.preferredRefreshRate = maxMode.getRefreshRate();
+                        targetFps = maxMode.getRefreshRate();
                     }
                 }
+                if (targetFps == 0) targetFps = 120f;
             } else {
                 float preferred = Float.parseFloat(rate);
                 params.preferredRefreshRate = preferred;
+                targetFps = preferred;
                 android.view.Display display = getDisplay();
                 if (display != null) {
                     for (android.view.Display.Mode m : display.getSupportedModes()) {
