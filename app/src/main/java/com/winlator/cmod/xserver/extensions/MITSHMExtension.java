@@ -1,5 +1,7 @@
 package com.winlator.cmod.xserver.extensions;
 
+import android.util.Log;
+
 import static com.winlator.cmod.xserver.XClientRequestHandler.RESPONSE_CODE_SUCCESS;
 
 import com.winlator.cmod.xconnector.XInputStream;
@@ -105,20 +107,33 @@ public class MITSHMExtension implements Extension {
             throw new UnsupportedOperationException("GC Function other than COPY is not supported.");
         }
 
-        if (srcWidth <= 0 || srcHeight <= 0 || totalWidth <= 0 || totalHeight <= 0) throw new BadMatch();
+        // Refuse the native copy when the segment cannot back the request, but do
+        // not send an error: clients treat PutImage failures as fatal and would
+        // tear down the whole session. Skipping leaves the frame stale, not dead.
+        if (srcWidth <= 0 || srcHeight <= 0 || totalWidth <= 0 || totalHeight <= 0) {
+            Log.w("MITSHMExtension", "Skipping ShmPutImage with zero/negative geometry");
+            return;
+        }
         if (depth == 1) {
-            // drawBitmap reads a packed planar image of the requested size.
             long requiredBytes = (long)((srcWidth + 7) >> 3) * srcHeight;
-            if (requiredBytes > data.capacity()) throw new BadMatch();
+            if (requiredBytes > data.capacity()) {
+                Log.w("MITSHMExtension", "Skipping ShmPutImage: need " + requiredBytes
+                        + "B for " + srcWidth + "x" + srcHeight + ", segment has " + data.capacity() + "B");
+                return;
+            }
         }
         else if (depth == 24 || depth == 32) {
-            // copyArea addresses rows with a totalWidth*4 byte stride.
-            if (srcX < 0 || srcY < 0 || srcX + srcWidth > totalWidth || srcY + srcHeight > totalHeight) throw new BadMatch();
+            if (srcX < 0 || srcY < 0 || srcX + srcWidth > totalWidth || srcY + srcHeight > totalHeight) {
+                Log.w("MITSHMExtension", "Skipping ShmPutImage: source rect out of bounds");
+                return;
+            }
             long requiredBytes = (long)(srcY + srcHeight - 1) * totalWidth * 4 + ((long)srcX + srcWidth) * 4;
             long maxBytes = (long)totalHeight * totalWidth * 4;
-            if (requiredBytes > maxBytes || maxBytes > data.capacity()) throw new BadMatch();
+            if (requiredBytes > maxBytes || maxBytes > data.capacity()) {
+                Log.w("MITSHMExtension", "Skipping ShmPutImage: segment too small");
+                return;
+            }
         }
-        // Other depths were always silent no-ops in Drawable.drawImage; leave as-is.
 
         drawable.drawImage(srcX, srcY, dstX, dstY, srcWidth, srcHeight, depth, data, totalWidth, totalHeight);
     }

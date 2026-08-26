@@ -1,5 +1,7 @@
 package com.winlator.cmod.xserver.requests;
 
+import android.util.Log;
+
 import static com.winlator.cmod.xserver.XClientRequestHandler.RESPONSE_CODE_SUCCESS;
 
 import com.winlator.cmod.xconnector.XInputStream;
@@ -47,14 +49,14 @@ public abstract class DrawRequests {
             throw new UnsupportedOperationException("GC Function other than COPY is not supported.");
         }
 
-        // Guard native copy paths against reading past the request buffer.
-        // XY_PIXMAP is never drawn by this server, so its payload is untouched.
-        if ((format == Format.Z_PIXMAP || (format == Format.BITMAP && depth == 1)) && leftPad == 0) {
-            if (width <= 0 || height <= 0) throw new BadMatch();
-            long requiredBytes = format == Format.BITMAP
-                    ? (long)((width + 7) >> 3) * height
-                    : (long)width * height * 4;
-            if (requiredBytes > length) throw new BadMatch();
+        // Never hand an inconsistent payload to the native copy paths, but do NOT
+        // kill the client over it: wine treats a PutImage BadMatch as fatal and
+        // tears down the whole session. Skip the blit like upstream no-op cases.
+        if ((format == Format.Z_PIXMAP || format == Format.BITMAP) && leftPad == 0
+                && (width <= 0 || height <= 0 || (long)width * height * 4 > length)) {
+            Log.w("DrawRequests", "Skipping PutImage " + width + "x" + height
+                    + " depth=" + depth + " format=" + format + " payload=" + length + "B");
+            return;
         }
 
         switch (format) {
