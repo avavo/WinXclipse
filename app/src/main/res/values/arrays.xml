@@ -17,6 +17,9 @@
         <item>1560x720 (19.5:9)</item>
         <item>1600x900 (16:9)</item>
         <item>1920x1080 (16:9)</item>
+        <item>2340x1080 (19.5:9)</item>
+        <item>2560x1440 (16:9)</item>
+        <item>3120x1440 (19.5:9)</item>
     </string-array>
     <string-array name="graphics_driver_entries">
         <item>Wrapper</item>
