@@ -443,10 +443,31 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         File fakeInputPath = new File(imageFs.getLibDir(), "libfakeinput.so");
         File packagedFakeInput = new File(context.getApplicationInfo().nativeLibraryDir,
                 "libfakeinput.so");
-        if (packagedFakeInput.isFile()) FileUtils.copy(packagedFakeInput, fakeInputPath);
+        boolean fakeInputUsable = false;
+        if (packagedFakeInput.isFile()) {
+            // A truncated copy here gets LD_PRELOAD'd into wineserver and kills it
+            // with SIGBUS on first stdout write, so verify the result every launch.
+            long packagedSize = packagedFakeInput.length();
+            boolean copied = FileUtils.copy(packagedFakeInput, fakeInputPath);
+            if (!copied) {
+                Log.e("FakeInput", "Failed to copy libfakeinput.so to " + fakeInputPath.getPath());
+                FileUtils.delete(fakeInputPath);
+            }
+            else if (fakeInputPath.length() != packagedSize) {
+                Log.e("FakeInput", "Truncated libfakeinput.so copy (" + fakeInputPath.length()
+                        + " of " + packagedSize + " bytes); retrying once");
+                FileUtils.delete(fakeInputPath);
+                copied = FileUtils.copy(packagedFakeInput, fakeInputPath);
+                if (!copied || fakeInputPath.length() != packagedSize) {
+                    Log.e("FakeInput", "libfakeinput.so still incomplete; excluding from LD_PRELOAD");
+                    FileUtils.delete(fakeInputPath);
+                }
+            }
+            fakeInputUsable = fakeInputPath.isFile();
+        }
 
         if (new File(sysvPath).exists()) ld_preload = sysvPath;
-        if (fakeInputPath.isFile()) {
+        if (fakeInputUsable) {
             ld_preload += (ld_preload.isEmpty() ? "" : ":") + fakeInputPath.getAbsolutePath();
         }
         else {

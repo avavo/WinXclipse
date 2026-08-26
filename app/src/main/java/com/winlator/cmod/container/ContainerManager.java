@@ -321,13 +321,24 @@ public class ContainerManager {
         String containerPattern = wineVersion + "_container_pattern.tzst";
         boolean result = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context, containerPattern, containerDir, onExtractFileListener);
 
+        if (!result && runtimeProfile != null && runtimeProfile.winePrefixPack != null) {
+            // Only use the runtime's declared pack when it actually is an archive;
+            // synthesized profiles point the field at the wine binary itself.
+            File packFile = ContentsManager.getSourceFile(context, runtimeProfile, runtimeProfile.winePrefixPack);
+            TarCompressorUtils.Type compression = packFile != null && packFile.isFile()
+                    ? TarCompressorUtils.detectType(packFile) : null;
+            if (compression != null) {
+                result = TarCompressorUtils.extract(compression, packFile, containerDir);
+            }
+            else Log.i("ContainerManager", "Runtime has no usable prefix pack (" + runtimeProfile.winePrefixPack + ")");
+        }
+
         if (!result) {
-            File containerPatternFile = runtimeProfile != null
-                    ? ContentsManager.getSourceFile(context, runtimeProfile, runtimeProfile.winePrefixPack)
-                    : new File(runtimeRoot, "prefixPack.txz");
-            TarCompressorUtils.Type compression = TarCompressorUtils.detectType(containerPatternFile);
-            result = compression != null
-                    && TarCompressorUtils.extract(compression, containerPatternFile, containerDir);
+            // Raw Wine/Proton .tzst downloads ship without any prefix pack: build
+            // the container from the bundled generic pattern instead of failing,
+            // then let extractCommonDlls populate system32/syswow64 from the runtime.
+            result = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context, "container_pattern_common.tzst", containerDir, onExtractFileListener);
+            if (result) Log.i("ContainerManager", "Created container using the bundled common pattern for " + wineVersion);
         }
 
         if (result) {
