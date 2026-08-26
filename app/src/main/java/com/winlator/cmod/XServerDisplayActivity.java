@@ -2779,6 +2779,21 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             }
             r.xServerView.requestRender();
         });
+        
+        Button btnReset = dialog.findViewById(R.id.BTHdrReset);
+        if (btnReset != null) {
+            btnReset.setOnClickListener(v -> {
+                sbBrightness.setProgress(0);
+                sbContrast.setProgress(0);
+                sbGamma.setProgress(0);
+                sbSaturation.setProgress(0);
+                tvBrightness.setText("0%");
+                tvContrast.setText("0%");
+                tvGamma.setText("1.00");
+                tvSaturation.setText("1.00");
+            });
+        }
+        
         dialog.show();
     }
 

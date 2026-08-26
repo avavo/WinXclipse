@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="wrap_content"
+    android:layout_width="400dp"
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:padding="16dp">
@@ -21,10 +21,11 @@
         <SeekBar
             android:id="@+id/SBHdrBrightness"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="40dp"
             android:layout_weight="1"
             android:max="100"
-            android:min="0" />
+            android:min="0"
+            android:padding="8dp" />
 
         <TextView
             android:id="@+id/TVHdrBrightness"
@@ -51,10 +52,11 @@
         <SeekBar
             android:id="@+id/SBHdrContrast"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="40dp"
             android:layout_weight="1"
             android:max="100"
-            android:min="0" />
+            android:min="0"
+            android:padding="8dp" />
 
         <TextView
             android:id="@+id/TVHdrContrast"
@@ -81,10 +83,11 @@
         <SeekBar
             android:id="@+id/SBHdrGamma"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="40dp"
             android:layout_weight="1"
             android:max="200"
-            android:min="0" />
+            android:min="0"
+            android:padding="8dp" />
 
         <TextView
             android:id="@+id/TVHdrGamma"
@@ -111,10 +114,11 @@
         <SeekBar
             android:id="@+id/SBHdrSaturation"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="40dp"
             android:layout_weight="1"
             android:max="200"
-            android:min="0" />
+            android:min="0"
+            android:padding="8dp" />
 
         <TextView
             android:id="@+id/TVHdrSaturation"
@@ -123,4 +127,13 @@
             android:layout_marginStart="8dp"
             android:text="1.00" />
     </LinearLayout>
+
+    <Button
+        android:id="@+id/BTHdrReset"
+        style="@style/ButtonNeutral"
+        android:layout_width="wrap_content"
+        android:layout_height="40dp"
+        android:layout_marginTop="16dp"
+        android:layout_gravity="center_horizontal"
+        android:text="@string/reset" />
 </LinearLayout>
