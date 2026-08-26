@@ -713,6 +713,27 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         preloaderDialog.show(R.string.starting_up);
 
+        // Real FSR render scaling: with an upscale preset active, the guest
+        // renders at display/factor (the X screen itself is reduced), so the
+        // game shades fewer pixels and FPS actually improves. EASU then
+        // upscales the true low-res output to the physical panel. Without
+        // this, presets only shrank the final composite - lower resolution
+        // on screen with no performance gain.
+        sessionStartFsrMode = resolveFsrState();
+        if (!"off".equals(sessionStartFsrMode) && !"on".equals(sessionStartFsrMode)) {
+            float factor = GraphicsDriverConfigDialog.fsrFactorForMode(sessionStartFsrMode);
+            ScreenInfo configured = new ScreenInfo(screenSize);
+            int guestW = Math.max(64, (Math.round(configured.width / factor)) & ~1);
+            int guestH = Math.max(64, (Math.round(configured.height / factor)) & ~1);
+            if (guestW < configured.width && guestH < configured.height) {
+                fsrGuestWidth = guestW;
+                fsrGuestHeight = guestH;
+                screenSize = guestW + "x" + guestH;
+                Log.i("FSRDebug", "FSR guest render scale: mode=" + sessionStartFsrMode
+                        + " factor=" + factor + " guest=" + guestW + "x" + guestH
+                        + " (configured " + configured.width + "x" + configured.height + ")");
+            }
+        }
 
         inputControlsManager = new InputControlsManager(this);
         xServer = new XServer(new ScreenInfo(screenSize));
@@ -2129,44 +2150,10 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         // FSR is controlled by the texture filter selection (2 = FSR). The
         // upscale/mode keys come from the driver config; runtime menu changes
         // are persisted as extras that take precedence over the config.
-        String upscaleExtra = shortcut != null
-                ? shortcut.getExtra("fsrUpscale", container.getExtra("fsrUpscale", null))
-                : container.getExtra("fsrUpscale", null);
-        String qualityExtra = shortcut != null
-                ? shortcut.getExtra("fsrQuality", container.getExtra("fsrQuality", null))
-                : container.getExtra("fsrQuality", null);
-        boolean fsrOn = textureFilterMode == 2;
-        // Legacy migration: old builds stored an explicit fsrMode key (driver
-        // config or shortcut extra) instead of the texture filter selection.
-        // Carry it over, but only while the filter was never changed away from
-        // FSR: the new UI persists its selection as the rendererFilterMode
-        // extra, whose presence means fsrMode must no longer override it.
-        String legacyFsr = GraphicsDriverConfigDialog.normalizeFsrValue(
-                shortcut != null
-                        ? shortcut.getExtra("fsrMode", graphicsDriverConfig.getOrDefault("fsrMode", "off"))
-                        : graphicsDriverConfig.getOrDefault("fsrMode", "off"));
-        boolean filterNeverPersisted = !(shortcut != null
-                ? shortcut.hasExtra("rendererFilterMode") || container.hasExtra("rendererFilterMode")
-                : container.hasExtra("rendererFilterMode"));
-        if (filterNeverPersisted && !legacyFsr.equals("off")) {
-            fsrOn = true;
-            renderer.setTextureFilterMode(2);
-            if (!legacyFsr.equals("on")) {
-                // A legacy quality mode implies EASU upscale at that mode,
-                // mirroring the VideoConfigDialog migration; "on" maps to
-                // sharpen-only (fsrUpscale falls back to "0" below).
-                if (upscaleExtra == null) upscaleExtra = "1";
-                if (qualityExtra == null) qualityExtra = legacyFsr;
-            }
-        }
-        boolean fsrUpscale = fsrOn && "1".equals(
-                upscaleExtra != null ? upscaleExtra
-                        : graphicsDriverConfig.getOrDefault("fsrUpscale", "0"));
-        String fsrQualityNorm = GraphicsDriverConfigDialog.normalizeFsrValue(
-                qualityExtra != null ? qualityExtra
-                        : graphicsDriverConfig.getOrDefault("fsrQuality", "balanced"));
-        String fsrQuality = GraphicsDriverConfigDialog.normalizeFsrValue(fsrQualityNorm);
-        String fsrState = !fsrOn ? "off" : !fsrUpscale ? "on" : fsrQuality;
+        // resolveFsrState() applies the same legacy fsrMode migration used
+        // for the guest render scale decided at session start.
+        String fsrState = resolveFsrState();
+        if (!"off".equals(fsrState)) renderer.setTextureFilterMode(2);
         applyFsrRuntime(renderer, fsrState);
 
         if (shortcut != null) {
@@ -2545,6 +2532,70 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     /** Current FSR state: "off", "on" (sharpen only) or quality/balanced/performance. */
     private String fsrRuntimeState = "off";
+    /** Guest (X screen) resolution chosen at session start when an FSR
+     * upscale preset is active: real render scaling. 0 = not scaled. */
+    private int fsrGuestWidth;
+    private int fsrGuestHeight;
+    /** Upscale preset active at session start, so live preset changes can
+     * tell the user that a different render scale needs a restart. */
+    private String sessionStartFsrMode;
+
+    /**
+     * Resolves the effective FSR state from extras and driver config,
+     * including the legacy fsrMode migration shared with setupUI.
+     * Returns "off", "on" (sharpen only) or a quality token.
+     */
+    private String resolveFsrState() {
+        boolean fsrOn = resolveTextureFilterMode() == 2;
+        String upscaleExtra = shortcut != null
+                ? shortcut.getExtra("fsrUpscale", container.getExtra("fsrUpscale", null))
+                : container.getExtra("fsrUpscale", null);
+        String qualityExtra = shortcut != null
+                ? shortcut.getExtra("fsrQuality", container.getExtra("fsrQuality", null))
+                : container.getExtra("fsrQuality", null);
+        // Legacy migration: old builds stored an explicit fsrMode key (driver
+        // config or shortcut extra) instead of the texture filter selection.
+        // Carry it over, but only while the filter was never changed away from
+        // FSR: the new UI persists its selection as the rendererFilterMode
+        // extra, whose presence means fsrMode must no longer override it.
+        String legacyFsr = GraphicsDriverConfigDialog.normalizeFsrValue(
+                shortcut != null
+                        ? shortcut.getExtra("fsrMode", graphicsDriverConfig.getOrDefault("fsrMode", "off"))
+                        : graphicsDriverConfig.getOrDefault("fsrMode", "off"));
+        boolean filterNeverPersisted = !(shortcut != null
+                ? shortcut.hasExtra("rendererFilterMode") || container.hasExtra("rendererFilterMode")
+                : container.hasExtra("rendererFilterMode"));
+        if (filterNeverPersisted && !legacyFsr.equals("off")) {
+            fsrOn = true;
+            if (!legacyFsr.equals("on")) {
+                // A legacy quality mode implies EASU upscale at that mode,
+                // mirroring the VideoConfigDialog migration; "on" maps to
+                // sharpen-only (fsrUpscale falls back to "0" below).
+                if (upscaleExtra == null) upscaleExtra = "1";
+                if (qualityExtra == null) qualityExtra = legacyFsr;
+            }
+        }
+        if (!fsrOn) return "off";
+        boolean fsrUpscale = "1".equals(
+                upscaleExtra != null ? upscaleExtra
+                        : graphicsDriverConfig.getOrDefault("fsrUpscale", "0"));
+        if (!fsrUpscale) return "on";
+        return GraphicsDriverConfigDialog.normalizeFsrValue(
+                qualityExtra != null ? qualityExtra
+                        : graphicsDriverConfig.getOrDefault("fsrQuality", "balanced"));
+    }
+
+    private int resolveTextureFilterMode() {
+        try {
+            String value = shortcut != null
+                    ? shortcut.getExtra("rendererFilterMode", container.getExtra("rendererFilterMode", "0"))
+                    : container.getExtra("rendererFilterMode", "0");
+            return Math.max(0, Math.min(Integer.parseInt(value), 3));
+        }
+        catch (Exception e) {
+            return 0;
+        }
+    }
 
     /**
      * Applies an FSR1 state live: "off", "on" (RCAS sharpening at native
@@ -2557,17 +2608,36 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         EffectComposer composer = renderer.getEffectComposer();
         if ("on".equals(fsrRuntimeState)) {
             renderer.setTextureFilterMode(2);
-            composer.setFsrEffects(null, new FSREffect(1.0f), 0);
+            composer.setFsrEffects(null, new FSREffect(1.0f), 0, 0);
             Log.i("FSRDebug", "FSR1 sharpening only (no upscale)");
         } else if (!"off".equals(fsrRuntimeState)) {
-            float factor = GraphicsDriverConfigDialog.fsrFactorForMode(fsrRuntimeState);
             float stops = GraphicsDriverConfigDialog.fsrStopsForMode(fsrRuntimeState);
             renderer.setTextureFilterMode(2);
-            composer.setFsrEffects(new FSREasuEffect(), new FSREffect(stops), factor);
-            Log.i("FSRDebug", "FSR1 upscale active: state=" + fsrRuntimeState
-                    + " factor=" + factor + " stops=" + stops);
+            if (fsrGuestWidth > 0 && fsrGuestHeight > 0) {
+                // Real render scaling: the guest renders at the reduced X
+                // screen chosen at session start. The scene buffer matches it
+                // 1:1 and EASU performs the single upscale to the display.
+                composer.setFsrEffects(new FSREasuEffect(), new FSREffect(stops),
+                        fsrGuestWidth, fsrGuestHeight);
+                Log.i("FSRDebug", "FSR1 upscale (guest render scale): state=" + fsrRuntimeState
+                        + " guest=" + fsrGuestWidth + "x" + fsrGuestHeight + " stops=" + stops);
+                if (sessionStartFsrMode != null && !sessionStartFsrMode.equals(fsrRuntimeState)) {
+                    float picked = GraphicsDriverConfigDialog.fsrFactorForMode(fsrRuntimeState);
+                    float started = GraphicsDriverConfigDialog.fsrFactorForMode(sessionStartFsrMode);
+                    if (Math.abs(picked - started) > 0.01f) {
+                        runOnUiThread(() -> Toast.makeText(this,
+                                "Render scale changes apply on the next session start",
+                                Toast.LENGTH_LONG).show());
+                    }
+                }
+            } else {
+                float factor = GraphicsDriverConfigDialog.fsrFactorForMode(fsrRuntimeState);
+                composer.setFsrEffects(new FSREasuEffect(), new FSREffect(stops), factor);
+                Log.i("FSRDebug", "FSR1 upscale active: state=" + fsrRuntimeState
+                        + " factor=" + factor + " stops=" + stops);
+            }
         } else {
-            composer.setFsrEffects(null, null, 0);
+            composer.setFsrEffects(null, null, 0, 0);
             Log.i("FSRDebug", "FSR off");
         }
     }
