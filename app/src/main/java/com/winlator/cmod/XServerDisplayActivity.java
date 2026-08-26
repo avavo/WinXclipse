@@ -2754,8 +2754,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             btnReset.setOnClickListener(v -> {
                 sbBrightness.setProgress(0);
                 sbContrast.setProgress(0);
-                sbGamma.setProgress(0);
-                sbSaturation.setProgress(0);
+                sbGamma.setProgress(25);
+                sbSaturation.setProgress(25);
                 tvBrightness.setText("0%");
                 tvContrast.setText("0%");
                 tvGamma.setText("1.00");
