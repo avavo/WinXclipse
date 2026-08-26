@@ -1,50 +1,31 @@
-﻿WinXclipse v0.9 Release Notes
+WinXclipse v0.9 
 
-WinXclipse runs Windows applications on Exynos devices with Xclipse GPUs through Wine/Proton runtimes (including ARM64EC builds), FEXCore and Box64 CPU translation, and Vulkan-based graphics stacks (DXVK, VKD3D-Proton, and dedicated wrappers) tuned for Xclipse RDNA2/RDNA3/RDNA4.
+This release expands the foundation introduced in WinXclipse v0.8.6, with a focus on AMD FSR 1.1 upscaling, Video Configuration, shortcut artwork, touchscreen controls, experimental Exynos/Xclipse performance tuning, ARM64EC compatibility, and container stability.
 
-Highlights
+What Changed Compared to v0.8.6 AMD FSR 1.1 Added AMD FSR 1.1 upscaling using EASU and RCAS. Added real guest render scaling through display and factor controls, allowing the guest application to render at a lower internal resolution for actual GPU performance gains. Added live desktop resizing when changing FSR scaling. Added per-container and per-shortcut FSR configuration through Video Configuration. FSR can provide significant performance improvements in GPU-bound applications and games, including Resident Evil 2. Fixed window and fullscreen letterboxing when switching FSR settings during runtime. Sidebar Display is now view-only for anti-aliasing settings. Video Configuration Added a dedicated Video Configuration interface for containers and shortcuts. Added renderer selection for Vulkan, OpenGL, and GDI. Added GPU name display. Added present mode selection. Added texture filtering configuration. Added vkBasalt sharpness controls. Added CAS and DLS sharpness options with level and denoise controls. Added refresh rate configuration. Added audio driver configuration with volume control. Shortcut Artwork Added SteamGridDB artwork browsing. Added automatic EXE icon extraction. Added support for custom shortcut image sources. Shortcut artwork can now be selected directly from the shortcut configuration. Touchscreen Controls Added a new dark glass-style touchscreen control interface. Added a complete gamepad skin set. Touchscreen haptics are now enabled by default. Improved touchscreen control presentation and interaction. Experimental Performance Expanded the Experimental Performance system for Exynos/Xclipse devices. Added per-model VRAM caps tuned for supported Exynos/Xclipse configurations. Added BCn backend tuning for Xclipse GPUs. Added CPU cluster scheduling adjustments for big.LITTLE and DynamIQ Exynos SoCs. Added unified-memory-aware defaults for Xclipse devices. Performance behavior remains experimental and depends on the device, driver, wrapper, runtime, and game. ARM64EC, Wine and Proton Added ARM64EC compatibility fixes. Improved compatibility with ARM64EC Wine and Proton runtimes. Hardened X server initialization and runtime behavior. Fixed container boot issues with raw Wine and Proton .tzst runtimes. Improved stability when loading external runtime packages. Package Variants Main: com.win.xclipse AnTuTu: com.antutu.ABenchMark Geekbench 6: com.primatelabs.geekbench6 PUBG Mobile: com.tencent.ig 
 
-- AMD FSR 1.1 upscaling (EASU + RCAS) with real guest render scaling (display/factor) for true FPS gains on GPU-bound titles (RE2) and live desktop resize; per container/shortcut Video Configuration, sidebar Display is now view-only anti-aliasing.
-- Video tab: renderer (Vulkan/OpenGL/GDI), GPU name, present mode, texture filtering, vkBasalt sharpness (CAS/DLS) with level/denoise, refresh rate; audio driver dialog with volume.
-- Shortcut artwork with SteamGridDB browser, EXE icon, and custom image sources.
-- New dark glassy touchscreen control style with a full gamepad skin set.
-- Experimental Performance tuning: per-model Exynos/Xclipse VRAM caps, BCn backends, CPU cluster scheduling, unified-memory-aware defaults.
-- ARM64EC compatibility fixes, X server hardening, and container boot fixes for raw Wine/Proton .tzst runtimes.
-- Touchscreen haptics now enabled by default; window/fullscreen letterboxing fixed for live FSR switches.
+Providers and internal paths use the active application ID, reducing the risk of breaking controls, file access, containers, and shortcuts when using different package variants.
 
-See CHANGELOG.md for the complete list of changes.
+Remote Sources ExynosTools: https://github.com/WearyConcern1165/ExynosTools/releases WinXclipse drivers: https://github.com/avavo/WinXclipse/releases/tag/drivers_0.9 Status Functionally experimental. 
 
-Support
+Behavior can vary depending on the device, GPU, driver, wrapper, runtime, container, and application.
+
+A package appearing in Downloads does not guarantee compatibility with every device.
+
+Credits Winlator by Brunodev85 Winlator CMOD by coffincolors and Pipetto-crypto Winlator Glibc by longjunyu2 Winlator OpenXR by lvonasek FEX-Emu AMD FidelityFX Super Resolution Ports and implementation references from Winlator Mali Ports and implementation references from Winlator Ludashi ExynosTools GameNative Team Leegao Ref4ik-v6 Kirimu Winlator Xclipse adaptation by Álvaro Disclaimer 
+
+WinXclipse is experimental.
+
+Performance, stability, game compatibility, and driver behavior vary depending on the device, runtime, wrapper, driver, and application.
+
+Use it at your own risk and test each configuration individually.
+
+Support 
 
 Discord: https://discord.gg/u2nDTXRxyx
+
 Email: avavosim@gmail.com
 
 When reporting a bug, please include:
 
-- Device model
-- Android version
-- Container configuration
-- Wrapper
-- Graphics driver
-- Runtime/FEXCore configuration
-- Steps to reproduce the issue
-- Logs, when available
-
-Package Variants
-
-- Main: com.win.xclipse
-- AnTuTu: com.antutu.ABenchMark
-- Geekbench 6: com.primatelabs.geekbench6
-
-Remote Sources
-
-- ExynosTools: https://github.com/WearyConcern1165/ExynosTools/releases
-- WinXclipse drivers: https://github.com/avavo/WinXclipse/releases/tag/drivers_0.9
-
-Status
-
-Functionally experimental. Behavior can vary depending on the device, GPU, driver, wrapper, runtime, container, and game.
-
-Credits
-
-Winlator by Brunodev85 - Winlator CMOD by coffincolors and Pipetto-crypto - Winlator Glibc by longjunyu2 - Winlator OpenXR by lvonasek - FEX-Emu - AMD FidelityFX Super Resolution - Winlator Mali - ExynosTools - Wrappers from Leegao, GameNative, Ref4ik-v6, and Kirimu - WinXclipse Exynos/Xclipse adaptation by Alvaro
+Device model Android version Container configuration Wrapper Graphics driver Runtime/FEXCore configuration Steps to reproduce the issue Logs, when available 
