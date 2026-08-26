@@ -7,12 +7,14 @@ public class ColorEffect extends Effect {
     private float brightness;
     private float contrast;
     private float gamma;
+    private float saturation;
 
     public ColorEffect() {
         super(); // Calls the constructor of the superclass Effect
         this.brightness = 0.0f; // Default brightness value
         this.contrast = 0.0f;   // Default contrast value
         this.gamma = 1.0f;      // Default gamma value (no change)
+        this.saturation = 1.0f; // Default saturation value (no change)
     }
 
     // Creates and returns the ShaderMaterial for this effect
@@ -46,11 +48,19 @@ public class ColorEffect extends Effect {
         this.gamma = gamma;
     }
 
+    public float getSaturation() {
+        return saturation;
+    }
+
+    public void setSaturation(float saturation) {
+        this.saturation = saturation;
+    }
+
     // Inner class implementing the Color effect shader material
     private class ColorEffectMaterial extends ScreenMaterial {
         public ColorEffectMaterial() {
             super();
-            setUniformNames("brightness", "contrast", "gamma", "screenTexture");
+            setUniformNames("brightness", "contrast", "gamma", "saturation", "screenTexture");
         }
 
         @Override
@@ -61,6 +71,7 @@ public class ColorEffect extends Effect {
                     "uniform float brightness;",
                     "uniform float contrast;",
                     "uniform float gamma;",
+                    "uniform float saturation;",
                     "varying vec2 vUV;",
                     "void main() {",
                     "    vec4 texelColor = texture2D(screenTexture, vUV);",
@@ -68,6 +79,8 @@ public class ColorEffect extends Effect {
                     "    color = clamp(color + brightness, 0.0, 1.0);", // Brightness adjustment
                     "    color = (color - 0.5) * clamp(contrast + 1.0, 0.5, 2.0) + 0.5;", // Contrast adjustment
                     "    color = pow(color, vec3(1.0 / gamma));", // Gamma adjustment
+                    "    float gray = dot(color, vec3(0.299, 0.587, 0.114));",
+                    "    color = mix(vec3(gray), color, saturation);", // Saturation adjustment
                     "    gl_FragColor = vec4(color, texelColor.a);", // Apply color adjustments
                     "}"
             });
@@ -81,16 +94,19 @@ public class ColorEffect extends Effect {
             float brightness = ColorEffect.this.getBrightness();
             float contrast = ColorEffect.this.getContrast();
             float gamma = ColorEffect.this.getGamma();
+            float saturation = ColorEffect.this.getSaturation();
 
             // Clamp the values to ensure they are within a reasonable range
             brightness = Math.max(-1.0f, Math.min(brightness, 1.0f)); // Clamping between -1.0 and 1.0
             contrast = Math.max(0.0f, Math.min(contrast, 2.0f)); // Clamping between 0.0 and 2.0
             gamma = Math.max(0.1f, Math.min(gamma, 5.0f)); // Clamping between 0.1 and 5.0
+            saturation = Math.max(0.0f, Math.min(saturation, 2.0f)); // Clamping between 0.0 and 2.0
 
             // Set the shader uniform values for brightness, contrast, and gamma using the clamped values
             setUniformFloat("brightness", brightness);
             setUniformFloat("contrast", contrast);
             setUniformFloat("gamma", gamma);
+            setUniformFloat("saturation", saturation);
         }
     }
 }

@@ -42,6 +42,7 @@ import android.view.ViewGroup;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.view.animation.AnimationUtils;
 import android.view.animation.LayoutAnimationController;
+import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
@@ -51,6 +52,7 @@ import android.widget.AdapterView;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.widget.Button;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -2490,7 +2492,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         sFsrUpscale.setSelection(upscaleOn ? 1 : 0);
 
         // Even locked, show upscaling state linked to shortcut/container data
-        // and block texture filter change when FSR is enabled.
+        // and block texture filter change ONLY when upscaling is ON (not just sharpen-only "on")
         sFsrUpscale.setEnabled(false);
         sFsrUpscale.setClickable(false);
         sFsrUpscale.setAlpha(0.6f);
@@ -2500,12 +2502,13 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         Runnable updateVisibility = () -> {
             boolean fsrSelected = sFilter.getSelectedItemPosition() == 2;
-            boolean fsrEnabled = fsrSelected && !"off".equals(fsrRuntimeState);
+            // Upscaling is ON only when state is a quality mode (not "on" or "off")
+            boolean upscaleOnInner = fsrSelected && !"off".equals(fsrRuntimeState) && !"on".equals(fsrRuntimeState);
             // Show upscaling state (linked to shortcut) even though locked
             llFsrUpscale.setVisibility(fsrSelected ? View.VISIBLE : View.GONE);
-            llFsrMode.setVisibility(fsrEnabled ? View.VISIBLE : View.GONE);
-            // Block texture filter change when FSR is enabled
-            boolean blockFilter = fsrEnabled;
+            llFsrMode.setVisibility(upscaleOnInner ? View.VISIBLE : View.GONE);
+            // Block texture filter change ONLY when upscaling is ON (sharpen-only "on" allows filter change)
+            boolean blockFilter = upscaleOnInner;
             sFilter.setEnabled(!blockFilter);
             sFilter.setClickable(!blockFilter);
             sFilter.setAlpha(blockFilter ? 0.6f : 1.0f);
@@ -2544,6 +2547,29 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 @Override public void onProgressChanged(SeekBar s, int p, boolean f) { if (tvDenoise != null) tvDenoise.setText(p + "%"); }
                 @Override public void onStartTrackingTouch(SeekBar s) {}
                 @Override public void onStopTrackingTouch(SeekBar s) {}
+            });
+        }
+
+        // Extra Sharpness checkbox and config button (below NTSC)
+        CheckBox cbSharpness = dialog.findViewById(R.id.CBDisplaySharpness);
+        Button btnSharpnessConfig = dialog.findViewById(R.id.BTDisplaySharpnessConfig);
+        if (cbSharpness != null && btnSharpnessConfig != null) {
+            boolean sharpnessOn = shortcut != null
+                    ? "1".equals(shortcut.getExtra("sharpnessEnabled", container.getExtra("sharpnessEnabled", "0")))
+                    : "1".equals(container.getExtra("sharpnessEnabled", "0"));
+            cbSharpness.setChecked(sharpnessOn);
+            btnSharpnessConfig.setOnClickListener(v -> {
+                dialog.dismiss();
+                openSharpnessConfigDialog();
+            });
+        }
+
+        // HDR config button
+        Button btnHdrConfig = dialog.findViewById(R.id.BTDisplayHdrConfig);
+        if (btnHdrConfig != null) {
+            btnHdrConfig.setOnClickListener(v -> {
+                dialog.dismiss();
+                openHdrConfigDialog();
             });
         }
 
@@ -2600,6 +2626,23 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 if (on && ntsc == null) renderer.getEffectComposer().addEffect(new com.winlator.cmod.renderer.effects.NTSCCombinedEffect());
                 else if (!on && ntsc != null) renderer.getEffectComposer().removeEffect(ntsc);
             }
+            // Extra Sharpness
+            if (cbSharpness != null) {
+                boolean on = cbSharpness.isChecked();
+                com.winlator.cmod.renderer.effects.SharpenEffect sharp = 
+                        renderer.getEffectComposer().getEffect(com.winlator.cmod.renderer.effects.SharpenEffect.class);
+                if (on && sharp == null) {
+                    sharp = new com.winlator.cmod.renderer.effects.SharpenEffect();
+                    renderer.getEffectComposer().addEffect(sharp);
+                } else if (!on && sharp != null) {
+                    renderer.getEffectComposer().removeEffect(sharp);
+                }
+                if (shortcut != null) {
+                    shortcut.putExtra("sharpnessEnabled", on ? "1" : "0");
+                } else {
+                    container.putExtra("sharpnessEnabled", on ? "1" : "0");
+                }
+            }
             // Texture filter now enabled (FSR as anti-aliasing only, no upscaling in sidebar)
             int filterSelection = sFilter.getSelectedItemPosition();
             renderer.setTextureFilterMode(Math.max(0, Math.min(filterSelection, 3)));
@@ -2651,6 +2694,175 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             dlg.applyEffects(color, r);
         });
         dlg.show();
+    }
+
+    private void openHdrConfigDialog() {
+        final ContentDialog dialog = new ContentDialog(this, R.layout.hdr_config_dialog);
+        dialog.setTitle(R.string.fake_hdr);
+        dialog.setIcon(R.drawable.icon_settings);
+
+        // HDR configuration controls
+        SeekBar sbBrightness = dialog.findViewById(R.id.SBHdrBrightness);
+        SeekBar sbContrast = dialog.findViewById(R.id.SBHdrContrast);
+        SeekBar sbGamma = dialog.findViewById(R.id.SBHdrGamma);
+        SeekBar sbSaturation = dialog.findViewById(R.id.SBHdrSaturation);
+        TextView tvBrightness = dialog.findViewById(R.id.TVHdrBrightness);
+        TextView tvContrast = dialog.findViewById(R.id.TVHdrContrast);
+        TextView tvGamma = dialog.findViewById(R.id.TVHdrGamma);
+        TextView tvSaturation = dialog.findViewById(R.id.TVHdrSaturation);
+
+        // Load current settings from ColorEffect if exists
+        GLRenderer renderer = xServerView.getRenderer();
+        com.winlator.cmod.renderer.effects.ColorEffect colorEffect = 
+                renderer.getEffectComposer().getEffect(com.winlator.cmod.renderer.effects.ColorEffect.class);
+        float brightness = 0, contrast = 0, gamma = 1.0f, saturation = 1.0f;
+        if (colorEffect != null) {
+            brightness = colorEffect.getBrightness() * 100;
+            contrast = colorEffect.getContrast() * 100;
+            gamma = colorEffect.getGamma();
+            saturation = colorEffect.getSaturation();
+        }
+        sbBrightness.setProgress((int)Math.round(brightness));
+        sbContrast.setProgress((int)Math.round(contrast));
+        sbGamma.setProgress((int)Math.round((gamma - 0.5f) * 100 / 2.0f));
+        sbSaturation.setProgress((int)Math.round((saturation - 0.5f) * 100 / 1.5f));
+        tvBrightness.setText((int)Math.round(brightness) + "%");
+        tvContrast.setText((int)Math.round(contrast) + "%");
+        tvGamma.setText(String.format(Locale.US, "%.2f", gamma));
+        tvSaturation.setText(String.format(Locale.US, "%.2f", saturation));
+
+        sbBrightness.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar s, int p, boolean f) { if (f) tvBrightness.setText(p + "%"); }
+            @Override public void onStartTrackingTouch(SeekBar s) {}
+            @Override public void onStopTrackingTouch(SeekBar s) {}
+        });
+        sbContrast.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar s, int p, boolean f) { if (f) tvContrast.setText(p + "%"); }
+            @Override public void onStartTrackingTouch(SeekBar s) {}
+            @Override public void onStopTrackingTouch(SeekBar s) {}
+        });
+        sbGamma.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar s, int p, boolean f) {
+                if (f) tvGamma.setText(String.format(Locale.US, "%.2f", 0.5f + p / 100f * 2.0f));
+            }
+            @Override public void onStartTrackingTouch(SeekBar s) {}
+            @Override public void onStopTrackingTouch(SeekBar s) {}
+        });
+        sbSaturation.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar s, int p, boolean f) {
+                if (f) tvSaturation.setText(String.format(Locale.US, "%.2f", 0.5f + p / 100f * 1.5f));
+            }
+            @Override public void onStartTrackingTouch(SeekBar s) {}
+            @Override public void onStopTrackingTouch(SeekBar s) {}
+        });
+
+        dialog.setOnConfirmCallback(() -> {
+            GLRenderer r = xServerView.getRenderer();
+            com.winlator.cmod.renderer.effects.ColorEffect ce = 
+                    r.getEffectComposer().getEffect(com.winlator.cmod.renderer.effects.ColorEffect.class);
+            float b = sbBrightness.getProgress() / 100f;
+            float c = sbContrast.getProgress() / 100f;
+            float g = 0.5f + sbGamma.getProgress() / 100f * 2.0f;
+            float s = 0.5f + sbSaturation.getProgress() / 100f * 1.5f;
+            if (ce == null && (b != 0 || c != 0 || g != 1.0f || s != 1.0f)) {
+                ce = new com.winlator.cmod.renderer.effects.ColorEffect();
+                r.getEffectComposer().addEffect(ce);
+            }
+            if (ce != null) {
+                ce.setBrightness(b);
+                ce.setContrast(c);
+                ce.setGamma(g);
+                ce.setSaturation(s);
+                if (b == 0 && c == 0 && g == 1.0f && s == 1.0f) {
+                    r.getEffectComposer().removeEffect(ce);
+                }
+            }
+            r.xServerView.requestRender();
+        });
+        dialog.show();
+    }
+
+    private void openSharpnessConfigDialog() {
+        final ContentDialog dialog = new ContentDialog(this, R.layout.sharpness_config_dialog);
+        dialog.setTitle("Extra Sharpness");
+        dialog.setIcon(R.drawable.icon_settings);
+
+        SeekBar sbAmount = dialog.findViewById(R.id.SBSharpnessAmount);
+        SeekBar sbRadius = dialog.findViewById(R.id.SBSharpnessRadius);
+        SeekBar sbThreshold = dialog.findViewById(R.id.SBSharpnessThreshold);
+        TextView tvAmount = dialog.findViewById(R.id.TVSharpnessAmount);
+        TextView tvRadius = dialog.findViewById(R.id.TVSharpnessRadius);
+        TextView tvThreshold = dialog.findViewById(R.id.TVSharpnessThreshold);
+
+        // Load current settings
+        String level = shortcut != null ? shortcut.getExtra("sharpnessAmount", container.getExtra("sharpnessAmount", "50")) : container.getExtra("sharpnessAmount", "50");
+        String radius = shortcut != null ? shortcut.getExtra("sharpnessRadius", container.getExtra("sharpnessRadius", "10")) : container.getExtra("sharpnessRadius", "10");
+        String threshold = shortcut != null ? shortcut.getExtra("sharpnessThreshold", container.getExtra("sharpnessThreshold", "5")) : container.getExtra("sharpnessThreshold", "5");
+        int amt = 50, rad = 10, thr = 5;
+        try { amt = Integer.parseInt(level); } catch (Exception ignored) {}
+        try { rad = Integer.parseInt(radius); } catch (Exception ignored) {}
+        try { thr = Integer.parseInt(threshold); } catch (Exception ignored) {}
+        sbAmount.setProgress(amt);
+        sbRadius.setProgress(rad);
+        sbThreshold.setProgress(thr);
+        tvAmount.setText(amt + "%");
+        tvRadius.setText(rad + "px");
+        tvThreshold.setText(thr + "");
+
+        sbAmount.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar s, int p, boolean f) { if (f) tvAmount.setText(p + "%"); }
+            @Override public void onStartTrackingTouch(SeekBar s) {}
+            @Override public void onStopTrackingTouch(SeekBar s) {}
+        });
+        sbRadius.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar s, int p, boolean f) { if (f) tvRadius.setText(p + "px"); }
+            @Override public void onStartTrackingTouch(SeekBar s) {}
+            @Override public void onStopTrackingTouch(SeekBar s) {}
+        });
+        sbThreshold.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar s, int p, boolean f) { if (f) tvThreshold.setText(p + ""); }
+            @Override public void onStartTrackingTouch(SeekBar s) {}
+            @Override public void onStopTrackingTouch(SeekBar s) {}
+        });
+
+        dialog.setOnConfirmCallback(() -> {
+            // Save to container/shortcut
+            String amount = String.valueOf(sbAmount.getProgress());
+            String radiusVal = String.valueOf(sbRadius.getProgress());
+            String thresholdVal = String.valueOf(sbThreshold.getProgress());
+            if (shortcut != null) {
+                shortcut.putExtra("sharpnessAmount", amount);
+                shortcut.putExtra("sharpnessRadius", radiusVal);
+                shortcut.putExtra("sharpnessThreshold", thresholdVal);
+                shortcut.saveData();
+            } else {
+                container.putExtra("sharpnessAmount", amount);
+                container.putExtra("sharpnessRadius", radiusVal);
+                container.putExtra("sharpnessThreshold", thresholdVal);
+                container.saveData();
+            }
+            // Re-apply sharpness effect with new settings
+            GLRenderer renderer = xServerView.getRenderer();
+            com.winlator.cmod.renderer.effects.SharpenEffect sharp = 
+                    renderer.getEffectComposer().getEffect(com.winlator.cmod.renderer.effects.SharpenEffect.class);
+            // Check if sharpness is enabled from saved setting
+            boolean sharpnessOn = shortcut != null
+                    ? "1".equals(shortcut.getExtra("sharpnessEnabled", container.getExtra("sharpnessEnabled", "0")))
+                    : "1".equals(container.getExtra("sharpnessEnabled", "0"));
+            if (sharpnessOn) {
+                if (sharp == null) {
+                    sharp = new com.winlator.cmod.renderer.effects.SharpenEffect();
+                    renderer.getEffectComposer().addEffect(sharp);
+                }
+                sharp.setAmount(sbAmount.getProgress() / 100f);
+                sharp.setRadius(sbRadius.getProgress());
+                sharp.setThreshold(sbThreshold.getProgress());
+            } else if (sharp != null) {
+                renderer.getEffectComposer().removeEffect(sharp);
+            }
+            renderer.xServerView.requestRender();
+        });
+        dialog.show();
     }
 
     private void toggleMagnifier() {
