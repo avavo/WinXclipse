@@ -53,10 +53,20 @@ public abstract class DrawRequests {
         // kill the client over it: wine treats a PutImage BadMatch as fatal and
         // tears down the whole session. Skip the blit like upstream no-op cases.
         if ((format == Format.Z_PIXMAP || format == Format.BITMAP) && leftPad == 0
-                && (width <= 0 || height <= 0 || (long)width * height * 4 > length)) {
+                && (width <= 0 || height <= 0)) {
             Log.w("DrawRequests", "Skipping PutImage " + width + "x" + height
-                    + " depth=" + depth + " format=" + format + " payload=" + length + "B");
+                    + " depth=" + depth + " format=" + format);
             return;
+        }
+        if ((format == Format.Z_PIXMAP || format == Format.BITMAP) && leftPad == 0) {
+            long requiredBytes = depth == 1
+                    ? (long)((width + 7) >> 3) * height   // packed planar mask/cursor
+                    : (long)width * height * 4;
+            if (requiredBytes > length) {
+                Log.w("DrawRequests", "Skipping short PutImage " + width + "x" + height
+                        + " depth=" + depth + ": need " + requiredBytes + "B, got " + length + "B");
+                return;
+            }
         }
 
         switch (format) {

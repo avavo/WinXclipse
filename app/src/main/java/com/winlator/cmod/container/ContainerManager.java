@@ -335,10 +335,12 @@ public class ContainerManager {
 
         if (!result) {
             // Raw Wine/Proton .tzst downloads ship without any prefix pack: build
-            // the container from the bundled generic pattern instead of failing,
-            // then let extractCommonDlls populate system32/syswow64 from the runtime.
-            result = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context, "container_pattern_common.tzst", containerDir, onExtractFileListener);
-            if (result) Log.i("ContainerManager", "Created container using the bundled common pattern for " + wineVersion);
+            // the container from the bundled Proton pattern, which carries a full,
+            // valid win64 prefix (.wine with proper system.reg/user.reg headers).
+            // The generic container_pattern_common.tzst is only an overlay for the
+            // shared imagefs prefix and cannot bootstrap a fresh container prefix.
+            result = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context, WineInfo.MAIN_WINE_VERSION.identifier() + "_container_pattern.tzst", containerDir, onExtractFileListener);
+            if (result) Log.i("ContainerManager", "Created container using the bundled Proton prefix pattern for " + wineVersion);
         }
 
         if (result) {
