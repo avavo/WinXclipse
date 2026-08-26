@@ -53,7 +53,7 @@ public class WinlatorHUD extends View {
     public static final int SHOW_LOCKED   = 1<<13;
     public static final int SHOW_SOC      = 1<<14;
     public static final int SHOW_GPU_TEMP = 1<<15;
-    private static final int SHOW_DEFAULT = SHOW_FPS | SHOW_RENDERER | SHOW_WRAPPER | SHOW_GPU | SHOW_CPU | SHOW_RAM | SHOW_BATT | SHOW_BORDER | SHOW_SOC;
+    private static final int SHOW_DEFAULT = SHOW_FPS | SHOW_MONO | SHOW_WRAPPER | SHOW_GPU | SHOW_CPU | SHOW_RAM | SHOW_BATT | SHOW_BORDER | SHOW_SOC;
 
     private static final int C_WHITE = Color.WHITE;
     private static final int C_GPU  = Color.rgb(0xE0,0x40,0xFB);

@@ -2489,27 +2489,60 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         boolean upscaleOn = !"off".equals(fsrRuntimeState) && !"on".equals(fsrRuntimeState);
         sFsrUpscale.setSelection(upscaleOn ? 1 : 0);
 
-        // Sidebar FSR is now read-only (anti-aliasing view only):
-        // strength must be changed via Container/Shortcut Video Configuration.
-        // Show current state but block edits.
-        sFilter.setEnabled(false);
-        sFilter.setClickable(false);
-        sFilter.setAlpha(0.6f);
+        // Filter now enabled, upscaling removed from sidebar - FSR is view-only anti-aliasing
+        sFilter.setEnabled(true);
+        sFilter.setClickable(true);
+        sFilter.setAlpha(1.0f);
         sFsrUpscale.setEnabled(false);
         sFsrUpscale.setClickable(false);
         sFsrUpscale.setAlpha(0.6f);
+        llFsrUpscale.setVisibility(View.GONE);
         sFsrMode.setEnabled(false);
         sFsrMode.setClickable(false);
         sFsrMode.setAlpha(0.6f);
 
         Runnable updateVisibility = () -> {
             boolean fsrSelected = sFilter.getSelectedItemPosition() == 2;
-            boolean ups = fsrSelected && "On".equals(sFsrUpscale.getSelectedItem());
-            llFsrUpscale.setVisibility(fsrSelected ? View.VISIBLE : View.GONE);
-            llFsrMode.setVisibility(ups ? View.VISIBLE : View.GONE);
+            // Upscaling option removed - only show mode as view-only when FSR selected
+            llFsrUpscale.setVisibility(View.GONE);
+            llFsrMode.setVisibility(fsrSelected ? View.VISIBLE : View.GONE);
         };
         updateVisibility.run();
-        // Listeners removed for read-only sidebar (no live FSR edits here)
+        sFilter.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(AdapterView<?> p, View v, int pos, long id) { updateVisibility.run(); }
+            @Override public void onNothingSelected(AdapterView<?> p) {}
+        });
+
+        // vkBasalt in sidebar Display as well (now also in Video tab)
+        Spinner sVkEffect = dialog.findViewById(R.id.SDisplayVkBasaltEffect);
+        SeekBar sbLevel = dialog.findViewById(R.id.SBDisplaySharpnessLevel);
+        SeekBar sbDenoise = dialog.findViewById(R.id.SBDisplaySharpnessDenoise);
+        TextView tvLevel = dialog.findViewById(R.id.TVDisplaySharpnessLevel);
+        TextView tvDenoise = dialog.findViewById(R.id.TVDisplaySharpnessDenoise);
+        if (sVkEffect != null) {
+            sVkEffect.setAdapter(new ThemedSpinnerAdapter<>(this, Arrays.asList(getResources().getStringArray(R.array.vkbasalt_sharpness_entries))));
+            String curEff = shortcut != null ? shortcut.getExtra("sharpnessEffect", container.getExtra("sharpnessEffect", "None")) : container.getExtra("sharpnessEffect", "None");
+            AppUtils.setSpinnerSelectionFromValue(sVkEffect, curEff);
+            String curLev = shortcut != null ? shortcut.getExtra("sharpnessLevel", container.getExtra("sharpnessLevel", "100")) : container.getExtra("sharpnessLevel", "100");
+            String curDen = shortcut != null ? shortcut.getExtra("sharpnessDenoise", container.getExtra("sharpnessDenoise", "100")) : container.getExtra("sharpnessDenoise", "100");
+            int lev = 100, den = 100;
+            try { lev = Integer.parseInt(curLev); } catch (Exception ignored) {}
+            try { den = Integer.parseInt(curDen); } catch (Exception ignored) {}
+            if (sbLevel != null) { sbLevel.setProgress(Math.max(0, Math.min(100, lev))); }
+            if (sbDenoise != null) { sbDenoise.setProgress(Math.max(0, Math.min(100, den))); }
+            if (tvLevel != null) tvLevel.setText(lev + "%");
+            if (tvDenoise != null) tvDenoise.setText(den + "%");
+            if (sbLevel != null) sbLevel.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                @Override public void onProgressChanged(SeekBar s, int p, boolean f) { if (tvLevel != null) tvLevel.setText(p + "%"); }
+                @Override public void onStartTrackingTouch(SeekBar s) {}
+                @Override public void onStopTrackingTouch(SeekBar s) {}
+            });
+            if (sbDenoise != null) sbDenoise.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                @Override public void onProgressChanged(SeekBar s, int p, boolean f) { if (tvDenoise != null) tvDenoise.setText(p + "%"); }
+                @Override public void onStartTrackingTouch(SeekBar s) {}
+                @Override public void onStopTrackingTouch(SeekBar s) {}
+            });
+        }
 
         CheckBox cbSwapRB = dialog.findViewById(R.id.CBDisplaySwapRB);
         cbSwapRB.setChecked(renderer.isSwapRedBlue());
@@ -2564,9 +2597,43 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 if (on && ntsc == null) renderer.getEffectComposer().addEffect(new com.winlator.cmod.renderer.effects.NTSCCombinedEffect());
                 else if (!on && ntsc != null) renderer.getEffectComposer().removeEffect(ntsc);
             }
-            // FSR is read-only in sidebar (view-only anti-aliasing): strength must be
-            // changed via Container/Shortcut -> Video Configuration. Do not persist
-            // or apply FSR from here to avoid accidental live resolution changes.
+            // Texture filter now enabled (FSR as anti-aliasing only, no upscaling in sidebar)
+            int filterSelection = sFilter.getSelectedItemPosition();
+            renderer.setTextureFilterMode(Math.max(0, Math.min(filterSelection, 3)));
+            persistRuntimeVideoOption("rendererFilterMode", String.valueOf(filterSelection));
+            if (filterSelection == 2) {
+                if ("off".equals(fsrRuntimeState)) applyFsrRuntime(renderer, "on");
+            } else {
+                applyFsrRuntime(renderer, "off");
+            }
+            // vkBasalt in sidebar Display as well (mirrors Video tab)
+            if (sVkEffect != null && sbLevel != null && sbDenoise != null) {
+                String eff = (String) sVkEffect.getSelectedItem();
+                String lev = String.valueOf(sbLevel.getProgress());
+                String den = String.valueOf(sbDenoise.getProgress());
+                if (shortcut != null) {
+                    String cEff = container.getExtra("sharpnessEffect", "None");
+                    String cLev = container.getExtra("sharpnessLevel", "100");
+                    String cDen = container.getExtra("sharpnessDenoise", "100");
+                    shortcut.putExtra("sharpnessEffect", !eff.equals(cEff) ? eff : null);
+                    shortcut.putExtra("sharpnessLevel", !lev.equals(cLev) ? lev : null);
+                    shortcut.putExtra("sharpnessDenoise", !den.equals(cDen) ? den : null);
+                    shortcut.saveData();
+                } else {
+                    container.putExtra("sharpnessEffect", eff);
+                    container.putExtra("sharpnessLevel", lev);
+                    container.putExtra("sharpnessDenoise", den);
+                    container.saveData();
+                }
+                double l = 100, d = 100;
+                try { l = Double.parseDouble(lev); } catch (Exception ignored) {}
+                try { d = Double.parseDouble(den); } catch (Exception ignored) {}
+                if (!"None".equals(eff)) {
+                    vkbasaltConfig = "effects=" + eff.toLowerCase() + ";" + "casSharpness=" + l/100 + ";" + "dlsSharpness=" + l/100 + ";" + "dlsDenoise=" + d/100 + ";" + "enableOnLaunch=True";
+                } else {
+                    vkbasaltConfig = "";
+                }
+            }
             renderer.setSwapRedBlue(cbSwapRB.isChecked());
             persistRuntimeVideoOption("rendererSwapRB", cbSwapRB.isChecked() ? "1" : "0");
         });
