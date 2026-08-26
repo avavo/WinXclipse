@@ -273,11 +273,28 @@ public class ShortcutSettingsDialog extends ContentDialog {
                     }
 
                     @Override
+                    public String getSharpnessEffect() {
+                        return shortcut.getExtra("sharpnessEffect", shortcut.container.getExtra("sharpnessEffect", "None"));
+                    }
+
+                    @Override
+                    public String getSharpnessLevel() {
+                        return shortcut.getExtra("sharpnessLevel", shortcut.container.getExtra("sharpnessLevel", "100"));
+                    }
+
+                    @Override
+                    public String getSharpnessDenoise() {
+                        return shortcut.getExtra("sharpnessDenoise", shortcut.container.getExtra("sharpnessDenoise", "100"));
+                    }
+
+                    @Override
                     public void apply(String gpuName, String presentMode,
                                       int textureFilterMode, boolean swapRedBlue,
                                       String fsrUpscale,
                                       String fsrQuality, boolean vsyncOff,
-                                      boolean unlimitedImages, String refreshRate) {
+                                      boolean unlimitedImages, String refreshRate,
+                                      String sharpnessEffect, String sharpnessLevel,
+                                      String sharpnessDenoise) {
                         HashMap<String, String> config = GraphicsDriverConfigDialog
                                 .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()));
                         config.put("gpuName", gpuName);
@@ -292,6 +309,13 @@ public class ShortcutSettingsDialog extends ContentDialog {
                                 GraphicsDriverConfigDialog.toGraphicsDriverConfig(config));
                         rendererFilterMode[0] = textureFilterMode;
                         rendererSwapRB[0] = swapRedBlue;
+                        // vkBasalt now in Video tab (container + shortcut)
+                        String cEff = shortcut.container.getExtra("sharpnessEffect", "None");
+                        String cLev = shortcut.container.getExtra("sharpnessLevel", "100");
+                        String cDen = shortcut.container.getExtra("sharpnessDenoise", "100");
+                        shortcut.putExtra("sharpnessEffect", !sharpnessEffect.equals(cEff) ? sharpnessEffect : null);
+                        shortcut.putExtra("sharpnessLevel", !sharpnessLevel.equals(cLev) ? sharpnessLevel : null);
+                        shortcut.putExtra("sharpnessDenoise", !sharpnessDenoise.equals(cDen) ? sharpnessDenoise : null);
                     }
                 }).show());
 
@@ -558,50 +582,13 @@ public class ShortcutSettingsDialog extends ContentDialog {
         final Spinner sStartupSelection = findViewById(R.id.SStartupSelection);
         sStartupSelection.setSelection(Integer.parseInt(shortcut.getExtra("startupSelection", String.valueOf(shortcut.container.getStartupSelection()))));
 
-        final Spinner sSharpnessEffect = findViewById(R.id.SSharpnessEffect);
-        final SeekBar sbSharpnessLevel = findViewById(R.id.SBSharpnessLevel);
-        final SeekBar sbSharpnessDenoise = findViewById(R.id.SBSharpnessDenoise);
-        final TextView tvSharpnessLevel = findViewById(R.id.TVSharpnessLevel);
-        final TextView tvSharpnessDenoise = findViewById(R.id.TVSharpnessDenoise);
-
-        AppUtils.setSpinnerSelectionFromValue(sSharpnessEffect, shortcut.getExtra("sharpnessEffect", "None"));
-
-        sbSharpnessLevel.setProgress(Integer.parseInt(shortcut.getExtra("sharpnessLevel", "100")));
-        tvSharpnessLevel.setText(shortcut.getExtra("sharpnessLevel", "100") + "%");
-        sbSharpnessLevel.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override
-            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                tvSharpnessLevel.setText(progress + "%");
-            }
-
-            @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {
-
-            }
-
-            @Override
-            public void onStopTrackingTouch(SeekBar seekBar) {
-
-            }
-        });
-        sbSharpnessDenoise.setProgress(Integer.parseInt(shortcut.getExtra("sharpnessDenoise", "100")));
-        tvSharpnessDenoise.setText(shortcut.getExtra("sharpnessDenoise", "100") + "%");
-        sbSharpnessDenoise.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override
-            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                tvSharpnessDenoise.setText(progress + "%");
-            }
-
-            @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {
-
-            }
-
-            @Override
-            public void onStopTrackingTouch(SeekBar seekBar) {
-
-            }
-        });
+        // vkBasalt moved to Video Configuration (Container + Shortcut) - hide old location
+        View oldVkBasalt = findViewById(R.id.SSharpnessEffect);
+        if (oldVkBasalt != null) {
+            View p = (View) oldVkBasalt.getParent();
+            while (p != null && !(p instanceof android.widget.FrameLayout)) p = (View) p.getParent();
+            if (p != null) p.setVisibility(View.GONE);
+        }
 
         final CPUListView cpuListView = findViewById(R.id.CPUListView);
         cpuListView.setCheckedCPUList(shortcut.getExtra("cpuList", shortcut.container.getCPUList(true)));
@@ -725,13 +712,6 @@ public class ShortcutSettingsDialog extends ContentDialog {
 
                 byte startupSelection = (byte)sStartupSelection.getSelectedItemPosition();
                 shortcut.putExtra("startupSelection", (startupSelection != shortcut.container.getStartupSelection()) ? String.valueOf(startupSelection) : null);
-
-                String sharpeningEffect = sSharpnessEffect.getSelectedItem().toString();
-                String sharpeningLevel = String.valueOf(sbSharpnessLevel.getProgress());
-                String sharpeningDenoise = String.valueOf(sbSharpnessDenoise.getProgress());
-                shortcut.putExtra("sharpnessEffect", sharpeningEffect);
-                shortcut.putExtra("sharpnessLevel", sharpeningLevel);
-                shortcut.putExtra("sharpnessDenoise", sharpeningDenoise);
 
                 ArrayList<ControlsProfile> profiles = inputControlsManager.getProfiles(true);
                 int controlsProfile = sControlsProfile.getSelectedItemPosition() > 0 ? profiles.get(sControlsProfile.getSelectedItemPosition() - 1).id : 0;

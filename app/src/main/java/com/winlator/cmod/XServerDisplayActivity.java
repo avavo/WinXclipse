@@ -659,25 +659,36 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             xinputDisabledFromShortcut = parseBoolean(xinputDisabledString);
             // Pass the value to WinHandler
             winHandler.setXInputDisabled(xinputDisabledFromShortcut);
-            String sharpnessEffect = shortcut.getExtra("sharpnessEffect", "None");
+            Log.d("XServerDisplayActivity", "XInput Disabled from Shortcut: " + xinputDisabledFromShortcut);
+        }
+        // vkBasalt via Video tab (Container + Shortcut) - moved from shortcut-only
+        {
+            String sharpnessEffect = shortcut != null
+                    ? shortcut.getExtra("sharpnessEffect", container.getExtra("sharpnessEffect", "None"))
+                    : container.getExtra("sharpnessEffect", "None");
             if (!sharpnessEffect.equals("None")) {
                 double sharpnessLevel;
                 double sharpnessDenoise;
                 try {
-                    sharpnessLevel = Double.parseDouble(shortcut.getExtra("sharpnessLevel", "100"));
+                    String v = shortcut != null
+                            ? shortcut.getExtra("sharpnessLevel", container.getExtra("sharpnessLevel", "100"))
+                            : container.getExtra("sharpnessLevel", "100");
+                    sharpnessLevel = Double.parseDouble(v);
                 }
                 catch (NumberFormatException e) {
                     sharpnessLevel = 100.0;
                 }
                 try {
-                    sharpnessDenoise = Double.parseDouble(shortcut.getExtra("sharpnessDenoise", "100"));
+                    String v = shortcut != null
+                            ? shortcut.getExtra("sharpnessDenoise", container.getExtra("sharpnessDenoise", "100"))
+                            : container.getExtra("sharpnessDenoise", "100");
+                    sharpnessDenoise = Double.parseDouble(v);
                 }
                 catch (NumberFormatException e) {
                     sharpnessDenoise = 100.0;
                 }
                 vkbasaltConfig = "effects=" + sharpnessEffect.toLowerCase() + ";" + "casSharpness=" + sharpnessLevel / 100 + ";" + "dlsSharpness=" + sharpnessLevel / 100  + ";" + "dlsDenoise=" + sharpnessDenoise / 100 + ";" + "enableOnLaunch=True";
             }
-            Log.d("XServerDisplayActivity", "XInput Disabled from Shortcut: " + xinputDisabledFromShortcut);
         }
 
         boolean dinputEnabled = (winHandler.getInputType() & WinHandler.FLAG_INPUT_TYPE_DINPUT) != 0;

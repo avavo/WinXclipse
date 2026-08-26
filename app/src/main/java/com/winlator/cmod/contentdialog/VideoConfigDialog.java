@@ -4,7 +4,9 @@ import android.content.Context;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.CheckBox;
+import android.widget.SeekBar;
 import android.widget.Spinner;
+import android.widget.TextView;
 
 import com.winlator.cmod.R;
 import com.winlator.cmod.core.AppUtils;
@@ -49,10 +51,14 @@ public class VideoConfigDialog extends ContentDialog {
         boolean isUnlimitedImages();
         /** "auto" or a refresh rate in Hz ("60", "90", "120", "144"). */
         String getRefreshRate();
+        String getSharpnessEffect();
+        String getSharpnessLevel();
+        String getSharpnessDenoise();
         void apply(String gpuName, String presentMode, int textureFilterMode,
                    boolean swapRedBlue, String fsrUpscale,
                    String fsrQuality, boolean vsyncOff, boolean unlimitedImages,
-                   String refreshRate);
+                   String refreshRate, String sharpnessEffect,
+                   String sharpnessLevel, String sharpnessDenoise);
     }
 
     public VideoConfigDialog(Context context, Config config) {
@@ -143,7 +149,40 @@ public class VideoConfigDialog extends ContentDialog {
 
         vsyncOff.setChecked(config.isVsyncOff());
         unlimitedImages.setChecked(config.isUnlimitedImages());
-        applyTheme(context, gpuName, presentMode, textureFilter, fsrUpscale, fsrQuality, refreshRate);
+
+        // vkBasalt (CAS/DLS) - now in Video tab for both Container and Shortcut
+        Spinner vkBasaltEffect = findViewById(R.id.SVideoVkBasaltEffect);
+        SeekBar sbSharpnessLevel = findViewById(R.id.SBVideoSharpnessLevel);
+        SeekBar sbSharpnessDenoise = findViewById(R.id.SBVideoSharpnessDenoise);
+        TextView tvSharpnessLevel = findViewById(R.id.TVVideoSharpnessLevel);
+        TextView tvSharpnessDenoise = findViewById(R.id.TVVideoSharpnessDenoise);
+        vkBasaltEffect.setAdapter(new ThemedSpinnerAdapter<>(context,
+                Arrays.asList(context.getResources().getStringArray(R.array.vkbasalt_sharpness_entries))));
+        String sharpEff = config.getSharpnessEffect();
+        if (sharpEff == null || sharpEff.isEmpty()) sharpEff = "None";
+        AppUtils.setSpinnerSelectionFromValue(vkBasaltEffect, sharpEff);
+        int level = 100;
+        int denoise = 100;
+        try { level = Integer.parseInt(config.getSharpnessLevel()); } catch (Exception ignored) {}
+        try { denoise = Integer.parseInt(config.getSharpnessDenoise()); } catch (Exception ignored) {}
+        level = Math.max(0, Math.min(100, level));
+        denoise = Math.max(0, Math.min(100, denoise));
+        sbSharpnessLevel.setProgress(level);
+        sbSharpnessDenoise.setProgress(denoise);
+        tvSharpnessLevel.setText(level + "%");
+        tvSharpnessDenoise.setText(denoise + "%");
+        sbSharpnessLevel.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar s, int p, boolean f) { tvSharpnessLevel.setText(p + "%"); }
+            @Override public void onStartTrackingTouch(SeekBar s) {}
+            @Override public void onStopTrackingTouch(SeekBar s) {}
+        });
+        sbSharpnessDenoise.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar s, int p, boolean f) { tvSharpnessDenoise.setText(p + "%"); }
+            @Override public void onStartTrackingTouch(SeekBar s) {}
+            @Override public void onStopTrackingTouch(SeekBar s) {}
+        });
+
+        applyTheme(context, gpuName, presentMode, textureFilter, fsrUpscale, fsrQuality, refreshRate, vkBasaltEffect);
 
         setOnConfirmCallback(() -> {
             String upscaleValue = "On".equals(selectedValue(fsrUpscale)) ? "1" : "0";
@@ -156,7 +195,10 @@ public class VideoConfigDialog extends ContentDialog {
                     vsyncOff.isChecked(), unlimitedImages.isChecked(),
                     REFRESH_RATE_VALUES[Math.max(0, Math.min(
                             refreshRate.getSelectedItemPosition(),
-                            REFRESH_RATE_VALUES.length - 1))]);
+                            REFRESH_RATE_VALUES.length - 1))],
+                    selectedValue(vkBasaltEffect),
+                    String.valueOf(sbSharpnessLevel.getProgress()),
+                    String.valueOf(sbSharpnessDenoise.getProgress()));
         });
     }
 

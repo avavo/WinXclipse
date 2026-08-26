@@ -389,6 +389,9 @@ public class ContainerDetailFragment extends Fragment {
         }
         final boolean[] rendererSwapRB = {isEditMode()
                 && "1".equals(container.getExtra("rendererSwapRB", "0"))};
+        final String[] pendingSharpnessEffect = {isEditMode() && container != null ? container.getExtra("sharpnessEffect", "None") : "None"};
+        final String[] pendingSharpnessLevel = {isEditMode() && container != null ? container.getExtra("sharpnessLevel", "100") : "100"};
+        final String[] pendingSharpnessDenoise = {isEditMode() && container != null ? container.getExtra("sharpnessDenoise", "100") : "100"};
 
         setupDXWrapperSpinner(sDXWrapper, vDXWrapperConfig);
         setupDDrawSpinner(sDDrawrapper, isEditMode() ? container.getDDrawWrapper() : Container.DEFAULT_DDRAWRAPPER);
@@ -670,11 +673,28 @@ public class ContainerDetailFragment extends Fragment {
                     }
 
                     @Override
+                    public String getSharpnessEffect() {
+                        return container != null ? container.getExtra("sharpnessEffect", "None") : "None";
+                    }
+
+                    @Override
+                    public String getSharpnessLevel() {
+                        return container != null ? container.getExtra("sharpnessLevel", "100") : "100";
+                    }
+
+                    @Override
+                    public String getSharpnessDenoise() {
+                        return container != null ? container.getExtra("sharpnessDenoise", "100") : "100";
+                    }
+
+                    @Override
                     public void apply(String gpuName, String presentMode,
                                       int textureFilterMode, boolean swapRedBlue,
                                       String fsrUpscale,
                                       String fsrQuality, boolean vsyncOff,
-                                      boolean unlimitedImages, String refreshRate) {
+                                      boolean unlimitedImages, String refreshRate,
+                                      String sharpnessEffect, String sharpnessLevel,
+                                      String sharpnessDenoise) {
                         HashMap<String, String> config = GraphicsDriverConfigDialog
                                 .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()));
                         config.put("gpuName", gpuName);
@@ -690,6 +710,14 @@ public class ContainerDetailFragment extends Fragment {
                         AppUtils.setSpinnerSelectionFromValue(sGPUName, gpuName);
                         rendererFilterMode[0] = textureFilterMode;
                         rendererSwapRB[0] = swapRedBlue;
+                        pendingSharpnessEffect[0] = sharpnessEffect;
+                        pendingSharpnessLevel[0] = sharpnessLevel;
+                        pendingSharpnessDenoise[0] = sharpnessDenoise;
+                        if (container != null) {
+                            container.putExtra("sharpnessEffect", sharpnessEffect);
+                            container.putExtra("sharpnessLevel", sharpnessLevel);
+                            container.putExtra("sharpnessDenoise", sharpnessDenoise);
+                        }
                     }
                 }).show());
         final EnvVarsView envVarsView = createEnvVarsTab(view);
@@ -865,7 +893,10 @@ public class ContainerDetailFragment extends Fragment {
                     data.put("gstreamerWorkaround", gstreamerWorkaround);
                     if (experimentalPerformance || experimentalBCN
                             || rendererFilterMode[0] > 0 || rendererSwapRB[0]
-                            || audioVolume[0] != 100) {
+                            || audioVolume[0] != 100
+                            || !"None".equals(pendingSharpnessEffect[0])
+                            || !"100".equals(pendingSharpnessLevel[0])
+                            || !"100".equals(pendingSharpnessDenoise[0])) {
                         JSONObject extraData = new JSONObject();
                         if (experimentalPerformance) extraData.put("experimentalPerformance", "1");
                         if (experimentalPerformance && !xperfConfig.isEmpty()) {
@@ -879,6 +910,9 @@ public class ContainerDetailFragment extends Fragment {
                         if (audioVolume[0] != 100) {
                             extraData.put("audioVolume", String.valueOf(audioVolume[0]));
                         }
+                        if (!"None".equals(pendingSharpnessEffect[0])) extraData.put("sharpnessEffect", pendingSharpnessEffect[0]);
+                        if (!"100".equals(pendingSharpnessLevel[0])) extraData.put("sharpnessLevel", pendingSharpnessLevel[0]);
+                        if (!"100".equals(pendingSharpnessDenoise[0])) extraData.put("sharpnessDenoise", pendingSharpnessDenoise[0]);
                         data.put("extraData", extraData);
                     }
 
