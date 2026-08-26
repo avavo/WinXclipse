@@ -334,13 +334,39 @@ public class ContainerManager {
         }
 
         if (!result) {
-            // Raw Wine/Proton .tzst downloads ship without any prefix pack: build
-            // the container from the bundled Proton pattern, which carries a full,
-            // valid win64 prefix (.wine with proper system.reg/user.reg headers).
-            // The generic container_pattern_common.tzst is only an overlay for the
-            // shared imagefs prefix and cannot bootstrap a fresh container prefix.
-            result = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context, WineInfo.MAIN_WINE_VERSION.identifier() + "_container_pattern.tzst", containerDir, onExtractFileListener);
-            if (result) Log.i("ContainerManager", "Created container using the bundled Proton prefix pattern for " + wineVersion);
+            // Raw Wine/Proton .tzst downloads ship without any prefix pack.
+            // Preferred fallback is the bundled Proton prefix pattern, but that
+            // archive has failed commons-compress parsing on some builds, so the
+            // final resort clones the shared imagefs prefix - which is guaranteed
+            // to be a working win64 prefix - into the new container.
+            result = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context,
+                    WineInfo.MAIN_WINE_VERSION.identifier() + "_container_pattern.tzst",
+                    containerDir, onExtractFileListener);
+            if (result) {
+                Log.i("ContainerManager", "Created container using the bundled Proton prefix pattern for " + wineVersion);
+            }
+        }
+
+        if (!result) {
+            // The container root doubles as the user home (it holds .wine directly),
+            // so clone every entry of the shared imagefs home into it.
+            File sharedHome = new File(ImageFs.find(context).getRootDir(), "home/xuser");
+            File[] entries = sharedHome.listFiles();
+            if (entries != null && entries.length > 0) {
+                result = true;
+                for (File entry : entries) {
+                    if (!FileUtils.copy(entry, new File(containerDir, entry.getName()))) {
+                        Log.e("ContainerManager", "Failed to clone prefix entry: " + entry.getPath());
+                        result = false;
+                        break;
+                    }
+                }
+                if (result) {
+                    ensureValidPrefixRegistries(new File(containerDir, ".wine"));
+                    Log.i("ContainerManager", "Created container by cloning the shared imagefs prefix for " + wineVersion);
+                }
+                else FileUtils.delete(containerDir);
+            }
         }
 
         if (result) {
@@ -357,8 +383,31 @@ public class ContainerManager {
                 return false;
             }
         }
-   
+
         return result;
+    }
+
+    /** Wine rejects a prefix whose registry files lack the "key" header line, and
+     *  then misdetects its bitness ("64-bit installation ... 32-bit wineserver").
+     *  Make sure the three base registries exist with valid win64 headers. */
+    public static void ensureValidPrefixRegistries(File prefixDir) {
+        if (!prefixDir.isDirectory()) return;
+        String[] registries = {"system.reg", "user.reg", "userdef.reg"};
+        for (String name : registries) {
+            File file = new File(prefixDir, name);
+            boolean valid = false;
+            if (file.isFile() && file.length() >= 4) {
+                try (java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.FileReader(file))) {
+                    String firstLine = reader.readLine();
+                    valid = firstLine != null && firstLine.startsWith("key");
+                }
+                catch (IOException ignored) {}
+            }
+            if (!valid) {
+                Log.w("ContainerManager", "Rewriting invalid/missing " + name + " header");
+                FileUtils.writeString(file, "key\t00000001\n#arch=win64\n");
+            }
+        }
     }
 
     public Container getContainerForShortcut(Shortcut shortcut) {

@@ -567,6 +567,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         imageFs.setWinePath(wineInfo.path);
 
+        // Self-heal the shared WINEPREFIX registries: wineserver saves them on
+        // exit and a hard kill (OOM/task removal) can truncate the files, which
+        // makes every later launch fail with "not a valid registry file" and a
+        // 32/64-bit wineserver mismatch.
+        ContainerManager.ensureValidPrefixRegistries(new File(imageFs.getRootDir(), ImageFs.WINEPREFIX));
+
         ProcessHelper.removeAllDebugCallbacks();
         if (enableLogs) {
             LogView.setFilename(getExecutable());
