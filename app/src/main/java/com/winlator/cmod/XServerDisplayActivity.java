@@ -2550,20 +2550,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             });
         }
 
-        // Extra Sharpness checkbox and config button (below NTSC)
-        CheckBox cbSharpness = dialog.findViewById(R.id.CBDisplaySharpness);
-        Button btnSharpnessConfig = dialog.findViewById(R.id.BTDisplaySharpnessConfig);
-        if (cbSharpness != null && btnSharpnessConfig != null) {
-            boolean sharpnessOn = shortcut != null
-                    ? "1".equals(shortcut.getExtra("sharpnessEnabled", container.getExtra("sharpnessEnabled", "0")))
-                    : "1".equals(container.getExtra("sharpnessEnabled", "0"));
-            cbSharpness.setChecked(sharpnessOn);
-            btnSharpnessConfig.setOnClickListener(v -> {
-                dialog.dismiss();
-                openSharpnessConfigDialog();
-            });
-        }
-
         // HDR config button
         Button btnHdrConfig = dialog.findViewById(R.id.BTDisplayHdrConfig);
         if (btnHdrConfig != null) {
@@ -2625,23 +2611,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 com.winlator.cmod.renderer.effects.NTSCCombinedEffect ntsc = renderer.getEffectComposer().getEffect(com.winlator.cmod.renderer.effects.NTSCCombinedEffect.class);
                 if (on && ntsc == null) renderer.getEffectComposer().addEffect(new com.winlator.cmod.renderer.effects.NTSCCombinedEffect());
                 else if (!on && ntsc != null) renderer.getEffectComposer().removeEffect(ntsc);
-            }
-            // Extra Sharpness
-            if (cbSharpness != null) {
-                boolean on = cbSharpness.isChecked();
-                com.winlator.cmod.renderer.effects.SharpenEffect sharp = 
-                        renderer.getEffectComposer().getEffect(com.winlator.cmod.renderer.effects.SharpenEffect.class);
-                if (on && sharp == null) {
-                    sharp = new com.winlator.cmod.renderer.effects.SharpenEffect();
-                    renderer.getEffectComposer().addEffect(sharp);
-                } else if (!on && sharp != null) {
-                    renderer.getEffectComposer().removeEffect(sharp);
-                }
-                if (shortcut != null) {
-                    shortcut.putExtra("sharpnessEnabled", on ? "1" : "0");
-                } else {
-                    container.putExtra("sharpnessEnabled", on ? "1" : "0");
-                }
             }
             // Texture filter now enabled (FSR as anti-aliasing only, no upscaling in sidebar)
             int filterSelection = sFilter.getSelectedItemPosition();
@@ -2793,90 +2762,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 tvSaturation.setText("1.00");
             });
         }
-        
-        dialog.show();
-    }
-
-    private void openSharpnessConfigDialog() {
-        final ContentDialog dialog = new ContentDialog(this, R.layout.sharpness_config_dialog);
-        dialog.setTitle("Extra Sharpness");
-        dialog.setIcon(R.drawable.icon_settings);
-
-        SeekBar sbAmount = dialog.findViewById(R.id.SBSharpnessAmount);
-        SeekBar sbRadius = dialog.findViewById(R.id.SBSharpnessRadius);
-        SeekBar sbThreshold = dialog.findViewById(R.id.SBSharpnessThreshold);
-        TextView tvAmount = dialog.findViewById(R.id.TVSharpnessAmount);
-        TextView tvRadius = dialog.findViewById(R.id.TVSharpnessRadius);
-        TextView tvThreshold = dialog.findViewById(R.id.TVSharpnessThreshold);
-
-        // Load current settings
-        String level = shortcut != null ? shortcut.getExtra("sharpnessAmount", container.getExtra("sharpnessAmount", "50")) : container.getExtra("sharpnessAmount", "50");
-        String radius = shortcut != null ? shortcut.getExtra("sharpnessRadius", container.getExtra("sharpnessRadius", "10")) : container.getExtra("sharpnessRadius", "10");
-        String threshold = shortcut != null ? shortcut.getExtra("sharpnessThreshold", container.getExtra("sharpnessThreshold", "5")) : container.getExtra("sharpnessThreshold", "5");
-        int amt = 50, rad = 10, thr = 5;
-        try { amt = Integer.parseInt(level); } catch (Exception ignored) {}
-        try { rad = Integer.parseInt(radius); } catch (Exception ignored) {}
-        try { thr = Integer.parseInt(threshold); } catch (Exception ignored) {}
-        sbAmount.setProgress(amt);
-        sbRadius.setProgress(rad);
-        sbThreshold.setProgress(thr);
-        tvAmount.setText(amt + "%");
-        tvRadius.setText(rad + "px");
-        tvThreshold.setText(thr + "");
-
-        sbAmount.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override public void onProgressChanged(SeekBar s, int p, boolean f) { if (f) tvAmount.setText(p + "%"); }
-            @Override public void onStartTrackingTouch(SeekBar s) {}
-            @Override public void onStopTrackingTouch(SeekBar s) {}
-        });
-        sbRadius.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override public void onProgressChanged(SeekBar s, int p, boolean f) { if (f) tvRadius.setText(p + "px"); }
-            @Override public void onStartTrackingTouch(SeekBar s) {}
-            @Override public void onStopTrackingTouch(SeekBar s) {}
-        });
-        sbThreshold.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override public void onProgressChanged(SeekBar s, int p, boolean f) { if (f) tvThreshold.setText(p + ""); }
-            @Override public void onStartTrackingTouch(SeekBar s) {}
-            @Override public void onStopTrackingTouch(SeekBar s) {}
-        });
-
-        dialog.setOnConfirmCallback(() -> {
-            // Save to container/shortcut
-            String amount = String.valueOf(sbAmount.getProgress());
-            String radiusVal = String.valueOf(sbRadius.getProgress());
-            String thresholdVal = String.valueOf(sbThreshold.getProgress());
-            if (shortcut != null) {
-                shortcut.putExtra("sharpnessAmount", amount);
-                shortcut.putExtra("sharpnessRadius", radiusVal);
-                shortcut.putExtra("sharpnessThreshold", thresholdVal);
-                shortcut.saveData();
-            } else {
-                container.putExtra("sharpnessAmount", amount);
-                container.putExtra("sharpnessRadius", radiusVal);
-                container.putExtra("sharpnessThreshold", thresholdVal);
-                container.saveData();
-            }
-            // Re-apply sharpness effect with new settings
-            GLRenderer renderer = xServerView.getRenderer();
-            com.winlator.cmod.renderer.effects.SharpenEffect sharp = 
-                    renderer.getEffectComposer().getEffect(com.winlator.cmod.renderer.effects.SharpenEffect.class);
-            // Check if sharpness is enabled from saved setting
-            boolean sharpnessOn = shortcut != null
-                    ? "1".equals(shortcut.getExtra("sharpnessEnabled", container.getExtra("sharpnessEnabled", "0")))
-                    : "1".equals(container.getExtra("sharpnessEnabled", "0"));
-            if (sharpnessOn) {
-                if (sharp == null) {
-                    sharp = new com.winlator.cmod.renderer.effects.SharpenEffect();
-                    renderer.getEffectComposer().addEffect(sharp);
-                }
-                sharp.setAmount(sbAmount.getProgress() / 100f);
-                sharp.setRadius(sbRadius.getProgress());
-                sharp.setThreshold(sbThreshold.getProgress());
-            } else if (sharp != null) {
-                renderer.getEffectComposer().removeEffect(sharp);
-            }
-            renderer.xServerView.requestRender();
-        });
         dialog.show();
     }
 

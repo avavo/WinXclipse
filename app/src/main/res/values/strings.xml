@@ -575,7 +575,6 @@
 
     <string name="enable_toon_shader">Enable Toon Shader</string>
     <string name="enable_ntsc_effect">Enable NTSC Effect</string>
-    <string name="enable_sharpness">Extra Sharpness</string>
     <string name="enter_profile_name">Enter Profile Name</string>
 
     <!-- In res/values/strings.xml -->
@@ -869,7 +868,4 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="wrapper_name">Wrapper Name</string>
     <string name="unable_to_install_wrapper">Unable to install this wrapper package</string>
     <string name="unable_to_install_driver">Unable to install this Xclipse driver package</string>
-    <string name="sharpness_amount">Amount</string>
-    <string name="sharpness_radius">Radius</string>
-    <string name="sharpness_threshold">Threshold</string>
 </resources>

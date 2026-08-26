@@ -56,31 +56,6 @@
             android:layout_height="wrap_content"
             android:text="@string/enable_ntsc_effect" />
 
-        <!-- Extra Sharpness with Configure button -->
-        <LinearLayout
-            android:id="@+id/LLDisplaySharpness"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
-
-            <CheckBox
-                android:id="@+id/CBDisplaySharpness"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/enable_sharpness" />
-
-            <Button
-                android:id="@+id/BTDisplaySharpnessConfig"
-                style="@style/ButtonNeutral"
-                android:layout_width="wrap_content"
-                android:layout_height="40dp"
-                android:layout_marginStart="8dp"
-                android:text="@string/configure" />
-        </LinearLayout>
-
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
