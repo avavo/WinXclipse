@@ -2489,23 +2489,26 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         boolean upscaleOn = !"off".equals(fsrRuntimeState) && !"on".equals(fsrRuntimeState);
         sFsrUpscale.setSelection(upscaleOn ? 1 : 0);
 
-        // Filter now enabled, upscaling removed from sidebar - FSR is view-only anti-aliasing
-        sFilter.setEnabled(true);
-        sFilter.setClickable(true);
-        sFilter.setAlpha(1.0f);
+        // Even locked, show upscaling state linked to shortcut/container data
+        // and block texture filter change when FSR is enabled.
         sFsrUpscale.setEnabled(false);
         sFsrUpscale.setClickable(false);
         sFsrUpscale.setAlpha(0.6f);
-        llFsrUpscale.setVisibility(View.GONE);
         sFsrMode.setEnabled(false);
         sFsrMode.setClickable(false);
         sFsrMode.setAlpha(0.6f);
 
         Runnable updateVisibility = () -> {
             boolean fsrSelected = sFilter.getSelectedItemPosition() == 2;
-            // Upscaling option removed - only show mode as view-only when FSR selected
-            llFsrUpscale.setVisibility(View.GONE);
-            llFsrMode.setVisibility(fsrSelected ? View.VISIBLE : View.GONE);
+            boolean fsrEnabled = fsrSelected && !"off".equals(fsrRuntimeState);
+            // Show upscaling state (linked to shortcut) even though locked
+            llFsrUpscale.setVisibility(fsrSelected ? View.VISIBLE : View.GONE);
+            llFsrMode.setVisibility(fsrEnabled ? View.VISIBLE : View.GONE);
+            // Block texture filter change when FSR is enabled
+            boolean blockFilter = fsrEnabled;
+            sFilter.setEnabled(!blockFilter);
+            sFilter.setClickable(!blockFilter);
+            sFilter.setAlpha(blockFilter ? 0.6f : 1.0f);
         };
         updateVisibility.run();
         sFilter.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
