@@ -26,7 +26,7 @@ Use it at your own risk and test each configuration individually.
 WinXclipse builds upon the work of:
 
 - [Winlator](https://github.com/brunodev85/winlator) by Brunodev85
-- [Winlator CMOD] (https://github.com/coffincolors/winlator/tree/cmod_v13.1) by coffincolors and Pipetto-crypto 
+- [Winlator CMOD](https://github.com/coffincolors/winlator/tree/cmod_v13.1) by coffincolors and Pipetto-crypto
 - Winlator Glibc by longjunyu2
 - Winlator OpenXR by lvonasek
 - [Winlator Mali](https://github.com/GunaCharanTeja/WinlatorMali) for ports and implementation references

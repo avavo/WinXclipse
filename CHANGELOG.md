@@ -2,6 +2,18 @@
 
 All notable changes between WinXclipse releases, newest first.
 
+## Unreleased
+
+### Fixed
+
+- **Every container failing to start with "not a valid registry file" + "64-bit installation ... 32-bit wineserver"**: the registry self-heal introduced for v0.9 validated the wrong magic string (`key` instead of `WINE REGISTRY Version N`), so every session start treated valid `system.reg`/`user.reg`/`userdef.reg` files as corrupt and overwrote them with an invalid header; wine then rejected all three registries, misdetected the prefix bitness (no `#arch` line to read), and exited before creating any window - repeating every launch. The validator now requires the real `WINE REGISTRY Version N` header, rewrites invalid or missing files with a correct win64 header (`#arch=win64`), and runs at container creation time for **every** prefix source (per-runtime pattern archive, runtime prefix pack, bundled Proton pattern, and shared-home clone), not only on the clone fallback.
+- Containers created from raw Wine/Proton `.tzst` runtimes whose synthesized profile pointed `prefixPack` at a non-archive file no longer fail creation mid-extraction: the pack is type-detected first and silently skipped when it is not a usable zstd/xz tar.
+
+### Changed
+
+- New-container defaults: FEXCore preset now defaults to **Intermediate** (existing installs that were still on the old Compatibility default are bumped once); **Exclusive XInput** now starts disabled instead of forced on; **XInput/DInput** start disabled so input types are opt-in; the **WoW64 CPU list** fallback enables all cores instead of pinning 32-bit processes to performance cores only.
+- Content naming deduplication: remote-inferred runtime names drop an embedded `wine-`/`proton-` prefix, so GitHub assets named like `proton-9.0cmod-arm64ec.tzst` no longer show up as duplicated entries ("Proton-proton-9.0cmod-arm64ec-..."). Installed profiles that already carry the duplicated name are renamed in place during contents sync (directory and `profile.json` rewritten), and containers referencing the old duplicated identifier are migrated automatically so they keep launching the same runtime.
+
 ## 0.9
 
 ### New

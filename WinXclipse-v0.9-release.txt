@@ -1,106 +1,39 @@
 ﻿WinXclipse v0.9 Release Notes
 
-This release focuses on AMD FSR 1.1 support, the video and audio configuration tabs, shortcut artwork, controller handling, services and CPU management, graphics configuration cleanup, per-model Exynos/Xclipse tuning, native optimizations, ARM64EC compatibility fixes, and a new touchscreen control style.
+WinXclipse runs Windows applications on Exynos devices with Xclipse GPUs through Wine/Proton runtimes (including ARM64EC builds), FEXCore and Box64 CPU translation, and Vulkan-based graphics stacks (DXVK, VKD3D-Proton, and dedicated wrappers) tuned for Xclipse RDNA2/RDNA3/RDNA4.
 
-What Changed Compared to v0.8.6
+Highlights
 
-NEW
+- AMD FSR 1.1 upscaling (EASU + RCAS), per container or live from the in-session sidebar.
+- Video tab: renderer (Vulkan/OpenGL/GDI), GPU name, present mode, texture filtering, refresh rate; audio driver dialog with volume.
+- Shortcut artwork with SteamGridDB browser, EXE icon, and custom image sources.
+- New dark glassy touchscreen control style with a full gamepad skin set.
+- Experimental Performance tuning: per-model Exynos/Xclipse VRAM caps, BCn backends, CPU cluster scheduling, unified-memory-aware defaults.
+- ARM64EC compatibility fixes, X server hardening, and container boot fixes for raw Wine/Proton .tzst runtimes.
 
-- AMD FSR 1.1: full FSR1 pipeline (EASU upscaling + RCAS sharpening) ported from the official AMD shader (ffx_fsr1.h v1.20210629). Configurable per container in the Display section and live-applied from the in-session sidebar Display menu; EASU always runs first in the effect chain. Five quality presets from Fidelity to Ultra, each forcing a matching internal render scale (1.5x/1.7x/2.0x), with letterbox-aware EASU mapping of the scene content region.
-- Video tab for containers and shortcuts: renderer selection (Vulkan/OpenGL/GDI) as the primary backend switch, GPU name, present mode, texture filtering (hosting the FSR entry), a red/blue channel swap option, and a refresh rate selector (Auto/60/90/120/144 Hz) requested from the display when a game session starts.
-- Audio driver dialog with volume control; MIDI soundfont managed inside it. PulseAudio is now the default driver.
-- Shortcut artwork with three sources: Browser (SteamGridDB search with EXE-icon fallback, default on first boot), EXE icon, and Custom - settable globally or per shortcut.
-- New dark glassy touchscreen control style: gradient button bodies with thin light borders, four-petal D-pad with chevron arrows and per-direction press highlighting, tick-marked analog sticks, and a matching trackpad.
-- Complete gamepad skin set for the touchscreen controls as selectable image assets - face buttons (A/B/X/Y), shoulders (L1/R1), triggers (L2/R2), stick clicks (L3/R3), Start/Select, a four-way D-pad, an analog stick base ring, and a trackpad - accepted by D-pad, stick, and trackpad elements and pre-applied to both bundled Virtual Gamepad profiles.
-- Update checks run on every launch, prompting at most once every 4 days when a newer GitHub release is available.
-- Exclusive XInput mode for containers and shortcuts; when off, XInput and DInput can be enabled together with the simultaneous-use warning.
-- (?) help buttons across theme, rotation lock, performance, DXVK/VKD3D, video, and graphics dialogs.
-- Experimental Performance tuning dialog with per-feature switches; companion stacks integrated into our own build: MdiEx runtime (device classification, Xclipse policy engine, scheduler nice-biasing, memory shim passive mode), NRAMV unified-memory manager driven from Java, and LayerCache Helix Vulkan layer for pipeline warmup and texture caching.
-- Bundled packages installing automatically on first boot: Dxvk-2.6.2-arm64ec-gplasync.wcp, dxvk-1.7.3-async, vkd3d-proton-3.0.1b.wcp. Dedicated ARM64EC DXVK builds selectable: 2.3.1-arm64ec-gplasync, 1.10.3-arm64ec-async.
-- DDraw wrapper None option restoring builtin ddraw.dll.
-- Guest stdout/stderr piped to logcat again for readable Wine debug-channel logs.
-- HUD setting to disable the blinking RAM warning and its high-memory dialog.
-- HUD SOC load and GPU temperature elements selectable in the HUD config dialog.
-- New screen sizes for modern tall panels: 2340x1080 (19.5:9), 2560x1440 (16:9), and 3120x1440 (19.5:9) selectable in container and shortcut settings.
+See CHANGELOG.md for the complete list of changes.
 
-CHANGED
+Support
 
-- Max Device Memory lives only in Graphics Driver; DDraw wrapper moved inside the combined DXVK + VKD3D dialog (default WineD3D); default DXVK async-1.10.3; BCN layer files from v0.8.x cleaned on update.
-- Aggressive startup protects winebus/winehid/MountMgr/PlugPlay while disabling non-critical Wine services; corrected Wine Ndis registry key.
-- Separate WoW64 CPU list restored for pinning 32-bit processes to different cores.
-- FEXCore presets match the bionic base: Intermediate sets FEX_X87REDUCEDPRECISION=1; Performance adds FEX_DYNAMICL1CACHE=1 + FEX_DISABLEL2CACHE=1.
-- BCn controls match Winlator-Mali mapping exactly (none/partial/full/auto -> WRAPPER_EMULATE_BCN 0/1/2/3); native wrappers (GameNative, Kirimu, Ref4ik-v6) skip the shared Leegao layer; stale layer files removed when switching; Kirimu locks its software-only profile.
-- Per-model Exynos/Xclipse tuning: VRAM cap follows WGP count under Experimental Performance (2048 MB fixed on 530/540/550/920, RAM-following 2048/4092 MB on 940/950, full 4092 MB on 960); BCn backend defaults software on RDNA2 and compute on RDNA3/RDNA4; low-WGP RDNA2 defaults to BCn-to-ASTC transcoding; cpufreq-based cluster detection pins WoW64 guests to performance cores, with LITTLE-less Exynos 2600 allowed all ten cores.
-- Vendored internals rebranded (rox_/wxp_ prefixes) with wire-format env keys preserved.
-- First boot installs base files immediately; permissions requested afterwards.
-- Follow-system theme default on; landscape lock option added.
-- Texture filter gained a fourth "None" mode (bilinear/nearest/FSR/None); FSR choices persist as runtime extras with one-time migration of the legacy fsrMode key.
-- Gyroscope input enabled by default.
-- LayerCache Helix (Cache Xclipse pipeline/texture caches) defaults to off under Experimental Performance; enable it in the tuning dialog.
-- About dialog and release notes credit FEX-Emu and AMD FidelityFX Super Resolution.
+Discord: https://discord.gg/u2nDTXRxyx
+Email: avavosim@gmail.com
 
-PERFORMANCE
+When reporting a bug, please include:
 
-- Control overlay shaders cached (no more per-frame native allocations); rumble/turbo poller ~200 -> ~60 wakeups/s; playtime saved every 30 s; cover art decoded downsampled; failed artwork lookups remembered per session; hot-path logging removed from controller motion events and stylus hover.
-- Native X11 blits process whole 32-bit pixels instead of byte loops (NEON-friendly, lighter on the shared LPDDR bus).
-- evshim caches its /proc/self/fd/N procfs verdict per file descriptor instead of resolving on every read/ioctl.
-- ALSA pacer no longer requests max SCHED_FIFO; EGL display resolved once across EGLImage calls; JNI lookups run once.
-- Unified-memory-aware VRAM cap under Experimental Performance when Max Device Memory is unset (2048 MB on 8 GB-class devices, 4092 MB on 12 GB-class), backed by known per-SoC RAM tiers.
-- Opt-in vblank_mode=0 skips vsync waits for OpenGL/zink titles; per-frame glGetError validation is debug-only now; GPU renderer detection cached.
+- Device model
+- Android version
+- Container configuration
+- Wrapper
+- Graphics driver
+- Runtime/FEXCore configuration
+- Steps to reproduce the issue
+- Logs, when available
 
-FIXED
-
-- ARM64EC guests dying silently before creating any window under Proton arm64ec + FEXCore: launcher requested the legacy libarm64ecfex.dll bridge instead of libwow64fex.dll (black screen with only Wine services left).
-- Builtin wined3d pinned to GL renderer under ARM64EC Proton (its Vulkan swapchain path died with "Unsupported alpha mode" + failed vkDestroySurfaceKHR on Xclipse); extra_libs.tzst extracted whenever missing so GL can load libGL.
-- Bundled content installer re-ran every launch (success-marker check dropped during refactor); uninstall clears markers again.
-- memshim malloc interpose leaking into libwinlator.so caused an emutls stack overflow (macro name mismatch MDIEX_ vs WXP_).
-- Inverted exclusive XInput behavior fixed; controller-fix installation verifies all three files including dinput.dll before marking complete, retrying otherwise.
-- Startup Selection inverted condition fixed; playtime autosave no longer double-schedules after resume.
-- Video tab renderer choice persists; GPU Name no longer leaks from the Wine-tab spoof spinner; VKD3D extraction matches "-0"-suffixed archives; dead DXVK 1.7.2 duplicate entries cleaned automatically.
-- NPE confirming container creation and opening Video Config in create-container mode; missing/corrupted JSON assets surface as handled errors instead of crashes; downloads no longer crash when the Contents screen closes mid-transfer.
-- Help popups measure wrapped text correctly with themed backgrounds on dark/light themes; HUD degC mojibake; follow-system-theme checkbox default mismatch between UI and runtime.
-- Container failing to start on Android 10+ with "error=13, Permission denied" when launching the Wine/PulseAudio binaries: targetSdkVersion lowered to 28, keeping exec() of binaries inside the app data directory allowed under the Android W^X policy.
-- Downloads screen no longer offers removal of the APK-embedded bundles (Box64/DXVK/FEXCore/VKD3D installed on first boot); Info stays available and future bundles are protected automatically.
-- Proton catalog entries with blank names (proton-11.0-2 sdk35 packages) or raw file names fixed; bundled catalog metadata is now authoritative (11.0-2 arm64ec/x86_64 and 9.0-x86_64).
-- Wine/Proton .tzst archives saved straight into Downloads (no embedded content profile) install normally: a profile is synthesized from the archive's bin/lib layout, and the import picker accepts every common zstd MIME type.
-- Xclipse driver download catalog sources releases from ExynosTools and the WinXclipse drivers_0.9 release.
-- First-boot progress moves continuously through imagefs extraction (78%), Wine runtime install (93%) and finalization (96-100%) instead of appearing stalled.
-- X server hardening: DestroySubWindows no longer falls through to ReparentWindow (protocol desync); SYNC AwaitFence blocks without deadlocking the whole server; GrabPointer reads its event-mask from the correct offset so grabs keep delivering button/motion events; malformed client requests return protocol errors instead of killing every connection; large replies survive partial socket writes.
-- Imported containers keep their original configuration instead of resetting to defaults; DDraw wrapper selection no longer clobbers the DXVK/VKD3D config on load; content application copies via temp+rename so a failed install never deletes working DLLs; pinned-tag driver catalogs list correctly.
-- Wine registry editor performs complete reads before writing and only replaces system.reg/user.reg with a fully valid clone.
-- Input fixes: multi-binding elements no longer lose their last binding on load; range-button bindings are restored on touch up instead of being wiped into the saved profile; controller axes are clamped after a sensitivity boost (sticks no longer invert at the extreme); disconnected controllers no longer crash the bindings screen.
-- A game exiting normally now tears down the X/audio/handler components and saves playtime exactly like the Exit action does; shortcut extras parse defensively instead of crashing at launch; several background-thread guards across Saves/Containers/Contents/Settings screens prevent crashes when leaving mid-operation.
-- Containers created from raw Wine/Proton .tzst downloads boot correctly: the prefix is built from the bundled Proton pattern (full win64 prefix with valid registry headers) instead of the shared imagefs overlay, which left system.reg/user.reg invalid and made wine fail with "64-bit installation ... 32-bit wineserver".
-- An out-of-spec PutImage no longer sends BadMatch to the client - Wine treats that as fatal and tore down every session ~2s after start; inconsistent payloads are logged and skipped instead, and depth-1 cursor/mask blits use the packed planar size.
-- Guest stdout/stderr and the process exit code are always mirrored to logcat under the WineProc tag (previously they only appeared with the wine-debug setting enabled), making startup failures diagnosable without changing any setting.
-- The fakeinput bridge library copy is size-verified on every launch with one retry; a truncated copy used to be LD_PRELOAD'd into wineserver and killed it with SIGBUS.
-
-Credits
-
-- Winlator by Brunodev85
-- Winlator CMOD by coffincolors and Pipetto-crypto
-- Winlator Glibc by longjunyu2
-- Winlator OpenXR by lvonasek
-- FEX-Emu (https://github.com/FEX-Emu/FEX)
-- AMD FidelityFX Super Resolution (https://github.com/GPUOpen-Effects/FidelityFX-FSR)
-- Ports and implementation references from Winlator Mali
-- ExynosTools for Exynos/Xclipse resources
-- Wrappers from Leegao (https://github.com/leegao/bionic-vulkan-wrapper), GameNative (https://github.com/utkarshdalal/GameNative), Ref4ik-v6 (https://github.com/REF4IK/CronyX-), and Kirimu
-- WinXclipse Exynos/Xclipse adaptation by Alvaro
-
-Available Package Variants
+Package Variants
 
 - Main: com.win.xclipse
 - AnTuTu: com.antutu.ABenchMark
 - Geekbench 6: com.primatelabs.geekbench6
-
-Providers and internal paths use the active application ID, reducing the risk of breaking controls, file access, containers, and shortcuts when using different package variants.
-
-Updates and Existing Data
-
-- Updating the main variant preserves the com.win.xclipse package name.
-- Existing containers, shortcuts, and internal data should remain available when updating a previous build that uses the same package and signing key.
-- Backing up important data before updating is recommended, especially because this remains an experimental release.
 
 Remote Sources
 
@@ -109,6 +42,8 @@ Remote Sources
 
 Status
 
-Functionally experimental.
+Functionally experimental. Behavior can vary depending on the device, GPU, driver, wrapper, runtime, container, and game.
 
-Behavior can vary depending on the device, GPU, driver, wrapper, runtime, container, and game. A package appearing in Downloads does not guarantee compatibility with every device.
+Credits
+
+Winlator by Brunodev85 - Winlator CMOD by coffincolors and Pipetto-crypto - Winlator Glibc by longjunyu2 - Winlator OpenXR by lvonasek - FEX-Emu - AMD FidelityFX Super Resolution - Winlator Mali - ExynosTools - Wrappers from Leegao, GameNative, Ref4ik-v6, and Kirimu - WinXclipse Exynos/Xclipse adaptation by Alvaro
