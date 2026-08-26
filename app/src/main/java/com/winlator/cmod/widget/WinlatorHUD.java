@@ -155,12 +155,9 @@ public class WinlatorHUD extends View {
     public WinlatorHUD(Context context, AttributeSet attrs) {
         super(context, attrs);
         prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-        ActivityManager.MemoryInfo memoryInfo = new ActivityManager.MemoryInfo();
-        ActivityManager activityManager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
-        if (activityManager != null) activityManager.getMemoryInfo(memoryInfo);
-        boolean hasAtLeastTenGb = memoryInfo.totalMem >= 10L * 1024L * 1024L * 1024L;
-        ramBlinkThreshold = hasAtLeastTenGb ? 93 : 91;
-        ramWarningThreshold = hasAtLeastTenGb ? 95 : 92;
+        // User request: blink at 90%, dialog at 93% (was 91/93 and 92/95)
+        ramBlinkThreshold = 90;
+        ramWarningThreshold = 93;
         float d = context.getResources().getDisplayMetrics().density;
         TS     = 12f * d;
         TSR    = 11f * d;

@@ -15,7 +15,7 @@
                     <com.winlator.cmod.widget.SeekBar
                         android:id="@+id/SBGamma" android:layout_width="fill_parent" android:layout_height="60dp" app:maxValue="3.0" app:minValue="0.5" app:step="0.01" />
                 </LinearLayout>
-                <TextView android:background="?attr/winxSurfaceColor" android:text="@string/color_adjustment" style="@style/FieldSetLabel" android:id="@+id/LBLColorAdjustment" />
+                <TextView android:background="?attr/winxSurfaceColor" android:text="Color Custom" style="@style/FieldSetLabel" android:id="@+id/LBLColorAdjustment" />
             </FrameLayout>
         </LinearLayout>
         <View style="@style/VerticalLine" />
@@ -28,10 +28,7 @@
                     <ImageButton android:id="@id/BTRemoveProfile" android:layout_marginRight="0.0dip" android:src="@drawable/icon_remove" style="@style/ListMenuButton" />
                 </LinearLayout>
             </LinearLayout>
-            <CheckBox android:id="@+id/CBEnableFXAA" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="8.0dip" android:text="@string/enable_fxaa" />
-            <CheckBox android:id="@+id/CBEnableCRTShader" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/enable_crt_shader" />
-            <CheckBox android:id="@+id/CBEnableToonShader" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/enable_toon_shader" />
-            <CheckBox android:id="@+id/CBEnableNTSCEffect" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/enable_ntsc_effect" />
+            <!-- FXAA/CRT/Toon/NTSC moved to sidebar Display below Fake HDR - now Color Custom only -->
 
 
         </LinearLayout>

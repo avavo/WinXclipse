@@ -424,7 +424,7 @@ public class SettingsFragment extends Fragment {
         cbOpenInBrowser.setChecked(preferences.getBoolean("open_with_android_browser", false));
 
         final CheckBox cbLockLandscape = view.findViewById(R.id.CBLockLandscape);
-        cbLockLandscape.setChecked(preferences.getBoolean("lock_landscape", true));
+        cbLockLandscape.setChecked(preferences.getBoolean("lock_landscape", false));
         view.findViewById(R.id.BTHelpLockLandscape).setOnClickListener(v ->
                 AppUtils.showHelpBox(context, v, R.string.help_lock_landscape));
         final CheckBox cbShareClipboard = view.findViewById(R.id.CBShareAndroidClipboard);

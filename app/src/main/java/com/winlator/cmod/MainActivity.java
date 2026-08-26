@@ -100,8 +100,15 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         isDarkMode = AppUtils.isDarkMode(this);
         setTheme(isDarkMode ? R.style.AppTheme_Dark : R.style.AppTheme);
         super.onCreate(savedInstanceState);
-        if (PreferenceManager.getDefaultSharedPreferences(this).getBoolean("lock_landscape", true))
+        // Portrait lock disabled by default and follows system (UNSPECIFIED)
+        boolean lockLandscape = PreferenceManager.getDefaultSharedPreferences(this).getBoolean("lock_landscape", false);
+        if (lockLandscape) {
             setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+        } else {
+            setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+        }
+        // Interface always at system's max refresh rate (120Hz if available)
+        applyMaxRefreshRate();
 
         // Initialize the controller management system
         ControllerManager.getInstance().init(getApplicationContext());
@@ -162,6 +169,25 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
         }
         UpdateChecker.check(this);
+    }
+
+    private void applyMaxRefreshRate() {
+        try {
+            android.view.Display display = getDisplay();
+            if (display == null) display = getWindowManager().getDefaultDisplay();
+            if (display != null) {
+                android.view.Display.Mode[] modes = display.getSupportedModes();
+                android.view.Display.Mode maxMode = null;
+                for (android.view.Display.Mode m : modes) {
+                    if (maxMode == null || m.getRefreshRate() > maxMode.getRefreshRate()) maxMode = m;
+                }
+                if (maxMode != null) {
+                    android.view.WindowManager.LayoutParams params = getWindow().getAttributes();
+                    params.preferredDisplayModeId = maxMode.getModeId();
+                    getWindow().setAttributes(params);
+                }
+            }
+        } catch (Exception ignored) {}
     }
 
     /**

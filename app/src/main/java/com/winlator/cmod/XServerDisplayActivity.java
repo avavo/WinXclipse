@@ -345,8 +345,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         isDarkMode = AppUtils.isDarkMode(this);
         setTheme(isDarkMode ? R.style.AppThemeFullscreen_Dark : R.style.AppThemeFullscreen);
         super.onCreate(savedInstanceState);
-        if (PreferenceManager.getDefaultSharedPreferences(this).getBoolean("lock_landscape", true))
+        boolean lockLandscape = PreferenceManager.getDefaultSharedPreferences(this).getBoolean("lock_landscape", false);
+        if (lockLandscape) {
             setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+        } else {
+            setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+        }
         AppUtils.hideSystemUI(this);
         AppUtils.keepScreenOn(this);
         setContentView(R.layout.xserver_display_activity);
@@ -1629,11 +1633,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 dlg.setOnConfirmCallback(() -> {
                     GLRenderer r = xServerView.getRenderer();
                     ColorEffect color = r.getEffectComposer().getEffect(ColorEffect.class);
-                    FXAAEffect fxaa = r.getEffectComposer().getEffect(FXAAEffect.class);
-                    CRTEffect crt   = r.getEffectComposer().getEffect(CRTEffect.class);
-                    ToonEffect toon = r.getEffectComposer().getEffect(ToonEffect.class);
-                    NTSCCombinedEffect ntsc = r.getEffectComposer().getEffect(NTSCCombinedEffect.class);
-                    dlg.applyEffects(color, r, fxaa, crt, toon, ntsc);
+                    dlg.applyEffects(color, r);
                 });
                 dlg.show();
                 drawerLayout.closeDrawers();
@@ -1654,20 +1654,42 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         startActivity(intent);
     }
 
-    /** Requests the display mode closest to the configured refresh rate ("refreshRate" key). */
+    /** Requests the display mode closest to the configured refreshRate. Auto = system's max (120Hz). */
     private void applyPreferredRefreshRate() {
         String rate = graphicsDriverConfig.getOrDefault("refreshRate", "auto");
-        if (rate.isEmpty() || "auto".equals(rate)) return;
+        android.view.Window window = getWindow();
+        if (window == null) return;
+        android.view.WindowManager.LayoutParams params = window.getAttributes();
         try {
-            float preferred = Float.parseFloat(rate);
-            android.view.Window window = getWindow();
-            if (window == null) return;
-            android.view.WindowManager.LayoutParams params = window.getAttributes();
-            params.preferredRefreshRate = preferred;
+            if (rate.isEmpty() || "auto".equals(rate)) {
+                android.view.Display display = getDisplay();
+                if (display == null) try { display = getWindowManager().getDefaultDisplay(); } catch (Exception ignored) {}
+                if (display != null) {
+                    android.view.Display.Mode[] modes = display.getSupportedModes();
+                    android.view.Display.Mode maxMode = null;
+                    for (android.view.Display.Mode m : modes) {
+                        if (maxMode == null || m.getRefreshRate() > maxMode.getRefreshRate()) maxMode = m;
+                    }
+                    if (maxMode != null) {
+                        params.preferredDisplayModeId = maxMode.getModeId();
+                        params.preferredRefreshRate = maxMode.getRefreshRate();
+                    }
+                }
+            } else {
+                float preferred = Float.parseFloat(rate);
+                params.preferredRefreshRate = preferred;
+                android.view.Display display = getDisplay();
+                if (display != null) {
+                    for (android.view.Display.Mode m : display.getSupportedModes()) {
+                        if (Math.abs(m.getRefreshRate() - preferred) < 0.5f) {
+                            params.preferredDisplayModeId = m.getModeId();
+                            break;
+                        }
+                    }
+                }
+            }
             window.setAttributes(params);
-        }
-        catch (NumberFormatException ignored) {
-        }
+        } catch (Exception ignored) {}
     }
 
     private void setFpsLimit(GLRenderer renderer, int limit, boolean persist) {
@@ -2425,6 +2447,15 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         CheckBox cbHdr = dialog.findViewById(R.id.CBDisplayFakeHdr);
         cbHdr.setChecked(renderer.getEffectComposer().getEffect(HDREffect.class) != null);
 
+        CheckBox cbFXAA = dialog.findViewById(R.id.CBDisplayFXAA);
+        CheckBox cbCRT = dialog.findViewById(R.id.CBDisplayCRTShader);
+        CheckBox cbToon = dialog.findViewById(R.id.CBDisplayToonShader);
+        CheckBox cbNTSC = dialog.findViewById(R.id.CBDisplayNTSCEffect);
+        if (cbFXAA != null) cbFXAA.setChecked(renderer.getEffectComposer().getEffect(com.winlator.cmod.renderer.effects.FXAAEffect.class) != null);
+        if (cbCRT != null) cbCRT.setChecked(renderer.getEffectComposer().getEffect(com.winlator.cmod.renderer.effects.CRTEffect.class) != null);
+        if (cbToon != null) cbToon.setChecked(renderer.getEffectComposer().getEffect(com.winlator.cmod.renderer.effects.ToonEffect.class) != null);
+        if (cbNTSC != null) cbNTSC.setChecked(renderer.getEffectComposer().getEffect(com.winlator.cmod.renderer.effects.NTSCCombinedEffect.class) != null);
+
         Spinner sFilter = dialog.findViewById(R.id.SDisplayTextureFilter);
         sFilter.setAdapter(new ThemedSpinnerAdapter<>(this, Arrays.asList(
                 getString(R.string.bilinear), getString(R.string.nearest_neighbor),
@@ -2504,6 +2535,31 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         dialog.setOnConfirmCallback(() -> {
             setFakeHdrEnabled(renderer, cbHdr.isChecked(), true);
+            // FXAA/CRT/Toon/NTSC now in sidebar below Fake HDR (moved from ScreenEffectDialog)
+            if (cbFXAA != null) {
+                boolean on = cbFXAA.isChecked();
+                com.winlator.cmod.renderer.effects.FXAAEffect fxaa = renderer.getEffectComposer().getEffect(com.winlator.cmod.renderer.effects.FXAAEffect.class);
+                if (on && fxaa == null) renderer.getEffectComposer().addEffect(new com.winlator.cmod.renderer.effects.FXAAEffect());
+                else if (!on && fxaa != null) renderer.getEffectComposer().removeEffect(fxaa);
+            }
+            if (cbCRT != null) {
+                boolean on = cbCRT.isChecked();
+                com.winlator.cmod.renderer.effects.CRTEffect crt = renderer.getEffectComposer().getEffect(com.winlator.cmod.renderer.effects.CRTEffect.class);
+                if (on && crt == null) renderer.getEffectComposer().addEffect(new com.winlator.cmod.renderer.effects.CRTEffect());
+                else if (!on && crt != null) renderer.getEffectComposer().removeEffect(crt);
+            }
+            if (cbToon != null) {
+                boolean on = cbToon.isChecked();
+                com.winlator.cmod.renderer.effects.ToonEffect toon = renderer.getEffectComposer().getEffect(com.winlator.cmod.renderer.effects.ToonEffect.class);
+                if (on && toon == null) renderer.getEffectComposer().addEffect(new com.winlator.cmod.renderer.effects.ToonEffect());
+                else if (!on && toon != null) renderer.getEffectComposer().removeEffect(toon);
+            }
+            if (cbNTSC != null) {
+                boolean on = cbNTSC.isChecked();
+                com.winlator.cmod.renderer.effects.NTSCCombinedEffect ntsc = renderer.getEffectComposer().getEffect(com.winlator.cmod.renderer.effects.NTSCCombinedEffect.class);
+                if (on && ntsc == null) renderer.getEffectComposer().addEffect(new com.winlator.cmod.renderer.effects.NTSCCombinedEffect());
+                else if (!on && ntsc != null) renderer.getEffectComposer().removeEffect(ntsc);
+            }
             // FSR is read-only in sidebar (view-only anti-aliasing): strength must be
             // changed via Container/Shortcut -> Video Configuration. Do not persist
             // or apply FSR from here to avoid accidental live resolution changes.
@@ -2518,11 +2574,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         dlg.setOnConfirmCallback(() -> {
             GLRenderer r = xServerView.getRenderer();
             ColorEffect color = r.getEffectComposer().getEffect(ColorEffect.class);
-            FXAAEffect fxaa = r.getEffectComposer().getEffect(FXAAEffect.class);
-            CRTEffect crt   = r.getEffectComposer().getEffect(CRTEffect.class);
-            ToonEffect toon = r.getEffectComposer().getEffect(ToonEffect.class);
-            NTSCCombinedEffect ntsc = r.getEffectComposer().getEffect(NTSCCombinedEffect.class);
-            dlg.applyEffects(color, r, fxaa, crt, toon, ntsc);
+            dlg.applyEffects(color, r);
         });
         dlg.show();
     }

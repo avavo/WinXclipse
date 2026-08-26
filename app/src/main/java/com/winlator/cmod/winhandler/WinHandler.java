@@ -331,6 +331,7 @@ public class WinHandler {
      *  the phone's vibrator (which also covers the virtual on-screen gamepad). */
     private void triggerVibration(int strong, int weak, int durationMs, int slot) {
         if (slot < 0 || slot >= MAX_PLAYERS) return;
+        if (!controllerManager.isMasterVibrationEnabled()) return;
         if (!controllerManager.isVibrationEnabled(slot)) return;
         boolean cancel = durationMs == 0 && strong == 0 && weak == 0;
 

@@ -34,6 +34,9 @@ public class ControllerAssignmentDialog {
     private final Button[] btnMacros = new Button[4];   // <-- Button array
     private final CheckBox[] vibrateBoxes = new CheckBox[4];
     private final Button[] resetButtons = new Button[4];
+    private CheckBox cbAutoGrab;
+    private CheckBox cbMasterVibration;
+    private Button btnTestVibration;
 
     private final TextView restartRequiredView;
     private final int initialPlayerCount;
@@ -113,6 +116,9 @@ public class ControllerAssignmentDialog {
 
     private void initializeViews() {
         View view = dialog.getContentView();
+        cbAutoGrab = view.findViewById(R.id.CBAutoGrabController);
+        cbMasterVibration = view.findViewById(R.id.CBMasterVibration);
+        btnTestVibration = view.findViewById(R.id.BTTestVibration);
 
         // Player 1
         checkBoxes[0] = view.findViewById(R.id.CBPlayer1);
@@ -157,6 +163,12 @@ public class ControllerAssignmentDialog {
 
     private void populateView() {
         controllerManager.scanForDevices();
+        if (cbAutoGrab != null) cbAutoGrab.setChecked(controllerManager.isAutoGrabEnabled());
+        if (cbMasterVibration != null) {
+            cbMasterVibration.setChecked(controllerManager.isMasterVibrationEnabled());
+            boolean masterOn = controllerManager.isMasterVibrationEnabled();
+            for (CheckBox cb : vibrateBoxes) if (cb != null) cb.setEnabled(masterOn);
+        }
 
         for (int i = 0; i < 4; i++) {
             checkBoxes[i].setChecked(controllerManager.isSlotEnabled(i));
@@ -172,6 +184,55 @@ public class ControllerAssignmentDialog {
     }
 
     private void setupListeners() {
+        if (cbAutoGrab != null) {
+            cbAutoGrab.setOnCheckedChangeListener((b, checked) -> controllerManager.setAutoGrabEnabled(checked));
+        }
+        if (cbMasterVibration != null) {
+            cbMasterVibration.setOnCheckedChangeListener((b, checked) -> {
+                controllerManager.setMasterVibrationEnabled(checked);
+                for (CheckBox cb : vibrateBoxes) if (cb != null) cb.setEnabled(checked);
+            });
+        }
+        if (btnTestVibration != null) {
+            btnTestVibration.setOnClickListener(v -> {
+                boolean masterOn = controllerManager.isMasterVibrationEnabled();
+                if (!masterOn) {
+                    android.widget.Toast.makeText(dialog.getContext(), "Vibration OFF", android.widget.Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                boolean didVibrate = false;
+                for (int i = 0; i < 4; i++) {
+                    if (!controllerManager.isSlotEnabled(i) || !controllerManager.isVibrationEnabled(i)) continue;
+                    android.view.InputDevice dev = controllerManager.getAssignedDeviceForSlot(i);
+                    if (dev != null) {
+                        android.os.Vibrator vibrator = dev.getVibrator();
+                        if (vibrator != null && vibrator.hasVibrator()) {
+                            try {
+                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                                    vibrator.vibrate(android.os.VibrationEffect.createOneShot(300, android.os.VibrationEffect.DEFAULT_AMPLITUDE));
+                                } else {
+                                    vibrator.vibrate(300);
+                                }
+                                didVibrate = true;
+                            } catch (Exception ignored) {}
+                        }
+                    }
+                }
+                if (!didVibrate) {
+                    // Fallback to phone vibrator so user still gets feedback
+                    android.os.Vibrator phone = (android.os.Vibrator) dialog.getContext().getSystemService(android.content.Context.VIBRATOR_SERVICE);
+                    if (phone != null && phone.hasVibrator()) {
+                        try {
+                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                                phone.vibrate(android.os.VibrationEffect.createOneShot(250, android.os.VibrationEffect.DEFAULT_AMPLITUDE));
+                            } else {
+                                phone.vibrate(250);
+                            }
+                        } catch (Exception ignored) {}
+                    }
+                }
+            });
+        }
         dialog.findViewById(R.id.BTInputControls).setOnClickListener(v -> {
             dialog.dismiss();
             if (hostActivity instanceof MainActivity) {

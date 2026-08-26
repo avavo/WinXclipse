@@ -16,6 +16,30 @@
             android:layout_height="wrap_content"
             android:text="@string/fake_hdr" />
 
+        <CheckBox
+            android:id="@+id/CBDisplayFXAA"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/enable_fxaa" />
+
+        <CheckBox
+            android:id="@+id/CBDisplayCRTShader"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/enable_crt_shader" />
+
+        <CheckBox
+            android:id="@+id/CBDisplayToonShader"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/enable_toon_shader" />
+
+        <CheckBox
+            android:id="@+id/CBDisplayNTSCEffect"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/enable_ntsc_effect" />
+
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -89,7 +113,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:layout_marginEnd="4dp"
-                android:text="@string/screen_effect" />
+                android:text="Color Custom" />
 
             <Button
                 android:id="@+id/BTDisplayFullscreen"

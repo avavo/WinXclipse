@@ -49,6 +49,7 @@ public class ControllerManager {
 
     public static final String PREF_PLAYER_SLOT_PREFIX = "controller_slot_";
     public static final String PREF_ENABLED_SLOTS_PREFIX = "enabled_slot_";
+    public static final String PREF_AUTO_GRAB = "auto_grab_controller";
 
     private final boolean[] vibrationEnabled = new boolean[]{ true, true, true, true };
 
@@ -279,6 +280,7 @@ public class ControllerManager {
      * multi-player assignments: the first unassigned enabled slot accepts a new
      * controller automatically. */
     public int assignToFirstEnabledFreeSlot(InputDevice device) {
+        if (!isAutoGrabEnabled()) return -1;
         if (device == null || !isGameController(device)) return -1;
         scanForDevices();
         int existing = getSlotForDevice(device.getId());
@@ -298,6 +300,7 @@ public class ControllerManager {
      *  the assignment dialog. Explicit assignments and pre-enabled free slots
      *  still take precedence (handled by {@link #assignToFirstEnabledFreeSlot}). */
     public int autoAssignOnFirstInput(InputDevice device) {
+        if (!isAutoGrabEnabled()) return -1;
         int legacy = assignToFirstEnabledFreeSlot(device);
         if (legacy >= 0) return legacy;
         if (device == null || !isGameController(device)) return -1;
@@ -433,6 +436,22 @@ public class ControllerManager {
         if (slot < 0 || slot >= 4) return;
         vibrationEnabled[slot] = enabled;
         saveAssignments();
+    }
+
+    public boolean isAutoGrabEnabled() {
+        return preferences != null && preferences.getBoolean(PREF_AUTO_GRAB, true);
+    }
+    public void setAutoGrabEnabled(boolean enabled) {
+        if (preferences == null) return;
+        preferences.edit().putBoolean(PREF_AUTO_GRAB, enabled).apply();
+    }
+
+    public boolean isMasterVibrationEnabled() {
+        return preferences != null && preferences.getBoolean("master_vibration_enabled", true);
+    }
+    public void setMasterVibrationEnabled(boolean enabled) {
+        if (preferences == null) return;
+        preferences.edit().putBoolean("master_vibration_enabled", enabled).apply();
     }
 
 
