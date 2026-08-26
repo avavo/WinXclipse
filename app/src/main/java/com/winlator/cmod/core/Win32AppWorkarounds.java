@@ -16,12 +16,18 @@ public class Win32AppWorkarounds {
     private short taskAffinityMask;
     private short taskAffinityMaskWoW64;
     private ArrayMap<String, Workaround> workarounds;
+    private boolean initializedWithMasks;
 
     public Win32AppWorkarounds(XServerDisplayActivity activity) {
         this.activity = activity;
     }
 
     public void setTaskAffinityMask(short taskAffinityMask) {
+        // Rebuild lazily-built workarounds if the mask arrives after init.
+        if (workarounds != null && initializedWithMasks && this.taskAffinityMask != taskAffinityMask) {
+            workarounds = null;
+            initializedWithMasks = false;
+        }
         this.taskAffinityMask = taskAffinityMask;
     }
 
@@ -43,9 +49,11 @@ public class Win32AppWorkarounds {
                 new TaskAffinityWorkaround(taskAffinityMask),
                 new DXWrapperWorkaround("dxvk"),
                 new EnvVarsWorkaround("WINEVMEMMAXSIZE", "16384"),
-                new EnvVarsWorkaround("WINEOVERRIDEAFFINITYMASK", Short.toString(taskAffinityMask)),
+                new EnvVarsWorkaround("WINEOVERRIDEAFFINITYMASK",
+                        String.valueOf(taskAffinityMask & 0xFFFF)),
                 new DelayedTaskAffinityWorkaround(taskAffinityMask)
         ));
+        initializedWithMasks = true;
 
         Log.d("Win32AppWorkarounds", "Workarounds initialized.");
     }

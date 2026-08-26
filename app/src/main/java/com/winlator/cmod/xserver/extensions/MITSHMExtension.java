@@ -13,6 +13,7 @@ import com.winlator.cmod.xserver.XServer;
 import com.winlator.cmod.xserver.errors.BadDrawable;
 import com.winlator.cmod.xserver.errors.BadGraphicsContext;
 import com.winlator.cmod.xserver.errors.BadImplementation;
+import com.winlator.cmod.xserver.errors.BadMatch;
 import com.winlator.cmod.xserver.errors.BadSHMSegment;
 import com.winlator.cmod.xserver.errors.XRequestError;
 
@@ -68,6 +69,7 @@ public class MITSHMExtension implements Extension {
         int shmid = inputStream.readInt();
         inputStream.skip(4);
         client.xServer.getSHMSegmentManager().attach(xid, shmid);
+        client.trackShmSegment(xid);
     }
 
     private static void detach(XClient client, XInputStream inputStream, XOutputStream outputStream) throws IOException, XRequestError {
@@ -102,6 +104,21 @@ public class MITSHMExtension implements Extension {
         if (graphicsContext.getFunction() != GraphicsContext.Function.COPY) {
             throw new UnsupportedOperationException("GC Function other than COPY is not supported.");
         }
+
+        if (srcWidth <= 0 || srcHeight <= 0 || totalWidth <= 0 || totalHeight <= 0) throw new BadMatch();
+        if (depth == 1) {
+            // drawBitmap reads a packed planar image of the requested size.
+            long requiredBytes = (long)((srcWidth + 7) >> 3) * srcHeight;
+            if (requiredBytes > data.capacity()) throw new BadMatch();
+        }
+        else if (depth == 24 || depth == 32) {
+            // copyArea addresses rows with a totalWidth*4 byte stride.
+            if (srcX < 0 || srcY < 0 || srcX + srcWidth > totalWidth || srcY + srcHeight > totalHeight) throw new BadMatch();
+            long requiredBytes = (long)(srcY + srcHeight - 1) * totalWidth * 4 + ((long)srcX + srcWidth) * 4;
+            long maxBytes = (long)totalHeight * totalWidth * 4;
+            if (requiredBytes > maxBytes || maxBytes > data.capacity()) throw new BadMatch();
+        }
+        // Other depths were always silent no-ops in Drawable.drawImage; leave as-is.
 
         drawable.drawImage(srcX, srcY, dstX, dstY, srcWidth, srcHeight, depth, data, totalWidth, totalHeight);
     }

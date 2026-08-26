@@ -123,13 +123,22 @@ public class WindowAttributes {
                     backingPlanes = inputStream.readInt();
                     break;
                 case FLAG_BIT_GRAVITY:
-                    bitGravity = BitGravity.values()[inputStream.readInt()];
+                    int bitGravityValue = inputStream.readInt();
+                    if (bitGravityValue >= 0 && bitGravityValue < BitGravity.values().length) {
+                        bitGravity = BitGravity.values()[bitGravityValue];
+                    }
                     break;
                 case FLAG_WIN_GRAVITY:
-                    winGravity = WinGravity.values()[inputStream.readInt()];
+                    int winGravityValue = inputStream.readInt();
+                    if (winGravityValue >= 0 && winGravityValue < WinGravity.values().length) {
+                        winGravity = WinGravity.values()[winGravityValue];
+                    }
                     break;
                 case FLAG_BACKING_STORE:
-                    backingStore = BackingStore.values()[inputStream.readInt()];
+                    int backingStoreValue = inputStream.readInt();
+                    if (backingStoreValue >= 0 && backingStoreValue < BackingStore.values().length) {
+                        backingStore = BackingStore.values()[backingStoreValue];
+                    }
                     break;
                 case FLAG_SAVE_UNDER:
                     saveUnder = inputStream.readInt() == 1;

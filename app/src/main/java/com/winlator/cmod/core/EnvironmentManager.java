@@ -6,7 +6,7 @@ import java.util.Map;
 public class EnvironmentManager {
     private static final Map<String, String> envVars = new HashMap<>();
 
-    public static void setEnvVars(String[] envp) {
+    public static synchronized void setEnvVars(String[] envp) {
         envVars.clear();
         if (envp != null) {
             for (String entry : envp) {
@@ -18,7 +18,7 @@ public class EnvironmentManager {
         }
     }
 
-    public static Map<String, String> getEnvVars() {
+    public static synchronized Map<String, String> getEnvVars() {
         return new HashMap<>(envVars);
     }
 }

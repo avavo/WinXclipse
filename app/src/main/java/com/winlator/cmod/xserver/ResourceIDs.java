@@ -25,6 +25,7 @@ public class ResourceIDs {
     }
 
     public boolean isInInterval(int value, int idBase) {
+        if (idBase < 0) return false;
         return (value | idMask) == (idBase | idMask);
     }
 

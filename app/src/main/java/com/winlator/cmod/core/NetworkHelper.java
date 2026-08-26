@@ -27,24 +27,28 @@ public class NetworkHelper {
         DhcpInfo dhcpInfo = wifiManager.getDhcpInfo();
         if (dhcpInfo == null) return 0;
 
-        int netmask = Integer.bitCount(dhcpInfo.netmask);
-        if (dhcpInfo.netmask < 8 || dhcpInfo.netmask > 32) {
-            try {
-                InetAddress inetAddress = InetAddress.getByName(formatIpAddress(getIpAddress()));
-                NetworkInterface networkInterface = NetworkInterface.getByInetAddress(inetAddress);
-                if (networkInterface != null) {
-                    for (InterfaceAddress address : networkInterface.getInterfaceAddresses()) {
-                        if (inetAddress != null && inetAddress.equals(address.getAddress())) {
-                            netmask = address.getNetworkPrefixLength();
-                            break;
-                        }
+        // Devices either report the raw prefix length (e.g. 24) or a dotted-quad
+        // mask whose popcount is the prefix length; handle both conventions.
+        int raw = dhcpInfo.netmask;
+        if (raw >= 8 && raw <= 32) return raw;
+
+        int netmask = Integer.bitCount(raw);
+        if (netmask >= 8 && netmask <= 32) return netmask;
+
+        try {
+            InetAddress inetAddress = InetAddress.getByName(formatIpAddress(getIpAddress()));
+            NetworkInterface networkInterface = NetworkInterface.getByInetAddress(inetAddress);
+            if (networkInterface != null) {
+                for (InterfaceAddress address : networkInterface.getInterfaceAddresses()) {
+                    if (inetAddress != null && inetAddress.equals(address.getAddress())) {
+                        return address.getNetworkPrefixLength();
                     }
                 }
             }
-            catch (SocketException | UnknownHostException ignored) {}
         }
+        catch (SocketException | UnknownHostException ignored) {}
 
-        return netmask;
+        return 0;
     }
 
     public int getGateway() {

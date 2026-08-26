@@ -107,6 +107,8 @@ public class InputControlsManager {
         if (files != null) {
             for (File file : files) {
                 ControlsProfile profile = loadProfile(context, file);
+                // Skip unreadable/corrupt profile files instead of crashing the listing.
+                if (profile == null || profile.getName() == null) continue;
                 if (!(ignoreTemplates && profile.isTemplate())) profiles.add(profile);
                 maxProfileId = Math.max(maxProfileId, profile.id);
             }

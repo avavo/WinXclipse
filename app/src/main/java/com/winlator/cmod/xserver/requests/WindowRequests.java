@@ -19,6 +19,7 @@ import com.winlator.cmod.xserver.Window;
 import com.winlator.cmod.xserver.WindowManager;
 import com.winlator.cmod.xserver.XClient;
 import com.winlator.cmod.xserver.errors.BadAccess;
+import com.winlator.cmod.xserver.errors.BadAlloc;
 import com.winlator.cmod.xserver.errors.BadMatch;
 import com.winlator.cmod.xserver.errors.BadWindow;
 import com.winlator.cmod.xserver.errors.XRequestError;
@@ -43,7 +44,7 @@ public abstract class WindowRequests {
         short width = inputStream.readShort();
         short height = inputStream.readShort();
         short borderWidth = inputStream.readShort();
-        WindowAttributes.WindowClass windowClass = WindowAttributes.WindowClass.values()[(byte)inputStream.readShort()];
+        WindowAttributes.WindowClass windowClass = parseWindowClass(inputStream.readShort());
         Visual visual = client.xServer.pixmapManager.getVisual(inputStream.readInt());
         Bitmask valueMask = new Bitmask(inputStream.readInt());
 
@@ -53,6 +54,11 @@ public abstract class WindowRequests {
         client.setEventListenerForWindow(window, window.attributes.getEventMask());
         client.registerAsOwnerOfResource(window);
         parent.sendEvent(Event.SUBSTRUCTURE_NOTIFY, new CreateNotify(parent, window));
+    }
+
+    private static WindowAttributes.WindowClass parseWindowClass(int value) throws XRequestError {
+        if (value < 0 || value >= WindowAttributes.WindowClass.values().length) throw new BadValue(value);
+        return WindowAttributes.WindowClass.values()[value];
     }
 
     public static void getWindowAttributes(XClient client, XInputStream inputStream, XOutputStream outputStream) throws IOException, XRequestError {
@@ -160,7 +166,9 @@ public abstract class WindowRequests {
     }
 
     public static void changeProperty(XClient client, XInputStream inputStream, XOutputStream outputStream) throws XRequestError {
-        Property.Mode mode = Property.Mode.values()[client.getRequestData()];
+        int modeValue = client.getRequestData();
+        if (modeValue < 0 || modeValue >= Property.Mode.values().length) throw new BadValue(modeValue);
+        Property.Mode mode = Property.Mode.values()[modeValue];
         int windowId = inputStream.readInt();
         Window window = client.xServer.windowManager.getWindow(windowId);
         if (window == null) throw new BadWindow(windowId);
@@ -169,14 +177,16 @@ public abstract class WindowRequests {
         int type = inputStream.readInt();
         byte format = inputStream.readByte();
         inputStream.skip(3);
-        int length  = inputStream.readInt();
-        int totalSize = length * (format >> 3);
+        if (format != 8 && format != 16 && format != 32) throw new BadValue(format);
+        long length = inputStream.readInt() & 0xFFFFFFFFL;
+        long totalSize = length * (format >> 3);
+        if (totalSize > Integer.MAX_VALUE - 3) throw new BadAlloc();
 
         byte[] data = null;
         if (totalSize > 0) {
-            data = new byte[totalSize];
+            data = new byte[(int)totalSize];
             inputStream.read(data);
-            inputStream.skip(-totalSize & 3);
+            inputStream.skip(-((int)totalSize) & 3);
         }
 
         Property property = window.modifyProperty(atom, type, Property.Format.valueOf(format), mode, data);
@@ -330,18 +340,18 @@ public abstract class WindowRequests {
         }
 
         if (dstWindow == null) {
-            client.xServer.pointer.setX(client.xServer.pointer.getX() + dstX);
-            client.xServer.pointer.setY(client.xServer.pointer.getY() + dstY);
+            client.xServer.pointer.setPosition(client.xServer.pointer.getX() + dstX, client.xServer.pointer.getY() + dstY);
         }
         else {
             short[] localPoint = dstWindow.localPointToRoot(dstX, dstY);
-            client.xServer.pointer.setX(localPoint[0]);
-            client.xServer.pointer.setY(localPoint[1]);
+            client.xServer.pointer.setPosition(localPoint[0], localPoint[1]);
         }
     }
 
     public static void setInputFocus(XClient client, XInputStream inputStream, XOutputStream outputStream) throws XRequestError {
-        WindowManager.FocusRevertTo focusRevertTo = WindowManager.FocusRevertTo.values()[client.getRequestData()];
+        int focusValue = client.getRequestData();
+        if (focusValue < 0 || focusValue >= WindowManager.FocusRevertTo.values().length) throw new BadValue(focusValue);
+        WindowManager.FocusRevertTo focusRevertTo = WindowManager.FocusRevertTo.values()[focusValue];
         int windowId = inputStream.readInt();
         inputStream.skip(4);
 
@@ -445,7 +455,7 @@ public abstract class WindowRequests {
         Event event = new RawEvent(data);
 
         if (eventMask.isEmpty()) {
-            destination.originClient.sendEvent(event);
+            if (destination.originClient != null) destination.originClient.sendEvent(event);
         }
         else destination.sendEvent(eventMask, event);
     }

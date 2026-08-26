@@ -32,6 +32,7 @@ public class XServerComponent extends EnvironmentComponent {
             connector.stop();
             connector = null;
         }
+        xServer.cursorLocker.stop();
     }
 
     public XServer getXServer() {

@@ -27,16 +27,32 @@ public abstract class WineThemeManager {
         public final int backgroundColor;
 
         public ThemeInfo(String value) {
-            String[] values = value.split(",");
-            theme = Theme.valueOf(values[0]);
-            if (values.length < 3) {
-                backgroundColor = Color.parseColor(values[1]);
-                backgroundType = BackgroundType.IMAGE;
+            Theme parsedTheme = Theme.LIGHT;
+            BackgroundType parsedBackgroundType = BackgroundType.IMAGE;
+            int parsedBackgroundColor;
+            try {
+                parsedBackgroundColor = Color.parseColor("#0277bd");
+            } catch (Exception e) {
+                parsedBackgroundColor = 0xff0277bd;
             }
-            else {
-                backgroundType = BackgroundType.valueOf(values[1]);
-                backgroundColor = Color.parseColor(values[2]);
+
+            try {
+                String[] values = value.split(",");
+                if (values.length > 0 && values[0] != null) parsedTheme = Theme.valueOf(values[0]);
+                if (values.length < 3) {
+                    parsedBackgroundColor = Color.parseColor(values.length > 1 ? values[1] : "#0277bd");
+                    parsedBackgroundType = BackgroundType.IMAGE;
+                }
+                else {
+                    parsedBackgroundType = BackgroundType.valueOf(values[1]);
+                    parsedBackgroundColor = Color.parseColor(values[2]);
+                }
             }
+            catch (IllegalArgumentException | IndexOutOfBoundsException | NullPointerException ignored) {}
+
+            theme = parsedTheme;
+            backgroundType = parsedBackgroundType;
+            backgroundColor = parsedBackgroundColor;
         }
     }
 
@@ -129,11 +145,20 @@ public abstract class WineThemeManager {
         Canvas canvas = new Canvas(outputBitmap);
 
         File userWallpaperFile = getUserWallpaperFile(context);
-        if (userWallpaperFile.isFile()) {
-            Bitmap image = BitmapFactory.decodeFile(userWallpaperFile.getPath());
+        Bitmap image = userWallpaperFile.isFile() ? BitmapFactory.decodeFile(userWallpaperFile.getPath()) : null;
+        if (image != null) {
             Rect srcRect = new Rect(0, 0, image.getWidth(), image.getHeight());
             Rect dstRect = new Rect(0, 0, outputWidth, outputHeight);
             canvas.drawBitmap(image, srcRect, dstRect, paint);
+        }
+        else if (userWallpaperFile.isFile()) {
+            // A wallpaper file exists but could not be decoded (corrupted/truncated);
+            // fall back to the bundled wallpaper instead of crashing.
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(0xff01579b);
+            canvas.drawRect(0, 0, outputWidth, outputHeight * 0.5f, paint);
+            paint.setColor(0xff0277bd);
+            canvas.drawRect(0, outputHeight * 0.5f, outputWidth, outputHeight, paint);
         }
         else {
             BitmapFactory.Options options = new BitmapFactory.Options();

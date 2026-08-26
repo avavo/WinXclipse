@@ -11,6 +11,7 @@ import androidx.annotation.Nullable;
 import androidx.preference.PreferenceManager;
 
 import com.winlator.cmod.XServerDisplayActivity;
+import com.winlator.cmod.math.Mathf;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -82,6 +83,9 @@ public class ExternalController {
     // In ExternalController.java
 
     public void setContext(Context context) {
+        // Avoid stacking duplicate listeners every time the context changes;
+        // each registration leaks a reference to the previous context.
+        unregisterListener();
         this.context = context;
         loadPreferences();
 
@@ -202,8 +206,8 @@ public class ExternalController {
     }
 
 
-    // Remove static keyword
-    public static final HashMap<Byte, Byte> buttonMappings = new HashMap<>();
+    // Per-instance so remappings configured for one device never leak into another.
+    public final HashMap<Byte, Byte> buttonMappings = new HashMap<>();
 
 
     private boolean triggerLPressedViaButton = false;
@@ -330,8 +334,9 @@ public class ExternalController {
         float r = event.getAxisValue(MotionEvent.AXIS_RTRIGGER) == 0f ? event.getAxisValue(MotionEvent.AXIS_GAS) : event.getAxisValue(MotionEvent.AXIS_RTRIGGER);
         state.triggerL = l;
         state.triggerR = r;
-        state.setPressed(IDX_BUTTON_L2, l == 1.0f);
-        state.setPressed(IDX_BUTTON_R2, r == 1.0f);
+        // Use a small tolerance: some controllers never report exactly 1.0f at full pull.
+        state.setPressed(IDX_BUTTON_L2, l >= 0.99f);
+        state.setPressed(IDX_BUTTON_R2, r >= 0.99f);
     }
 
     public boolean isXboxController() {
@@ -705,9 +710,9 @@ public class ExternalController {
         float normalizedY = (Math.abs(scaledY) - deadzone) / (1.0f - deadzone);
 
         if (axis == MotionEvent.AXIS_X) {
-            return Math.signum(x) * Math.min(Math.max(normalizedX, 0.0f), 1.0f) * sensitivity;
+            return Math.signum(x) * Mathf.clamp(Math.min(Math.max(normalizedX, 0.0f), 1.0f) * sensitivity, -1.0f, 1.0f);
         } else {
-            return Math.signum(y) * Math.min(Math.max(normalizedY, 0.0f), 1.0f) * sensitivity;
+            return Math.signum(y) * Mathf.clamp(Math.min(Math.max(normalizedY, 0.0f), 1.0f) * sensitivity, -1.0f, 1.0f);
         }
     }
 
@@ -722,8 +727,9 @@ public class ExternalController {
             float normalized = (Math.abs(value) - deadzone) / (1.0f - deadzone);
             // Preserve the sign
             normalized = Math.signum(value) * normalized;
-            // Apply sensitivity
-            return normalized * sensitivity;
+            // Apply sensitivity, clamping back to [-1, 1] so boosted sensitivity
+            // can never overflow the short axis range downstream.
+            return Mathf.clamp(normalized * sensitivity, -1.0f, 1.0f);
         }
     }
 

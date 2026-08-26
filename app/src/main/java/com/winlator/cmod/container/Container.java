@@ -222,6 +222,8 @@ public class Container {
     }
 
     public byte getControllerMapping(XrControllerMapping input) {
+        // Guard against persisted mappings shorter than the enum (old/imported containers).
+        if (controllerMapping == null || input.ordinal() >= controllerMapping.length()) return 0;
         return (byte) controllerMapping.charAt(input.ordinal());
     }
 
@@ -559,6 +561,7 @@ data.put("desktopTheme", desktopTheme);
                     break;
                 case "ddrawrapper":
                     setDDrawWrapper(data.getString(key));
+                    break;
                 case "dxwrapperConfig" :
                     setDXWrapperConfig(data.getString(key));
                     break;
@@ -664,7 +667,13 @@ data.put("desktopTheme", desktopTheme);
 
             if (data.has("envVars") && data.has("extraData")) {
                 JSONObject extraData = data.getJSONObject("extraData");
-                int appVersion = Integer.parseInt(extraData.optString("appVersion", "0"));
+                int appVersion;
+                try {
+                    appVersion = Integer.parseInt(extraData.optString("appVersion", "0"));
+                }
+                catch (NumberFormatException e) {
+                    appVersion = 0;
+                }
                 if (appVersion < 16) {
                     EnvVars defaultEnvVars = new EnvVars(DEFAULT_ENV_VARS);
                     EnvVars envVars = new EnvVars(data.getString("envVars"));

@@ -216,6 +216,8 @@ public class ContentsFragment extends Fragment {
             PreloaderDialog preloaderDialog = new PreloaderDialog(getActivity());
             preloaderDialog.showOnUiThread(R.string.installing_content);
             preloaderDialog.setProgress(1);
+            // Capture the activity: installation can outlive the fragment.
+            android.app.Activity hostActivity = getActivity();
             try {
                 ContentsManager.OnInstallFinishedCallback callback = new ContentsManager.OnInstallFinishedCallback() {
                     private boolean isExtracting = true;
@@ -231,14 +233,16 @@ public class ContentsFragment extends Fragment {
                             case ERROR_UNTRUSTPROFILE -> R.string.content_cannot_be_trusted;
                             default -> R.string.unable_to_install_content;
                         };
-                        requireActivity().runOnUiThread(() -> ContentDialog.alert(getContext(), getString(R.string.install_failed) + ": " + getString(msgId), preloaderDialog::closeOnUiThread));
+                        if (hostActivity == null) { preloaderDialog.closeOnUiThread(); return; }
+                        hostActivity.runOnUiThread(() -> ContentDialog.alert(getContext(), getString(R.string.install_failed) + ": " + getString(msgId), preloaderDialog::closeOnUiThread));
                     }
 
                     @Override
                     public void onSucceed(ContentProfile profile) {
                         if (isExtracting) {
                             ContentsManager.OnInstallFinishedCallback callback1 = this;
-                            requireActivity().runOnUiThread(() -> {
+                            if (hostActivity == null) { preloaderDialog.closeOnUiThread(); return; }
+                            hostActivity.runOnUiThread(() -> {
                                 // The preloader is a fullscreen dialog. Keeping it open here
                                 // placed the required content confirmation behind it, making
                                 // installation look frozen forever after extraction.
@@ -269,7 +273,8 @@ public class ContentsFragment extends Fragment {
 
                         } else {
                             preloaderDialog.closeOnUiThread();
-                            requireActivity().runOnUiThread(() -> {
+                            if (hostActivity == null) return;
+                            hostActivity.runOnUiThread(() -> {
                                 ContentDialog.alert(getContext(), R.string.content_installed_success, null);
                                 manager.syncContents();
                                 boolean flashAfter = currentContentType == profile.type;
@@ -352,15 +357,21 @@ public class ContentsFragment extends Fragment {
         PreloaderDialog preloader = new PreloaderDialog(requireActivity());
         preloader.show(R.string.downloading_content);
         preloader.setProgress(0);
+        android.app.Activity hostActivity = getActivity();
+        android.content.Context hostContext = requireContext().getApplicationContext();
         new Thread(() -> {
             String rawName = Uri.parse(url).getLastPathSegment();
             if (rawName == null || rawName.isEmpty()) rawName = "wrapper.tzst";
             int query = rawName.indexOf('?');
             if (query >= 0) rawName = rawName.substring(0, query);
-            File output = new File(requireContext().getCacheDir(),
+            File output = new File(hostContext.getCacheDir(),
                     "remote-wrapper-" + System.currentTimeMillis() + "-" + rawName.replaceAll("[^A-Za-z0-9._-]", "_"));
             boolean downloaded = Downloader.downloadFile(url, output, preloader::setProgress);
-            requireActivity().runOnUiThread(() -> {
+            if (hostActivity == null || hostActivity.isFinishing()) {
+                FileUtils.delete(output);
+                return;
+            }
+            hostActivity.runOnUiThread(() -> {
                 preloader.close();
                 if (downloaded) promptAndInstallWrapper(Uri.fromFile(output), output);
                 else {
@@ -400,11 +411,14 @@ public class ContentsFragment extends Fragment {
                     PreloaderDialog preloader = new PreloaderDialog(requireActivity());
                     preloader.show(R.string.installing_content);
                     preloader.setIndeterminate();
+                    android.app.Activity hostActivity = getActivity();
                     new Thread(() -> {
                         String id = wrapperManager.install(source, name);
                         if (temporaryFile != null) FileUtils.delete(temporaryFile);
-                        requireActivity().runOnUiThread(() -> {
+                        if (hostActivity == null || hostActivity.isFinishing()) return;
+                        hostActivity.runOnUiThread(() -> {
                             preloader.close();
+                            if (!isAdded()) return;
                             if (id == null) ContentDialog.alert(requireContext(), R.string.unable_to_install_wrapper, null);
                             else {
                                 ContentDialog.alert(requireContext(), R.string.content_installed_success, null);
@@ -420,11 +434,14 @@ public class ContentsFragment extends Fragment {
         PreloaderDialog preloader = new PreloaderDialog(requireActivity());
         preloader.show(R.string.installing_content);
         preloader.setIndeterminate();
+        android.app.Activity hostActivity = getActivity();
         new Thread(() -> {
             String id = driverManager.installDriver(source);
             if (temporaryFile != null) FileUtils.delete(temporaryFile);
-            requireActivity().runOnUiThread(() -> {
+            if (hostActivity == null || hostActivity.isFinishing()) return;
+            hostActivity.runOnUiThread(() -> {
                 preloader.close();
+                if (!isAdded()) return;
                 if (id == null || id.isEmpty())
                     ContentDialog.alert(requireContext(), R.string.unable_to_install_driver, null);
                 else {
@@ -542,14 +559,20 @@ public class ContentsFragment extends Fragment {
                 PreloaderDialog preloader = new PreloaderDialog(requireActivity());
                 preloader.show(R.string.downloading_content);
                 preloader.setProgress(0);
+                android.app.Activity hostActivity = getActivity();
+                android.content.Context hostContext = requireContext().getApplicationContext();
                 new Thread(() -> {
-                    File output = new File(requireContext().getCacheDir(),
+                    File output = new File(hostContext.getCacheDir(),
                             "xclipse-driver-" + System.currentTimeMillis() + ".zip");
                     boolean downloaded = Downloader.downloadFile(item.url, output, progress -> {
                         preloader.setProgress(progress);
-                        if (getActivity() != null) getActivity().runOnUiThread(() -> holder.progress.setProgress(progress));
+                        if (hostActivity != null) hostActivity.runOnUiThread(() -> holder.progress.setProgress(progress));
                     });
-                    requireActivity().runOnUiThread(() -> {
+                    if (hostActivity == null || hostActivity.isFinishing()) {
+                        FileUtils.delete(output);
+                        return;
+                    }
+                    hostActivity.runOnUiThread(() -> {
                         preloader.close();
                         holder.progress.setVisibility(View.GONE);
                         holder.download.setVisibility(View.VISIBLE);

@@ -184,10 +184,16 @@ public abstract class FileUtils {
 
             try (FileChannel inChannel = (new FileInputStream(srcFile)).getChannel();
                  FileChannel outChannel = (new FileOutputStream(dstFile)).getChannel()) {
-                inChannel.transferTo(0, inChannel.size(), outChannel);
+                long position = 0;
+                long size = inChannel.size();
+                while (position < size) {
+                    long written = inChannel.transferTo(position, size - position, outChannel);
+                    if (written <= 0) break;
+                    position += written;
+                }
 
                 if (callback != null) callback.call(dstFile);
-                return dstFile.exists();
+                return position == size && dstFile.exists();
             } catch (IOException e) {
                 e.printStackTrace();
                 Log.e(TAG, "Failed to copy file: " + srcFile.getAbsolutePath() + " to " + dstFile.getAbsolutePath(), e);
@@ -221,10 +227,16 @@ public abstract class FileUtils {
 
                 try (FileChannel inChannel = (new FileInputStream(sourceFile)).getChannel();
                      FileChannel outChannel = (new FileOutputStream(dstFile)).getChannel()) {
-                    inChannel.transferTo(0, inChannel.size(), outChannel);
+                    long position = 0;
+                    long size = inChannel.size();
+                    while (position < size) {
+                        long written = inChannel.transferTo(position, size - position, outChannel);
+                        if (written <= 0) break;
+                        position += written;
+                    }
 
                     if (callback != null) callback.call(dstFile);
-                    return dstFile.exists();
+                    return position == size && dstFile.exists();
                 } catch (IOException e) {
                     e.printStackTrace();
                     return false;
@@ -330,7 +342,7 @@ public abstract class FileUtils {
         if (path == null) return "";
         path = StringUtils.removeEndSlash(path);
         int index = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
-        return path.substring(0, index);
+        return index >= 0 ? path.substring(0, index) : "";
     }
 
     public static void chmod(File file, int mode) {
@@ -528,14 +540,17 @@ public abstract class FileUtils {
             InputStream is = assetManager.open(fileName);
 
             BufferedReader reader = new BufferedReader(new InputStreamReader(is));
-            StringBuilder sb = new StringBuilder();
+            try {
+                StringBuilder sb = new StringBuilder();
 
-            while ((l = reader.readLine()) != null) {
-                sb.append(l);
+                while ((l = reader.readLine()) != null) {
+                    sb.append(l);
+                }
+
+                return sb.toString();
+            } finally {
+                reader.close();
             }
-
-            reader.close();
-            return sb.toString();
         } catch (IOException e) {
             return null;
         }
@@ -574,6 +589,9 @@ public abstract class FileUtils {
                 File tempFile = File.createTempFile("restore_", ".tmp", context.getCacheDir());
                 try (FileOutputStream outputStream = new FileOutputStream(tempFile)) {
                     StreamUtils.copy(inputStream, outputStream);
+                }
+                finally {
+                    inputStream.close();
                 }
                 return tempFile;
             }

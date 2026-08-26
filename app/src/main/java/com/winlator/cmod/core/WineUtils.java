@@ -99,7 +99,9 @@ public abstract class WineUtils {
                 else registryEditor.removeValue(dllOverridesKey, dlname);
             }
         }
-        catch (JSONException e) {}
+        catch (JSONException e) {
+            Log.e("WineUtils", "Failed to apply DLL overrides for '" + identifier + "' (wincomponents.json missing or malformed?)", e);
+        }
     }
 
     public static void setWinComponentRegistryKeys(File systemRegFile, String identifier, boolean useNative, Context context) {

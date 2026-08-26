@@ -25,6 +25,7 @@ public class WineRegistryEditor implements Closeable {
     private final File file;
     private final File cloneFile;
     private boolean modified = false;
+    private boolean cloneValid = false;
     private boolean createKeyIfNotExist = true;
     private int lastParentKeyPosition = 0;
     private String lastParentKey = "";
@@ -51,9 +52,10 @@ public class WineRegistryEditor implements Closeable {
         if (!file.isFile()) {
             try {
                 cloneFile.createNewFile();
+                cloneValid = true;
             } catch (IOException e) {
             }
-        } else FileUtils.copy(file, cloneFile);
+        } else cloneValid = FileUtils.copy(file, cloneFile);
     }
 
     private static String escape(String str) {
@@ -73,7 +75,7 @@ public class WineRegistryEditor implements Closeable {
 
     @Override
     public void close() {
-        if (modified && cloneFile.exists()) {
+        if (modified && cloneFile.exists() && cloneValid) {
             cloneFile.renameTo(file);
         } else cloneFile.delete();
     }
@@ -109,23 +111,37 @@ public class WineRegistryEditor implements Closeable {
              BufferedWriter writer = new BufferedWriter(new FileWriter(tempFile), StreamUtils.BUFFER_SIZE)) {
 
             int length;
-            for (int i = 0, end = location != null ? location.end + 1 : (int) cloneFile.length(); i < end; i += length) {
+            int end = location != null ? location.end + 1 : (int) cloneFile.length();
+            boolean completeCopy = true;
+            for (int i = 0; i < end;) {
                 length = Math.min(buffer.length, end - i);
-                reader.read(buffer, 0, length);
-                writer.write(buffer, 0, length);
-                totalLength += length;
+                int read = 0;
+                while (read < length) {
+                    int n = reader.read(buffer, read, length - read);
+                    if (n == -1) break;
+                    read += n;
+                }
+                if (read == 0) {
+                    completeCopy = false;
+                    break;
+                }
+                writer.write(buffer, 0, read);
+                totalLength += read;
+                i += read;
             }
 
-            offset = totalLength;
-            long ticks1601To1970 = 86400L * (369 * 365 + 89) * 10000000;
-            long currentTime = System.currentTimeMillis() + ticks1601To1970;
-            String content = "\n[" + escape(key) + "] " + ((currentTime - ticks1601To1970) / 1000) +
-                    String.format(Locale.ENGLISH, "\n#time=%x%08x", currentTime >> 32, (int) currentTime) + "\n";
-            writer.write(content);
-            totalLength += content.length() - 1;
+            if (completeCopy) {
+                offset = totalLength;
+                long ticks1601To1970 = 86400L * (369 * 365 + 89) * 10000000;
+                long currentTime = System.currentTimeMillis() + ticks1601To1970;
+                String content = "\n[" + escape(key) + "] " + ((currentTime - ticks1601To1970) / 1000) +
+                        String.format(Locale.ENGLISH, "\n#time=%08x%08x", currentTime >> 32, (int) currentTime) + "\n";
+                writer.write(content);
+                totalLength += content.length() - 1;
 
-            while ((length = reader.read(buffer)) != -1) writer.write(buffer, 0, length);
-            success = true;
+                while ((length = reader.read(buffer)) != -1) writer.write(buffer, 0, length);
+                success = true;
+            }
         } catch (IOException e) {
             Log.e(TAG, "Failed to create registry key: " + key, e);
         }
@@ -226,21 +242,35 @@ public class WineRegistryEditor implements Closeable {
              BufferedWriter writer = new BufferedWriter(new FileWriter(tempFile), StreamUtils.BUFFER_SIZE)) {
 
             int length;
-            for (int i = 0, end = valueLocation != null ? valueLocation.start : keyLocation.end; i < end; i += length) {
+            int end = valueLocation != null ? valueLocation.start : keyLocation.end;
+            boolean completeCopy = true;
+            for (int i = 0; i < end;) {
                 length = Math.min(buffer.length, end - i);
-                reader.read(buffer, 0, length);
-                writer.write(buffer, 0, length);
+                int read = 0;
+                while (read < length) {
+                    int n = reader.read(buffer, read, length - read);
+                    if (n == -1) break;
+                    read += n;
+                }
+                if (read == 0) {
+                    completeCopy = false;
+                    break;
+                }
+                writer.write(buffer, 0, read);
+                i += read;
             }
 
-            if (valueLocation == null) {
-                writer.write("\n" + (name != null ? "\"" + escape(name) + "\"" : "@") + "=" + value);
-            } else {
-                writer.write(value);
-                reader.skip(valueLocation.length());
-            }
+            if (completeCopy) {
+                if (valueLocation == null) {
+                    writer.write("\n" + (name != null ? "\"" + escape(name) + "\"" : "@") + "=" + value);
+                } else {
+                    writer.write(value);
+                    reader.skip(valueLocation.length());
+                }
 
-            while ((length = reader.read(buffer)) != -1) writer.write(buffer, 0, length);
-            success = true;
+                while ((length = reader.read(buffer)) != -1) writer.write(buffer, 0, length);
+                success = true;
+            }
         } catch (IOException e) {
             Log.e(TAG, "Failed to write registry value: " + key + " " + name, e);
         }
@@ -290,16 +320,29 @@ public class WineRegistryEditor implements Closeable {
              BufferedWriter writer = new BufferedWriter(new FileWriter(tempFile), StreamUtils.BUFFER_SIZE)) {
 
             int length = 0;
-            for (int i = 0; i < location.offset; i += length) {
+            boolean completeCopy = true;
+            for (int i = 0; i < location.offset;) {
                 length = Math.min(buffer.length, location.offset - i);
-                reader.read(buffer, 0, length);
-                writer.write(buffer, 0, length);
+                int read = 0;
+                while (read < length) {
+                    int n = reader.read(buffer, read, length - read);
+                    if (n == -1) break;
+                    read += n;
+                }
+                if (read == 0) {
+                    completeCopy = false;
+                    break;
+                }
+                writer.write(buffer, 0, read);
+                i += read;
             }
 
-            boolean skipLine = length > 1 && buffer[length - 1] == '\n';
-            reader.skip(location.end - location.offset + (skipLine ? 1 : 0));
-            while ((length = reader.read(buffer)) != -1) writer.write(buffer, 0, length);
-            success = true;
+            if (completeCopy) {
+                boolean skipLine = length > 1 && buffer[length - 1] == '\n';
+                reader.skip(location.end - location.offset + (skipLine ? 1 : 0));
+                while ((length = reader.read(buffer)) != -1) writer.write(buffer, 0, length);
+                success = true;
+            }
         } catch (IOException e) {
             Log.e(TAG, "Failed to remove registry region", e);
         }

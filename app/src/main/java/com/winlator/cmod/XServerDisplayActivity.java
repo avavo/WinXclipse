@@ -274,6 +274,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     private Handler handler;
     private Runnable savePlaytimeRunnable;
     private static final long SAVE_INTERVAL_MS = 30000;
+    private final java.util.concurrent.atomic.AtomicBoolean sessionStopped = new java.util.concurrent.atomic.AtomicBoolean(false);
 
     private Handler  timeoutHandler = new Handler(Looper.getMainLooper());
     private Runnable hideControlsRunnable;
@@ -574,7 +575,15 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         // Retrieve secondary executable and delay
         String secondaryExec = shortcut != null ? shortcut.getExtra("secondaryExec") : null;
-        int execDelay = shortcut != null ? Integer.parseInt(shortcut.getExtra("execDelay", "0")) : 0;
+        int execDelay = 0;
+        if (shortcut != null) {
+            try {
+                execDelay = Integer.parseInt(shortcut.getExtra("execDelay", "0"));
+            }
+            catch (NumberFormatException e) {
+                Log.e("XServerDisplayActivity", "Invalid execDelay extra", e);
+            }
+        }
 
         // Debug logging for secondaryExec and execDelay
         Log.d("XServerDisplayActivity", "Secondary Exec: " + secondaryExec);
@@ -631,7 +640,14 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             screenSize = shortcut.getExtra("screenSize", container.getScreenSize());
             lc_all = shortcut.getExtra("lc_all", container.getLC_ALL());
             String inputType = shortcut.getExtra("inputType");
-            if (!inputType.isEmpty()) winHandler.setInputType(Byte.parseByte(inputType));
+            if (!inputType.isEmpty()) {
+                try {
+                    winHandler.setInputType(Byte.parseByte(inputType));
+                }
+                catch (NumberFormatException e) {
+                    Log.e("XServerDisplayActivity", "Invalid inputType extra: " + inputType, e);
+                }
+            }
             String xinputDisabledString = shortcut.getExtra("disableXinput", "false");
 //                isRelativeMouseMovement = shortcut.getExtra("relativeMouseMovement", container.isRelativeMouseMovement() ? "1" : "0").equals("1") ? true : false;
             xinputDisabledFromShortcut = parseBoolean(xinputDisabledString);
@@ -639,8 +655,20 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             winHandler.setXInputDisabled(xinputDisabledFromShortcut);
             String sharpnessEffect = shortcut.getExtra("sharpnessEffect", "None");
             if (!sharpnessEffect.equals("None")) {
-                double sharpnessLevel = Double.parseDouble(shortcut.getExtra("sharpnessLevel", "100"));
-                double sharpnessDenoise = Double.parseDouble(shortcut.getExtra("sharpnessDenoise", "100"));
+                double sharpnessLevel;
+                double sharpnessDenoise;
+                try {
+                    sharpnessLevel = Double.parseDouble(shortcut.getExtra("sharpnessLevel", "100"));
+                }
+                catch (NumberFormatException e) {
+                    sharpnessLevel = 100.0;
+                }
+                try {
+                    sharpnessDenoise = Double.parseDouble(shortcut.getExtra("sharpnessDenoise", "100"));
+                }
+                catch (NumberFormatException e) {
+                    sharpnessDenoise = 100.0;
+                }
                 vkbasaltConfig = "effects=" + sharpnessEffect.toLowerCase() + ";" + "casSharpness=" + sharpnessLevel / 100 + ";" + "dlsSharpness=" + sharpnessLevel / 100  + ";" + "dlsDenoise=" + sharpnessDenoise / 100 + ";" + "enableOnLaunch=True";
             }
             Log.d("XServerDisplayActivity", "XInput Disabled from Shortcut: " + xinputDisabledFromShortcut);
@@ -1071,19 +1099,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
             Executors.newSingleThreadExecutor().execute(() -> {
 
-            if (audioManager != null && audioDeviceCallback != null) {
-                audioManager.unregisterAudioDeviceCallback(audioDeviceCallback);
-            }
-
-            savePlaytimeData();
-            handler.removeCallbacks(savePlaytimeRunnable);
-
-            if (midiHandler != null) midiHandler.stop();
-            if (sensorManager != null) sensorManager.unregisterListener(gyroListener);
-            if (environment != null) environment.stopEnvironmentComponents();
-            if (winHandler != null) winHandler.stop();
-            if (wineRequestHandler != null) wineRequestHandler.stop();
-            ProcessHelper.terminateAllWineProcesses();
+            stopSessionServices();
 
             // Return to the application without killing/restarting its process. This
             // also works when the Wine session was launched by an Android shortcut.
@@ -1096,6 +1112,24 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             });
             });
         }, 1000);
+    }
+
+    private void stopSessionServices() {
+        if (!sessionStopped.compareAndSet(false, true)) return;
+
+        if (audioManager != null && audioDeviceCallback != null) {
+            audioManager.unregisterAudioDeviceCallback(audioDeviceCallback);
+        }
+
+        savePlaytimeData();
+        handler.removeCallbacks(savePlaytimeRunnable);
+
+        if (midiHandler != null) midiHandler.stop();
+        if (sensorManager != null) sensorManager.unregisterListener(gyroListener);
+        if (environment != null) environment.stopEnvironmentComponents();
+        if (winHandler != null) winHandler.stop();
+        if (wineRequestHandler != null) wineRequestHandler.stop();
+        ProcessHelper.terminateAllWineProcesses();
     }
 
     @Override
@@ -1909,9 +1943,15 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         // RC (box86_64rc) file handling
         RCManager manager = new RCManager(this);
         manager.loadRCFiles();
-        int rcfileId = shortcut == null
-                ? container.getRCFileId()
-                : Integer.parseInt(shortcut.getExtra("rcfileId", String.valueOf(container.getRCFileId())));
+        int rcfileId = container.getRCFileId();
+        if (shortcut != null) {
+            try {
+                rcfileId = Integer.parseInt(shortcut.getExtra("rcfileId", String.valueOf(container.getRCFileId())));
+            }
+            catch (NumberFormatException e) {
+                Log.e("XServerDisplayActivity", "Invalid rcfileId extra", e);
+            }
+        }
         RCFile rcfile = manager.getRcfile(rcfileId);
 
         File file = new File(container.getRootDir(), ".box64rc");
@@ -2190,8 +2230,13 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         if (shortcut != null) {
             String controlsProfile = shortcut.getExtra("controlsProfile");
             if (!controlsProfile.isEmpty()) {
-                ControlsProfile profile = inputControlsManager.getProfile(Integer.parseInt(controlsProfile));
-                if (profile != null) showInputControls(profile);
+                try {
+                    ControlsProfile profile = inputControlsManager.getProfile(Integer.parseInt(controlsProfile));
+                    if (profile != null) showInputControls(profile);
+                }
+                catch (NumberFormatException e) {
+                    Log.e("XServerDisplayActivity", "Invalid controlsProfile extra: " + controlsProfile, e);
+                }
             }
 
             String simTouchScreen = shortcut.getExtra("simTouchScreen");
@@ -2208,16 +2253,22 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
      * is no MainActivity underneath it to reveal when Wine exits.
      */
     private void finishSession() {
-        runOnUiThread(() -> {
-            if (isFinishing() || isDestroyed()) return;
+        Executors.newSingleThreadExecutor().execute(() -> {
+            // The guest exited on its own: tear the environment down exactly like
+            // exitApp() would, otherwise X/audio/handler components keep running
+            // while the activity is already gone.
+            stopSessionServices();
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
 
-            if (isTaskRoot()) {
-                Intent mainIntent = new Intent(this, MainActivity.class);
-                mainIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP
-                        | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-                startActivity(mainIntent);
-            }
-            finish();
+                if (isTaskRoot()) {
+                    Intent mainIntent = new Intent(this, MainActivity.class);
+                    mainIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP
+                            | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                    startActivity(mainIntent);
+                }
+                finish();
+            });
         });
     }
 

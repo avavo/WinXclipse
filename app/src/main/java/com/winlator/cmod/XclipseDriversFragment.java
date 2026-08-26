@@ -59,12 +59,13 @@ public class XclipseDriversFragment extends Fragment {
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode == MainActivity.OPEN_FILE_REQUEST_CODE && resultCode == Activity.RESULT_OK) {
+            if (data == null || data.getData() == null) return;
             Uri uri = data.getData();
             String driver = driverManager.installDriver(uri);
             if (!driver.isEmpty())
                 ((DriversAdapter)recyclerView.getAdapter()).addItem(driver);
         }
-     }       
+     }
     
     private class DriversAdapter extends RecyclerView.Adapter<DriversAdapter.ViewHolder> {
         private ArrayList<String> driversList;

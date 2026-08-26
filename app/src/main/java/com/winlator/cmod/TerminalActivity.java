@@ -16,6 +16,7 @@ import com.winlator.cmod.contents.ContentsManager;
 import com.winlator.cmod.xenvironment.components.GuestProgramLauncherComponent;
 
 import java.io.File;
+import java.util.concurrent.Executors;
 
 public class TerminalActivity extends AppCompatActivity {
     private TextView outputTextView;
@@ -91,9 +92,22 @@ public class TerminalActivity extends AppCompatActivity {
         // Add full path for the command to run within imageFs
         String fullCommand = command;
 
-        // Execute and capture the command output
-        String output = launcher.execShellCommand(fullCommand);
-        outputTextView.append("\n$ " + command + "\n" + output);
         commandInput.setText("");
+        outputTextView.append("\n$ " + command + "\n");
+
+        // Run off the UI thread: execShellCommand blocks on process.waitFor().
+        Executors.newSingleThreadExecutor().execute(() -> {
+            String output;
+            try {
+                output = launcher.execShellCommand(fullCommand);
+            }
+            catch (Throwable t) {
+                output = "Error: " + t.getMessage();
+            }
+            String finalOutput = output;
+            runOnUiThread(() -> {
+                outputTextView.append(finalOutput + "\n");
+            });
+        });
     }
 }

@@ -147,6 +147,7 @@ public class ShortcutsFragment extends Fragment {
     public void onDestroyView() {
         super.onDestroyView();
         stopFileObservers(); // Stop watching to prevent memory leaks
+        preloaderDialog.close();
     }
 
     @Override
@@ -287,6 +288,11 @@ public class ShortcutsFragment extends Fragment {
 
 
     private boolean createDesktopFileFromLnk(File lnkFile, Container container) {
+        Context lnkContext = getContext();
+        if (lnkContext == null) {
+            Log.e("ShortcutCreation", "Fragment detached; skipping .lnk processing.");
+            return false;
+        }
         try {
             Log.d("ShortcutCreation", "Processing .lnk: " + lnkFile.getAbsolutePath());
             String targetPath = MSLink.parse(lnkFile); // e.g., "D:\\Games\\Example Folder\\Example.exe"
@@ -308,7 +314,7 @@ public class ShortcutsFragment extends Fragment {
             // --- FINAL LOGIC TO MATCH YOUR EXACT EXAMPLE ---
 
             // 1. Get the app's root files directory to construct the generic path
-            String filesDir = getContext().getFilesDir().getAbsolutePath(); // e.g., /data/user/0/com.winlator.cmod/files
+            String filesDir = lnkContext.getFilesDir().getAbsolutePath(); // e.g., /data/user/0/com.winlator.cmod/files
             String genericHomePath = filesDir + "/imagefs/home/xuser";
 
             // 2. Construct the specific, complex WINEPREFIX path

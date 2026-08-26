@@ -34,8 +34,9 @@ public abstract class GrabRequests {
         Window window = client.xServer.windowManager.getWindow(windowId);
         if (window == null) throw new BadWindow(windowId);
 
+        inputStream.skip(8); // confine-to window + time
         Bitmask eventMask = new Bitmask(inputStream.readShort());
-        inputStream.skip(14);
+        inputStream.skip(6); // pointer-mode + keyboard-mode + unused
 
         Status status;
         if (client.xServer.grabManager.getWindow() != null && client.xServer.grabManager.getClient() != client) {

@@ -81,11 +81,18 @@ public class XOutputStream {
         if (buffer.position() != 0) {
             buffer.flip();
 
-            if (ancillaryFd != -1) {
-                clientSocket.sendAncillaryMsg(buffer, ancillaryFd);
-                ancillaryFd = -1;
+            while (buffer.hasRemaining()) {
+                int position = buffer.position();
+                if (ancillaryFd != -1) {
+                    clientSocket.sendAncillaryMsg(buffer, ancillaryFd);
+                    ancillaryFd = -1;
+                }
+                else clientSocket.write(buffer);
+
+                if (buffer.position() == position) {
+                    throw new IOException("Failed to write data to client socket.");
+                }
             }
-            else clientSocket.write(buffer);
 
             buffer.clear();
         }

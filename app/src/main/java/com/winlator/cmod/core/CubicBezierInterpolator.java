@@ -44,7 +44,13 @@ public class CubicBezierInterpolator implements Interpolator {
         for (int i = 1; i < 14; i++) {
             z = getBezierCoordinateX(x) - time;
             if (Math.abs(z) < 1e-3) break;
-            x -= z / getXDerivate(x);
+            float derivative = getXDerivate(x);
+            if (Math.abs(derivative) < 1e-6f) break;
+            x -= z / derivative;
+            if (Float.isNaN(x)) {
+                x = time;
+                break;
+            }
         }
         return x;
     }

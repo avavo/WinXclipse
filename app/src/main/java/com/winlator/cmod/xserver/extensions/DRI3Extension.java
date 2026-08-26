@@ -21,6 +21,7 @@ import com.winlator.cmod.xserver.errors.BadAlloc;
 import com.winlator.cmod.xserver.errors.BadDrawable;
 import com.winlator.cmod.xserver.errors.BadIdChoice;
 import com.winlator.cmod.xserver.errors.BadImplementation;
+import com.winlator.cmod.xserver.errors.BadMatch;
 import com.winlator.cmod.xserver.errors.BadWindow;
 import com.winlator.cmod.xserver.errors.XRequestError;
 
@@ -146,9 +147,13 @@ public class DRI3Extension implements Extension {
             pixmapFromHardwareBuffer(client, pixmapId, width, height, depth, fd);
         }
         else if (modifiers == 1274) {
-            Log.d("Dri3", "Creating pixmap from dmabuf filedescriptor"); 
+            Log.d("Dri3", "Creating pixmap from dmabuf filedescriptor");
             pixmapFromFd(client, pixmapId, width, height, stride, offset, depth, fd, size);
-        }    
+        }
+        else {
+            XConnectorEpoll.closeFd(fd);
+            throw new BadMatch();
+        }
     }
     
     private void pixmapFromHardwareBuffer(XClient client, int pixmapId, short width, short height, byte depth, int fd) throws IOException, XRequestError {

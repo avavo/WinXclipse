@@ -275,6 +275,7 @@ public final class FEXCoreManager {
     }
     
     public static void saveFEXCoreSpinners(Container container, Spinner fexcoreTSOSpinner, Spinner fexcoreMultiblockSpinner, Spinner fexcoreX87ModeSpinner) {
+        if (configFile == null) return;
         String preset = (String)fexcoreTSOSpinner.getSelectedItem();
         String multiBlockValue = (String)fexcoreMultiblockSpinner.getSelectedItem();
         String x87ReducedPrecisionValue = (String)fexcoreX87ModeSpinner.getSelectedItem();

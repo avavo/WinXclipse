@@ -327,8 +327,10 @@ public abstract class AppUtils {
         TabLayout tabLayout = view.findViewById(tabLayoutResId);
         for (int i = 0; i < tabResIds.length; i++) {
             TabLayout.Tab tab = tabLayout.getTabAt(i);
-            if (view.getResources().getString(R.string.xr).compareTo(tab.getText().toString()) == 0) {
-                tab.view.setVisibility(XrActivity.isSupported() ? View.VISIBLE : View.GONE);
+            if (tab == null) continue;
+            CharSequence tabText = tab.getText();
+            if (tabText != null && view.getResources().getString(R.string.xr).contentEquals(tabText)) {
+                if (tab.view != null) tab.view.setVisibility(XrActivity.isSupported() ? View.VISIBLE : View.GONE);
             }
         }
 

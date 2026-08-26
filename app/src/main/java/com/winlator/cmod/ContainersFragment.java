@@ -87,6 +87,12 @@ public class ContainersFragment extends Fragment {
     }
 
     @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        preloaderDialog.close();
+    }
+
+    @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
         manager = new ContainerManager(getContext());
@@ -385,21 +391,30 @@ public class ContainersFragment extends Fragment {
 
         preloaderDialog.show(R.string.importing_container);
 
+        // Capture the activity up-front: the fragment can be detached while the
+        // background import (which may take minutes) is still running.
+        android.app.Activity importActivity = getActivity();
+        if (importActivity == null) {
+            preloaderDialog.close();
+            return;
+        }
+
         // Run the import operation on a background thread
         new Thread(() -> {
             try {
                 // Now use the import directory directly for importing the container
                 manager.importContainer(importDir, () -> {
                     // This callback runs when the import operation completes
-                    getActivity().runOnUiThread(() -> {
+                    importActivity.runOnUiThread(() -> {
                         // Load containers and close preloader dialog on the UI thread
+                        if (!isAdded()) return;
                         loadContainersList();
                         AppUtils.showToast(getContext(), "Container imported successfully.");
                         preloaderDialog.close(); // Move this inside the callback
                     });
                 });
             } catch (Exception e) {
-                getActivity().runOnUiThread(() -> {
+                importActivity.runOnUiThread(() -> {
                     preloaderDialog.close(); // Ensure dialog closes on error
                     AppUtils.showToast(getContext(), "Error importing container: " + e.getMessage());
                 });

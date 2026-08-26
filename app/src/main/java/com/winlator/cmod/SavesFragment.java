@@ -182,9 +182,14 @@ public class SavesFragment extends Fragment {
         PreloaderDialog preloaderDialog = new PreloaderDialog(getActivity());
         preloaderDialog.showOnUiThread(R.string.importing_save);
 
+        // Capture the context up-front: the fragment can be detached while the
+        // background thread is still running.
+        Context fragmentContext = getContext() != null ? requireContext() : null;
+        if (fragmentContext == null) return;
+
         new Thread(() -> {
             try {
-                File tempDir = new File(getContext().getCacheDir(), "import_temp");
+                File tempDir = new File(fragmentContext.getCacheDir(), "import_temp");
                 if (tempDir.exists()) {
                     FileUtils.delete(tempDir);
                 }
@@ -195,7 +200,7 @@ public class SavesFragment extends Fragment {
                 }
 
                 // Use TarCompressorUtils to extract the archive
-                boolean success = TarCompressorUtils.extract(TarCompressorUtils.Type.XZ, getContext(), archiveUri, tempDir);
+                boolean success = TarCompressorUtils.extract(TarCompressorUtils.Type.XZ, fragmentContext, archiveUri, tempDir);
                 if (!success) {
                     AppUtils.showToast(getContext(), "Failed to decompress archive.");
                     preloaderDialog.closeOnUiThread();
@@ -227,7 +232,12 @@ public class SavesFragment extends Fragment {
                 String title = saveData.getString("Title");
                 String savePath = saveData.getString("Path");
 
-                getActivity().runOnUiThread(() -> showContainerSelectionDialog((selectedContainer) -> {
+                android.app.Activity importActivity = getActivity();
+                if (importActivity == null || importActivity.isFinishing()) {
+                    preloaderDialog.closeOnUiThread();
+                    return;
+                }
+                importActivity.runOnUiThread(() -> showContainerSelectionDialog((selectedContainer) -> {
                     try {
                         // Adjust the save path based on the selected container
                         File destRootDir = new File(selectedContainer.getRootDir(), ".wine/drive_c");
@@ -245,7 +255,7 @@ public class SavesFragment extends Fragment {
 
                         // Ensure the full directory structure exists
                         if (!destSaveDir.getParentFile().exists() && !destSaveDir.getParentFile().mkdirs()) {
-                            AppUtils.showToast(getContext(), "Failed to create directories for save path.");
+                            AppUtils.showToast(fragmentContext, "Failed to create directories for save path.");
                             preloaderDialog.closeOnUiThread();
                             return;
                         }
@@ -253,7 +263,7 @@ public class SavesFragment extends Fragment {
                         // Copy the contents of the extracted directory to the correct location
                         File saveDirectoryToCopy = new File(extractedDir, new File(savePath).getName());
                         if (!FileUtils.copy(saveDirectoryToCopy, destSaveDir)) {
-                            AppUtils.showToast(getContext(), "Failed to copy save files.");
+                            AppUtils.showToast(fragmentContext, "Failed to copy save files.");
                             preloaderDialog.closeOnUiThread();
                             return;
                         }
@@ -261,10 +271,10 @@ public class SavesFragment extends Fragment {
                         // Create the new save with the adjusted path
                         saveManager.addSave(title, destSaveDir.getAbsolutePath(), selectedContainer);
 
-                        AppUtils.showToast(getContext(), "Save imported successfully.");
+                        AppUtils.showToast(fragmentContext, "Save imported successfully.");
                         loadSavesList();
                     } catch (IOException e) {
-                        AppUtils.showToast(getContext(), "Failed to import save: " + e.getMessage());
+                        AppUtils.showToast(fragmentContext, "Failed to import save: " + e.getMessage());
                     } finally {
                         FileUtils.delete(tempDir);
                         preloaderDialog.closeOnUiThread();
@@ -274,7 +284,7 @@ public class SavesFragment extends Fragment {
                     preloaderDialog.closeOnUiThread();
                 }));
             } catch (Exception e) {
-                AppUtils.showToast(getContext(), "Import failed: " + e.getMessage());
+                AppUtils.showToast(fragmentContext, "Import failed: " + e.getMessage());
                 e.printStackTrace(); // Log the error to console
                 preloaderDialog.closeOnUiThread();
             }

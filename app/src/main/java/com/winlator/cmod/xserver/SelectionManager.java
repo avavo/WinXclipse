@@ -19,7 +19,7 @@ public class SelectionManager implements XResourceManager.OnResourceLifecycleLis
     public void setSelection(int atom, Window owner, XClient client, int timestamp) {
         Selection selection = getSelection(atom);
         if (selection.owner != null && (owner == null || selection.client != client)) {
-            selection.client.sendEvent(new SelectionClear(timestamp, owner, atom));
+            selection.client.sendEvent(new SelectionClear(timestamp, selection.owner, atom));
         }
         selection.owner = owner;
         selection.client = client;

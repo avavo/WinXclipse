@@ -21,6 +21,7 @@ public class XClient implements XResourceManager.OnResourceLifecycleListener {
     private final XOutputStream outputStream;
     private final ArrayMap<Window, EventListener> eventListeners = new ArrayMap<>();
     private final ArrayList<XResource> resources = new ArrayList<>();
+    private final ArrayList<Integer> attachedShmSegments = new ArrayList<>();
 
     public XClient(XServer xServer, XInputStream inputStream, XOutputStream outputStream) {
         this.xServer = xServer;
@@ -38,6 +39,10 @@ public class XClient implements XResourceManager.OnResourceLifecycleListener {
 
     public void registerAsOwnerOfResource(XResource resource) {
         resources.add(resource);
+    }
+
+    public void trackShmSegment(int xid) {
+        if (!attachedShmSegments.contains(xid)) attachedShmSegments.add(xid);
     }
 
     public void setEventListenerForWindow(Window window, Bitmask eventMask) {
@@ -92,6 +97,10 @@ public class XClient implements XResourceManager.OnResourceLifecycleListener {
             while (!eventListeners.isEmpty()) {
                 int i = eventListeners.size()-1;
                 eventListeners.keyAt(i).removeEventListener(eventListeners.removeAt(i));
+            }
+
+            for (int i = attachedShmSegments.size()-1; i >= 0; i--) {
+                xServer.getSHMSegmentManager().detach(attachedShmSegments.remove(i));
             }
 
             xServer.windowManager.removeOnResourceLifecycleListener(this);

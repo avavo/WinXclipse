@@ -53,7 +53,7 @@ public class StringUtils {
     public static String formatBytes(long bytes, boolean withSuffix) {
         if (bytes <= 0) return "0 bytes";
         final String[] units = new String[]{"bytes", "KB", "MB", "GB", "TB"};
-        int digitGroups = (int)(Math.log10(bytes) / Math.log10(1024));
+        int digitGroups = Math.min((int)(Math.log10(bytes) / Math.log10(1024)), units.length - 1);
         String suffix = withSuffix ? " "+units[digitGroups] : "";
         return String.format(Locale.ENGLISH, "%.2f", bytes / Math.pow(1024, digitGroups))+suffix;
     }

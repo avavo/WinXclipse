@@ -11,6 +11,7 @@ import com.winlator.cmod.xserver.XClient;
 import com.winlator.cmod.xserver.errors.BadDrawable;
 import com.winlator.cmod.xserver.errors.BadGraphicsContext;
 import com.winlator.cmod.xserver.errors.BadMatch;
+import com.winlator.cmod.xserver.errors.BadValue;
 import com.winlator.cmod.xserver.errors.XRequestError;
 
 import java.io.IOException;
@@ -21,7 +22,9 @@ public abstract class DrawRequests {
     private enum CoordinateMode {ORIGIN, PREVIOUS}
 
     public static void putImage(XClient client, XInputStream inputStream, XOutputStream outputStream) throws XRequestError {
-        Format format = Format.values()[client.getRequestData()];
+        int formatValue = client.getRequestData();
+        if (formatValue < 0 || formatValue >= Format.values().length) throw new BadValue(formatValue);
+        Format format = Format.values()[formatValue];
         int drawableId = inputStream.readInt();
         int gcId = inputStream.readInt();
         short width = inputStream.readShort();
@@ -42,6 +45,16 @@ public abstract class DrawRequests {
 
         if (!(graphicsContext.getFunction() == GraphicsContext.Function.COPY || format == Format.Z_PIXMAP)) {
             throw new UnsupportedOperationException("GC Function other than COPY is not supported.");
+        }
+
+        // Guard native copy paths against reading past the request buffer.
+        // XY_PIXMAP is never drawn by this server, so its payload is untouched.
+        if ((format == Format.Z_PIXMAP || (format == Format.BITMAP && depth == 1)) && leftPad == 0) {
+            if (width <= 0 || height <= 0) throw new BadMatch();
+            long requiredBytes = format == Format.BITMAP
+                    ? (long)((width + 7) >> 3) * height
+                    : (long)width * height * 4;
+            if (requiredBytes > length) throw new BadMatch();
         }
 
         switch (format) {
@@ -65,7 +78,9 @@ public abstract class DrawRequests {
     }
 
     public static void getImage(XClient client, XInputStream inputStream, XOutputStream outputStream) throws IOException, XRequestError {
-        Format format = Format.values()[client.getRequestData()];
+        int formatValue = client.getRequestData();
+        if (formatValue < 0 || formatValue >= Format.values().length) throw new BadValue(formatValue);
+        Format format = Format.values()[formatValue];
         int drawableId = inputStream.readInt();
         short x = inputStream.readShort();
         short y = inputStream.readShort();
@@ -126,7 +141,9 @@ public abstract class DrawRequests {
     }
 
     public static void polyLine(XClient client, XInputStream inputStream, XOutputStream outputStream) throws XRequestError {
-        CoordinateMode coordinateMode = CoordinateMode.values()[client.getRequestData()];
+        int modeValue = client.getRequestData();
+        if (modeValue < 0 || modeValue >= CoordinateMode.values().length) throw new BadValue(modeValue);
+        CoordinateMode coordinateMode = CoordinateMode.values()[modeValue];
         int drawableId = inputStream.readInt();
         int gcId = inputStream.readInt();
 

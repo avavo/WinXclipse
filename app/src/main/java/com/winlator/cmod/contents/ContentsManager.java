@@ -30,6 +30,7 @@ import java.util.Map;
 
 public class ContentsManager {
     public static final String PROFILE_NAME = "profile.json";
+    private static final String TAG = "ContentsManager";
     public static final String REMOTE_PROFILES = "contents.json";
     private static final String REMOTE_CACHE_KEY = "github_release_contents_cache";
     private static final String GITHUB_RELEASE_API = "https://api.github.com/repos/avavo/WinXclipse/releases/tags/";
@@ -796,13 +797,42 @@ public class ContentsManager {
     }
 
     public boolean applyContent(ContentProfile profile) {
+        boolean success = true;
         if (profile.type != ContentProfile.ContentType.CONTENT_TYPE_WINE && profile.type != ContentProfile.ContentType.CONTENT_TYPE_PROTON) {
             for (ContentProfile.ContentFile contentFile : profile.fileList) {
                 File targetFile = new File(getPathFromTemplate(contentFile.target));
                 File sourceFile = new File(getInstallDir(context, profile), contentFile.source);
 
-                targetFile.delete();
-                FileUtils.copy(sourceFile, targetFile);
+                if (!sourceFile.isFile()) {
+                    Log.e(TAG, "applyContent: missing source file " + sourceFile.getPath());
+                    success = false;
+                    continue;
+                }
+
+                // Copy to a temporary sibling first so a failed copy never leaves the
+                // target deleted or truncated.
+                File tempFile = new File(targetFile.getParentFile(), targetFile.getName() + ".tmp");
+                FileUtils.delete(tempFile);
+                if (!FileUtils.copy(sourceFile, tempFile)) {
+                    Log.e(TAG, "applyContent: failed to copy " + sourceFile.getPath());
+                    FileUtils.delete(tempFile);
+                    success = false;
+                    continue;
+                }
+
+                if (targetFile.exists() && !targetFile.delete()) {
+                    Log.e(TAG, "applyContent: failed to remove old target " + targetFile.getPath());
+                    FileUtils.delete(tempFile);
+                    success = false;
+                    continue;
+                }
+
+                if (!tempFile.renameTo(targetFile)) {
+                    Log.e(TAG, "applyContent: failed to move " + tempFile.getPath());
+                    FileUtils.delete(tempFile);
+                    success = false;
+                    continue;
+                }
 
                 if (profile.type == ContentProfile.ContentType.CONTENT_TYPE_BOX64) {
                     FileUtils.chmod(targetFile, 0771);
@@ -821,6 +851,6 @@ public class ContentsManager {
 //
 //            EvshimPatcher.patchWineTree(context, wineRoot, arm64ec);
         }
-        return true;
+        return success;
     }
 }

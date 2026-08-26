@@ -26,6 +26,11 @@ public class Drawable extends XResource {
 
     public Drawable(int id, int width, int height, Visual visual) {
         super(id);
+        // Zero-sized drawables are legal in X11 (placeholder windows); reject only
+        // negative sizes and capacity overflow.
+        if (width < 0 || height < 0 || (long)width * height > (Integer.MAX_VALUE / 4)) {
+            throw new IllegalArgumentException("Invalid drawable dimensions: " + width + "x" + height);
+        }
         this.width = (short)width;
         this.height = (short)height;
         this.visual = visual;
@@ -97,7 +102,7 @@ public class Drawable extends XResource {
         this.data.rewind();
         data.rewind();
 
-        texture.setNeedsUpdate(true);
+        if (texture != null) texture.setNeedsUpdate(true);
         if (onDrawListener != null) onDrawListener.run();
     }
 

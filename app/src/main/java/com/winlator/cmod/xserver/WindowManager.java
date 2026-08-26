@@ -252,7 +252,10 @@ public class WindowManager extends XResourceManager {
                     sibling = getWindow(inputStream.readInt());
                     break;
                 case Window.FLAG_STACK_MODE:
-                    stackMode = Window.StackMode.values()[inputStream.readInt()];
+                    int stackModeValue = inputStream.readInt();
+                    if (stackModeValue >= 0 && stackModeValue < Window.StackMode.values().length) {
+                        stackMode = Window.StackMode.values()[stackModeValue];
+                    }
                     break;
             }
         }

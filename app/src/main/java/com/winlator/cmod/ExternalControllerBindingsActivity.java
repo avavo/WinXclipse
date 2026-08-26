@@ -52,9 +52,21 @@ public class ExternalControllerBindingsActivity extends AppCompatActivity {
         profile = InputControlsManager.loadProfile(this, ControlsProfile.getProfileFile(this, profileId));
         String controllerId = intent.getStringExtra("controller_id");
 
+        if (profile == null) {
+            finish();
+            return;
+        }
+
         controller = profile.getController(controllerId);
         if (controller == null) {
             controller = profile.addController(controllerId);
+            // The controller may be disconnected right now; build a detached
+            // instance so bindings can still be configured and saved.
+            if (controller == null) {
+                controller = new ExternalController();
+                controller.setId(controllerId);
+                controller.setName(controllerId);
+            }
             profile.save();
         }
 

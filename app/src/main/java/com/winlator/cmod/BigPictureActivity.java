@@ -566,12 +566,12 @@ public class BigPictureActivity extends AppCompatActivity {
             backIcon.setColorFilter(Color.WHITE, PorterDuff.Mode.SRC_IN);  // Apply the white color filter
         }
 
-        // Set the click listener for the settings button
+        // Set the click listener for the back button
         backButton.setOnClickListener(v -> {
             if (findViewById(R.id.settingsLayout).getVisibility() == View.VISIBLE) {
                 hideSettingsView();
             } else {
-                showSettingsView();
+                finish();
             }
         });
 
@@ -1266,7 +1266,7 @@ public class BigPictureActivity extends AppCompatActivity {
             } else {
                 Log.e("BigPictureActivity", "Failed to copy the MP3 file.");
             }
-        } else if (requestCode == REQUEST_CODE_UPLOAD_CUSTOM_COVER && data.getData() != null) {
+        } else if (requestCode == REQUEST_CODE_UPLOAD_CUSTOM_COVER && resultCode == RESULT_OK && data != null && data.getData() != null) {
             Uri selectedImageUri = data.getData();
             try {
                 InputStream inputStream = getContentResolver().openInputStream(selectedImageUri);

@@ -121,7 +121,16 @@ public final class ExternalDownloadCatalog {
             connection.setRequestProperty("X-GitHub-Api-Version", "2022-11-28");
             if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) return null;
             try (InputStream input = connection.getInputStream()) {
-                return new JSONArray(new String(StreamUtils.copyToByteArray(input), StandardCharsets.UTF_8));
+                String body = new String(StreamUtils.copyToByteArray(input), StandardCharsets.UTF_8);
+                // The list endpoint returns an array; a pinned "tags/{tag}" endpoint returns one object.
+                try {
+                    return new JSONArray(body);
+                }
+                catch (Exception arrayError) {
+                    JSONArray single = new JSONArray();
+                    single.put(new JSONObject(body));
+                    return single;
+                }
             }
         }
         catch (Exception e) {

@@ -42,7 +42,9 @@ public abstract class CpuClusters {
         for (int cpu = 0; cpu < numProcessors; cpu++) {
             long maxFreq = readMaxFrequencyKHz(cpu);
             if (maxFreq < 0) return fallbackCPUList(numProcessors);
-            long bucket = Math.round(maxFreq / 100000000.0);
+            // cpuinfo_max_freq is in kHz; bucket by ~100 MHz steps so cores of the
+            // same cluster group together while LITTLE/performance clusters differ.
+            long bucket = Math.round(maxFreq / 100000.0);
             List<Integer> cluster = clustersByFreq.get(bucket);
             if (cluster == null) {
                 cluster = new ArrayList<>();

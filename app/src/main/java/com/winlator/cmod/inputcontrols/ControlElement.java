@@ -202,7 +202,7 @@ public class ControlElement {
         if (index >= bindings.length) {
             int oldLength = bindings.length;
             bindings = Arrays.copyOf(bindings, index+1);
-            Arrays.fill(bindings, oldLength-1, bindings.length, Binding.NONE);
+            Arrays.fill(bindings, oldLength, bindings.length, Binding.NONE);
             states = new boolean[bindings.length];
             boundingBoxNeedsUpdate = true;
         }
@@ -213,6 +213,17 @@ public class ControlElement {
     public void setBinding(Binding binding) {
         Arrays.fill(bindings, binding);
         displayTextCache = null;
+    }
+
+    public Binding[] snapshotBindings() {
+        return bindings.clone();
+    }
+
+    public void restoreBindings(Binding[] saved) {
+        if (saved != null && saved.length == bindings.length) {
+            System.arraycopy(saved, 0, bindings, 0, saved.length);
+            displayTextCache = null;
+        }
     }
 
     public float getScale() {
@@ -569,7 +580,8 @@ public class ControlElement {
                         paint.setColor(oldColor);
 
                         if (startY > boundingBox.top && startY < boundingBox.bottom) canvas.drawLine(lineLeft, startY, lineRight, startY, paint);
-                        String text = getRangeTextForIndex(range, i);
+                        int index = i % range.max;
+                        String text = getRangeTextForIndex(range, index);
 
                         if (startY < boundingBox.bottom && startY + elementSize > boundingBox.top) {
                             paint.setStyle(Paint.Style.FILL);

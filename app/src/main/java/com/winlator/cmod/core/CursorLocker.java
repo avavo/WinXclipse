@@ -12,12 +12,24 @@ public class CursorLocker extends TimerTask {
     private short maxDistance;
     private boolean enabled = true;
     private final Object pauseLock = new Object();
+    private Timer timer;
 
     public CursorLocker(XServer xServer) {
         this.xServer = xServer;
         maxDistance = (short)(xServer.screenInfo.width * 0.05f);
-        Timer timer = new Timer();
+        timer = new Timer("CursorLocker");
         timer.scheduleAtFixedRate(this, 0, 1000 / 60);
+    }
+
+    public void stop() {
+        cancel();
+        if (timer != null) {
+            timer.cancel();
+            timer = null;
+        }
+        synchronized (pauseLock) {
+            pauseLock.notifyAll();
+        }
     }
 
     public short getMaxDistance() {

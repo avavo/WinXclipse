@@ -16,6 +16,7 @@ public class RangeScroller {
     private float lastPosition;
     private long touchTime;
     private Binding binding = Binding.NONE;
+    private Binding[] savedBindings;
     private boolean isActionDown = false;
     private boolean scrolling = false;
     private Timer timer;
@@ -86,6 +87,10 @@ public class RangeScroller {
         binding = getBindingByPosition(x, y);
         touchTime = System.currentTimeMillis();
         lastPosition = element.getOrientation() == 0 ? x : y;
+        // Temporarily hide the element's bindings while the range is being
+        // scrolled; they are restored on touch up so a profile save never
+        // persists the cleared state.
+        savedBindings = element.snapshotBindings();
         element.setBinding(Binding.NONE);
 
         timer = new Timer(true);
@@ -123,6 +128,8 @@ public class RangeScroller {
     public void handleTouchUp() {
         if (isActionDown) {
             destroyTimer();
+            element.restoreBindings(savedBindings);
+            savedBindings = null;
             if (isTap() && !scrolling) {
                 inputControlsView.handleInputEvent(binding, true);
                 final Binding finalBinding = binding;

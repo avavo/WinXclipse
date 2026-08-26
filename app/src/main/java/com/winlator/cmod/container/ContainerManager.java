@@ -388,21 +388,29 @@ public class ContainerManager {
                     return;
                 }
 
-                // Create the new container object and save its data
+                // Create the new container object and load the configuration copied with it
                 Container newContainer = new Container(newContainerId, this);
                 newContainer.setRootDir(newContainerDir);
+                try {
+                    newContainer.loadData(new JSONObject(FileUtils.readString(newContainer.getConfigFile())));
+                }
+                catch (JSONException e) {
+                    FileUtils.delete(newContainerDir);
+                    Log.e("ContainerManager", "Failed to read container config from: " + newContainer.getConfigFile().getPath(), e);
+                    return;
+                }
                 newContainer.setName(importDir.getName());
                 newContainer.saveData();
                 containers.add(newContainer);
                 maxContainerId++;
 
                 Log.d("ContainerManager", "Container imported successfully to: " + newContainerDir.getPath());
-                // Make sure to run the callback after successful import
-                if (callback != null) {
-                    callback.run();
-                }
             } catch (Exception e) {
                 Log.e("ContainerManager", "Failed to import container from: " + importDir.getPath(), e);
+            }
+            finally {
+                // Always release the caller's preloader dialog, success or not
+                if (callback != null) callback.run();
             }
         });
     }
@@ -440,8 +448,7 @@ public class ContainerManager {
                     Log.e("ContainerManager", "Failed to export some container files to: " + destinationDir.getPath());
                     FileUtils.delete(destinationDir); // Optional: Delete partially copied directory
                 }
-
-                Log.d("ContainerManager", "Container exported successfully to: " + destinationDir.getPath());
+                else Log.d("ContainerManager", "Container exported successfully to: " + destinationDir.getPath());
             } catch (Exception e) {
                 Log.e("ContainerManager", "Failed to export container: " + container.getName(), e);
             } finally {

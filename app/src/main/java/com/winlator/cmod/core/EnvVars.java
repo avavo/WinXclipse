@@ -22,7 +22,9 @@ public class EnvVars implements Iterable<String> {
         if (values == null || values.isEmpty()) return;
         String[] parts = values.split(" ");
         for (String part : parts) {
+            if (part.isEmpty()) continue;
             int index = part.indexOf("=");
+            if (index <= 0) continue;
             String name = part.substring(0, index);
             String value = part.substring(index+1);
             data.put(name, value);

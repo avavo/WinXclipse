@@ -47,7 +47,10 @@ public class SyncExtension implements Extension {
 
     public void setTriggered(int id) {
         synchronized (fences) {
-            if (fences.indexOfKey(id) >= 0) fences.put(id, true);
+            if (fences.indexOfKey(id) >= 0) {
+                fences.put(id, true);
+                fences.notifyAll();
+            }
         }
     }
 
@@ -70,6 +73,7 @@ public class SyncExtension implements Extension {
             int id = inputStream.readInt();
             if (fences.indexOfKey(id) < 0) throw new BadFence(id);
             fences.put(id, true);
+            fences.notifyAll();
         }
     }
 
@@ -104,15 +108,26 @@ public class SyncExtension implements Extension {
                 length -= 4;
             }
 
+            for (int id : ids) {
+                if (fences.indexOfKey(id) < 0) throw new BadFence(id);
+            }
+
             boolean anyTriggered = false;
-            do {
+            while (!anyTriggered) {
                 for (int id : ids) {
-                    if (fences.indexOfKey(id) < 0) throw new BadFence(id);
                     anyTriggered = fences.get(id);
                     if (anyTriggered) break;
                 }
+                if (!anyTriggered) {
+                    try {
+                        fences.wait();
+                    }
+                    catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
             }
-            while (!anyTriggered);
         }
     }
 

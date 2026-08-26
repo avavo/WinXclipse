@@ -62,7 +62,12 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
 
     public ExternalController addController(String id) {
         ExternalController controller = getController(id);
-        if (controller == null) controllers.add(controller = ExternalController.getController(id));
+        if (controller == null) {
+            controller = ExternalController.getController(id);
+            // getController() returns null for devices that are not currently
+            // connected; never insert null into the list or callers will crash.
+            if (controller != null) controllers.add(controller);
+        }
         controllersLoaded = true;
         return controller;
     }

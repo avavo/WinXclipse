@@ -28,7 +28,10 @@ public class GraphicsContextManager extends XResourceManager {
         for (int index : valueMask) {
             switch (index) {
                 case GraphicsContext.FLAG_FUNCTION:
-                    graphicsContext.setFunction(GraphicsContext.Function.values()[inputStream.readInt()]);
+                    int function = inputStream.readInt();
+                    if (function >= 0 && function < GraphicsContext.Function.values().length) {
+                        graphicsContext.setFunction(GraphicsContext.Function.values()[function]);
+                    }
                     break;
                 case GraphicsContext.FLAG_PLANE_MASK:
                     graphicsContext.setPlaneMask(inputStream.readInt());
@@ -43,7 +46,10 @@ public class GraphicsContextManager extends XResourceManager {
                     graphicsContext.setLineWidth(inputStream.readInt());
                     break;
                 case GraphicsContext.FLAG_SUBWINDOW_MODE:
-                    graphicsContext.setSubwindowMode(GraphicsContext.SubwindowMode.values()[inputStream.readInt()]);
+                    int subwindowMode = inputStream.readInt();
+                    if (subwindowMode >= 0 && subwindowMode < GraphicsContext.SubwindowMode.values().length) {
+                        graphicsContext.setSubwindowMode(GraphicsContext.SubwindowMode.values()[subwindowMode]);
+                    }
                     break;
                 case GraphicsContext.FLAG_LINE_STYLE:
                 case GraphicsContext.FLAG_CAP_STYLE:

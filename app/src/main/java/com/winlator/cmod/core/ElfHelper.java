@@ -12,8 +12,13 @@ public abstract class ElfHelper {
     private static int getEIClass(File binFile) {
         try (InputStream inStream = new FileInputStream(binFile)) {
             byte[] header = new byte[52];
-            inStream.read(header);
-            if (header[0] == 0x7F && header[1] == 'E' && header[2] == 'L' && header[3] == 'F') {
+            int read = 0;
+            while (read < header.length) {
+                int n = inStream.read(header, read, header.length - read);
+                if (n == -1) break;
+                read += n;
+            }
+            if (read >= 5 && header[0] == 0x7F && header[1] == 'E' && header[2] == 'L' && header[3] == 'F') {
                 return header[4];
             }
         }

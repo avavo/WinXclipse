@@ -134,6 +134,12 @@ public class SettingsFragment extends Fragment {
     }
 
     @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        preloaderDialog.close();
+    }
+
+    @Override
     public void onSaveInstanceState(@NonNull Bundle outState) {
         super.onSaveInstanceState(outState);
         outState.putString(STATE_PENDING_FEXCORE_EXPORT, pendingFEXCoreExportPresetId);
@@ -839,6 +845,14 @@ public class SettingsFragment extends Fragment {
 
         preloaderDialog.showOnUiThread(R.string.backing_up_data);
 
+        // Capture the activity: a full-data backup can take minutes and the
+        // fragment may be detached by the time it finishes.
+        android.app.Activity backupActivity = getActivity();
+        if (backupActivity == null) {
+            preloaderDialog.closeOnUiThread();
+            return;
+        }
+
         int availableProcessors = Runtime.getRuntime().availableProcessors();
         ExecutorService compressionExecutor = Executors.newFixedThreadPool(availableProcessors);
 
@@ -849,14 +863,14 @@ public class SettingsFragment extends Fragment {
                     String excludePath = "imagefs/tmp/.sysvshm";
                     return !file.getAbsolutePath().contains(excludePath);
                 });
-                getActivity().runOnUiThread(() -> {
+                backupActivity.runOnUiThread(() -> {
                     preloaderDialog.closeOnUiThread();
-                    AppUtils.showToast(getContext(), "Backup completed: " + backupFile.getPath());
+                    if (isAdded()) AppUtils.showToast(getContext(), "Backup completed: " + backupFile.getPath());
                 });
             } catch (Exception e) {
-                getActivity().runOnUiThread(() -> {
+                backupActivity.runOnUiThread(() -> {
                     preloaderDialog.closeOnUiThread();
-                    AppUtils.showToast(getContext(), "Backup failed.");
+                    if (isAdded()) AppUtils.showToast(getContext(), "Backup failed.");
                 });
             }
         });

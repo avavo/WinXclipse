@@ -406,9 +406,18 @@ import java.nio.file.Files;
                 }
             }
             catch (IOException e) {
-                throw new RuntimeException(e);
+                Log.e("Shortcut", "Failed to read shortcut file: " + file.getPath(), e);
+                return exe;
             }
-        
+
+            // Strip surrounding quotes, arguments and query fragments so the value
+            // matches the plain executable name expected by FEX per-app configs.
+            int spaceIndex = exe.indexOf(' ');
+            if (spaceIndex >= 0) exe = exe.substring(0, spaceIndex);
+            int argIndex = exe.indexOf('%');
+            if (argIndex >= 0) exe = exe.substring(0, argIndex);
+            exe = exe.replace("\"", "").trim();
+
             return exe;
         }
 

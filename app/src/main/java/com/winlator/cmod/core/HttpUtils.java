@@ -15,8 +15,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public abstract class HttpUtils {
     private static void downloadAsync(String url, Callback<String> onDownloadComplete) {
+        HttpURLConnection connection = null;
         try {
-            HttpURLConnection connection = (HttpURLConnection)(new URL(url)).openConnection();
+            connection = (HttpURLConnection)(new URL(url)).openConnection();
             if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
                 onDownloadComplete.call(null);
                 return;
@@ -31,6 +32,9 @@ public abstract class HttpUtils {
         catch (Exception e) {
             onDownloadComplete.call(null);
         }
+        finally {
+            if (connection != null) connection.disconnect();
+        }
     }
 
     public static void download(final String url, final Callback<String> onDownloadComplete) {
@@ -38,16 +42,17 @@ public abstract class HttpUtils {
     }
 
     private static void downloadAsync(String url, File destination, AtomicBoolean interruptRef, Callback<Integer> onPublishProgress, Callback<Boolean> onDownloadComplete) {
+        HttpURLConnection connection = null;
         try {
-            interruptRef.set(false);
-            HttpURLConnection connection = (HttpURLConnection)(new URL(url)).openConnection();
-            if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
+            HttpURLConnection conn = (HttpURLConnection)(new URL(url)).openConnection();
+            connection = conn;
+            if (conn.getResponseCode() != HttpURLConnection.HTTP_OK) {
                 onDownloadComplete.call(false);
                 return;
             }
 
-            int contentLength = connection.getContentLength();
-            try (InputStream inStream = new BufferedInputStream(connection.getInputStream(), StreamUtils.BUFFER_SIZE);
+            int contentLength = conn.getContentLength();
+            try (InputStream inStream = new BufferedInputStream(conn.getInputStream(), StreamUtils.BUFFER_SIZE);
                  OutputStream outStream = new FileOutputStream(destination)) {
 
                 byte[] buffer = new byte[1024];
@@ -55,8 +60,8 @@ public abstract class HttpUtils {
                 int bytesRead;
                 while ((bytesRead = inStream.read(buffer)) != -1 && !interruptRef.get()) {
                     totalSize += bytesRead;
-                    if (onPublishProgress != null) {
-                        int progress = (int)(((float)totalSize / contentLength) * 100);
+                    if (onPublishProgress != null && contentLength > 0) {
+                        int progress = Math.min((int)(((float)totalSize / contentLength) * 100), 100);
                         onPublishProgress.call(progress);
                     }
                     outStream.write(buffer, 0, bytesRead);
@@ -69,11 +74,16 @@ public abstract class HttpUtils {
         catch (Exception e) {
             onDownloadComplete.call(false);
         }
+        finally {
+            if (connection != null) connection.disconnect();
+        }
     }
 
     public static void download(final Activity activity, final String url, final File destination, final Callback<Boolean> onDownloadComplete) {
         final DownloadProgressDialog dialog = new DownloadProgressDialog(activity);
-        final AtomicBoolean interruptRef = new AtomicBoolean();
+        // Initialized to false here; never reset inside the background task so a
+        // cancellation requested before the task starts cannot be erased.
+        final AtomicBoolean interruptRef = new AtomicBoolean(false);
         dialog.show(() -> interruptRef.set(true));
         Executors.newSingleThreadExecutor().execute(() -> {
             downloadAsync(url, destination, interruptRef, (progress) -> {

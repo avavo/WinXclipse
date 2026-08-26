@@ -537,6 +537,11 @@ public class Box86_64RCFragment extends Fragment {
                 holder.tbExpand.setOnCheckedChangeListener(null);
                 for (View v : holder.buttons)
                     v.setOnClickListener(null);
+                // Recycled views are re-bound with fresh rows; without clearing
+                // here the variable list and child views would accumulate on
+                // every bind and corrupt the editor UI.
+                holder.varList.clear();
+                holder.llItemVars.removeAllViews();
                 super.onViewRecycled(holder);
             }
 
@@ -597,6 +602,10 @@ public class Box86_64RCFragment extends Fragment {
                 };
                 for (View v : holder.buttons)
                     v.setOnClickListener(clickListener);
+
+                // Defensive reset in case the view was re-bound without being recycled.
+                holder.varList.clear();
+                holder.llItemVars.removeAllViews();
 
                 for (String s : item.getVarMap().keySet()) {
                     Vars var = new Vars();

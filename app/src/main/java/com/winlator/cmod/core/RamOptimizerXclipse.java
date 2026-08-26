@@ -90,8 +90,11 @@ public final class RamOptimizerXclipse {
     }
 
     public static int initBaseline() {
+        // Initialize synchronously first so the enqueued baseline profile can
+        // never run before native state exists.
+        int result = nativeInit();
         EXECUTOR.execute(() -> nativeApplyProfile(baselineProfile));
-        return nativeInit();
+        return result;
     }
 
     public static native int nativeInit();

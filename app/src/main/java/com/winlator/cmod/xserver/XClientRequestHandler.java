@@ -7,6 +7,7 @@ import com.winlator.cmod.xconnector.RequestHandler;
 import com.winlator.cmod.xconnector.XInputStream;
 import com.winlator.cmod.xconnector.XOutputStream;
 import com.winlator.cmod.xconnector.XStreamLock;
+import com.winlator.cmod.xserver.errors.BadImplementation;
 import com.winlator.cmod.xserver.errors.XRequestError;
 import com.winlator.cmod.xserver.extensions.Extension;
 import com.winlator.cmod.xserver.requests.AtomRequests;
@@ -194,6 +195,7 @@ public class XClientRequestHandler implements RequestHandler {
                     try (XLock lock = client.xServer.lock(XServer.Lockable.WINDOW_MANAGER, XServer.Lockable.DRAWABLE_MANAGER, XServer.Lockable.INPUT_DEVICE)) {
                         WindowRequests.destroySubWindows(client, inputStream, outputStream);
                     }
+                    break;
                 case ClientOpcodes.REPARENT_WINDOW:
                     try (XLock lock = client.xServer.lock(XServer.Lockable.WINDOW_MANAGER)) {
                         WindowRequests.reparentWindow(client, inputStream, outputStream);
@@ -454,6 +456,14 @@ public class XClientRequestHandler implements RequestHandler {
         catch (XRequestError e) {
             client.skipRequest();
             e.sendError(client, opcode);
+        }
+        catch (RuntimeException e) {
+            Log.e("XClientRequestHandler", "Unhandled error while processing opcode " + opcode, e);
+            try {
+                client.skipRequest();
+                new BadImplementation().sendError(client, opcode);
+            }
+            catch (IOException | RuntimeException ignored) {}
         }
 
         return true;

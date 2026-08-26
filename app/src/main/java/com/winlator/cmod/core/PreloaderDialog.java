@@ -51,9 +51,15 @@ public class PreloaderDialog {
     public synchronized void show(int textResId) {
         if (isShowing()) return;
         close();
+        // Never attempt to show a window backed by a dying activity
+        // (stale dialog after activity recreation would crash with BadTokenException).
+        if (activity.isFinishing() || activity.isDestroyed()) return;
         if (dialog == null) create();
         ((TextView)dialog.findViewById(R.id.TextView)).setText(textResId);
-        dialog.show();
+        try {
+            dialog.show();
+        }
+        catch (Exception e) {}
     }
 
     public void setProgress(int progress) {

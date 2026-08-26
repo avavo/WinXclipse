@@ -445,7 +445,9 @@ if (entry.isDirectory()) {
                 }
 
                 // Adjust the extraction path to remove the top-level directory
-                String adjustedName = entryName.replaceFirst("^" + topLevelDirectory, "");
+                String adjustedName = topLevelDirectory != null
+                        ? entryName.replaceFirst("^" + java.util.regex.Pattern.quote(topLevelDirectory), "")
+                        : entryName;
                 File file = getSafeArchivePath(destinationRoot, adjustedName);
                 if (file == null) return false;
 
@@ -460,6 +462,12 @@ if (entry.isDirectory()) {
                     if (!file.isDirectory()) file.mkdirs();
                 } else {
                     if (entry.isSymbolicLink()) {
+                        // Only follow links whose target resolves inside the destination root.
+                        File linkTarget = new File(file.getParentFile(), entry.getLinkName()).getCanonicalFile();
+                        if (!isInside(destinationRoot, linkTarget)) {
+                            Log.w("RestoreOp", "Skipping symlink pointing outside destination: " + entryName + " -> " + entry.getLinkName());
+                            continue;
+                        }
                         FileUtils.symlink(entry.getLinkName(), file.getAbsolutePath());
                     } else {
                         File parent = file.getParentFile();
