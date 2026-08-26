@@ -1085,6 +1085,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             hudDataSource.stop();
             hudDataSource = null;
         }
+        preloaderDialog.close();
         try { RamOptimizerXclipse.shutdownFor(mRamOptSession); } catch (Throwable ignored) {}
         super.onDestroy();
     }
@@ -2261,6 +2262,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             runOnUiThread(() -> {
                 if (isFinishing() || isDestroyed()) return;
 
+                preloaderDialog.close();
                 if (isTaskRoot()) {
                     Intent mainIntent = new Intent(this, MainActivity.class);
                     mainIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP

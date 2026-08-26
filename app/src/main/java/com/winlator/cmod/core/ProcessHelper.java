@@ -113,6 +113,7 @@ public abstract class ProcessHelper {
             debugExecutor.execute(() -> {
                 try {
                     int exitCode = process.waitFor();
+                    Log.w("WineProc", "[pid=" + processPid + "][exit] code=" + exitCode);
                     emitDebugLine("[pid=" + processPid + "][exit] code=" + exitCode);
                     if (terminationCallback != null) terminationCallback.call(exitCode);
                 }
@@ -134,6 +135,9 @@ public abstract class ProcessHelper {
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
                 String line;
                 while ((line = reader.readLine()) != null) {
+                    // Always mirror guest output to logcat: without this the guest's
+                    // dying words are invisible unless the wine-debug setting is on.
+                    Log.i("WineProc", "[pid=" + pid + "][" + streamName + "] " + line);
                     if (PRINT_DEBUG) System.out.println(line);
                     emitDebugLine("[pid=" + pid + "][" + streamName + "] " + line);
                 }
