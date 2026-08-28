@@ -1946,7 +1946,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             }
         }
 
-        if (containerDataChanged) container.saveData();
+        if (containerDataChanged) {
+            long tSave = System.currentTimeMillis();
+            container.saveData();
+            Log.i("WineStartup","saveData +" + (System.currentTimeMillis()-tSave) + "ms extra_dxwrapper=" + container.getExtra("dxwrapper") + " extra_wincomponents_len=" + container.getExtra("wincomponents").length() + " fileExists=" + container.getConfigFile().isFile());
+            try { String raw = com.winlator.cmod.core.FileUtils.readString(container.getConfigFile()); Log.i("WineStartup","raw contains dxwrapper=" + (raw!=null && raw.contains("dxvk-1.10.3"))); } catch (Exception e) { Log.w("WineStartup","readback fail",e); }
+        }
         Log.i("WineStartup","setupWineSystemFiles end +" + (System.currentTimeMillis()-setupT0) + "ms changed=" + containerDataChanged);
     }
 
