@@ -515,7 +515,11 @@ data.put("desktopTheme", desktopTheme);
             data.put("controllerMapping", controllerMapping);
             data.put("gstreamerWorkaround", gstreamerWorkaround);
             if (!WineInfo.isMainWineVersion(wineVersion)) data.put("wineVersion", wineVersion);
-            FileUtils.writeString(getConfigFile(), data.toString());
+            String out = data.toString();
+            if (out.length() < 1800 || (extraData==null || extraData.length()==0)) {
+                Log.w("WineStartup","saveData id="+id+" TRUNCATED? len="+out.length()+" extraLen="+(extraData==null?-1:extraData.length())+" extraHasApp="+(extraData!=null&&extraData.has("appVersion"))+" stack="+android.util.Log.getStackTraceString(new Throwable()));
+            }
+            FileUtils.writeString(getConfigFile(), out);
         }
         catch (JSONException e) {}
     }
