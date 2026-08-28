@@ -1799,6 +1799,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         Log.i("WineStartup","setupWineSystemFiles begin wine=" + container.getWineVersion() + " isArm64EC=" + (wineInfo!=null?wineInfo.isArm64EC():false));
         String appVersion = String.valueOf(AppUtils.getVersionCode(this));
         String imgVersion = String.valueOf(imageFs.getVersion());
+        Log.i("WineStartup","versionCheck storedApp=" + container.getExtra("appVersion") + " curApp=" + appVersion + " storedImg=" + container.getExtra("imgVersion") + " curImg=" + imgVersion + " configFile=" + container.getConfigFile().getAbsolutePath());
         boolean containerDataChanged = false;
         boolean prefixMetadataChanged = false;
 
