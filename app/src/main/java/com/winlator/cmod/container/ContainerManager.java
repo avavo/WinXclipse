@@ -98,7 +98,7 @@ public class ContainerManager {
             try {
                 JSONObject data = new JSONObject(configString);
                 container.loadData(data);
-                Log.i("WineStartup","loadContainers id=" + id + " extra_appVersion=" + container.getExtra("appVersion") + " extra_dxwrapper=" + container.getExtra("dxwrapper") + " rawHasApp=" + configString.contains("appVersion"));
+                Log.i("WineStartup","loadContainers id=" + id + " extra_appVersion=" + container.getExtra("appVersion") + " extra_dxwrapper=" + container.getExtra("dxwrapper") + " rawHasApp=" + configString.contains("appVersion") + " rawLen=" + configString.length() + " snippet=" + configString.substring(0, Math.min(250, configString.length())));
                 containers.add(container);
             }
             catch (JSONException e) {
