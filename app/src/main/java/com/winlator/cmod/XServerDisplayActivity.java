@@ -1795,6 +1795,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     }
 
     private void setupWineSystemFiles() {
+        long setupT0 = System.currentTimeMillis();
+        Log.i("WineStartup","setupWineSystemFiles begin wine=" + container.getWineVersion() + " isArm64EC=" + (wineInfo!=null?wineInfo.isArm64EC():false));
         String appVersion = String.valueOf(AppUtils.getVersionCode(this));
         String imgVersion = String.valueOf(imageFs.getVersion());
         boolean containerDataChanged = false;
@@ -1921,6 +1923,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         }
 
         if (containerDataChanged) container.saveData();
+        Log.i("WineStartup","setupWineSystemFiles end +" + (System.currentTimeMillis()-setupT0) + "ms changed=" + containerDataChanged);
     }
 
     private void setupXEnvironment() throws PackageManager.NameNotFoundException {

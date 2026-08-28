@@ -176,7 +176,18 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
             Context context = environment.getContext();
             File rootDir = environment.getImageFs().getRootDir();
             File sysWow64 = new File(rootDir, "/home/xuser/.wine/drive_c/windows/syswow64");
-            if (!sysWow64.isDirectory() || new File(sysWow64, "kernel32.dll").isFile()) return;
+            // x86 needs 32-bit syswow64, arm64ec does not. The old check
+            // `!isDirectory() || hasKernel` skipped population entirely when
+            // the directory was missing, leaving a broken WoW64 prefix that
+            // Wine then tries to repair on every launch (very slow).
+            if (sysWow64.isDirectory() && new File(sysWow64, "kernel32.dll").isFile()) {
+                Log.i("BionicStartup","syswow64 already populated, skip");
+                return;
+            }
+            if (!sysWow64.isDirectory() && !sysWow64.mkdirs()) {
+                Log.w("BionicStartup","syswow64 mkdirs failed");
+                return;
+            }
 
             File wineLibRoot = wineProfile != null && wineProfile.wineLibPath != null
                     ? ContentsManager.getSourceFile(context, wineProfile, wineProfile.wineLibPath)
@@ -206,11 +217,20 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
     @Override
     public void start() {
         synchronized (lock) {
-            if (wineInfo.isArm64EC())
+            long t0 = System.currentTimeMillis();
+            Log.i("BionicStartup", "start arch=" + (wineInfo!=null?wineInfo.getArch():"null") + " isArm64EC=" + (wineInfo!=null?wineInfo.isArm64EC():false) + " box64=" + container.getBox64Version() + " wine=" + container.getWineVersion());
+            if (wineInfo.isArm64EC()) {
+                Log.i("BionicStartup","extractEmulatorsDlls begin");
                 extractEmulatorsDlls();
-            else
+                Log.i("BionicStartup","extractEmulatorsDlls end +" + (System.currentTimeMillis()-t0) + "ms");
+            } else {
+                Log.i("BionicStartup","extractBox86_64Files begin");
                 extractBox86_64Files();
+                Log.i("BionicStartup","extractBox86_64Files end +" + (System.currentTimeMillis()-t0) + "ms");
+            }
+            long t1 = System.currentTimeMillis();
             populateSysWow64();
+            Log.i("BionicStartup","populateSysWow64 +" + (System.currentTimeMillis()-t1) + "ms total +" + (System.currentTimeMillis()-t0) + "ms");
 //            checkDependencies();
             // If we end up needing to inject winebus.so into user installed contents
 //            EvshimPatcher.patchWineTree(
