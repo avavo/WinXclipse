@@ -63,10 +63,19 @@ public abstract class WineStartMenuCreator {
         try {
             File startMenuDir = container.getStartMenuDir();
             File containerStartMenuFile = new File(container.getRootDir(), ".startmenu");
-            removeOldMenu(containerStartMenuFile, startMenuDir);
-
             JSONArray data = new JSONArray(FileUtils.readString(context, "wine_startmenu.json"));
-            FileUtils.writeString(containerStartMenuFile, data.toString());
+            String serializedData = data.toString();
+
+            // Static menu entries only need rebuilding when the bundled menu
+            // definition changes. Recreating every .lnk on every Wine launch is
+            // needless I/O and is especially expensive with x86 containers.
+            if (containerStartMenuFile.isFile()
+                    && serializedData.equals(FileUtils.readString(containerStartMenuFile))) {
+                return;
+            }
+
+            removeOldMenu(containerStartMenuFile, startMenuDir);
+            FileUtils.writeString(containerStartMenuFile, serializedData);
             for (int i = 0; i < data.length(); i++) createMenuEntry(data.getJSONObject(i), startMenuDir);
         }
         catch (JSONException e) {}

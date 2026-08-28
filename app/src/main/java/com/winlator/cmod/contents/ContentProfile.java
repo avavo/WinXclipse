@@ -2,10 +2,13 @@ package com.winlator.cmod.contents;
 
 import androidx.annotation.NonNull;
 
+import java.util.Locale;
 import java.util.List;
+import java.io.File;
 
 public class ContentProfile {
     public static final String MARK_TYPE = "type";
+    public static final String MARK_ID = "contentId";
     public static final String MARK_VERSION_NAME = "versionName";
     public static final String MARK_VERSION_CODE = "versionCode";
     public static final String MARK_DESC = "description";
@@ -68,4 +71,36 @@ public class ContentProfile {
     public String protonBinPath;
     public String protonPrefixPack;
     public String remoteUrl;
+    public String contentId;
+    /** Temporary extraction directory, populated only during installation. */
+    File stagingDir;
+
+    void setStagingDir(File stagingDir) {
+        this.stagingDir = stagingDir;
+    }
+
+    File getStagingDir() {
+        return stagingDir;
+    }
+
+    /**
+     * Stable identifier used by exported/community configurations.  Unlike an
+     * installation path it remains portable across devices and app updates.
+     * Third-party packages without an id receive the same deterministic id as
+     * soon as their profile is read.
+     */
+    public String getContentId() {
+        if (contentId == null || contentId.trim().isEmpty()) {
+            contentId = buildContentId(type, verName, verCode);
+        }
+        return contentId;
+    }
+
+    public static String buildContentId(ContentType type, String versionName, int versionCode) {
+        String typePart = type != null ? type.toString().toLowerCase(Locale.ENGLISH) : "unknown";
+        String versionPart = versionName == null ? "unknown" : versionName.trim().toLowerCase(Locale.ENGLISH);
+        versionPart = versionPart.replaceAll("[^a-z0-9._+-]+", "-").replaceAll("^-+|-+$", "");
+        if (versionPart.isEmpty()) versionPart = "unknown";
+        return "winxclipse.content." + typePart + "." + versionPart + "." + Math.max(0, versionCode);
+    }
 }

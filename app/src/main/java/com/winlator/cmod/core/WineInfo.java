@@ -126,6 +126,14 @@ public class WineInfo implements Parcelable {
 
         ContentProfile wineProfile = contentsManager.getProfileByEntryName(identifier);
 
+        // getProfileByEntryName also sees downloadable catalog entries. An
+        // uninstalled entry has no usable bin/lib tree and must not masquerade
+        // as a launchable Proton runtime.
+        if (wineProfile != null && !contentsManager.isInstalledProfile(wineProfile)) {
+            Log.w("WineInfo", "Ignoring uninstalled runtime profile " + identifier);
+            wineProfile = null;
+        }
+
         if (wineProfile != null && (wineProfile.type == ContentProfile.ContentType.CONTENT_TYPE_WINE || wineProfile.type == ContentProfile.ContentType.CONTENT_TYPE_PROTON)) {
             String profileVersion = wineProfile.verName.toLowerCase(Locale.ENGLISH);
             String profileArch;

@@ -172,9 +172,10 @@ public class DRI3Extension implements Extension {
         try {
             ByteBuffer buffer = SysVSharedMemory.mapSHMSegment(fd, size, offset, true);
             if (buffer == null) throw new BadAlloc();
-            
-            short totalWidth = (short)(stride / 4);
-            Drawable drawable = client.xServer.drawableManager.createDrawable(pixmapId, totalWidth, height, depth);
+
+            short stridePixels = (short)(stride / 4);
+            // Visible width is `width`, backing stride is `stridePixels` (may include padding).
+            Drawable drawable = client.xServer.drawableManager.createDrawable(pixmapId, width, height, stridePixels, depth);
             drawable.setData(buffer);
             drawable.setTexture(null);
             drawable.setOnDestroyListener(onDestroyDrawableListener);

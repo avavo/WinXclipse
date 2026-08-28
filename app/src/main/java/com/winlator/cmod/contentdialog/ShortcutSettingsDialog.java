@@ -237,7 +237,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
                     public String getFsrUpscale() {
                         String configFallback = GraphicsDriverConfigDialog
                                 .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()))
-                                .getOrDefault("fsrUpscale", "1");
+                                .getOrDefault("fsrUpscale", "0");
                         return shortcut.getExtra("fsrUpscale",
                                 shortcut.container.getExtra("fsrUpscale", configFallback));
                     }
@@ -252,10 +252,13 @@ public class ShortcutSettingsDialog extends ContentDialog {
                     }
 
                     @Override
-                    public boolean isVsyncOff() {
-                        return "1".equals(GraphicsDriverConfigDialog
-                                .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()))
-                                .getOrDefault("vblankOff", "0"));
+                    public String getVsyncMode() {
+                        HashMap<String, String> config = GraphicsDriverConfigDialog
+                                .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()));
+                        if (config.containsKey("vsyncMode")) return config.get("vsyncMode");
+                        if (config.containsKey("vblankOff"))
+                            return "1".equals(config.get("vblankOff")) ? "off" : "100";
+                        return "off";
                     }
 
                     @Override
@@ -269,7 +272,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
                     public String getRefreshRate() {
                         return GraphicsDriverConfigDialog
                                 .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()))
-                                .getOrDefault("refreshRate", "auto");
+                                .getOrDefault("refreshRate", "60");
                     }
 
                     @Override
@@ -291,7 +294,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
                     public void apply(String gpuName, String presentMode,
                                       int textureFilterMode, boolean swapRedBlue,
                                       String fsrUpscale,
-                                      String fsrQuality, boolean vsyncOff,
+                                      String fsrQuality, String vsyncMode,
                                       boolean unlimitedImages, String refreshRate,
                                       String sharpnessEffect, String sharpnessLevel,
                                       String sharpnessDenoise) {
@@ -302,9 +305,10 @@ public class ShortcutSettingsDialog extends ContentDialog {
                         config.remove("fsrMode");
                         config.put("fsrUpscale", fsrUpscale == null ? "0" : fsrUpscale);
                         config.put("fsrQuality", fsrQuality == null ? "balanced" : fsrQuality);
-                        config.put("vblankOff", vsyncOff ? "1" : "0");
+                        config.put("vsyncMode", vsyncMode == null ? "off" : vsyncMode);
+                        config.put("vblankOff", "off".equals(vsyncMode) ? "1" : "0");
                         config.put("unlimitedImages", unlimitedImages ? "1" : "0");
-                        config.put("refreshRate", refreshRate == null ? "auto" : refreshRate);
+                        config.put("refreshRate", refreshRate == null ? "60" : refreshRate);
                         vGraphicsDriverConfig.setTag(
                                 GraphicsDriverConfigDialog.toGraphicsDriverConfig(config));
                         rendererFilterMode[0] = textureFilterMode;
@@ -970,6 +974,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
         List<String> itemList = new ArrayList<>(Arrays.asList(
                 context.getResources().getStringArray(R.array.box64_version_entries)));
         for (ContentProfile profile : manager.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_BOX64)) {
+            if (!manager.isInstalledProfile(profile)) continue;
             String entryName = ContentsManager.getEntryName(profile);
             int firstDashIndex = entryName.indexOf('-');
             String version = entryName.substring(firstDashIndex + 1);
@@ -980,6 +985,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
     
     public void loadGraphicsDriverSpinner(final Spinner sGraphicsDriver, final Spinner sDXWrapper, final View vGraphicsDriverConfig, String selectedGraphicsDriver, String selectedDXWrapper) {
         final Context context = sGraphicsDriver.getContext();
+        final boolean[] initializing = {true};
         
         ContainerDetailFragment.updateGraphicsDriverSpinner(context, sGraphicsDriver);
         
@@ -1021,6 +1027,10 @@ public class ShortcutSettingsDialog extends ContentDialog {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 update.run();
+                if (!initializing[0] && "wrapper-v2".equals(
+                        StringUtils.parseIdentifier(sGraphicsDriver.getSelectedItem()))) {
+                    ContainerDetailFragment.showWrapperV2Comparison(context);
+                }
             }
 
             @Override
@@ -1029,5 +1039,6 @@ public class ShortcutSettingsDialog extends ContentDialog {
 
         AppUtils.setSpinnerSelectionFromIdentifier(sGraphicsDriver, selectedGraphicsDriver);
         update.run();
+        sGraphicsDriver.post(() -> initializing[0] = false);
     }
 }

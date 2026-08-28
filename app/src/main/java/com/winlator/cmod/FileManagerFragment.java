@@ -1,9 +1,15 @@
 package com.winlator.cmod;
 
+import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
+import android.net.Uri;
 import android.os.Bundle;
+import android.os.Build;
 import android.os.Environment;
+import android.os.storage.StorageManager;
+import android.os.storage.StorageVolume;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.text.format.Formatter;
@@ -21,6 +27,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.Fragment;
+import androidx.preference.PreferenceManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -30,6 +37,7 @@ import com.winlator.cmod.contentdialog.ContentDialog;
 import com.winlator.cmod.core.AppUtils;
 import com.winlator.cmod.core.TarCompressorUtils;
 import com.winlator.cmod.core.ExeIconExtractor;
+import com.winlator.cmod.core.FileUtils;
 import com.winlator.cmod.widget.FileProgressDialog;
 
 import java.io.File;
@@ -41,11 +49,17 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Objects;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class FileManagerFragment extends Fragment {
+    private static final int REQUEST_ADD_STORAGE_FOLDER = 1042;
+    private static final String PREF_ADDED_STORAGE_FOLDERS = "file_manager_added_storage_folders";
     private File currentDir;
     private RecyclerView recyclerViewFiles;
     private TextView tvCurrentPath;
@@ -296,7 +310,12 @@ public class FileManagerFragment extends Fragment {
         String internalStoragePath = Environment.getExternalStorageDirectory().getAbsolutePath();
         String rootFsPath = com.winlator.cmod.xenvironment.ImageFs.find(requireContext()).getRootDir().getAbsolutePath();
 
-        return path.equals(downloadsPath) || path.equals(internalStoragePath) || path.equals(rootFsPath) || path.endsWith(".wine/drive_c") || path.equals("/");
+        if (path.equals(downloadsPath) || path.equals(internalStoragePath)
+                || path.equals(rootFsPath) || path.endsWith(".wine/drive_c") || path.equals("/"))
+            return true;
+        for (File root : getAdditionalStorageRoots().values())
+            if (path.equals(root.getAbsolutePath())) return true;
+        return false;
     }
 
     private boolean navigateUp() {
@@ -316,6 +335,13 @@ public class FileManagerFragment extends Fragment {
         popupMenu.getMenu().add(0, 6, 0, "Internal Storage");
         popupMenu.getMenu().add(0, 2, 0, "Drive C: (Wine System)");
         popupMenu.getMenu().add(0, 3, 0, "Drive Z: (RootFS)");
+        Map<Integer, File> extraStorageItems = new LinkedHashMap<>();
+        int extraId = 1000;
+        for (Map.Entry<String, File> entry : getAdditionalStorageRoots().entrySet()) {
+            popupMenu.getMenu().add(0, extraId, 0, entry.getKey());
+            extraStorageItems.put(extraId++, entry.getValue());
+        }
+        popupMenu.getMenu().add(0, 7, 0, "Add storage folder…");
         popupMenu.getMenu().add(0, 4, 0, R.string.sort);
         popupMenu.getMenu().add(0, 5, 0, showHiddenFiles ? "Hide Hidden Files" : "Show Hidden Files");
 
@@ -336,6 +362,14 @@ public class FileManagerFragment extends Fragment {
                 navigateTo(com.winlator.cmod.xenvironment.ImageFs.find(requireContext()).getRootDir());
                 updateDriveButtonLabel(currentDir);
                 return true;
+            } else if (itemId == 7) {
+                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                        | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+                        | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION);
+                startActivityForResult(intent, REQUEST_ADD_STORAGE_FOLDER);
+                return true;
             } else if (itemId == 4) {
                 showSortMenu();
                 return true;
@@ -344,9 +378,97 @@ public class FileManagerFragment extends Fragment {
                 loadFiles();
                 return true;
             }
+            File extraRoot = extraStorageItems.get(itemId);
+            if (extraRoot != null) {
+                navigateTo(extraRoot);
+                updateDriveButtonLabel(currentDir);
+                return true;
+            }
             return false;
         });
         popupMenu.show();
+    }
+
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != REQUEST_ADD_STORAGE_FOLDER || resultCode != Activity.RESULT_OK
+                || data == null || data.getData() == null) return;
+
+        Uri uri = data.getData();
+        try {
+            requireContext().getContentResolver().takePersistableUriPermission(uri,
+                    data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION
+                            | Intent.FLAG_GRANT_WRITE_URI_PERMISSION));
+        }
+        catch (SecurityException ignored) {
+            // MANAGE_EXTERNAL_STORAGE can still expose the resolved path.
+        }
+
+        String path = FileUtils.getFilePathFromUriUsingSAF(requireContext(), uri);
+        File folder = path != null ? new File(path) : null;
+        if (folder == null || !folder.isDirectory() || !folder.canRead()) {
+            Toast.makeText(requireContext(), "This folder cannot be accessed directly.",
+                    Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        SharedPreferences preferences = PreferenceManager
+                .getDefaultSharedPreferences(requireContext());
+        Set<String> stored = new LinkedHashSet<>(preferences.getStringSet(
+                PREF_ADDED_STORAGE_FOLDERS, Collections.emptySet()));
+        stored.add(folder.getAbsolutePath());
+        preferences.edit().putStringSet(PREF_ADDED_STORAGE_FOLDERS, stored).apply();
+        navigateTo(folder);
+        updateDriveButtonLabel(folder);
+    }
+
+    /** Physical SD/USB volumes plus readable paths already assigned to a
+     * container.  This keeps the standalone file manager and Wine drive list
+     * consistent without hard-coding /storage/XXXX-XXXX mount names. */
+    private LinkedHashMap<String, File> getAdditionalStorageRoots() {
+        LinkedHashMap<String, File> roots = new LinkedHashMap<>();
+        Context context = getContext();
+        if (context != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            try {
+                StorageManager manager = context.getSystemService(StorageManager.class);
+                if (manager != null) {
+                    for (StorageVolume volume : manager.getStorageVolumes()) {
+                        if (volume.isPrimary()) continue;
+                        File directory = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+                                ? volume.getDirectory()
+                                : volume.getUuid() != null ? new File("/storage", volume.getUuid()) : null;
+                        if (directory != null && directory.isDirectory() && directory.canRead())
+                            roots.put("External Storage (" + volume.getDescription(context) + ")", directory);
+                    }
+                }
+            }
+            catch (RuntimeException ignored) {
+            }
+        }
+        for (Container container : containerManager.getContainers()) {
+            for (String[] drive : container.drivesIterator()) {
+                File directory = new File(drive[1]);
+                if (directory.isDirectory() && directory.canRead()
+                        && !directory.equals(Environment.getExternalStorageDirectory())
+                        && !directory.equals(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)))
+                    roots.putIfAbsent("Storage " + drive[0] + ": (" + container.getName() + ")", directory);
+            }
+        }
+        Context rootContext = getContext();
+        if (rootContext != null) {
+            Set<String> stored = PreferenceManager.getDefaultSharedPreferences(rootContext)
+                    .getStringSet(PREF_ADDED_STORAGE_FOLDERS, Collections.emptySet());
+            for (String path : stored) {
+                File directory = new File(path);
+                if (directory.isDirectory() && directory.canRead()) {
+                    String name = directory.getName();
+                    roots.putIfAbsent("Added Storage (" + (name.isEmpty() ? path : name) + ")",
+                            directory);
+                }
+            }
+        }
+        return roots;
     }
 
     private void showSortMenu() {

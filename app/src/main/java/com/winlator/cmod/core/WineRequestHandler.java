@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.net.Uri;
 import android.util.Log;
 
+import com.winlator.cmod.BuildConfig;
 import com.winlator.cmod.box86_64.Box86_64PresetManager;
 import com.winlator.cmod.container.Container;
 import com.winlator.cmod.container.Shortcut;
@@ -168,12 +169,13 @@ public class WineRequestHandler {
             dumpDirectory.mkdirs();
         }
 
-        String screenSize, dxWrapper, dxwrapperConfig, graphicsDriverConfig, box64Preset, box64Version,
+        String screenSize, graphicsDriver, dxWrapper, dxwrapperConfig, graphicsDriverConfig, box64Preset, box64Version,
                 startupSelection, winComponents, audioDriver, ddraWrapper, emulator,
-                fexcoreVersion, fexcorePreset, cpuList;
+                fexcoreVersion, fexcorePreset, cpuList, cpuListWoW64, drives, hudMode, vsyncMode;
 
         if (shortcut != null) {
             screenSize = shortcut.getExtra("screenSize", this.container.getScreenSize());
+            graphicsDriver = shortcut.getExtra("graphicsDriver", this.container.getGraphicsDriver());
             dxWrapper = shortcut.getExtra("dxwrapper", this.container.getDXWrapper());
             dxwrapperConfig = shortcut.getExtra("dxwrapperConfig", this.container.getDXWrapperConfig());
             graphicsDriverConfig = shortcut.getExtra("graphicsDriverConfig", this.container.getGraphicsDriverConfig());
@@ -187,8 +189,13 @@ public class WineRequestHandler {
             fexcoreVersion = shortcut.getExtra("fexcoreVersion", this.container.getFEXCoreVersion());
             fexcorePreset = this.shortcut.getExtra("fexcorePreset", this.container.getFEXCorePreset());
             cpuList = shortcut.getExtra("cpuList", this.container.getCPUList());
+            cpuListWoW64 = shortcut.getExtra("cpuListWoW64", this.container.getCPUListWoW64());
+            drives = this.container.getDrives();
+            hudMode = shortcut.getExtra("hudMode", this.container.getHudMode());
+            vsyncMode = shortcut.getExtra("vsyncMode", this.container.getExtra("vsyncMode", "off"));
         } else {
             screenSize = container.getScreenSize();
+            graphicsDriver = container.getGraphicsDriver();
             dxWrapper = container.getDXWrapper();
             dxwrapperConfig = container.getDXWrapperConfig();
             graphicsDriverConfig = container.getGraphicsDriverConfig();
@@ -202,13 +209,27 @@ public class WineRequestHandler {
             fexcoreVersion = container.getFEXCoreVersion();
             fexcorePreset = container.getFEXCorePreset();
             cpuList = container.getCPUList();
+            cpuListWoW64 = container.getCPUListWoW64();
+            drives = container.getDrives();
+            hudMode = container.getHudMode();
+            vsyncMode = container.getExtra("vsyncMode", "off");
         }
 
+        if ((shortcut == null || !shortcut.hasExtra("vsyncMode"))
+                && !container.hasExtra("vsyncMode")) {
+            String configuredVsync = configValue(graphicsDriverConfig, "vsyncMode");
+            if (!configuredVsync.isEmpty()) vsyncMode = configuredVsync;
+            else if ("1".equals(configValue(graphicsDriverConfig, "vblankOff"))) vsyncMode = "off";
+        }
         String wineVersion = container.getWineVersion();
-        File dumpFile = new File(dumpDirectory, exec_name + "_settings_dump.txt");
+        String safeExecName = exec_name.replaceAll("[\\\\/:*?\"<>|\\p{Cntrl}]", "_").trim();
+        if (safeExecName.isEmpty()) safeExecName = "application";
+        File dumpFile = new File(dumpDirectory, safeExecName + "_settings_dump.txt");
 
         try (java.io.FileWriter writer = new java.io.FileWriter(dumpFile);
              java.io.BufferedWriter bw = new java.io.BufferedWriter(writer)) {
+            bw.write(String.format("WinXclipseVersion: %s\n", BuildConfig.VERSION_NAME));
+            bw.write("ReportSchema: 2\n");
             bw.write(String.format("Executable: %s\n", exec_name));
             if (is_arm64ec == 1) {
                 bw.write(String.format("Architecture: %s\n", "aarch64"));
@@ -220,26 +241,45 @@ public class WineRequestHandler {
             bw.write(String.format("Device: %s\n", android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL));
             bw.write(String.format("GPU: %s\n", GPUInformation.getRenderer()));
             bw.write(String.format("Stock Driver Version: %s\n", GPUInformation.getVersion()));
+            bw.write(String.format("graphicsDriver: %s\n", graphicsDriver));
             bw.write(String.format("graphicsDriverConfig: %s\n", graphicsDriverConfig));
             bw.write(String.format("wineVersion: %s\n", wineVersion));
             bw.write(String.format("emulator: %s\n", emulator));
-            bw.write(String.format("emulator64: %s\n", wineInfo.isArm64EC() ? "fexcore" : "box64"));
+            bw.write(String.format("emulator64: %s\n",
+                    wineInfo != null && wineInfo.isArm64EC() ? "fexcore" : "box64"));
             bw.write(String.format("box64Version: %s\n", box64Version));
             bw.write(String.format("box64Preset: [%s]\n", Box86_64PresetManager.getEnvVars("box64", context, box64Preset).print()));
-            if (wineInfo.isArm64EC()) {
+            if (wineInfo != null && wineInfo.isArm64EC()) {
                 bw.write(String.format("fexcoreVersion: %s\n", fexcoreVersion));
                 bw.write(String.format("fexcorePreset: %s\n", fexcorePreset));
             }
             bw.write(String.format("screenSize: %s\n", screenSize));
-            bw.write(String.format("dxwrapper: %s\n", dxWrapper.toUpperCase()));
+            bw.write(String.format("vsyncLimit: %s\n", vsyncMode));
+            bw.write(String.format("dxwrapper: %s\n", upper(dxWrapper)));
             bw.write(String.format("dxwrapperConfig: %s\n", dxwrapperConfig));
             bw.write(String.format("startupSelection: %s\n", startupSelection));
             bw.write(String.format("wincomponents: %s\n", winComponents));
-            bw.write(String.format("audioDriver: %s\n", audioDriver.toUpperCase()));
-            bw.write(String.format("ddrawrapper: %s\n", ddraWrapper.toUpperCase()));
+            bw.write(String.format("audioDriver: %s\n", upper(audioDriver)));
+            bw.write(String.format("ddrawrapper: %s\n", upper(ddraWrapper)));
             bw.write(String.format("cpuList: %s\n", cpuList));
-            bw.write(String.format("EnvVars: [%s]", envVars.print()));
+            bw.write(String.format("cpuListWoW64: %s\n", cpuListWoW64));
+            bw.write(String.format("drives: %s\n", drives));
+            bw.write(String.format("hudMode: %s\n", hudMode));
+            bw.write(String.format("EnvVars: [%s]", envVars != null ? envVars.print() : ""));
         }
+    }
+
+    private static String upper(String value) {
+        return value == null ? "" : value.toUpperCase(java.util.Locale.ENGLISH);
+    }
+
+    private static String configValue(String config, String key) {
+        if (config == null || key == null) return "";
+        for (String entry : config.split(",")) {
+            String[] pair = entry.split("=", 2);
+            if (pair.length == 2 && key.equals(pair[0].trim())) return pair[1].trim();
+        }
+        return "";
     }
 
     public void setContainer(Container container) {

@@ -8,6 +8,7 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -45,6 +46,7 @@ import com.winlator.cmod.contents.XclipseDriverManager;
 import com.winlator.cmod.contents.CustomWrapperManager;
 import com.winlator.cmod.contents.ExternalDownloadCatalog;
 import com.winlator.cmod.core.AppUtils;
+import com.winlator.cmod.core.ContentOperationRegistry;
 import com.winlator.cmod.core.FileUtils;
 import com.winlator.cmod.core.PreloaderDialog;
 
@@ -74,6 +76,24 @@ public class ContentsFragment extends Fragment {
     private volatile List<ExternalDownloadCatalog.Item> remoteDrivers = new ArrayList<>();
     private final ConcurrentHashMap<String, ContentProfile> pendingRemoteProfiles =
             new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, String> pendingRemoteTransferKeys =
+            new ConcurrentHashMap<>();
+
+    private static final int TRANSFER_DOWNLOADING = 0;
+    private static final int TRANSFER_INSTALLING = 1;
+    private static final int TRANSFER_WAITING_CONFIRMATION = 2;
+    private static final ConcurrentHashMap<String, TransferUiState> ACTIVE_TRANSFERS =
+            new ConcurrentHashMap<>();
+
+    private static final class TransferUiState {
+        volatile int stage;
+        volatile int progress;
+
+        TransferUiState(int stage, int progress) {
+            this.stage = stage;
+            this.progress = progress;
+        }
+    }
 
     private boolean isDarkMode;
 
@@ -94,7 +114,11 @@ public class ContentsFragment extends Fragment {
 
     @Override
     public void onDestroy() {
-        FileUtils.clear(getContext().getCacheDir());
+        // Downloads/installations are allowed to outlive this screen. Clearing
+        // cache here used to delete their source files midway through work.
+        if (!ContentOperationRegistry.hasActiveOperations() && getContext() != null) {
+            FileUtils.clear(getContext().getCacheDir());
+        }
         super.onDestroy();
     }
 
@@ -213,9 +237,16 @@ public class ContentsFragment extends Fragment {
                 return;
             }
             ContentProfile expectedProfile = pendingRemoteProfiles.remove(contentUri.toString());
+            String transferKey = pendingRemoteTransferKeys.remove(contentUri.toString());
+            ContentOperationRegistry.Token installOperation =
+                    ContentOperationRegistry.begin(ContentOperationRegistry.Kind.INSTALL);
             PreloaderDialog preloaderDialog = new PreloaderDialog(getActivity());
-            preloaderDialog.showOnUiThread(R.string.installing_content);
-            preloaderDialog.setProgress(1);
+            if (transferKey == null) {
+                preloaderDialog.showOnUiThread(R.string.installing_content);
+                preloaderDialog.setProgress(1);
+                preloaderDialog.allowBackground();
+            }
+            else updateTransfer(transferKey, TRANSFER_INSTALLING, 1);
             // Capture the activity: installation can outlive the fragment.
             android.app.Activity hostActivity = getActivity();
             try {
@@ -224,6 +255,8 @@ public class ContentsFragment extends Fragment {
 
                     @Override
                     public void onFailed(ContentsManager.InstallFailedReason reason, Exception e) {
+                        installOperation.close();
+                        finishTransfer(transferKey);
                         int msgId = switch (reason) {
                             case ERROR_BADTAR -> R.string.file_cannot_be_recognied;
                             case ERROR_NOPROFILE -> R.string.profile_not_found_in_content;
@@ -234,19 +267,39 @@ public class ContentsFragment extends Fragment {
                             default -> R.string.unable_to_install_content;
                         };
                         if (hostActivity == null) { preloaderDialog.closeOnUiThread(); return; }
-                        hostActivity.runOnUiThread(() -> ContentDialog.alert(getContext(), getString(R.string.install_failed) + ": " + getString(msgId), preloaderDialog::closeOnUiThread));
+                        String message = hostActivity.getString(R.string.install_failed) + ": "
+                                + hostActivity.getString(msgId);
+                        hostActivity.runOnUiThread(() -> {
+                            if (!isAdded()) {
+                                preloaderDialog.close();
+                                return;
+                            }
+                            ContentDialog.alert(requireContext(), message, preloaderDialog::closeOnUiThread);
+                        });
                     }
 
                     @Override
                     public void onSucceed(ContentProfile profile) {
                         if (isExtracting) {
                             ContentsManager.OnInstallFinishedCallback callback1 = this;
-                            if (hostActivity == null) { preloaderDialog.closeOnUiThread(); return; }
+                            if (hostActivity == null) {
+                                manager.discardStagedContent(profile);
+                                installOperation.close();
+                                preloaderDialog.closeOnUiThread();
+                                return;
+                            }
                             hostActivity.runOnUiThread(() -> {
+                                if (!isAdded()) {
+                                    manager.discardStagedContent(profile);
+                                    installOperation.close();
+                                    preloaderDialog.close();
+                                    return;
+                                }
                                 // The preloader is a fullscreen dialog. Keeping it open here
                                 // placed the required content confirmation behind it, making
                                 // installation look frozen forever after extraction.
-                                preloaderDialog.close();
+                                if (transferKey == null) preloaderDialog.close();
+                                else updateTransfer(transferKey, TRANSFER_WAITING_CONFIRMATION, 97);
                                 ContentInfoDialog dialog = new ContentInfoDialog(getContext(), profile);
                                 ((TextView) dialog.findViewById(R.id.BTConfirm)).setText(R.string._continue);
                                 dialog.setOnConfirmCallback(() -> {
@@ -254,28 +307,47 @@ public class ContentsFragment extends Fragment {
                                     List<ContentProfile.ContentFile> untrustedFiles = manager.getUnTrustedContentFiles(profile);
                                     if (!untrustedFiles.isEmpty()) {
                                         ContentUntrustedDialog untrustedDialog = new ContentUntrustedDialog(getContext(), untrustedFiles);
-                                        untrustedDialog.setOnCancelCallback(preloaderDialog::closeOnUiThread);
+                                        untrustedDialog.setOnCancelCallback(() -> {
+                                            manager.discardStagedContent(profile);
+                                            installOperation.close();
+                                            finishTransfer(transferKey);
+                                            preloaderDialog.closeOnUiThread();
+                                        });
                                         untrustedDialog.setOnConfirmCallback(() -> {
-                                            preloaderDialog.show(R.string.installing_content);
-                                            preloaderDialog.setProgress(98);
+                                            if (transferKey == null) {
+                                                preloaderDialog.show(R.string.installing_content);
+                                                preloaderDialog.setProgress(98);
+                                            }
+                                            else updateTransfer(transferKey, TRANSFER_INSTALLING, 98);
                                             manager.finishInstallContent(profile, callback1);
                                         });
                                         untrustedDialog.show();
                                     } else {
-                                        preloaderDialog.show(R.string.installing_content);
-                                        preloaderDialog.setProgress(98);
+                                        if (transferKey == null) {
+                                            preloaderDialog.show(R.string.installing_content);
+                                            preloaderDialog.setProgress(98);
+                                        }
+                                        else updateTransfer(transferKey, TRANSFER_INSTALLING, 98);
                                         manager.finishInstallContent(profile, callback1);
                                     }
                                 });
-                                dialog.setOnCancelCallback(preloaderDialog::closeOnUiThread);
+                                dialog.setOnCancelCallback(() -> {
+                                    manager.discardStagedContent(profile);
+                                    installOperation.close();
+                                    finishTransfer(transferKey);
+                                    preloaderDialog.closeOnUiThread();
+                                });
                                 dialog.show();
                             });
 
                         } else {
+                            installOperation.close();
+                            finishTransfer(transferKey);
                             preloaderDialog.closeOnUiThread();
                             if (hostActivity == null) return;
                             hostActivity.runOnUiThread(() -> {
-                                ContentDialog.alert(getContext(), R.string.content_installed_success, null);
+                                if (!isAdded()) return;
+                                ContentDialog.alert(requireContext(), R.string.content_installed_success, null);
                                 manager.syncContents();
                                 boolean flashAfter = currentContentType == profile.type;
                                 currentContentType = profile.type;
@@ -285,11 +357,16 @@ public class ContentsFragment extends Fragment {
                         }
                     }
                 };
-                Executors.newSingleThreadExecutor().execute(() -> {
+                new Thread(() -> {
                     manager.extraContentFile(contentUri, expectedProfile, callback,
-                            preloaderDialog::setProgress);
-                });
+                            progress -> {
+                                if (transferKey == null) preloaderDialog.setProgress(progress);
+                                else updateTransfer(transferKey, TRANSFER_INSTALLING, progress);
+                            });
+                }, "ContentInstaller").start();
             } catch (Exception e) {
+                installOperation.close();
+                finishTransfer(transferKey);
                 preloaderDialog.closeOnUiThread();
                 AppUtils.showToast(getContext(), R.string.unable_to_import_profile);
             }
@@ -354,11 +431,11 @@ public class ContentsFragment extends Fragment {
     }
 
     private void downloadWrapperFromUrl(String url) {
-        PreloaderDialog preloader = new PreloaderDialog(requireActivity());
-        preloader.show(R.string.downloading_content);
-        preloader.setProgress(0);
         android.app.Activity hostActivity = getActivity();
         android.content.Context hostContext = requireContext().getApplicationContext();
+        ContentOperationRegistry.Token downloadOperation =
+                ContentOperationRegistry.begin(ContentOperationRegistry.Kind.DOWNLOAD);
+        AppUtils.showToast(requireContext(), R.string.downloading_content);
         new Thread(() -> {
             String rawName = Uri.parse(url).getLastPathSegment();
             if (rawName == null || rawName.isEmpty()) rawName = "wrapper.tzst";
@@ -366,18 +443,24 @@ public class ContentsFragment extends Fragment {
             if (query >= 0) rawName = rawName.substring(0, query);
             File output = new File(hostContext.getCacheDir(),
                     "remote-wrapper-" + System.currentTimeMillis() + "-" + rawName.replaceAll("[^A-Za-z0-9._-]", "_"));
-            boolean downloaded = Downloader.downloadFile(url, output, preloader::setProgress);
+            boolean downloaded = Downloader.downloadFile(url, output, null);
             if (hostActivity == null || hostActivity.isFinishing()) {
                 FileUtils.delete(output);
+                downloadOperation.close();
                 return;
             }
             hostActivity.runOnUiThread(() -> {
-                preloader.close();
+                if (!isAdded()) {
+                    FileUtils.delete(output);
+                    downloadOperation.close();
+                    return;
+                }
                 if (downloaded) promptAndInstallWrapper(Uri.fromFile(output), output);
                 else {
                     FileUtils.delete(output);
                     ContentDialog.alert(requireContext(), R.string.download_failed, null);
                 }
+                downloadOperation.close();
             });
         }).start();
     }
@@ -411,15 +494,29 @@ public class ContentsFragment extends Fragment {
                     PreloaderDialog preloader = new PreloaderDialog(requireActivity());
                     preloader.show(R.string.installing_content);
                     preloader.setIndeterminate();
+                    preloader.allowBackground();
                     android.app.Activity hostActivity = getActivity();
+                    ContentOperationRegistry.Token installOperation =
+                            ContentOperationRegistry.begin(ContentOperationRegistry.Kind.INSTALL);
                     new Thread(() -> {
-                        String id = wrapperManager.install(source, name);
+                        String id = null;
+                        try {
+                            id = wrapperManager.install(source, name);
+                        }
+                        catch (RuntimeException e) {
+                            Log.e("ContentsFragment", "Wrapper installation failed", e);
+                        }
                         if (temporaryFile != null) FileUtils.delete(temporaryFile);
-                        if (hostActivity == null || hostActivity.isFinishing()) return;
+                        if (hostActivity == null || hostActivity.isFinishing()) {
+                            installOperation.close();
+                            return;
+                        }
+                        String installedId = id;
                         hostActivity.runOnUiThread(() -> {
+                            installOperation.close();
                             preloader.close();
                             if (!isAdded()) return;
-                            if (id == null) ContentDialog.alert(requireContext(), R.string.unable_to_install_wrapper, null);
+                            if (installedId == null) ContentDialog.alert(requireContext(), R.string.unable_to_install_wrapper, null);
                             else {
                                 ContentDialog.alert(requireContext(), R.string.content_installed_success, null);
                                 loadContentList();
@@ -431,18 +528,42 @@ public class ContentsFragment extends Fragment {
     }
 
     private void installDriver(Uri source, @Nullable File temporaryFile) {
+        installDriver(source, temporaryFile, null);
+    }
+
+    private void installDriver(Uri source, @Nullable File temporaryFile,
+                               @Nullable String transferKey) {
         PreloaderDialog preloader = new PreloaderDialog(requireActivity());
-        preloader.show(R.string.installing_content);
-        preloader.setIndeterminate();
+        if (transferKey == null) {
+            preloader.show(R.string.installing_content);
+            preloader.setIndeterminate();
+            preloader.allowBackground();
+        }
+        else updateTransfer(transferKey, TRANSFER_INSTALLING, 1);
         android.app.Activity hostActivity = getActivity();
+        ContentOperationRegistry.Token installOperation =
+                ContentOperationRegistry.begin(ContentOperationRegistry.Kind.INSTALL);
         new Thread(() -> {
-            String id = driverManager.installDriver(source);
+            String id = null;
+            try {
+                id = driverManager.installDriver(source, progress ->
+                        updateTransfer(transferKey, TRANSFER_INSTALLING, progress));
+            }
+            catch (RuntimeException e) {
+                Log.e("ContentsFragment", "Driver installation failed", e);
+            }
             if (temporaryFile != null) FileUtils.delete(temporaryFile);
-            if (hostActivity == null || hostActivity.isFinishing()) return;
+            if (hostActivity == null || hostActivity.isFinishing()) {
+                installOperation.close();
+                return;
+            }
+            String installedId = id;
             hostActivity.runOnUiThread(() -> {
+                installOperation.close();
+                finishTransfer(transferKey);
                 preloader.close();
                 if (!isAdded()) return;
-                if (id == null || id.isEmpty())
+                if (installedId == null || installedId.isEmpty())
                     ContentDialog.alert(requireContext(), R.string.unable_to_install_driver, null);
                 else {
                     ContentDialog.alert(requireContext(), R.string.content_installed_success, null);
@@ -450,6 +571,54 @@ public class ContentsFragment extends Fragment {
                 }
             });
         }).start();
+    }
+
+    private String contentTransferKey(ContentProfile profile) {
+        return "content:" + (profile.remoteUrl != null
+                ? profile.remoteUrl : ContentsManager.getEntryName(profile));
+    }
+
+    private String driverTransferKey(ExternalDownloadCatalog.Item item) {
+        return "driver:" + (item.url != null ? item.url : item.detail);
+    }
+
+    private void updateTransfer(@Nullable String key, int stage, int progress) {
+        if (key == null) return;
+        TransferUiState state = ACTIVE_TRANSFERS.computeIfAbsent(key,
+                ignored -> new TransferUiState(stage, progress));
+        state.stage = stage;
+        state.progress = Math.max(0, Math.min(100, progress));
+        Activity activity = getActivity();
+        if (activity != null) activity.runOnUiThread(this::refreshTransferRows);
+    }
+
+    private void finishTransfer(@Nullable String key) {
+        if (key == null) return;
+        ACTIVE_TRANSFERS.remove(key);
+        Activity activity = getActivity();
+        if (activity != null) activity.runOnUiThread(this::refreshTransferRows);
+    }
+
+    private void refreshTransferRows() {
+        if (!isAdded() || recyclerView == null) return;
+        RecyclerView.Adapter<?> adapter = recyclerView.getAdapter();
+        if (adapter != null) adapter.notifyDataSetChanged();
+    }
+
+    private void bindTransfer(View progressLayout, ProgressBar progressBar,
+                              TextView progressStatus, @Nullable TransferUiState state) {
+        boolean active = state != null;
+        progressLayout.setVisibility(active ? View.VISIBLE : View.GONE);
+        if (!active) return;
+        progressBar.setProgress(state.progress);
+        if (state.stage == TRANSFER_WAITING_CONFIRMATION) {
+            progressStatus.setText(R.string.waiting_install_confirmation);
+        }
+        else {
+            int format = state.stage == TRANSFER_INSTALLING
+                    ? R.string.install_progress : R.string.download_progress;
+            progressStatus.setText(getString(format, state.progress));
+        }
     }
 
     private void loadContentList() {
@@ -509,7 +678,9 @@ public class ContentsFragment extends Fragment {
             final TextView detail;
             final ImageButton menu;
             final ImageButton download;
+            final View transferProgress;
             final ProgressBar progress;
+            final TextView progressStatus;
 
             ViewHolder(@NonNull View view) {
                 super(view);
@@ -518,7 +689,9 @@ public class ContentsFragment extends Fragment {
                 detail = view.findViewById(R.id.TVVersionCode);
                 menu = view.findViewById(R.id.BTMenu);
                 download = view.findViewById(R.id.BTDownload);
+                transferProgress = view.findViewById(R.id.LLTransferProgress);
                 progress = view.findViewById(R.id.Progress);
+                progressStatus = view.findViewById(R.id.TVProgressStatus);
             }
         }
 
@@ -543,9 +716,11 @@ public class ContentsFragment extends Fragment {
             holder.title.setText(item.name);
             holder.detail.setText(item.detail);
             holder.detail.setVisibility(item.detail == null || item.detail.isEmpty() ? View.GONE : View.VISIBLE);
-            holder.progress.setVisibility(View.GONE);
-            holder.menu.setVisibility(installed ? View.VISIBLE : View.GONE);
-            holder.download.setVisibility(installed ? View.GONE : View.VISIBLE);
+            String transferKey = driverTransferKey(item);
+            TransferUiState transfer = ACTIVE_TRANSFERS.get(transferKey);
+            bindTransfer(holder.transferProgress, holder.progress, holder.progressStatus, transfer);
+            holder.menu.setVisibility(installed && transfer == null ? View.VISIBLE : View.GONE);
+            holder.download.setVisibility(!installed && transfer == null ? View.VISIBLE : View.GONE);
             holder.menu.setOnClickListener(v -> ContentDialog.confirm(requireContext(),
                     R.string.do_you_want_to_remove_this_content, () -> {
                         if (selectedCategory == CATEGORY_WRAPPERS) wrapperManager.remove(item.detail);
@@ -553,34 +728,37 @@ public class ContentsFragment extends Fragment {
                         loadContentList();
                     }));
             holder.download.setOnClickListener(v -> {
-                holder.download.setVisibility(View.GONE);
-                holder.progress.setVisibility(View.VISIBLE);
-                holder.progress.setProgress(0);
-                PreloaderDialog preloader = new PreloaderDialog(requireActivity());
-                preloader.show(R.string.downloading_content);
-                preloader.setProgress(0);
+                updateTransfer(transferKey, TRANSFER_DOWNLOADING, 0);
                 android.app.Activity hostActivity = getActivity();
                 android.content.Context hostContext = requireContext().getApplicationContext();
+                ContentOperationRegistry.Token downloadOperation =
+                        ContentOperationRegistry.begin(ContentOperationRegistry.Kind.DOWNLOAD);
                 new Thread(() -> {
                     File output = new File(hostContext.getCacheDir(),
                             "xclipse-driver-" + System.currentTimeMillis() + ".zip");
                     boolean downloaded = Downloader.downloadFile(item.url, output, progress -> {
-                        preloader.setProgress(progress);
-                        if (hostActivity != null) hostActivity.runOnUiThread(() -> holder.progress.setProgress(progress));
+                        updateTransfer(transferKey, TRANSFER_DOWNLOADING, progress);
                     });
                     if (hostActivity == null || hostActivity.isFinishing()) {
                         FileUtils.delete(output);
+                        finishTransfer(transferKey);
+                        downloadOperation.close();
                         return;
                     }
                     hostActivity.runOnUiThread(() -> {
-                        preloader.close();
-                        holder.progress.setVisibility(View.GONE);
-                        holder.download.setVisibility(View.VISIBLE);
-                        if (downloaded) installDriver(Uri.fromFile(output), output);
+                        if (!isAdded()) {
+                            FileUtils.delete(output);
+                            finishTransfer(transferKey);
+                            downloadOperation.close();
+                            return;
+                        }
+                        if (downloaded) installDriver(Uri.fromFile(output), output, transferKey);
                         else {
                             FileUtils.delete(output);
+                            finishTransfer(transferKey);
                             ContentDialog.alert(requireContext(), R.string.download_failed, null);
                         }
+                        downloadOperation.close();
                     });
                 }).start();
             });
@@ -601,7 +779,9 @@ public class ContentsFragment extends Fragment {
             private final TextView tvVersionCode;
             private final ImageButton ibMenu;
             private final ImageButton ibDownload;
+            private final View transferProgress;
             private final ProgressBar progressBar;
+            private final TextView progressStatus;
 
             public ViewHolder(@NonNull View view) {
                 super(view);
@@ -611,7 +791,9 @@ public class ContentsFragment extends Fragment {
                 tvVersionCode = view.findViewById(R.id.TVVersionCode);
                 ibMenu = view.findViewById(R.id.BTMenu);
                 ibDownload = view.findViewById(R.id.BTDownload);
+                transferProgress = view.findViewById(R.id.LLTransferProgress);
                 progressBar = view.findViewById(R.id.Progress);
+                progressStatus = view.findViewById(R.id.TVProgressStatus);
             }
         }
 
@@ -646,7 +828,10 @@ public class ContentsFragment extends Fragment {
 
             holder.tvVersionName.setText(getContext().getString(R.string.version) + ": " + profile.verName);
             holder.tvVersionCode.setText(getContext().getString(R.string.version_code) + ": " + profile.verCode);
-            holder.ibMenu.setVisibility(profile.remoteUrl == null ? View.VISIBLE : View.GONE);
+            String transferKey = contentTransferKey(profile);
+            TransferUiState transfer = ACTIVE_TRANSFERS.get(transferKey);
+            bindTransfer(holder.transferProgress, holder.progressBar, holder.progressStatus, transfer);
+            holder.ibMenu.setVisibility(profile.remoteUrl == null && transfer == null ? View.VISIBLE : View.GONE);
             // APK-embedded bundles are reinstalled on every launch and
             // containers depend on them; only Info is offered for them.
             boolean bundledContent = profile.remoteUrl == null
@@ -688,46 +873,48 @@ public class ContentsFragment extends Fragment {
                 });
                 selectionMenu.show();
             });
-            holder.ibDownload.setVisibility((profile.remoteUrl != null) && (holder.progressBar.getVisibility() == View.GONE) ? View.VISIBLE : View.GONE);
+            holder.ibDownload.setVisibility(profile.remoteUrl != null && transfer == null ? View.VISIBLE : View.GONE);
             holder.ibDownload.setOnClickListener(v -> {
-                holder.ibDownload.setVisibility(View.GONE);
-                holder.progressBar.setVisibility(View.VISIBLE);
-                holder.progressBar.setProgress(0);
-
-                PreloaderDialog downloadDialog = new PreloaderDialog(requireActivity());
-                downloadDialog.show(R.string.downloading_content);
-                downloadDialog.setProgress(0);
+                updateTransfer(transferKey, TRANSFER_DOWNLOADING, 0);
 
                 Intent intent = new Intent();
                 Context appContext = requireContext().getApplicationContext();
+                ContentOperationRegistry.Token downloadOperation =
+                        ContentOperationRegistry.begin(ContentOperationRegistry.Kind.DOWNLOAD);
                 new Thread(() -> {
                     long timestamp = System.currentTimeMillis();
                     File output = new File(appContext.getCacheDir(), "temp_" + timestamp);
                     boolean downloaded = Downloader.downloadFile(profile.remoteUrl, output, progress -> {
-                        downloadDialog.setProgress(progress);
-                        if (getActivity() != null) {
-                            getActivity().runOnUiThread(() -> holder.progressBar.setProgress(progress));
-                        }
+                        updateTransfer(transferKey, TRANSFER_DOWNLOADING, progress);
                     });
                     if (downloaded) {
                         intent.setData(Uri.parse(output.getAbsolutePath()));
                         pendingRemoteProfiles.put(intent.getData().toString(), profile);
+                        pendingRemoteTransferKeys.put(intent.getData().toString(), transferKey);
                     } else {
                         FileUtils.delete(output);
+                        finishTransfer(transferKey);
                     }
                     // The fragment can be detached while the download runs;
                     // getActivity() is then null and must not be dereferenced.
                     Activity host = getActivity();
-                    if (host == null) return;
+                    if (host == null) {
+                        downloadOperation.close();
+                        return;
+                    }
                     host.runOnUiThread(() -> {
-                        downloadDialog.close();
-                        holder.progressBar.setVisibility(View.GONE);
-                        holder.ibDownload.setVisibility(View.VISIBLE);
+                        if (!isAdded()) {
+                            FileUtils.delete(output);
+                            finishTransfer(transferKey);
+                            downloadOperation.close();
+                            return;
+                        }
                         if (downloaded) {
                             onActivityResult(MainActivity.OPEN_FILE_REQUEST_CODE, Activity.RESULT_OK, intent);
                         } else {
                             ContentDialog.alert(getContext(), R.string.download_failed, null);
                         }
+                        downloadOperation.close();
                     });
                 }).start();
             });

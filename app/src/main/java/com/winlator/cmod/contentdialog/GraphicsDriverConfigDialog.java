@@ -110,7 +110,10 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
             Log.i(TAG, "Saved graphics driver config: " + result);
             anchor.setTag(result);
             if (graphicsDriverVersionView != null) {
-                graphicsDriverVersionView.setText(selectedValue(versionSpinner));
+                // Driver selection lives outside this configuration popup.  Keep the
+                // externally selected driver instead of replacing it with the hidden
+                // compatibility spinner's fallback value when the dialog is saved.
+                graphicsDriverVersionView.setText(initialVersion);
             }
         });
     }
@@ -312,7 +315,9 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
     private String writeGraphicsDriverConfig() {
         HashMap<String, String> result = new HashMap<>(initialConfig);
         result.put("vulkanVersion", selectedValue(vulkanVersionSpinner));
-        result.put("version", selectedValue(versionSpinner));
+        // The driver is selected beside the wrapper in the container/shortcut screen.
+        // This dialog only edits its options, so it must preserve that selection.
+        result.put("version", initialVersion);
         result.put("blacklistedExtensions", extensionsSpinner.getUnSelectedItemsAsString());
         result.put("maxDeviceMemory", StringUtils.parseNumber(selectedValue(maxDeviceMemorySpinner)));
         result.put("syncFrame", boolValue(syncFrameCheckBox));

@@ -24,19 +24,27 @@ public class DrawableManager extends XResourceManager implements XResourceManage
 
 
     public Drawable createDrawable(int id, short width, short height, byte depth) {
-        return createDrawable(id, width, height, xServer.pixmapManager.getVisualForDepth(depth));
+        return createDrawable(id, width, height, width, xServer.pixmapManager.getVisualForDepth(depth));
+    }
+
+    public Drawable createDrawable(int id, short width, short height, short stridePixels, byte depth) {
+        return createDrawable(id, width, height, stridePixels, xServer.pixmapManager.getVisualForDepth(depth));
     }
 
     public Drawable createDrawable(int id, short width, short height, Visual visual) {
+        return createDrawable(id, width, height, width, visual);
+    }
+
+    public Drawable createDrawable(int id, short width, short height, short stridePixels, Visual visual) {
         if (id == 0) {
-            Drawable drawable = new Drawable(id, width, height, visual);
+            Drawable drawable = new Drawable(id, width, height, stridePixels, visual);
             if (drawable.getData() == null) {
                 throw new IllegalStateException("Drawable with id 0 has null data at creation.");
             }
             return drawable;
         }
         if (drawables.indexOfKey(id) >= 0) return null;
-        Drawable drawable = new Drawable(id, width, height, visual);
+        Drawable drawable = new Drawable(id, width, height, stridePixels, visual);
         if (drawable.getData() == null) {
             throw new IllegalStateException("Drawable with id " + id + " has null data at creation.");
         }

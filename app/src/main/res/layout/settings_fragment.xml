@@ -61,8 +61,20 @@
                         <ImageButton
                             style="@style/ListMenuButton"
                             android:id="@+id/BTRemoveBox64Preset"
-                            android:layout_marginRight="0dp"
                             android:src="@drawable/icon_remove" />
+
+                        <ImageButton
+                            android:id="@+id/BTExportBox64Preset"
+                            style="@style/ListMenuButton"
+                            android:contentDescription="@string/export"
+                            android:src="@drawable/icon_export" />
+
+                        <ImageButton
+                            android:id="@+id/BTImportBox64Preset"
+                            style="@style/ListMenuButton"
+                            android:layout_marginRight="0dp"
+                            android:contentDescription="@string/import_preset"
+                            android:src="@drawable/icon_popup_menu_download" />
                     </LinearLayout>
                 </LinearLayout>
 

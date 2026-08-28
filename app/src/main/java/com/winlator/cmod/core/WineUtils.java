@@ -236,7 +236,8 @@ public abstract class WineUtils {
                 String name = service.substring(0, service.indexOf(":"));
                 int defaultValue = Character.getNumericValue(service.charAt(service.length() - 1));
                 boolean protectedService = name.equals("winebus") || name.equals("winehid")
-                        || name.equals("MountMgr") || name.equals("PlugPlay");
+                        || name.equals("MountMgr") || name.equals("PlugPlay")
+                        || name.equals("RpcSs");
                 int value = defaultValue;
 
                 if (startupSelection == Container.STARTUP_SELECTION_AGGRESSIVE) {

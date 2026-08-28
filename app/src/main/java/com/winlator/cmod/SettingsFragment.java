@@ -119,8 +119,12 @@ public class SettingsFragment extends Fragment {
     private static final int REQUEST_CODE_INSTALL_SOUNDFONT = 1001;
     private static final int REQUEST_CODE_IMPORT_FEXCORE_PRESET = 1005;
     private static final int REQUEST_CODE_EXPORT_FEXCORE_PRESET = 1006;
+    private static final int REQUEST_CODE_IMPORT_BOX64_PRESET = 1007;
+    private static final int REQUEST_CODE_EXPORT_BOX64_PRESET = 1008;
     private static final String STATE_PENDING_FEXCORE_EXPORT = "pending_fexcore_export";
+    private static final String STATE_PENDING_BOX64_EXPORT = "pending_box64_export";
     private String pendingFEXCoreExportPresetId;
+    private String pendingBox64ExportPresetId;
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
@@ -130,6 +134,8 @@ public class SettingsFragment extends Fragment {
         if (savedInstanceState != null) {
             pendingFEXCoreExportPresetId = savedInstanceState.getString(
                     STATE_PENDING_FEXCORE_EXPORT);
+            pendingBox64ExportPresetId = savedInstanceState.getString(
+                    STATE_PENDING_BOX64_EXPORT);
         }
     }
 
@@ -143,6 +149,7 @@ public class SettingsFragment extends Fragment {
     public void onSaveInstanceState(@NonNull Bundle outState) {
         super.onSaveInstanceState(outState);
         outState.putString(STATE_PENDING_FEXCORE_EXPORT, pendingFEXCoreExportPresetId);
+        outState.putString(STATE_PENDING_BOX64_EXPORT, pendingBox64ExportPresetId);
     }
 
     @Override
@@ -697,6 +704,22 @@ public class SettingsFragment extends Fragment {
         view.findViewById(R.id.BTEditBox64Preset).setOnClickListener((v) -> onEditPreset.call("box64"));
         view.findViewById(R.id.BTDuplicateBox64Preset).setOnClickListener((v) -> onDuplicatePreset.call("box64"));
         view.findViewById(R.id.BTRemoveBox64Preset).setOnClickListener((v) -> onRemovePreset.call("box64"));
+        view.findViewById(R.id.BTExportBox64Preset).setOnClickListener(v -> {
+            String selectedId = Box86_64PresetManager.getSpinnerSelectedId(sBox64Preset);
+            if (!selectedId.startsWith(Box86_64Preset.CUSTOM)) {
+                AppUtils.showToast(context, R.string.cannot_export_builtin_preset);
+                return;
+            }
+            pendingBox64ExportPresetId = selectedId;
+            Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.setType("application/octet-stream");
+            intent.putExtra(Intent.EXTRA_TITLE, Box86_64PresetManager.getExportFileName(
+                    "box64", context, selectedId));
+            startActivityForResult(intent, REQUEST_CODE_EXPORT_BOX64_PRESET);
+        });
+        view.findViewById(R.id.BTImportBox64Preset).setOnClickListener(v ->
+                openFile(REQUEST_CODE_IMPORT_BOX64_PRESET));
     }
 
     private void loadFEXCorePresetSpinner(View view, Spinner spinner) {
@@ -970,6 +993,39 @@ public class SettingsFragment extends Fragment {
                         AppUtils.showToast(requireContext(), exported
                                 ? R.string.fexcore_preset_exported
                                 : R.string.fexcore_preset_export_failed);
+                        break;
+                    }
+
+                    case REQUEST_CODE_IMPORT_BOX64_PRESET: {
+                        try (InputStream inputStream = requireContext().getContentResolver()
+                                .openInputStream(uri)) {
+                            String importedId = Box86_64PresetManager.importPreset(
+                                    "box64", requireContext(), inputStream);
+                            Spinner spinner = requireView().findViewById(R.id.SBox64Preset);
+                            Box86_64PresetManager.loadSpinner("box64", spinner, importedId);
+                            AppUtils.showToast(requireContext(), R.string.box64_preset_imported);
+                        }
+                        catch (Exception e) {
+                            Log.e("SettingsFragment", "Unable to import Box64 preset", e);
+                            AppUtils.showToast(requireContext(), R.string.box64_preset_import_failed);
+                        }
+                        break;
+                    }
+
+                    case REQUEST_CODE_EXPORT_BOX64_PRESET: {
+                        boolean exported = false;
+                        try (OutputStream outputStream = requireContext().getContentResolver()
+                                .openOutputStream(uri)) {
+                            exported = Box86_64PresetManager.exportPreset("box64",
+                                    requireContext(), pendingBox64ExportPresetId, outputStream);
+                        }
+                        catch (Exception e) {
+                            Log.e("SettingsFragment", "Unable to export Box64 preset", e);
+                        }
+                        pendingBox64ExportPresetId = null;
+                        AppUtils.showToast(requireContext(), exported
+                                ? R.string.box64_preset_exported
+                                : R.string.box64_preset_export_failed);
                         break;
                     }
 

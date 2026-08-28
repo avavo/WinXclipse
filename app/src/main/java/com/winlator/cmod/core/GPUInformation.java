@@ -13,18 +13,26 @@ public abstract class GPUInformation {
 
     private static RendererInfo getInfo() {
         RendererInfo info = cachedInfo;
-        if (info == null) {
+        if (info == null || "Unknown GPU".equals(info.name)) {
             synchronized (GPUInformation.class) {
                 info = cachedInfo;
-                if (info == null) {
+                if (info == null || "Unknown GPU".equals(info.name)) {
                     String renderer = getRenderer();
-                    info = new RendererInfo(renderer == null || renderer.trim().isEmpty()
-                            ? "Unknown GPU" : renderer.trim());
+                    String trimmed = renderer == null ? "" : renderer.trim();
+                    if (trimmed.isEmpty()) {
+                        // No GL context yet - don't cache the placeholder.
+                        return new RendererInfo("Unknown GPU");
+                    }
+                    info = new RendererInfo(trimmed);
                     cachedInfo = info;
                 }
             }
         }
         return info;
+    }
+
+    public static void invalidateCache() {
+        synchronized (GPUInformation.class) { cachedInfo = null; }
     }
 
     public static String getRendererName() {

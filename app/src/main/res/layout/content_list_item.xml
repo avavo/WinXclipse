@@ -55,12 +55,34 @@
         style="@style/ListMenuButton"
         android:layout_marginStart="8dp"
         android:src="@drawable/icon_popup_menu_download" />
-    <ProgressBar
-        android:id="@+id/Progress"
-        style="@style/ListMenuButton"
-        android:indeterminate="false"
-        android:max="100"
-        android:progressTint="?colorAccent"
+    <LinearLayout
+        android:id="@+id/LLTransferProgress"
+        android:layout_width="112dp"
+        android:layout_height="wrap_content"
         android:layout_marginStart="8dp"
-        android:visibility="gone" />
+        android:gravity="center"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <ProgressBar
+            android:id="@+id/Progress"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="6dp"
+            android:indeterminate="false"
+            android:max="100"
+            android:progress="0"
+            android:progressBackgroundTint="#404040"
+            android:progressTint="?colorAccent" />
+
+        <TextView
+            android:id="@+id/TVProgressStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="3dp"
+            android:ellipsize="end"
+            android:gravity="center"
+            android:maxLines="1"
+            android:textSize="11sp" />
+    </LinearLayout>
 </LinearLayout>

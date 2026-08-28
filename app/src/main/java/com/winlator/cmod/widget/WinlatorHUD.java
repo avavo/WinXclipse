@@ -2,6 +2,8 @@ package com.winlator.cmod.widget;
 
 // Ported from Winlator Mali:
 // https://github.com/GunaCharanTeja/WinlatorMali
+// Native Mango-style preset adapted from Bannerlator's Fusion HUD approach:
+// https://github.com/The412Banner/Bannerlator
 
 import android.app.ActivityManager;
 import android.content.Context;
@@ -54,6 +56,12 @@ public class WinlatorHUD extends View {
     public static final int SHOW_SOC      = 1<<14;
     public static final int SHOW_GPU_TEMP = 1<<15;
     private static final int SHOW_DEFAULT = SHOW_FPS | SHOW_MONO | SHOW_WRAPPER | SHOW_GPU | SHOW_CPU | SHOW_RAM | SHOW_BATT | SHOW_BORDER | SHOW_SOC;
+    /**
+     * A conservative one-line MangoHUD layout which stays readable at 720p.
+     * Temperature is included by SHOW_BATT and is drawn beside power usage.
+     */
+    private static final int SHOW_MANGO_DEFAULT = SHOW_FPS | SHOW_WRAPPER | SHOW_CPU
+            | SHOW_RAM | SHOW_BATT | SHOW_BORDER;
 
     private static final int C_WHITE = Color.WHITE;
     private static final int C_GPU  = Color.rgb(0xE0,0x40,0xFB);
@@ -131,6 +139,7 @@ public class WinlatorHUD extends View {
     private float hudAlpha = 1f;
     private boolean userEnabled = false;
     private boolean vertical = false;
+    private boolean mangoStyle = false;
 
     private float touchX, touchY, startX, startY;
     private boolean dragging = false;
@@ -225,6 +234,32 @@ public class WinlatorHUD extends View {
     }
 
     public void setDataSource(HudDataSource ds) { this.dataSource = ds; }
+
+    /**
+     * Applies Bannerlator's native-HUD strategy to the MangoHUD option. This is
+     * intentionally an Android Canvas preset rather than a guest Vulkan layer:
+     * it works for Vulkan and OpenGL renderers and cannot block Wine startup.
+     * The preset is session-only, so it never overwrites the user's Winlator
+     * HUD customization.
+     */
+    public void setMangoStyle(boolean enabled) {
+        mangoStyle = enabled;
+        if (enabled) {
+            showMask = SHOW_MANGO_DEFAULT;
+            vertical = false;
+            pBg.setColor(Color.argb(210, 8, 10, 14));
+            pBorder.setColor(Color.argb(190, 126, 87, 194));
+        } else {
+            showMask = prefs.getInt(KEY_SHOW, SHOW_DEFAULT);
+            vertical = prefs.getBoolean(KEY_VERT, false);
+            pBg.setColor(Color.argb(180, 0, 0, 0));
+            pBorder.setColor(C_BORDER);
+        }
+        layoutDirty = true;
+        cachedPath = null;
+        requestLayout();
+        invalidate();
+    }
 
     private static String getSocName() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -1074,7 +1109,7 @@ public class WinlatorHUD extends View {
             rendererActive = true;
             userEnabled = true;
             
-            showMask = SHOW_DEFAULT;
+            showMask = mangoStyle ? SHOW_MANGO_DEFAULT : SHOW_DEFAULT;
             vertical = false;
             layoutDirty = true;
             

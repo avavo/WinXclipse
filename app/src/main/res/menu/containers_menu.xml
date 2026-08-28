@@ -42,5 +42,11 @@
         android:icon="@drawable/icon_action_bar_add"
         android:id="@+id/containers_menu_add"
         android:title="@string/add"
-        app:showAsAction="ifRoom" />
+        app:showAsAction="always" />
+
+    <item
+        android:id="@+id/containers_menu_import_config"
+        android:title="Import Community Config"
+        android:icon="@drawable/icon_action_bar_import"
+        app:showAsAction="never" />
 </menu>

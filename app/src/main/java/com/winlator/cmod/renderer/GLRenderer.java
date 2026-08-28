@@ -154,9 +154,24 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
     }
 
     public void drawFrame() {
+        // If any post-processing effects are active, delegate entirely to the
+        // composer which renders the scene once into an offscreen buffer. The
+        // previous implementation drew the scene to screen and then again into
+        // the buffer, doubling GPU work when FSR/HDR was enabled.
+        if (effectComposer.hasEffects() && !effectComposer.isRendering()) {
+            effectComposer.render();
+            if (XrActivity.isEnabled(null) && XrActivity.getInstance().getImmersive()) {
+                // XR immersive path still needs controller updates.
+                try { XrActivity.getInstance().updateControllers(); } catch (Throwable ignored) {}
+            }
+            return;
+        }
+        drawScene(false);
+    }
+
+    void drawScene(boolean xrImmersive) {
         boolean xrFrame = false;
-        boolean xrImmersive = false;
-        if (XrActivity.isEnabled(null)) {
+        if (!xrImmersive && XrActivity.isEnabled(null)) {
             XrActivity xr = XrActivity.getInstance();
             xrImmersive = xr.getImmersive();
             xrFrame = xr.beginFrame(xrImmersive, xr.getSBS());
@@ -220,11 +235,6 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
         // Disable scissor test if magnifier is disabled and not in fullscreen mode
         if (!magnifierEnabled && !fullscreen) {
             GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
-        }
-
-        // Apply all the effects using EffectComposer
-        if (effectComposer.hasEffects()) {
-            effectComposer.render();  // <-- This line applies the effects
         }
 
         // Finalize XR frame if supported

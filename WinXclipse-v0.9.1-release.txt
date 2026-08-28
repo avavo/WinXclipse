@@ -1,0 +1,62 @@
+WinXclipse v0.9.1 Release Notes
+
+WinXclipse runs Windows applications on Exynos devices with Xclipse GPUs through Wine/Proton runtimes (including ARM64EC builds), FEXCore and Box64 CPU translation, and Vulkan-based graphics stacks (DXVK, VKD3D-Proton, and dedicated wrappers) tuned for Xclipse RDNA2/RDNA3/RDNA4.
+
+0.9.1 Highlights
+
+- AMD FSR 1.1 (EASU + RCAS) with real guest render scaling when enabled. FSR is the standard texture filter while upscaling is off by default and opt-in per container/shortcut.
+- VSync limits at 100%, 50%, or Off in container Video, shortcut Video, and the live Display sidebar, derived from the active Android display mode.
+- Video tab: renderer (Vulkan/OpenGL/GDI), GPU name, present mode, texture filtering, vkBasalt sharpness (CAS/DLS) with level/denoise, and refresh rate; audio driver dialog with volume.
+- Shortcut artwork with SteamGridDB browser, EXE icon, and custom image sources.
+- New dark glassy touchscreen control style with a full gamepad skin set.
+- Experimental Performance tuning: per-model Exynos/Xclipse VRAM caps, BCn backends, CPU cluster scheduling, and unified-memory-aware defaults.
+- Lower-RAM devices use more aggressive memory reclamation; Aggressive startup is reapplied on every Wine launch while protecting essential input and RPC services.
+- External storage volumes and configured Wine drives are exposed in File Manager.
+- Community configuration ZIP export/import with standardized content IDs, metadata, fuzzy local-content matching, and a read-only GitHub release catalog.
+- Concurrent downloads/install staging is isolated, and Wine cannot start until active content operations finish.
+- Native Android HUD path adapted from Bannerlator replaces failed MangoHUD guest-layer injection.
+- Physical mouse right-click compatibility for Android devices that report the secondary button as Back.
+- Physical mouse left-click handling is restored for both captured and regular external-pointer paths.
+- Proton x86_64 container creation/startup is restored by preserving bundled Box64, separating ARM64 and x86_64 library paths, and launching the installed Wine binary explicitly.
+- Default-container config ZIPs import without false `none`/bundled-content dependency prompts; import dialogs follow the black app theme.
+- ARM64EC compatibility fixes, X server hardening, and container boot fixes for raw Wine/Proton .tzst runtimes.
+- Touchscreen haptics are enabled by default; window/fullscreen letterboxing is fixed for live FSR switches.
+
+See CHANGELOG.md for the complete list of changes.
+
+Support
+
+Discord: https://discord.gg/u2nDTXRxyx
+Email: avavosim@gmail.com
+
+When reporting a bug, please include:
+
+- Device model
+- Android version
+- WinXclipse version and report schema
+- Container configuration
+- Wrapper
+- Graphics driver
+- Runtime/FEXCore configuration
+- Steps to reproduce the issue
+- Logs, when available
+
+Package Variants
+
+- Main: com.win.xclipse
+- AnTuTu: com.antutu.ABenchMark
+- Geekbench 6: com.primatelabs.geekbench6
+
+Remote Sources
+
+- ExynosTools: https://github.com/WearyConcern1165/ExynosTools/releases
+- WinXclipse drivers: https://github.com/avavo/WinXclipse/releases/tag/drivers_0.9
+- Community configs: https://github.com/avavo/WinXclipse/releases/tag/community-configs
+
+Status
+
+Functionally experimental. Behavior can vary depending on the device, GPU, driver, wrapper, runtime, container, and game.
+
+Credits
+
+Winlator by Brunodev85 - Winlator CMOD by coffincolors and Pipetto-crypto - Winlator Glibc by longjunyu2 - Winlator OpenXR by lvonasek - FEX-Emu - AMD FidelityFX Super Resolution - Winlator Mali - Winlator Ludashi - Bannerlator - ExynosTools - Wrappers from Leegao, GameNative, Ref4ik-v6, and Kirimu - WinXclipse Exynos/Xclipse adaptation by Alvaro

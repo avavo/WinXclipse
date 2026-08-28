@@ -3,6 +3,7 @@ package com.winlator.cmod.core;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.BitmapFactory;
+import android.graphics.Bitmap;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -114,6 +115,54 @@ public final class ShortcutArtworkManager {
             } finally {
                 PENDING.remove(pendingKey);
             }
+        });
+    }
+
+    /** Uses the same browser artwork policy for community-config cards. */
+    public static void ensureForGame(Context context, String gameName, File output, Callback callback) {
+        if (output.isFile()) {
+            post(callback, true);
+            return;
+        }
+        EXECUTOR.execute(() -> {
+            boolean ok = false;
+            try {
+                SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
+                String key = BUILT_IN_API_KEY;
+                if (prefs.getBoolean("enable_custom_api_key", false)) {
+                    String custom = prefs.getString("custom_api_key", "");
+                    if (custom != null && !custom.trim().isEmpty()) key = custom.trim();
+                }
+                SteamGridDBApi api = getSteamGridApi();
+                retrofit2.Response<SteamGridSearchResponse> search =
+                        api.searchGame("Bearer " + key, cleanSearchName(gameName)).execute();
+                if (search.isSuccessful() && search.body() != null && search.body().data != null
+                        && !search.body().data.isEmpty()) {
+                    retrofit2.Response<SteamGridGridsResponse> grids = api.getGridsByGameId(
+                            "Bearer " + key, search.body().data.get(0).id,
+                            "alternate,blurred,material", "600x900", "static").execute();
+                    if (grids.isSuccessful() && grids.body() != null && grids.body().data != null) {
+                        String imageUrl = firstImageUrl(grids.body().data);
+                        if (imageUrl != null) {
+                            try (Response response = HTTP_CLIENT.newCall(
+                                    new Request.Builder().url(imageUrl).build()).execute()) {
+                                if (response.isSuccessful() && response.body() != null) {
+                                    try (InputStream input = response.body().byteStream()) {
+                                        Bitmap bitmap = BitmapFactory.decodeStream(input);
+                                        File parent = output.getParentFile();
+                                        if (parent != null && (parent.isDirectory() || parent.mkdirs())) {
+                                            ok = bitmap != null && FileUtils.saveBitmapToFile(bitmap, output);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "Community artwork failed for " + gameName, e);
+            }
+            post(callback, ok);
         });
     }
 

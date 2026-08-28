@@ -276,6 +276,7 @@ public final class FEXCorePresetManager {
         if (preset == null || !preset.isCustom() || outputStream == null) return false;
         EnvVars envVars = getEnvVars(context, preset.id);
         try (PrintWriter writer = new PrintWriter(new OutputStreamWriter(outputStream, StandardCharsets.UTF_8))) {
+            writer.println("Type:FEXCORE");
             writer.println("ID:" + preset.id);
             writer.println("Name:" + preset.name);
             writer.println("EnvVars:" + envVars);
@@ -285,6 +286,7 @@ public final class FEXCorePresetManager {
 
     public static String importPreset(Context context, InputStream inputStream) throws IOException {
         if (inputStream == null) throw new IOException("Preset file could not be opened");
+        String type = null;
         String name = null;
         String envVarsString = null;
         try (BufferedReader reader = new BufferedReader(
@@ -293,15 +295,26 @@ public final class FEXCorePresetManager {
             while ((line = reader.readLine()) != null) {
                 String[] fields = line.split(":", 2);
                 if (fields.length != 2) continue;
-                if (fields[0].equalsIgnoreCase("Name")) name = fields[1];
+                if (fields[0].equalsIgnoreCase("Type")) type = fields[1].trim();
+                else if (fields[0].equalsIgnoreCase("Name")) name = fields[1];
                 else if (fields[0].equalsIgnoreCase("EnvVars")) envVarsString = fields[1];
             }
         }
 
-        String cleanName = sanitizeName(name);
-        if (cleanName.isEmpty() || !isValidEnvVars(envVarsString)) {
+        // Type was absent in older WinXclipse .wbp files; keep those portable,
+        // but reject a new Box64 preset accidentally selected in this picker.
+        if (type != null && !"FEXCORE".equalsIgnoreCase(type))
             throw new IOException("Invalid FEXCore preset");
-        }
+
+        return importPreset(context, name, envVarsString);
+    }
+
+    /** Imports already-decoded preset data, used by portable community configs. */
+    public static String importPreset(Context context, String name, String envVarsString)
+            throws IOException {
+        String cleanName = sanitizeName(name);
+        if (cleanName.isEmpty() || !isValidEnvVars(envVarsString))
+            throw new IOException("Invalid FEXCore preset");
         return editPreset(context, null, cleanName, new EnvVars(envVarsString));
     }
 
@@ -310,7 +323,9 @@ public final class FEXCorePresetManager {
         for (String item : value.trim().split(" +")) {
             int separator = item.indexOf('=');
             if (separator <= 0 || separator == item.length() - 1
-                    || !item.substring(0, separator).matches("[A-Za-z_][A-Za-z0-9_]*")) {
+                    || !item.substring(0, separator).matches("[A-Za-z_][A-Za-z0-9_]*")
+                    || !item.substring(0, separator).toUpperCase(Locale.ENGLISH)
+                            .startsWith("FEX_")) {
                 return false;
             }
         }

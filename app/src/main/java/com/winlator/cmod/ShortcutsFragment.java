@@ -348,7 +348,7 @@ public class ShortcutsFragment extends Fragment {
                             "Icon=\n" +
                             "StartupWMClass=" + wmClass + "\n\n" +
                             "[Extra Data]\n" +
-                            "container_id:" + container.id + "\n";
+                            "container_id=" + container.id + "\n";
 
             FileUtils.writeString(desktopFile, content);
             Log.d("ShortcutCreation", "SUCCESS: Created .desktop file at " + desktopFile.getAbsolutePath());

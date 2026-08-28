@@ -116,6 +116,11 @@
         <item>120 Hz</item>
         <item>144 Hz</item>
     </string-array>
+    <string-array name="video_vsync_limit_entries">
+        <item>100%</item>
+        <item>50%</item>
+        <item>Off</item>
+    </string-array>
     <string-array name="video_memory_size_entries">
         <item>32 MB</item>
         <item>64 MB</item>

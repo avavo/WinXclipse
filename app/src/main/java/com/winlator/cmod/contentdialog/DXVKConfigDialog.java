@@ -161,31 +161,24 @@ public class DXVKConfigDialog extends ContentDialog {
         File rootDir = ImageFs.find(context).getRootDir();
         File dxvkConfigFile = new File(rootDir, ImageFs.CONFIG_PATH+"/dxvk.conf");
 
-        String content = "\"";
         String framerate = config.get("framerate");
         if (!framerate.isEmpty() && !framerate.equals("0")) {
-//            content += "dxgi.maxFrameRate = "+framerate+';';
-//            content += "d3d9.maxFrameRate = "+framerate+';';
             envVars.put("DXVK_FRAME_RATE", framerate);
         }
 
         String async = config.get("async");
         if (!async.isEmpty() && !async.equals("0"))
-//            content += "dxvk.enableAsync = True;";
             envVars.put("DXVK_ASYNC", "1");
 
         String asyncCache = config.get("asyncCache");
         if (!asyncCache.isEmpty() && !asyncCache.equals("0"))
-//            content += "dxvk.gplAsyncCache = True;";
             envVars.put("DXVK_GPLASYNCCACHE", "1");
-        content = content + '\"';
 
-//        FileUtils.delete(dxvkConfigFile);
-//        if (!content.isEmpty() && FileUtils.writeString(dxvkConfigFile, content)) {
-//            envVars.put("DXVK_CONFIG_FILE", rootDir + ImageFs.CONFIG_PATH+"/dxvk.conf");
-//        }
-        envVars.put("DXVK_CONFIG_FILE", rootDir + ImageFs.CONFIG_PATH+"/dxvk.conf");
-        envVars.put("DXVK_CONFIG", content);
+        // dxvk.conf is no longer written by this path; any stale file from
+        // older builds must not leak into the current session.
+        try { if (dxvkConfigFile.isFile()) dxvkConfigFile.delete(); } catch (Exception ignored) {}
+        envVars.remove("DXVK_CONFIG_FILE");
+        envVars.remove("DXVK_CONFIG");
         if (!"none".equalsIgnoreCase(config.get("vkd3dVersion")))
             envVars.put("VKD3D_FEATURE_LEVEL", config.get("vkd3dLevel"));
     }

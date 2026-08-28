@@ -171,6 +171,10 @@
     <string name="system">System</string>
     <string name="box86_preset">Box86 Preset</string>
     <string name="box64_preset">Box64 Preset</string>
+    <string name="box64_preset_imported">Box64 preset imported</string>
+    <string name="box64_preset_import_failed">Box64 preset import failed</string>
+    <string name="box64_preset_exported">Box64 preset exported</string>
+    <string name="box64_preset_export_failed">Box64 preset export failed</string>
     <string name="box86_version">Box86 Version</string>
     <string name="box64_version">Box64 Version</string>
     <string name="letter">Letter</string>
@@ -326,7 +330,7 @@
     <string name="video_help_unlimited_images">Allows the swapchain to use unlimited images instead of capping them. Lower latency, uses more memory.</string>
     <string name="gdc_help_bcn_software">Uses the software BCn compression path. Lighter for small WGPs (workgroup sizes) and helps when hardware BCn emulation misbehaves.</string>
     <string name="gdc_help_etc2">Transcodes ETC2 compressed textures to BCn. Mutually exclusive with ASTC Transcode.</string>
-    <string name="video_vsync_off">Disable vsync wait</string>
+    <string name="video_vsync_off">VSync limit</string>
     <string name="video_unlimited_images">Unlimited swapchain images</string>
     <string name="dxvk_no_timeline">Disable timeline semaphores</string>
     <string name="dxvk_vk3d66">Force VKD3D shader model 6.6</string>
@@ -841,6 +845,9 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="dxvk_version">DXVK Version</string>
     <string name="vkd3d_version">VKD3D Version</string>
     <string name="downloading_content">Downloading Content…</string>
+    <string name="download_progress">Downloading %1$d%%</string>
+    <string name="install_progress">Installing %1$d%%</string>
+    <string name="waiting_install_confirmation">Waiting for confirmation</string>
     <string name="download_failed">Download failed</string>
     <string name="hud_mode">FPS HUD</string>
     <string name="file_manager">File Manager</string>

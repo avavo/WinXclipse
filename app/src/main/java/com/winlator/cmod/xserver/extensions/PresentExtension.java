@@ -3,6 +3,7 @@ package com.winlator.cmod.xserver.extensions;
 import static com.winlator.cmod.xserver.XClientRequestHandler.RESPONSE_CODE_SUCCESS;
 
 import android.util.SparseArray;
+import android.util.SparseLongArray;
 
 import com.winlator.cmod.renderer.GPUImage;
 import com.winlator.cmod.renderer.GLRenderer;
@@ -26,20 +27,25 @@ import com.winlator.cmod.xserver.events.PresentCompleteNotify;
 import com.winlator.cmod.xserver.events.PresentIdleNotify;
 
 import java.io.IOException;
+import java.util.concurrent.locks.LockSupport;
 
 public class PresentExtension implements Extension {
     public static final byte MAJOR_OPCODE = -103;
-    private static final int FAKE_INTERVAL = 1000000 / 60;
     public enum Kind {PIXMAP, MSC_NOTIFY}
     public enum Mode {COPY, FLIP, SKIP}
     private final SparseArray<Event> events = new SparseArray<>();
     private SyncExtension syncExtension;
-    private long nextFrameTimeNs;
+    private final SparseLongArray nextFrameTimesNs = new SparseLongArray();
     private volatile int frameRateLimit;
+    private volatile int refreshRateHz = 60;
 
     public void setFrameRateLimit(int limit) {
         frameRateLimit = Math.max(0, limit);
-        if (frameRateLimit == 0) nextFrameTimeNs = 0;
+        if (frameRateLimit == 0) synchronized (nextFrameTimesNs) { nextFrameTimesNs.clear(); }
+    }
+
+    public void setRefreshRate(float refreshRate) {
+        refreshRateHz = Math.max(1, Math.round(refreshRate));
     }
 
     private static abstract class ClientOpcodes {
@@ -134,7 +140,7 @@ public class PresentExtension implements Extension {
         if (content.visual.depth != pixmap.drawable.visual.depth) throw new BadMatch();
 
         long ust = System.nanoTime() / 1000;
-        long msc = ust / FAKE_INTERVAL;
+        long msc = ust / Math.max(1, 1000000 / refreshRateHz);
 
         synchronized (content.renderLock) {
             content.copyArea((short)0, (short)0, xOff, yOff, pixmap.drawable.width, pixmap.drawable.height, pixmap.drawable);
@@ -181,16 +187,21 @@ public class PresentExtension implements Extension {
 
     /** Mali-style Present pacing. This throttles the guest's Present request,
      * not the Android GL renderer, so the compositor remains responsive. */
-    private void enforceFrameRate(GLRenderer renderer) {
+    private void enforceFrameRate(GLRenderer renderer, XClient client) {
         int targetFps = frameRateLimit > 0 ? frameRateLimit
                 : renderer != null ? renderer.getFpsLimit() : 0;
         if (targetFps <= 0) {
-            nextFrameTimeNs = 0;
+            synchronized (nextFrameTimesNs) { nextFrameTimesNs.delete(System.identityHashCode(client)); }
             return;
         }
 
         long frameNs = 1_000_000_000L / targetFps;
         long now = System.nanoTime();
+        int pacingKey = System.identityHashCode(client);
+        long nextFrameTimeNs;
+        synchronized (nextFrameTimesNs) {
+            nextFrameTimeNs = nextFrameTimesNs.get(pacingKey, 0L);
+        }
         if (nextFrameTimeNs == 0 || now > nextFrameTimeNs + frameNs)
             nextFrameTimeNs = now + frameNs;
 
@@ -204,9 +215,12 @@ public class PresentExtension implements Extension {
                 Thread.currentThread().interrupt();
             }
         }
-        while (!Thread.currentThread().isInterrupted() && System.nanoTime() < nextFrameTimeNs)
-            Thread.yield();
-        nextFrameTimeNs += frameNs;
+        remaining = nextFrameTimeNs - System.nanoTime();
+        if (remaining > 0 && !Thread.currentThread().isInterrupted())
+            LockSupport.parkNanos(remaining);
+        synchronized (nextFrameTimesNs) {
+            nextFrameTimesNs.put(pacingKey, nextFrameTimeNs + frameNs);
+        }
     }
 
     @Override
@@ -223,7 +237,7 @@ public class PresentExtension implements Extension {
                     presentPixmap(client, inputStream, outputStream);
                 }
                 if (client.xServer.getRenderer() instanceof GLRenderer)
-                    enforceFrameRate((GLRenderer)client.xServer.getRenderer());
+                    enforceFrameRate((GLRenderer)client.xServer.getRenderer(), client);
                 break;
             case ClientOpcodes.SELECT_INPUT:
                 try (XLock lock = client.xServer.lock(XServer.Lockable.WINDOW_MANAGER)) {

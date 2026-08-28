@@ -379,7 +379,9 @@ public class ContainerDetailFragment extends Fragment {
         final View vGraphicsDriverConfig = view.findViewById(R.id.BTGraphicsDriverConfig);
         vGraphicsDriverConfig.setTag(isEditMode() ? container.getGraphicsDriverConfig() : Container.DEFAULT_GRAPHICSDRIVERCONFIG);
 
-        final int[] rendererFilterMode = {-1};
+        // New containers use FSR as their renderer filter, while EASU
+        // upscaling remains disabled until explicitly enabled in Video.
+        final int[] rendererFilterMode = {isEditMode() ? -1 : 2};
         if (isEditMode() && container.hasExtra("rendererFilterMode")) {
             try {
                 rendererFilterMode[0] = Integer.parseInt(container.getExtra("rendererFilterMode", "0"));
@@ -639,7 +641,7 @@ public class ContainerDetailFragment extends Fragment {
                     public String getFsrUpscale() {
                         String fallback = GraphicsDriverConfigDialog
                                 .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()))
-                                .getOrDefault("fsrUpscale", "1");
+                                .getOrDefault("fsrUpscale", "0");
                         return container != null ? container.getExtra("fsrUpscale", fallback) : fallback;
                     }
 
@@ -652,10 +654,13 @@ public class ContainerDetailFragment extends Fragment {
                     }
 
                     @Override
-                    public boolean isVsyncOff() {
-                        return "1".equals(GraphicsDriverConfigDialog
-                                .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()))
-                                .getOrDefault("vblankOff", "0"));
+                    public String getVsyncMode() {
+                        HashMap<String, String> config = GraphicsDriverConfigDialog
+                                .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()));
+                        if (config.containsKey("vsyncMode")) return config.get("vsyncMode");
+                        if (config.containsKey("vblankOff"))
+                            return "1".equals(config.get("vblankOff")) ? "off" : "100";
+                        return "off";
                     }
 
                     @Override
@@ -669,7 +674,7 @@ public class ContainerDetailFragment extends Fragment {
                     public String getRefreshRate() {
                         return GraphicsDriverConfigDialog
                                 .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()))
-                                .getOrDefault("refreshRate", "auto");
+                                .getOrDefault("refreshRate", "60");
                     }
 
                     @Override
@@ -691,7 +696,7 @@ public class ContainerDetailFragment extends Fragment {
                     public void apply(String gpuName, String presentMode,
                                       int textureFilterMode, boolean swapRedBlue,
                                       String fsrUpscale,
-                                      String fsrQuality, boolean vsyncOff,
+                                      String fsrQuality, String vsyncMode,
                                       boolean unlimitedImages, String refreshRate,
                                       String sharpnessEffect, String sharpnessLevel,
                                       String sharpnessDenoise) {
@@ -702,9 +707,10 @@ public class ContainerDetailFragment extends Fragment {
                         config.remove("fsrMode");
                         config.put("fsrUpscale", fsrUpscale == null ? "0" : fsrUpscale);
                         config.put("fsrQuality", fsrQuality == null ? "balanced" : fsrQuality);
-                        config.put("vblankOff", vsyncOff ? "1" : "0");
+                        config.put("vsyncMode", vsyncMode == null ? "off" : vsyncMode);
+                        config.put("vblankOff", "off".equals(vsyncMode) ? "1" : "0");
                         config.put("unlimitedImages", unlimitedImages ? "1" : "0");
-                        config.put("refreshRate", refreshRate == null ? "auto" : refreshRate);
+                        config.put("refreshRate", refreshRate == null ? "60" : refreshRate);
                         vGraphicsDriverConfig.setTag(
                                 GraphicsDriverConfigDialog.toGraphicsDriverConfig(config));
                         AppUtils.setSpinnerSelectionFromValue(sGPUName, gpuName);
@@ -1125,6 +1131,7 @@ public class ContainerDetailFragment extends Fragment {
     // New method: Adds support for the GraphicsDriverConfigDialog
     public void loadGraphicsDriverSpinner(final Spinner sGraphicsDriver, final Spinner sDXWrapper, final View vGraphicsDriverConfig, String selectedGraphicsDriver, String selectedDXWrapper) {
         final Context context = sGraphicsDriver.getContext();
+        final boolean[] initializing = {true};
 
         // Update the spinner with the available graphics driver options
         updateGraphicsDriverSpinner(context, sGraphicsDriver);
@@ -1158,6 +1165,10 @@ public class ContainerDetailFragment extends Fragment {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 update.run();
+                if (!initializing[0] && "wrapper-v2".equals(
+                        StringUtils.parseIdentifier(sGraphicsDriver.getSelectedItem()))) {
+                    showWrapperV2Comparison(context);
+                }
             }
 
             @Override
@@ -1167,6 +1178,15 @@ public class ContainerDetailFragment extends Fragment {
         // Set the spinner's initial selection
         AppUtils.setSpinnerSelectionFromIdentifier(sGraphicsDriver, selectedGraphicsDriver);
         update.run();
+        sGraphicsDriver.post(() -> initializing[0] = false);
+    }
+
+    public static void showWrapperV2Comparison(Context context) {
+        new androidx.appcompat.app.AlertDialog.Builder(context)
+                .setTitle("Compare Wrapper and Wrapper-v2")
+                .setMessage("Wrapper-v2 is an alternative rendering path. Test the same scene with the standard Wrapper and Wrapper-v2, then keep the one with better stability, frame pacing and FPS for this game. Results can differ by GPU and driver.")
+                .setPositiveButton(android.R.string.ok, null)
+                .show();
     }
 
     public static void setupDXWrapperSpinner(final Spinner sDXWrapper, final View vDXWrapperConfig) {
@@ -1453,10 +1473,14 @@ public class ContainerDetailFragment extends Fragment {
         String[] versions = getResources().getStringArray(R.array.wine_entries);
         ArrayList<String> wineVersions = new ArrayList<>();
         wineVersions.addAll(Arrays.asList(versions));
-        for (ContentProfile profile : contentsManager.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_WINE))
-            wineVersions.add(ContentsManager.getEntryName(profile));
-        for (ContentProfile profile : contentsManager.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_PROTON))
-            wineVersions.add(ContentsManager.getEntryName(profile));
+        for (ContentProfile profile : contentsManager.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_WINE)) {
+            if (contentsManager.isInstalledProfile(profile))
+                wineVersions.add(ContentsManager.getEntryName(profile));
+        }
+        for (ContentProfile profile : contentsManager.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_PROTON)) {
+            if (contentsManager.isInstalledProfile(profile))
+                wineVersions.add(ContentsManager.getEntryName(profile));
+        }
         sWineVersion.setAdapter(new ThemedSpinnerAdapter<>(context, wineVersions));
         if (isEditMode()) AppUtils.setSpinnerSelectionFromValue(sWineVersion, container.getWineVersion());
     }
@@ -1514,6 +1538,7 @@ public class ContainerDetailFragment extends Fragment {
         String[] originalItems = context.getResources().getStringArray(R.array.box64_version_entries);
         List<String> itemList = new ArrayList<>(Arrays.asList(originalItems));
         for (ContentProfile profile : manager.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_BOX64)) {
+            if (!manager.isInstalledProfile(profile)) continue;
             String entryName = ContentsManager.getEntryName(profile);
             int firstDashIndex = entryName.indexOf('-');
             String version = entryName.substring(firstDashIndex + 1);

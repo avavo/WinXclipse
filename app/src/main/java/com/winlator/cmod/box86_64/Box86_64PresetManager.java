@@ -11,6 +11,14 @@ import androidx.preference.PreferenceManager;
 import com.winlator.cmod.R;
 import com.winlator.cmod.core.EnvVars;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Locale;
@@ -201,6 +209,80 @@ public abstract class Box86_64PresetManager {
         }
 
         preferences.edit().putString(key, newCustomPresetsStr).apply();
+    }
+
+    public static String getExportFileName(String prefix, Context context, String id) {
+        Box86_64Preset preset = getPreset(prefix, context, id);
+        if (preset == null || !preset.id.startsWith(Box86_64Preset.CUSTOM))
+            return prefix + "_preset.wbp";
+        String safeName = preset.name.replaceAll("[^A-Za-z0-9._-]+", "_");
+        return prefix + "_" + (safeName.isEmpty() ? "preset" : safeName) + ".wbp";
+    }
+
+    public static boolean exportPreset(String prefix, Context context, String id,
+                                       OutputStream outputStream) {
+        Box86_64Preset preset = getPreset(prefix, context, id);
+        if (preset == null || !preset.id.startsWith(Box86_64Preset.CUSTOM)
+                || outputStream == null) return false;
+        try (PrintWriter writer = new PrintWriter(new OutputStreamWriter(
+                outputStream, StandardCharsets.UTF_8))) {
+            writer.println("Type:" + prefix.toUpperCase(Locale.ENGLISH));
+            writer.println("ID:" + preset.id);
+            writer.println("Name:" + preset.name);
+            writer.println("EnvVars:" + getEnvVars(prefix, context, preset.id));
+            return !writer.checkError();
+        }
+    }
+
+    public static String importPreset(String prefix, Context context, InputStream inputStream)
+            throws IOException {
+        if (inputStream == null) throw new IOException("Preset file could not be opened");
+        String type = null;
+        String name = null;
+        String envVarsString = null;
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(
+                inputStream, StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String[] fields = line.split(":", 2);
+                if (fields.length != 2) continue;
+                if (fields[0].equalsIgnoreCase("Type")) type = fields[1].trim();
+                else if (fields[0].equalsIgnoreCase("Name")) name = fields[1];
+                else if (fields[0].equalsIgnoreCase("EnvVars")) envVarsString = fields[1];
+            }
+        }
+        String expectedType = prefix.toUpperCase(Locale.ENGLISH);
+        // Type was not written by older WinXclipse/Ludashi .wbp exporters.
+        // The BOX64_/BOX86_ key validation below is sufficient to distinguish
+        // those legacy presets, while an explicit mismatching Type is rejected.
+        if (type != null && !expectedType.equalsIgnoreCase(type))
+            throw new IOException("Invalid " + expectedType + " preset");
+        return importPreset(prefix, context, name, envVarsString);
+    }
+
+    /** Imports already-decoded preset data, used by portable community configs. */
+    public static String importPreset(String prefix, Context context, String name,
+                                      String envVarsString) throws IOException {
+        String expectedType = prefix.toUpperCase(Locale.ENGLISH);
+        String cleanName = name == null ? "" : name.replaceAll("[,|\\r\\n]+", "").trim();
+        if (cleanName.isEmpty() || !isValidEnvVars(envVarsString, expectedType))
+            throw new IOException("Invalid " + expectedType + " preset");
+        String newId = Box86_64Preset.CUSTOM + "-" + getNextPresetId(context, prefix);
+        editPreset(prefix, context, null, cleanName, new EnvVars(envVarsString));
+        return newId;
+    }
+
+    private static boolean isValidEnvVars(String value, String expectedPrefix) {
+        if (value == null || value.trim().isEmpty()) return false;
+        for (String item : value.trim().split(" +")) {
+            int separator = item.indexOf('=');
+            if (separator <= 0 || separator == item.length() - 1) return false;
+            String key = item.substring(0, separator);
+            if (!key.matches("[A-Za-z_][A-Za-z0-9_]*")
+                    || !key.toUpperCase(Locale.ENGLISH).startsWith(expectedPrefix + "_"))
+                return false;
+        }
+        return true;
     }
 
     public static void loadSpinner(String prefix, Spinner spinner, String selectedId) {

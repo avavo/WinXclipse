@@ -86,28 +86,53 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
 
         Log.i("BionicProgramLauncherComponent", "Extracting required box64 version: " + box64Version);
         File rootDir = imageFs.getRootDir();
+        File box64File = new File(rootDir, "usr/bin/box64");
 
-        // No more version check, just extract directly.
+        // Prefer the exact content entry (versionName-versionCode). Older
+        // containers can contain only versionName, so resolve that form too.
         ContentProfile profile = contentsManager.getProfileByEntryName("box64-" + box64Version);
+        if (profile == null) {
+            profile = contentsManager.getProfile(
+                    ContentProfile.ContentType.CONTENT_TYPE_BOX64, box64Version);
+            if (profile != null) box64Version = profile.verName + "-" + profile.verCode;
+        }
         if (profile == null && !DefaultVersion.BOX64.equals(box64Version)) {
             Log.w("BionicProgramLauncherComponent", "Selected Box64 is no longer bundled; migrating to " + DefaultVersion.BOX64);
             box64Version = DefaultVersion.BOX64;
             profile = contentsManager.getProfileByEntryName("box64-" + box64Version);
         }
-        if (profile != null) {
-            contentsManager.applyContent(profile);
-        } else {
-            TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context, "box86_64/box64-" + box64Version + ".tzst", rootDir);
+
+        String installedVersion = PreferenceManager.getDefaultSharedPreferences(context)
+                .getString("current_box64_version", "");
+        boolean needsInstall = !box64File.isFile() || !box64Version.equals(installedVersion);
+        if (needsInstall) {
+            boolean installed;
+            if (profile != null) {
+                installed = contentsManager.applyContent(profile);
+            }
+            else {
+                installed = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD,
+                        context, "box86_64/box64-" + box64Version + ".tzst", rootDir);
+            }
+            if (installed && box64File.isFile()) {
+                PreferenceManager.getDefaultSharedPreferences(context).edit()
+                        .putString("current_box64_version", box64Version).apply();
+            }
         }
 
         // Update the metadata so the container knows which version is installed.
         container.putExtra("box64Version", box64Version);
         container.saveData();
 
-        // Set execute permissions.
-        File box64File = new File(rootDir, "usr/bin/box64");
+        // Set execute permissions. Do not delete this shared executable before
+        // launch: x86_64 Proton depends on it and not every version has a
+        // legacy assets/box86_64 fallback archive.
         if (box64File.exists()) {
             FileUtils.chmod(box64File, 0755);
+        }
+        else {
+            Log.e("BionicProgramLauncherComponent",
+                    "Cannot start x86_64 runtime: Box64 " + box64Version + " is missing");
         }
     }
 
@@ -364,19 +389,36 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         File wineLibRoot = wineProfile != null && wineProfile.wineLibPath != null
                 ? ContentsManager.getSourceFile(context, wineProfile, wineProfile.wineLibPath)
                 : new File(imageFs.getWinePath(), "lib");
-        ArrayList<String> libraryPaths = new ArrayList<>();
+        ArrayList<String> nativeLibraryPaths = new ArrayList<>();
+        ArrayList<String> box64LibraryPaths = new ArrayList<>();
         ArrayList<String> wineDllPaths = new ArrayList<>();
         for (String architecture : new String[]{"aarch64-unix", "x86_64-unix", "i386-unix"}) {
             File moduleDir = new File(wineLibRoot, "wine/" + architecture);
             if (moduleDir.isDirectory()) {
-                libraryPaths.add(moduleDir.getAbsolutePath());
                 wineDllPaths.add(moduleDir.getAbsolutePath());
+                if (architecture.equals("aarch64-unix")) {
+                    if (wineInfo.isArm64EC()) nativeLibraryPaths.add(moduleDir.getAbsolutePath());
+                }
+                else if (!wineInfo.isArm64EC()) {
+                    box64LibraryPaths.add(moduleDir.getAbsolutePath());
+                }
             }
         }
-        if (wineLibRoot.isDirectory()) libraryPaths.add(wineLibRoot.getAbsolutePath());
-        libraryPaths.add(rootDir.getPath() + "/usr/lib");
-        libraryPaths.add("/system/lib64");
-        envVars.put("LD_LIBRARY_PATH", String.join(":", libraryPaths));
+        if (wineLibRoot.isDirectory()) {
+            if (wineInfo.isArm64EC()) nativeLibraryPaths.add(wineLibRoot.getAbsolutePath());
+            else box64LibraryPaths.add(wineLibRoot.getAbsolutePath());
+        }
+        // LD_LIBRARY_PATH is consumed by Android's native arm64 linker. Never
+        // put x86_64 Wine modules in it: doing so can terminate Box64 before
+        // Wine starts. Guest x86_64 paths belong to BOX64_LD_LIBRARY_PATH.
+        nativeLibraryPaths.add(rootDir.getPath() + "/usr/lib");
+        nativeLibraryPaths.add("/system/lib64");
+        envVars.put("LD_LIBRARY_PATH", String.join(":", nativeLibraryPaths));
+        if (!wineInfo.isArm64EC()) {
+            File guestSystemLibs = new File(rootDir, "usr/lib/x86_64-linux-gnu");
+            if (guestSystemLibs.isDirectory()) box64LibraryPaths.add(guestSystemLibs.getAbsolutePath());
+            envVars.put("BOX64_LD_LIBRARY_PATH", String.join(":", box64LibraryPaths));
+        }
         if (!wineDllPaths.isEmpty()) {
             envVars.put("WINEDLLPATH", String.join(":", wineDllPaths));
         }
@@ -446,9 +488,11 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         boolean fakeInputUsable = false;
         if (packagedFakeInput.isFile()) {
             // A truncated copy here gets LD_PRELOAD'd into wineserver and kills it
-            // with SIGBUS on first stdout write, so verify the result every launch.
+            // with SIGBUS on first stdout write. Keep verifying the size, but do
+            // not rewrite an already complete library on every Wine launch.
             long packagedSize = packagedFakeInput.length();
-            boolean copied = FileUtils.copy(packagedFakeInput, fakeInputPath);
+            boolean copied = fakeInputPath.isFile() && fakeInputPath.length() == packagedSize;
+            if (!copied) copied = FileUtils.copy(packagedFakeInput, fakeInputPath);
             if (!copied) {
                 Log.e("FakeInput", "Failed to copy libfakeinput.so to " + fakeInputPath.getPath());
                 FileUtils.delete(fakeInputPath);
@@ -516,8 +560,18 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
             if (wineInfo.isArm64EC()) {
                 command = winePath + "/" + guestExecutable;
             }
-            else
-                command = imageFs.getBinDir() + "/box64 " + guestExecutable;
+            else {
+                // Resolve Wine explicitly. Passing only "wine" made Box64
+                // depend on its own PATH lookup, which is unreliable for WCP
+                // runtimes installed outside imagefs/opt.
+                String wineArguments = guestExecutable.equals("wine") ? ""
+                        : guestExecutable.startsWith("wine ")
+                                ? guestExecutable.substring("wine".length())
+                                : " " + guestExecutable;
+                String absoluteWine = new File(winePath, "wine").getAbsolutePath()
+                        .replace(" ", "\\ ");
+                command = imageFs.getBinDir() + "/box64 " + absoluteWine + wineArguments;
+            }
         }
 
         // **Maybe remove this: Set execute permissions for box64 if necessary (Glibc/Proot artifact)

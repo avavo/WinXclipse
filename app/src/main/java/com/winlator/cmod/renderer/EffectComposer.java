@@ -18,6 +18,8 @@ public class EffectComposer {
     private static final String TAG = "EffectComposer";
     private boolean isRendering = false;
 
+    public boolean isRendering() { return isRendering; }
+
     // Instance fields
     private final List<Effect> effects = new ArrayList<>();
     private RenderTarget readBuffer;
@@ -294,8 +296,10 @@ public class EffectComposer {
 //            Log.d(TAG, "Binding to default framebuffer (0)");
         }
 
-        // Draw the initial frame
-        renderer.drawFrame();
+        // Draw the initial frame directly into the bound offscreen buffer.
+        // Must not call GLRenderer.drawFrame() which would dispatch back to
+        // the composer and cause a duplicate full-screen draw.
+        renderer.drawScene(false);
 //        Log.d(TAG, "Initial frame drawn");
 
         // Effects before (and including) the first FSREasuEffect read the raw

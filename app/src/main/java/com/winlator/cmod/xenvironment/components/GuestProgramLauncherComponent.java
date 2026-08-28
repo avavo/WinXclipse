@@ -133,7 +133,9 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
             envVars.put("LD_PRELOAD", "libandroid-sysvshm.so");
         if (this.envVars != null) envVars.putAll(this.envVars);
 
-        boolean bindSHM = envVars.get("WINEESYNC").equals("1");
+        // A custom preset may remove WINEESYNC.  Missing optional state must
+        // not abort the entire container while deciding whether to bind SHM.
+        boolean bindSHM = "1".equals(envVars.get("WINEESYNC"));
 
         String command = nativeLibraryDir+"/libproot.so";
         command += " --kill-on-exit";

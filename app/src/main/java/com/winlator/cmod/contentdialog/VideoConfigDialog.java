@@ -1,7 +1,10 @@
 package com.winlator.cmod.contentdialog;
 
 import android.content.Context;
+import android.os.Build;
+import android.view.Display;
 import android.view.View;
+import android.view.WindowManager;
 import android.widget.AdapterView;
 import android.widget.CheckBox;
 import android.widget.SeekBar;
@@ -18,6 +21,7 @@ import org.json.JSONException;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.TreeSet;
 
 /** Video options shared by the Wine renderer and the Android compositor. */
 public class VideoConfigDialog extends ContentDialog {
@@ -28,11 +32,6 @@ public class VideoConfigDialog extends ContentDialog {
     };
     private static final String[] FSR_MODE_VALUES = {
             "fidelity", "quality", "balanced", "performance", "ultraperformance"
-    };
-
-    /** Tokens persisted in graphicsDriverConfig; index maps to video_refresh_rate_entries. */
-    private static final String[] REFRESH_RATE_VALUES = {
-            "auto", "60", "90", "120", "144"
     };
 
     public interface Config {
@@ -47,7 +46,8 @@ public class VideoConfigDialog extends ContentDialog {
         String getFsrUpscale();
         /** "fidelity", "quality", "balanced", "performance" or "ultraperformance". */
         String getFsrQuality();
-        boolean isVsyncOff();
+        /** "100", "50" or "off". */
+        String getVsyncMode();
         boolean isUnlimitedImages();
         /** "auto" or a refresh rate in Hz ("60", "90", "120", "144"). */
         String getRefreshRate();
@@ -56,7 +56,7 @@ public class VideoConfigDialog extends ContentDialog {
         String getSharpnessDenoise();
         void apply(String gpuName, String presentMode, int textureFilterMode,
                    boolean swapRedBlue, String fsrUpscale,
-                   String fsrQuality, boolean vsyncOff, boolean unlimitedImages,
+                   String fsrQuality, String vsyncMode, boolean unlimitedImages,
                    String refreshRate, String sharpnessEffect,
                    String sharpnessLevel, String sharpnessDenoise);
     }
@@ -75,7 +75,7 @@ public class VideoConfigDialog extends ContentDialog {
         Spinner fsrQuality = findViewById(R.id.SVideoFsrMode);
         View fsrUpscaleRow = findViewById(R.id.LLVideoFsrUpscale);
         View fsrQualityRow = findViewById(R.id.LLVideoFsrMode);
-        CheckBox vsyncOff = findViewById(R.id.CBVideoVsyncOff);
+        Spinner vsyncLimit = findViewById(R.id.SVideoVsyncLimit);
         CheckBox unlimitedImages = findViewById(R.id.CBVideoUnlimitedImages);
         findViewById(R.id.BTVideoVsyncOffHelp).setOnClickListener(v ->
                 AppUtils.showHelpBox(context, v, R.string.video_help_vsync_off));
@@ -85,14 +85,37 @@ public class VideoConfigDialog extends ContentDialog {
         gpuName.setAdapter(new ThemedSpinnerAdapter<>(context, loadGpuNames(context)));
         presentMode.setAdapter(new ThemedSpinnerAdapter<>(context,
                 Arrays.asList(context.getResources().getStringArray(R.array.present_mode_entries))));
-        refreshRate.setAdapter(new ThemedSpinnerAdapter<>(context,
-                Arrays.asList(context.getResources().getStringArray(R.array.video_refresh_rate_entries))));
+        ArrayList<String> refreshLabels = new ArrayList<>();
+        ArrayList<String> refreshValues = new ArrayList<>();
+        refreshLabels.add("Auto");
+        refreshValues.add("auto");
+        TreeSet<Integer> supportedRates = new TreeSet<>();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            try {
+                WindowManager wm = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
+                Display display = wm != null ? wm.getDefaultDisplay() : null;
+                if (display != null) {
+                    for (Display.Mode mode : display.getSupportedModes())
+                        supportedRates.add(Math.max(1, Math.round(mode.getRefreshRate())));
+                }
+            }
+            catch (RuntimeException ignored) {
+            }
+        }
+        if (supportedRates.isEmpty()) supportedRates.addAll(Arrays.asList(60, 90, 120, 144));
+        for (int hz : supportedRates) {
+            refreshLabels.add(hz + " Hz");
+            refreshValues.add(String.valueOf(hz));
+        }
+        refreshRate.setAdapter(new ThemedSpinnerAdapter<>(context, refreshLabels));
         textureFilter.setAdapter(new ThemedSpinnerAdapter<>(context,
                 Arrays.asList(context.getString(R.string.bilinear),
                         context.getString(R.string.nearest_neighbor),
                         "FSR", "None")));
         fsrUpscale.setAdapter(new ThemedSpinnerAdapter<>(context, Arrays.asList("Off", "On")));
         fsrQuality.setAdapter(new ThemedSpinnerAdapter<>(context, Arrays.asList(FSR_MODE_LABELS)));
+        vsyncLimit.setAdapter(new ThemedSpinnerAdapter<>(context,
+                Arrays.asList(context.getResources().getStringArray(R.array.video_vsync_limit_entries))));
 
         // Normalize values persisted by any build (display strings from old
         // releases, legacy mode tokens, current on/off tokens). A stored FSR
@@ -100,9 +123,9 @@ public class VideoConfigDialog extends ContentDialog {
         int rawFilterMode = config.getTextureFilterMode();
         boolean filterExplicit = rawFilterMode >= 0;
         int filterMode = Math.max(0, Math.min(filterExplicit ? rawFilterMode : 0, 3));
-        // FIX: default to upscale ON when FSR is selected for real FPS gain
-        // (RE2 GPU-bound). Previously default "0" gave sharpen-only with no gain.
-        String upscale = config.getFsrUpscale() == null ? "1" : config.getFsrUpscale();
+        // FSR is the default texture filter, but resolution upscaling is
+        // opt-in.  Fresh containers keep native resolution by default.
+        String upscale = config.getFsrUpscale() == null ? "0" : config.getFsrUpscale();
         String quality = GraphicsDriverConfigDialog.normalizeFsrValue(config.getFsrQuality());
         String legacyFsr = GraphicsDriverConfigDialog.normalizeFsrValue(config.getFsrMode());
         if (!legacyFsr.equals("off") && !filterExplicit) {
@@ -120,7 +143,8 @@ public class VideoConfigDialog extends ContentDialog {
             AppUtils.setSpinnerSelectionFromValue(gpuName, "Device");
         }
         AppUtils.setSpinnerSelectionFromValue(presentMode, config.getPresentMode());
-        refreshRate.setSelection(Math.max(0, indexOfRefreshRate(config.getRefreshRate())));
+        int refreshIndex = refreshValues.indexOf(config.getRefreshRate());
+        refreshRate.setSelection(Math.max(0, refreshIndex));
         textureFilter.setSelection(filterMode);
         swapRedBlue.setChecked(config.isSwapRedBlue());
         AppUtils.setSpinnerSelectionFromValue(fsrUpscale, upscale.equals("1") ? "On" : "Off");
@@ -147,7 +171,8 @@ public class VideoConfigDialog extends ContentDialog {
         textureFilter.setOnItemSelectedListener(visibilityListener);
         fsrUpscale.setOnItemSelectedListener(visibilityListener);
 
-        vsyncOff.setChecked(config.isVsyncOff());
+        String currentVsync = config.getVsyncMode();
+        vsyncLimit.setSelection("off".equals(currentVsync) ? 2 : "50".equals(currentVsync) ? 1 : 0);
         unlimitedImages.setChecked(config.isUnlimitedImages());
 
         // vkBasalt (CAS/DLS) - now in Video tab for both Container and Shortcut
@@ -182,7 +207,8 @@ public class VideoConfigDialog extends ContentDialog {
             @Override public void onStopTrackingTouch(SeekBar s) {}
         });
 
-        applyTheme(context, gpuName, presentMode, textureFilter, fsrUpscale, fsrQuality, refreshRate, vkBasaltEffect);
+        applyTheme(context, gpuName, presentMode, textureFilter, fsrUpscale, fsrQuality,
+                refreshRate, vsyncLimit, vkBasaltEffect);
 
         setOnConfirmCallback(() -> {
             String upscaleValue = "On".equals(selectedValue(fsrUpscale)) ? "1" : "0";
@@ -192,10 +218,12 @@ public class VideoConfigDialog extends ContentDialog {
                     selectedValue(gpuName), selectedValue(presentMode),
                     textureFilter.getSelectedItemPosition(), swapRedBlue.isChecked(),
                     upscaleValue, FSR_MODE_VALUES[qualityIndex],
-                    vsyncOff.isChecked(), unlimitedImages.isChecked(),
-                    REFRESH_RATE_VALUES[Math.max(0, Math.min(
+                    vsyncLimit.getSelectedItemPosition() == 2 ? "off"
+                            : vsyncLimit.getSelectedItemPosition() == 1 ? "50" : "100",
+                    unlimitedImages.isChecked(),
+                    refreshValues.get(Math.max(0, Math.min(
                             refreshRate.getSelectedItemPosition(),
-                            REFRESH_RATE_VALUES.length - 1))],
+                            refreshValues.size() - 1))),
                     selectedValue(vkBasaltEffect),
                     String.valueOf(sbSharpnessLevel.getProgress()),
                     String.valueOf(sbSharpnessDenoise.getProgress()));
@@ -207,14 +235,6 @@ public class VideoConfigDialog extends ContentDialog {
             if (FSR_MODE_VALUES[i].equals(token)) return i;
         }
         return -1;
-    }
-
-    private static int indexOfRefreshRate(String token) {
-        if (token == null || token.isEmpty()) return 0;
-        for (int i = 0; i < REFRESH_RATE_VALUES.length; i++) {
-            if (REFRESH_RATE_VALUES[i].equals(token)) return i;
-        }
-        return 0;
     }
 
     private static ArrayList<String> loadGpuNames(Context context) {

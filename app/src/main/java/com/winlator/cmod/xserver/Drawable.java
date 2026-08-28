@@ -13,6 +13,7 @@ import java.nio.ByteOrder;
 public class Drawable extends XResource {
     public final short width;
     public final short height;
+    private final short stridePixels;
     public final Visual visual;
     private Texture texture = new Texture();
     private ByteBuffer data;
@@ -25,16 +26,23 @@ public class Drawable extends XResource {
     }
 
     public Drawable(int id, int width, int height, Visual visual) {
+        this(id, width, height, (short)width, visual);
+    }
+
+    public Drawable(int id, int width, int height, short stridePixels, Visual visual) {
         super(id);
         // Zero-sized drawables are legal in X11 (placeholder windows); reject only
-        // negative sizes and capacity overflow.
+        // negative sizes and capacity overflow. Stride may be >= width for padded SHM.
         if (width < 0 || height < 0 || (long)width * height > (Integer.MAX_VALUE / 4)) {
             throw new IllegalArgumentException("Invalid drawable dimensions: " + width + "x" + height);
         }
+        if (stridePixels < width) stridePixels = (short)width;
         this.width = (short)width;
         this.height = (short)height;
+        this.stridePixels = stridePixels;
         this.visual = visual;
-        this.data = ByteBuffer.allocateDirect(width * height * 4).order(ByteOrder.LITTLE_ENDIAN);
+        // Allocate backing store for full stride so padded buffers don't overflow.
+        this.data = ByteBuffer.allocateDirect((stridePixels & 0xFFFF) * height * 4).order(ByteOrder.LITTLE_ENDIAN);
         if (this.data == null) {
             throw new IllegalStateException("Drawable.data initialized as null!");
         }
@@ -67,8 +75,11 @@ public class Drawable extends XResource {
     }
 
     private short getStride() {
-        return texture instanceof GPUImage ? ((GPUImage)texture).getStride() : width;
+        if (texture instanceof GPUImage) return ((GPUImage)texture).getStride();
+        return stridePixels != 0 ? stridePixels : width;
     }
+
+    public short getStridePixels() { return getStride(); }
 
     public Runnable getOnDrawListener() {
         return onDrawListener;

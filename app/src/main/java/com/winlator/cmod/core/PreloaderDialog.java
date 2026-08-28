@@ -86,6 +86,13 @@ public class PreloaderDialog {
         });
     }
 
+    /** Lets the user dismiss this progress surface while the worker continues. */
+    public synchronized void allowBackground() {
+        if (dialog == null) create();
+        dialog.setCancelable(true);
+        dialog.setCanceledOnTouchOutside(true);
+    }
+
     public void showOnUiThread(final int textResId) {
         activity.runOnUiThread(() -> show(textResId));
     }

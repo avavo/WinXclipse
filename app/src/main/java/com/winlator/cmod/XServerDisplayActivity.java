@@ -96,6 +96,7 @@ import com.winlator.cmod.core.RamOptimizerXclipse;
 import com.winlator.cmod.core.KeyValueSet;
 import com.winlator.cmod.core.OnExtractFileListener;
 import com.winlator.cmod.core.PreloaderDialog;
+import com.winlator.cmod.core.ContentOperationRegistry;
 import com.winlator.cmod.core.ProcessHelper;
 import com.winlator.cmod.core.StringUtils;
 import com.winlator.cmod.core.TarCompressorUtils;
@@ -215,6 +216,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     private KeyValueSet dxwrapperConfig;
     private KeyValueSet xperfConfig = new KeyValueSet(ExperimentalPerformanceDialog.DEFAULT_CONFIG);
     private String startupSelection;
+    private float activeDisplayRefreshRate = 60f;
     private WineInfo wineInfo;
     private final EnvVars envVars = new EnvVars();
     private boolean firstTimeBoot = false;
@@ -277,6 +279,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     private Runnable savePlaytimeRunnable;
     private static final long SAVE_INTERVAL_MS = 30000;
     private final java.util.concurrent.atomic.AtomicBoolean sessionStopped = new java.util.concurrent.atomic.AtomicBoolean(false);
+    private boolean launchBlockedByContentOperation;
 
     private Handler  timeoutHandler = new Handler(Looper.getMainLooper());
     private Runnable hideControlsRunnable;
@@ -347,12 +350,21 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         isDarkMode = AppUtils.isDarkMode(this);
         setTheme(isDarkMode ? R.style.AppThemeFullscreen_Dark : R.style.AppThemeFullscreen);
         super.onCreate(savedInstanceState);
-        boolean lockLandscape = PreferenceManager.getDefaultSharedPreferences(this).getBoolean("lock_landscape", false);
-        if (lockLandscape) {
-            setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
-        } else {
-            setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+        if (ContentOperationRegistry.hasActiveOperations()) {
+            launchBlockedByContentOperation = true;
+            new androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle("Content operation in progress")
+                    .setMessage("Wait for downloads and installations to finish before entering Wine. Active: "
+                            + ContentOperationRegistry.describe())
+                    .setCancelable(false)
+                    .setPositiveButton(android.R.string.ok, (dialog, which) -> finish())
+                    .show();
+            return;
         }
+        // Wine sessions are always landscape, from either a container or a
+        // shortcut. The launcher activity keeps its own system-following
+        // orientation and is restored automatically when this activity exits.
+        setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
         AppUtils.hideSystemUI(this);
         AppUtils.keepScreenOn(this);
         setContentView(R.layout.xserver_display_activity);
@@ -884,11 +896,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             });
         };
 
-        if (xServer.screenInfo.height > xServer.screenInfo.width) {
-            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
-            configChangedCallback = runnable;
-        } else
-              runnable.run();
+        runnable.run();
     }
 
     // Method to parse container_id from .desktop file
@@ -939,15 +947,15 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             return;
         }
 
+        // Captured primary clicks do not always arrive as BUTTON_PRESS on
+        // Samsung/Android. Route both BUTTON_* and DOWN/UP forms through the
+        // same state-guarded injector used by the non-captured path.
+        if (touchpadView != null && touchpadView.onExternalPrimaryButtonEvent(event)) return;
+
         int actionButton = event.getActionButton();
         switch (event.getAction()) {
             case MotionEvent.ACTION_BUTTON_PRESS:
-                if (actionButton == MotionEvent.BUTTON_PRIMARY) {
-                    if (xServer.isRelativeMouseMovement())
-                        xServer.getWinHandler().mouseEvent(MouseEventFlags.LEFTDOWN, 0, 0, 0);
-                    else
-                        xServer.injectPointerButtonPress(Pointer.Button.BUTTON_LEFT);
-                } else if (actionButton == MotionEvent.BUTTON_SECONDARY) {
+                if (actionButton == MotionEvent.BUTTON_SECONDARY) {
                     if (xServer.isRelativeMouseMovement())
                         xServer.getWinHandler().mouseEvent(MouseEventFlags.RIGHTDOWN, 0, 0, 0);
                     else
@@ -961,12 +969,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 handled = true;
                 break;
             case MotionEvent.ACTION_BUTTON_RELEASE:
-                if (actionButton == MotionEvent.BUTTON_PRIMARY) {
-                    if (xServer.isRelativeMouseMovement())
-                        xServer.getWinHandler().mouseEvent(MouseEventFlags.LEFTUP, 0, 0, 0);
-                    else
-                        xServer.injectPointerButtonRelease(Pointer.Button.BUTTON_LEFT);
-                } else if (actionButton == MotionEvent.BUTTON_SECONDARY) {
+                if (actionButton == MotionEvent.BUTTON_SECONDARY) {
                     if (xServer.isRelativeMouseMovement())
                         xServer.getWinHandler().mouseEvent(MouseEventFlags.RIGHTUP, 0, 0, 0);
                     else
@@ -1063,6 +1066,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     @Override
     public void onResume() {
         super.onResume();
+        if (launchBlockedByContentOperation) return;
         boolean gyroEnabled = preferences.getBoolean("gyro_enabled", true);
 
         if (gyroEnabled) {
@@ -1089,6 +1093,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     @Override
     public void onPause() {
         super.onPause();
+        if (launchBlockedByContentOperation) return;
         boolean gyroEnabled = preferences.getBoolean("gyro_enabled", true);
 
         if (gyroEnabled) {
@@ -1144,12 +1149,16 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     @Override
     protected void onDestroy() {
         sidebarHandler.removeCallbacks(sidebarStatusRunnable);
+        if (launchBlockedByContentOperation) {
+            super.onDestroy();
+            return;
+        }
         if (inlineTaskManagerPanel != null) inlineTaskManagerPanel.stop();
         if (hudDataSource != null) {
             hudDataSource.stop();
             hudDataSource = null;
         }
-        preloaderDialog.close();
+        if (preloaderDialog != null) preloaderDialog.close();
         try { RamOptimizerXclipse.shutdownFor(mRamOptSession); } catch (Throwable ignored) {}
         super.onDestroy();
     }
@@ -1200,6 +1209,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     @Override
     protected void onStop() {
         super.onStop();
+        if (launchBlockedByContentOperation) return;
         savePlaytimeData();
         handler.removeCallbacks(savePlaytimeRunnable);
 
@@ -1656,17 +1666,16 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         startActivity(intent);
     }
 
-    /** Requests the display mode closest to the configured refreshRate. Auto = system's max (120Hz). */
+    /** Requests the display mode closest to the configured refreshRate. Factory default = 60 Hz. */
     private void applyPreferredRefreshRate() {
-        String rate = graphicsDriverConfig.getOrDefault("refreshRate", "auto");
+        String rate = graphicsDriverConfig.getOrDefault("refreshRate", "60");
         android.view.Window window = getWindow();
         if (window == null) return;
         android.view.WindowManager.LayoutParams params = window.getAttributes();
         float targetFps = 0;
         try {
             if (rate.isEmpty() || "auto".equals(rate)) {
-                android.view.Display display = getDisplay();
-                if (display == null) try { display = getWindowManager().getDefaultDisplay(); } catch (Exception ignored) {}
+                android.view.Display display = getWindowManager().getDefaultDisplay();
                 if (display != null) {
                     android.view.Display.Mode[] modes = display.getSupportedModes();
                     android.view.Display.Mode maxMode = null;
@@ -1684,7 +1693,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 float preferred = Float.parseFloat(rate);
                 params.preferredRefreshRate = preferred;
                 targetFps = preferred;
-                android.view.Display display = getDisplay();
+                android.view.Display display = getWindowManager().getDefaultDisplay();
                 if (display != null) {
                     for (android.view.Display.Mode m : display.getSupportedModes()) {
                         if (Math.abs(m.getRefreshRate() - preferred) < 0.5f) {
@@ -1695,20 +1704,53 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 }
             }
             window.setAttributes(params);
+            if (targetFps > 0) activeDisplayRefreshRate = targetFps;
         } catch (Exception ignored) {}
     }
 
+    private String resolveVsyncMode() {
+        String configured;
+        if (graphicsDriverConfig.containsKey("vsyncMode")) {
+            configured = graphicsDriverConfig.get("vsyncMode");
+        }
+        else if (graphicsDriverConfig.containsKey("vblankOff")) {
+            configured = "1".equals(graphicsDriverConfig.get("vblankOff")) ? "off" : "100";
+        }
+        else configured = "off";
+        String value = shortcut != null
+                ? shortcut.getExtra("vsyncMode", container.getExtra("vsyncMode", configured))
+                : container.getExtra("vsyncMode", configured);
+        return "off".equals(value) || "50".equals(value) ? value : "100";
+    }
+
+    private int getStoredFpsLimit() {
+        try {
+            String value = shortcut != null
+                    ? shortcut.getExtra("fpsLimit", container.getExtra("fpsLimit", "0"))
+                    : container.getExtra("fpsLimit", "0");
+            return Math.max(0, Integer.parseInt(value));
+        }
+        catch (Exception ignored) {
+            return 0;
+        }
+    }
+
     private void setFpsLimit(GLRenderer renderer, int limit, boolean persist) {
-        int safeLimit = Math.max(0, limit);
-        renderer.setFpsLimit(safeLimit);
+        int requestedLimit = Math.max(0, limit);
+        // FPS Limiter and VSync are independent settings. VSync controls the
+        // presentation backend; it must never rewrite or clamp this limiter.
+        renderer.setFpsLimit(requestedLimit);
         com.winlator.cmod.xserver.extensions.PresentExtension present =
                 xServer.getExtension(com.winlator.cmod.xserver.extensions.PresentExtension.MAJOR_OPCODE);
-        if (present != null) present.setFrameRateLimit(safeLimit);
+        if (present != null) {
+            present.setRefreshRate(activeDisplayRefreshRate);
+            present.setFrameRateLimit(requestedLimit);
+        }
         if (persist && container != null) {
-            container.putExtra("fpsLimit", String.valueOf(safeLimit));
+            container.putExtra("fpsLimit", String.valueOf(requestedLimit));
             container.saveData();
             if (shortcut != null) {
-                shortcut.putExtra("fpsLimit", String.valueOf(safeLimit));
+                shortcut.putExtra("fpsLimit", String.valueOf(requestedLimit));
                 shortcut.saveData();
             }
         }
@@ -1756,12 +1798,14 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         String appVersion = String.valueOf(AppUtils.getVersionCode(this));
         String imgVersion = String.valueOf(imageFs.getVersion());
         boolean containerDataChanged = false;
+        boolean prefixMetadataChanged = false;
 
         if (!container.getExtra("appVersion").equals(appVersion) || !container.getExtra("imgVersion").equals(imgVersion)) {
             applyGeneralPatches(container);
             container.putExtra("appVersion", appVersion);
             container.putExtra("imgVersion", imgVersion);
             containerDataChanged = true;
+            prefixMetadataChanged = true;
         }
 
         String dxwrapper = this.dxwrapper;
@@ -1818,18 +1862,45 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         WineStartMenuCreator.create(this, container);
         WineUtils.createDosdevicesSymlinks(container);
 
+        // WFM v2 dispatches popup-menu selections synchronously. The previous
+        // build could show the right-click menu under Wine while never receiving
+        // WM_COMMAND, so Copy/Delete/New Folder/Create Shortcut all appeared dead.
+        if (!"2".equals(container.getExtra("wfmFixVersion"))) {
+            File windowsDir = new File(container.getRootDir(), ".wine/drive_c/windows");
+            File wfmFile = new File(windowsDir, "wfm.exe");
+            File cdioFile = new File(windowsDir, "libcdio.dll");
+            FileUtils.copy(this, "wfm.exe", wfmFile);
+            FileUtils.copy(this, "libcdio.dll", cdioFile);
+            if (wfmFile.length() == 312832L && cdioFile.length() == 187392L) {
+                container.putExtra("wfmFixVersion", "2");
+                containerDataChanged = true;
+            }
+        }
+
         if (shortcut != null)
             startupSelection = shortcut.getExtra("startupSelection", String.valueOf(container.getStartupSelection()));
         else
             startupSelection = String.valueOf(container.getStartupSelection());
 
-        if (!startupSelection.equals(container.getExtra("startupSelection"))) {
-            byte selection = Container.STARTUP_SELECTION_ESSENTIAL;
-            try {
-                selection = Byte.parseByte(startupSelection);
-            }
-            catch (NumberFormatException ignored) {}
+        byte selection = Container.STARTUP_SELECTION_ESSENTIAL;
+        try {
+            selection = Byte.parseByte(startupSelection);
+        }
+        catch (NumberFormatException ignored) {}
+        if (selection < Container.STARTUP_SELECTION_NORMAL
+                || selection > Container.STARTUP_SELECTION_AGGRESSIVE)
+            selection = Container.STARTUP_SELECTION_ESSENTIAL;
+        // Updating all service keys rewrites system.reg many times. Doing that on
+        // every launch made x86 prefixes spend a very long time on "Starting up".
+        // Reapply only after a prefix/image update or when the selected policy
+        // has not actually been written to this prefix yet.
+        String appliedSelection = container.getExtra("startupSelectionApplied");
+        if (prefixMetadataChanged || !String.valueOf(selection).equals(appliedSelection)) {
             WineUtils.changeServicesStatus(container, selection);
+            container.putExtra("startupSelectionApplied", String.valueOf(selection));
+            containerDataChanged = true;
+        }
+        if (!startupSelection.equals(container.getExtra("startupSelection"))) {
             container.putExtra("startupSelection", startupSelection);
             containerDataChanged = true;
         }
@@ -1977,7 +2048,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         // its baseline trim level follows device RAM while live escalation is
         // driven by the HUD RAM alert through RamOptimizerXclipse.escalate().
         // Video tab choices apply regardless of the Experimental master switch.
-        if ("1".equals(graphicsDriverConfig.getOrDefault("vblankOff", "0")))
+        if ("off".equals(resolveVsyncMode()))
             envVars.put("vblank_mode", "0");
         if ("1".equals(graphicsDriverConfig.getOrDefault("unlimitedImages", "0")))
             envVars.put("WRAPPER_MAX_IMAGE_COUNT", "0");
@@ -2178,15 +2249,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         xServerView = new XServerView(this, xServer);
         final GLRenderer renderer = xServerView.getRenderer();
         renderer.setCursorVisible(false);
-        int savedFpsLimit = 0;
-        try {
-            String value = shortcut != null
-                    ? shortcut.getExtra("fpsLimit", container.getExtra("fpsLimit", "0"))
-                    : container.getExtra("fpsLimit", "0");
-            savedFpsLimit = Integer.parseInt(value);
-        }
-        catch (Exception ignored) {}
-        setFpsLimit(renderer, savedFpsLimit, false);
+        setFpsLimit(renderer, getStoredFpsLimit(), false);
 
         int textureFilterMode = 0;
         try {
@@ -2249,11 +2312,13 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             startTouchscreenTimeout();
         }
 
+        String runtimeHudMode = getRuntimeHudMode();
         if (container != null && container.isShowFPS()
-                && "winlator".equals(container.getHudMode())) {
+                && !"dxvk".equals(runtimeHudMode)) {
             hudDataSource = new HudDataSource(this);
             frameRating = new WinlatorHUD(this);
             frameRating.setDataSource(hudDataSource);
+            frameRating.setMangoStyle("mangohud".equals(runtimeHudMode));
             frameRating.setWrapperName(graphicsDriver);
             frameRating.onRendererDetected(getHudApiName());
             frameRating.enableByUser();
@@ -2469,6 +2534,13 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         int filterMode = renderer.getTextureFilterMode();
         sFilter.setSelection(filterMode >= 0 && filterMode <= 3 ? filterMode : 0);
 
+        Spinner sVsyncLimit = dialog.findViewById(R.id.SDisplayVsyncLimit);
+        sVsyncLimit.setAdapter(new ThemedSpinnerAdapter<>(this,
+                Arrays.asList(getResources().getStringArray(R.array.video_vsync_limit_entries))));
+        String currentVsyncMode = resolveVsyncMode();
+        sVsyncLimit.setSelection("off".equals(currentVsyncMode) ? 2
+                : "50".equals(currentVsyncMode) ? 1 : 0);
+
         Spinner sFsrUpscale = dialog.findViewById(R.id.SDisplayFsrUpscale);
         sFsrUpscale.setAdapter(new ThemedSpinnerAdapter<>(this, Arrays.asList("Off", "On")));
         View llFsrUpscale = dialog.findViewById(R.id.LLDisplayFsrUpscale);
@@ -2644,13 +2716,16 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 try { l = Double.parseDouble(lev); } catch (Exception ignored) {}
                 try { d = Double.parseDouble(den); } catch (Exception ignored) {}
                 if (!"None".equals(eff)) {
-                    vkbasaltConfig = "effects=" + eff.toLowerCase() + ";" + "casSharpness=" + l/100 + ";" + "dlsSharpness=" + l/100 + ";" + "dlsDenoise=" + d/100 + ";" + "enableOnLaunch=True";
+                    vkbasaltConfig = "effects=" + eff.toLowerCase(Locale.ENGLISH) + ";" + "casSharpness=" + l/100 + ";" + "dlsSharpness=" + l/100 + ";" + "dlsDenoise=" + d/100 + ";" + "enableOnLaunch=True";
                 } else {
                     vkbasaltConfig = "";
                 }
             }
             renderer.setSwapRedBlue(cbSwapRB.isChecked());
             persistRuntimeVideoOption("rendererSwapRB", cbSwapRB.isChecked() ? "1" : "0");
+            String vsyncMode = sVsyncLimit.getSelectedItemPosition() == 2 ? "off"
+                    : sVsyncLimit.getSelectedItemPosition() == 1 ? "50" : "100";
+            persistRuntimeVideoOption("vsyncMode", vsyncMode);
         });
         dialog.show();
     }
@@ -2834,17 +2909,15 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 // A legacy quality mode implies EASU upscale at that mode,
                 // mirroring the VideoConfigDialog migration; "on" maps to
                 // sharpen-only (fsrUpscale falls back to "0" below).
-                if (upscaleExtra == null) upscaleExtra = "1";
+                if (upscaleExtra == null) upscaleExtra = "0";
                 if (qualityExtra == null) qualityExtra = legacyFsr;
             }
         }
         if (!fsrOn) return "off";
-        // FIX: selecting FSR (filter 2) should default to upscale ON for real
-        // FPS gain (RE2 GPU-bound). Sharpen-only ("on") remains available by
-        // explicitly storing fsrUpscale=0, but unset configs now default to 1.
+        // FSR upscaling is opt-in; an unset value keeps native resolution.
         boolean fsrUpscale = !"0".equals(
                 upscaleExtra != null ? upscaleExtra
-                        : graphicsDriverConfig.getOrDefault("fsrUpscale", "1"));
+                        : graphicsDriverConfig.getOrDefault("fsrUpscale", "0"));
         if (!fsrUpscale) return "on";
         return GraphicsDriverConfigDialog.normalizeFsrValue(
                 qualityExtra != null ? qualityExtra
@@ -2970,6 +3043,11 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     private void updateSidebarFpsLabel(int limit) {
         if (sidebarFpsLimitView != null)
             sidebarFpsLimitView.setText(limit > 0 ? limit + " FPS" : "Unlimited");
+    }
+
+    private String getRuntimeHudMode() {
+        String containerMode = container != null ? container.getHudMode() : "winlator";
+        return shortcut != null ? shortcut.getExtra("hudMode", containerMode) : containerMode;
     }
 
     private ControlsProfile getSidebarControllerProfile() {
@@ -3479,16 +3557,15 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         }
 
         boolean showFps = container != null && container.isShowFPS();
-        String hudMode = container != null ? container.getHudMode() : "winlator";
-        boolean useMangoHud = showFps && "mangohud".equals(hudMode);
+        String hudMode = getRuntimeHudMode();
         boolean useDxvkHud = showFps && "dxvk".equals(hudMode);
-        envVars.put("MANGOHUD", useMangoHud ? "1" : "0");
+        // Bannerlator's stable HUD path is native to Android. The MangoHud
+        // choice uses WinlatorHUD/HudDataSource instead of injecting a missing
+        // Vulkan layer into the guest process.
+        envVars.put("MANGOHUD", "0");
         envVars.put("DXVK_HUD", useDxvkHud
                 ? "devinfo,fps,frametimes,gpuload,version,api" : "0");
-        if (useMangoHud) {
-            envVars.put("MANGOHUD_CONFIG",
-                    "fps,frametime,gpu_stats,cpu_stats,ram,vram,engine_version");
-        }
+        envVars.remove("MANGOHUD_CONFIG");
 
         boolean useDRI3 = preferences.getBoolean("use_dri3", true);
         if (!useDRI3) envVars.put("MESA_VK_WSI_DEBUG", "sw");
@@ -3756,9 +3833,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         }
     }
 
-    /** Starts the RAM Optimizer Xclipse engine and selects its aggressiveness from the
-     * device RAM: LIGHT below 8 GB, MEDIUM on 8 GB-class, AGGRESSIVE only on
-     * 12 GB-class devices with Experimental Performance enabled. */
+    /** Starts the RAM Optimizer Xclipse engine. Less physical RAM selects a
+     * more aggressive baseline because the shared CPU/GPU pool must be
+     * reclaimed earlier and more frequently. */
     private void applyRamOptimizerProfile() {
         try {
             mRamOptSession = RamOptimizerXclipse.beginSession();
@@ -3865,6 +3942,28 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
+
+        // A number of Android ROMs expose the physical secondary mouse button
+        // as KEYCODE_BACK instead of MotionEvent.BUTTON_SECONDARY.  Consume it
+        // only when its source is a mouse, leaving the phone Back key intact.
+        int eventSource = event.getSource();
+        boolean fromMouse = (eventSource & InputDevice.SOURCE_MOUSE) == InputDevice.SOURCE_MOUSE
+                || (eventSource & InputDevice.SOURCE_MOUSE_RELATIVE) == InputDevice.SOURCE_MOUSE_RELATIVE;
+        if (event.getKeyCode() == KeyEvent.KEYCODE_BACK
+                && fromMouse
+                && xServer != null) {
+            boolean pressed = event.getAction() == KeyEvent.ACTION_DOWN;
+            if (xServer.isRelativeMouseMovement()) {
+                xServer.getWinHandler().mouseEvent(
+                        pressed ? MouseEventFlags.RIGHTDOWN : MouseEventFlags.RIGHTUP,
+                        0, 0, 0);
+            }
+            else if (pressed != xServer.pointer.isButtonPressed(Pointer.Button.BUTTON_RIGHT)) {
+                if (pressed) xServer.injectPointerButtonPress(Pointer.Button.BUTTON_RIGHT);
+                else xServer.injectPointerButtonRelease(Pointer.Button.BUTTON_RIGHT);
+            }
+            return true;
+        }
 
         // Handle the PlayStation or Xbox Home button to open the drawer
         if (event.getAction() == KeyEvent.ACTION_DOWN) {

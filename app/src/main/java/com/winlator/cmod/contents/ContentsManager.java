@@ -27,6 +27,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 public class ContentsManager {
     public static final String PROFILE_NAME = "profile.json";
@@ -123,6 +124,7 @@ public class ContentsManager {
                     remoteProfile.type = ContentProfile.ContentType.getTypeByName(object.getString("type"));
                     remoteProfile.verName = object.optString("verName", "");
                     remoteProfile.verCode = object.optInt("verCode", 0);
+                    remoteProfile.contentId = object.optString(ContentProfile.MARK_ID, "");
                     // Skip poisoned cache entries (older builds stored empty
                     // names for some release assets).
                     if (remoteProfile.verName.trim().isEmpty() || remoteProfile.remoteUrl.trim().isEmpty()) {
@@ -376,18 +378,28 @@ public class ContentsManager {
     public void extraContentFile(Uri uri, ContentProfile expectedProfile,
                                  OnInstallFinishedCallback callback,
                                  OnInstallProgressCallback progressCallback) {
-        cleanTmpDir(context);
         reportInstallProgress(progressCallback, 5);
 
-        File file = getTmpDir(context);
+        File tmpRoot = getTmpDir(context);
+        if (!tmpRoot.isDirectory() && !tmpRoot.mkdirs()) {
+            callback.onFailed(InstallFailedReason.ERROR_UNKNOWN, null);
+            return;
+        }
+        // Every installation gets its own staging directory. The old shared
+        // tmp directory made concurrent installs delete/corrupt each other.
+        File file = new File(tmpRoot, "install-" + UUID.randomUUID());
+        if (!file.mkdirs()) {
+            callback.onFailed(InstallFailedReason.ERROR_UNKNOWN, null);
+            return;
+        }
 
         TarCompressorUtils.Type compression = TarCompressorUtils.detectType(context, uri);
         boolean ret = compression != null
                 && TarCompressorUtils.extract(compression, context, uri, file, null,
                 (read, total) -> reportInstallProgress(progressCallback,
-                        5 + (int)Math.min(65, read * 65L / total)));
+                        total > 0 ? 5 + (int)Math.min(65, read * 65L / total) : 5));
         if (!ret) {
-            callback.onFailed(InstallFailedReason.ERROR_BADTAR, null);
+            failStagedInstall(callback, InstallFailedReason.ERROR_BADTAR, null, file);
             return;
         }
         reportInstallProgress(progressCallback, 70);
@@ -398,16 +410,17 @@ public class ContentsManager {
                browser into Downloads) often ship without an embedded profile.
                Synthesize one so they install through the standard flow. */
             if (!writeSynthesizedRuntimeProfile(file, getDisplayName(context, uri))) {
-                callback.onFailed(InstallFailedReason.ERROR_NOPROFILE, null);
+                failStagedInstall(callback, InstallFailedReason.ERROR_NOPROFILE, null, file);
                 return;
             }
         }
 
         ContentProfile profile = readProfile(proFile);
         if (profile == null) {
-            callback.onFailed(InstallFailedReason.ERROR_BADPROFILE, null);
+            failStagedInstall(callback, InstallFailedReason.ERROR_BADPROFILE, null, file);
             return;
         }
+        profile.setStagingDir(file);
         reportInstallProgress(progressCallback, 78);
 
         if (expectedProfile != null) {
@@ -416,7 +429,7 @@ public class ContentsManager {
             boolean expectedIsRuntime = expectedProfile.type == ContentProfile.ContentType.CONTENT_TYPE_WINE
                     || expectedProfile.type == ContentProfile.ContentType.CONTENT_TYPE_PROTON;
             if (profile.type != expectedProfile.type && !(actualIsRuntime && expectedIsRuntime)) {
-                callback.onFailed(InstallFailedReason.ERROR_BADPROFILE, null);
+                failStagedInstall(callback, InstallFailedReason.ERROR_BADPROFILE, null, file);
                 return;
             }
 
@@ -429,16 +442,18 @@ public class ContentsManager {
                 normalizedProfile.put(ContentProfile.MARK_TYPE, expectedProfile.type.toString());
                 normalizedProfile.put(ContentProfile.MARK_VERSION_NAME, expectedProfile.verName);
                 normalizedProfile.put(ContentProfile.MARK_VERSION_CODE, expectedProfile.verCode);
+                normalizedProfile.put(ContentProfile.MARK_ID, expectedProfile.getContentId());
                 if (!FileUtils.writeString(proFile, normalizedProfile.toString(2))) {
-                    callback.onFailed(InstallFailedReason.ERROR_BADPROFILE, null);
+                    failStagedInstall(callback, InstallFailedReason.ERROR_BADPROFILE, null, file);
                     return;
                 }
                 profile.type = expectedProfile.type;
                 profile.verName = expectedProfile.verName;
                 profile.verCode = expectedProfile.verCode;
+                profile.contentId = expectedProfile.getContentId();
             }
             catch (JSONException e) {
-                callback.onFailed(InstallFailedReason.ERROR_BADPROFILE, e);
+                failStagedInstall(callback, InstallFailedReason.ERROR_BADPROFILE, e, file);
                 return;
             }
         }
@@ -448,13 +463,13 @@ public class ContentsManager {
         for (ContentProfile.ContentFile contentFile : profile.fileList) {
             File tmpFile = new File(file, contentFile.source);
             if (!tmpFile.exists() || !tmpFile.isFile() || !isSubPath(file.getAbsolutePath(), tmpFile.getAbsolutePath())) {
-                callback.onFailed(InstallFailedReason.ERROR_MISSINGFILES, null);
+                failStagedInstall(callback, InstallFailedReason.ERROR_MISSINGFILES, null, file);
                 return;
             }
 
             String realPath = getPathFromTemplate(contentFile.target);
             if (!isSubPath(imagefsPath, realPath) || isSubPath(ContentsManager.getContentDir(context).getAbsolutePath(), realPath) || realPath.contains("dosdevices")) {
-                callback.onFailed(InstallFailedReason.ERROR_UNTRUSTPROFILE, null);
+                failStagedInstall(callback, InstallFailedReason.ERROR_UNTRUSTPROFILE, null, file);
                 return;
             }
             checkedFiles++;
@@ -471,13 +486,20 @@ public class ContentsManager {
             File cp = new File(file, profile.winePrefixPack);
 
             if (!bin.exists() || !bin.isDirectory() || !lib.exists() || !lib.isDirectory() || !cp.exists() || !cp.isFile()) {
-                callback.onFailed(InstallFailedReason.ERROR_MISSINGFILES, null);
+                failStagedInstall(callback, InstallFailedReason.ERROR_MISSINGFILES, null, file);
                 return;
             }
         }
 
         reportInstallProgress(progressCallback, 97);
         callback.onSucceed(profile);
+    }
+
+    private static void failStagedInstall(OnInstallFinishedCallback callback,
+                                          InstallFailedReason reason, Exception error,
+                                          File stagingDir) {
+        if (stagingDir != null) FileUtils.delete(stagingDir);
+        callback.onFailed(reason, error);
     }
 
     private static void reportInstallProgress(OnInstallProgressCallback callback, int progress) {
@@ -539,12 +561,17 @@ public class ContentsManager {
         try {
             JSONObject profileJSONObject = new JSONObject();
             profileJSONObject.put(ContentProfile.MARK_TYPE,
-                    verName.toLowerCase().contains("proton")
+                    verName.toLowerCase(java.util.Locale.ENGLISH).contains("proton")
                             ? ContentProfile.ContentType.CONTENT_TYPE_PROTON.toString()
                             : ContentProfile.ContentType.CONTENT_TYPE_WINE.toString());
             profileJSONObject.put(ContentProfile.MARK_VERSION_NAME, verName);
             profileJSONObject.put(ContentProfile.MARK_VERSION_CODE,
                     Math.abs(verName.hashCode() % 2147483646) + 1);
+            profileJSONObject.put(ContentProfile.MARK_ID, ContentProfile.buildContentId(
+                    verName.toLowerCase(java.util.Locale.ENGLISH).contains("proton")
+                            ? ContentProfile.ContentType.CONTENT_TYPE_PROTON
+                            : ContentProfile.ContentType.CONTENT_TYPE_WINE,
+                    verName, Math.abs(verName.hashCode() % 2147483646) + 1));
             profileJSONObject.put(ContentProfile.MARK_DESC, "");
             profileJSONObject.put(ContentProfile.MARK_FILE_LIST, new JSONArray());
 
@@ -565,7 +592,7 @@ public class ContentsManager {
         File[] children = dir.listFiles();
         if (children == null) return false;
         for (File child : children) {
-            String childName = child.getName().toLowerCase();
+            String childName = child.getName().toLowerCase(java.util.Locale.ENGLISH);
             if (childName.startsWith("wine") && child.isFile()) return true;
         }
         return false;
@@ -575,7 +602,7 @@ public class ContentsManager {
         File[] children = root.listFiles();
         if (children == null) return null;
         for (File child : children) {
-            if (child.isFile() && child.getName().toLowerCase().endsWith(extension)) {
+            if (child.isFile() && child.getName().toLowerCase(java.util.Locale.ENGLISH).endsWith(extension)) {
                 return child.getName();
             }
         }
@@ -585,12 +612,14 @@ public class ContentsManager {
     public void finishInstallContent(ContentProfile profile, OnInstallFinishedCallback callback) {
         File installPath = getInstallDir(context, profile);
         if (installPath.exists()) {
+            if (profile != null && profile.getStagingDir() != null) FileUtils.delete(profile.getStagingDir());
             callback.onFailed(InstallFailedReason.ERROR_EXIST, null);
             return;
         }
 
         File parent = installPath.getParentFile();
         if (parent == null || (!parent.isDirectory() && !parent.mkdirs())) {
+            if (profile != null && profile.getStagingDir() != null) FileUtils.delete(profile.getStagingDir());
             callback.onFailed(InstallFailedReason.ERROR_UNKNOWN, null);
             return;
         }
@@ -598,12 +627,28 @@ public class ContentsManager {
         // Do not create installPath first: File.renameTo() cannot replace an
         // existing directory. This used to make every completed extraction
         // look permanently stuck at "Installing Content".
-        if (!getTmpDir(context).renameTo(installPath)) {
+        File stagingDir = profile != null ? profile.getStagingDir() : null;
+        if (stagingDir == null || !stagingDir.isDirectory()) {
+            // Compatibility with an extraction started by an older caller.
+            stagingDir = getTmpDir(context);
+        }
+        if (!stagingDir.renameTo(installPath)) {
+            FileUtils.delete(stagingDir);
             callback.onFailed(InstallFailedReason.ERROR_UNKNOWN, null);
             return;
         }
 
+        profile.setStagingDir(null);
+
         callback.onSucceed(profile);
+    }
+
+    /** Removes an extracted package that the user chose not to install. */
+    public void discardStagedContent(ContentProfile profile) {
+        if (profile == null) return;
+        File stagingDir = profile.getStagingDir();
+        if (stagingDir != null) FileUtils.delete(stagingDir);
+        profile.setStagingDir(null);
     }
 
     /** Older remote-inferred profiles kept the archive's own "proton-"/"wine-"
@@ -690,6 +735,14 @@ public class ContentsManager {
             profile.verCode = verCode;
             profile.desc = desc;
             profile.fileList = fileList;
+            profile.contentId = profileJSONObject.optString(ContentProfile.MARK_ID, "");
+            if (profile.contentId.trim().isEmpty()) {
+                profile.contentId = profile.getContentId();
+                // Backfill old/bundled/third-party manifests once so every
+                // installed content can be referenced by exported configs.
+                profileJSONObject.put(ContentProfile.MARK_ID, profile.contentId);
+                FileUtils.writeString(file, profileJSONObject.toString(2));
+            }
             return profile;
         } catch (Exception e) {
             return null;
@@ -700,6 +753,16 @@ public class ContentsManager {
         if (profilesMap != null)
             return profilesMap.get(type);
         return null;
+    }
+
+    /** True only after the package has been extracted into private storage.
+     * Remote catalog entries share the same profile list, so the object being
+     * present does not by itself mean the runtime can be launched. */
+    public boolean isInstalledProfile(ContentProfile profile) {
+        if (profile == null) return false;
+        File installDir = getInstallDir(context, profile);
+        return installDir.isDirectory()
+                && new File(installDir, PROFILE_NAME).isFile();
     }
 
     public static File getInstallDir(Context context, ContentProfile profile) {

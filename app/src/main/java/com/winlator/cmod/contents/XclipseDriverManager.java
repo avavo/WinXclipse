@@ -189,6 +189,10 @@ public class XclipseDriverManager {
     }
 
     public String installDriver(Uri driverUri) {
+        return installDriver(driverUri, null);
+    }
+
+    public String installDriver(Uri driverUri, Downloader.ProgressCallback progressCallback) {
         File tmpDir = new File(driverContentDir, "tmp");
         FileUtils.delete(tmpDir);
         tmpDir.mkdirs();
@@ -196,12 +200,15 @@ public class XclipseDriverManager {
         FileUtils.delete(archive);
 
         try {
+            reportProgress(progressCallback, 5);
             File directSource = driverUri.getPath() == null ? null : new File(driverUri.getPath());
             boolean copied = directSource != null && directSource.isFile()
                     ? FileUtils.copy(directSource, archive)
                     : FileUtils.copy(context, driverUri, archive, null);
-            if (!copied
-                    || !TarCompressorUtils.extractZip(archive, tmpDir)) return "";
+            if (!copied) return "";
+            reportProgress(progressCallback, 25);
+            if (!TarCompressorUtils.extractZip(archive, tmpDir)) return "";
+            reportProgress(progressCallback, 70);
 
             File packageDir = findPackageRoot(tmpDir);
             File meta = new File(packageDir, "meta.json");
@@ -211,6 +218,7 @@ public class XclipseDriverManager {
             String libraryName = profile.optString("libraryName", "").trim();
             if (displayName.isEmpty() || libraryName.isEmpty()
                     || !new File(packageDir, libraryName).isFile()) return "";
+            reportProgress(progressCallback, 82);
 
             String id = displayName.toLowerCase(Locale.ENGLISH)
                     .replaceAll("[^a-z0-9._-]+", "-")
@@ -224,6 +232,7 @@ public class XclipseDriverManager {
                 FileUtils.delete(destination);
                 return "";
             }
+            reportProgress(progressCallback, 100);
             return id;
         }
         catch (Exception e) {
@@ -234,6 +243,10 @@ public class XclipseDriverManager {
             FileUtils.delete(archive);
             FileUtils.delete(tmpDir);
         }
+    }
+
+    private static void reportProgress(Downloader.ProgressCallback callback, int progress) {
+        if (callback != null) callback.onProgress(progress);
     }
 
     private File findPackageRoot(File root) {

@@ -39,6 +39,8 @@ public class TouchpadView extends View {
     private float sensitivity = 1.0f;
     private boolean pointerButtonLeftEnabled = true;
     private boolean pointerButtonRightEnabled = true;
+    /** Tracks the physical primary button across Android's touch/generic paths. */
+    private boolean externalPrimaryDown = false;
     private Finger fingerPointerButtonLeft;
     private Finger fingerPointerButtonRight;
     private float scrollAccumY = 0;
@@ -170,6 +172,14 @@ public class TouchpadView extends View {
         boolean isTouchscreenMode = preferences.getBoolean("touchscreen_toggle", false);
 
         resetTouchscreenTimeout();
+
+        // Several Android/Samsung builds deliver a physical mouse's primary
+        // button as ACTION_DOWN/ACTION_UP instead of ACTION_BUTTON_PRESS/
+        // ACTION_BUTTON_RELEASE. It used to be consumed by handleTouchpadEvent
+        // without ever reaching X11. Handle that fallback before touchscreen
+        // routing; the state guard prevents duplicates on devices that emit
+        // both event forms.
+        if (onExternalPrimaryButtonEvent(event)) return true;
 
         // Block finger touches when touchscreen mouse is disabled.
         // Allow external mouse and stylus to pass through.
@@ -584,17 +594,14 @@ public class TouchpadView extends View {
     }
 
     public boolean onExternalMouseEvent(MotionEvent event) {
+        if (onExternalPrimaryButtonEvent(event)) return true;
         boolean handled = false;
-        if (event.isFromSource(InputDevice.SOURCE_MOUSE)) {
+        if (event.isFromSource(InputDevice.SOURCE_MOUSE)
+                || event.isFromSource(InputDevice.SOURCE_MOUSE_RELATIVE)) {
             int actionButton = event.getActionButton();
             switch (event.getAction()) {
                 case MotionEvent.ACTION_BUTTON_PRESS:
-                    if (actionButton == MotionEvent.BUTTON_PRIMARY) {
-                        if (xServer.isRelativeMouseMovement())
-                            xServer.getWinHandler().mouseEvent(MouseEventFlags.LEFTDOWN, 0, 0, 0);
-                        else
-                            xServer.injectPointerButtonPress(Pointer.Button.BUTTON_LEFT);
-                    } else if (actionButton == MotionEvent.BUTTON_SECONDARY) {
+                    if (actionButton == MotionEvent.BUTTON_SECONDARY) {
                         if (xServer.isRelativeMouseMovement())
                             xServer.getWinHandler().mouseEvent(MouseEventFlags.RIGHTDOWN, 0, 0, 0);
                         else
@@ -608,12 +615,7 @@ public class TouchpadView extends View {
                     handled = true;
                     break;
                 case MotionEvent.ACTION_BUTTON_RELEASE:
-                    if (actionButton == MotionEvent.BUTTON_PRIMARY) {
-                        if (xServer.isRelativeMouseMovement())
-                            xServer.getWinHandler().mouseEvent(MouseEventFlags.LEFTUP, 0, 0, 0);
-                        else
-                            xServer.injectPointerButtonRelease(Pointer.Button.BUTTON_LEFT);
-                    } else if (actionButton == MotionEvent.BUTTON_SECONDARY) {
+                    if (actionButton == MotionEvent.BUTTON_SECONDARY) {
                         if (xServer.isRelativeMouseMovement())
                             xServer.getWinHandler().mouseEvent(MouseEventFlags.RIGHTUP, 0, 0, 0);
                         else
@@ -657,6 +659,53 @@ public class TouchpadView extends View {
             }
         }
         return handled;
+    }
+
+    /**
+     * Handles the primary hardware mouse button across both Android event
+     * shapes. Some devices emit ACTION_BUTTON_PRESS/RELEASE, while Samsung
+     * builds may emit ACTION_DOWN/UP, including while pointer capture is on.
+     */
+    public boolean onExternalPrimaryButtonEvent(MotionEvent event) {
+        if (event == null || (!event.isFromSource(InputDevice.SOURCE_MOUSE)
+                && !event.isFromSource(InputDevice.SOURCE_MOUSE_RELATIVE))) return false;
+
+        int action = event.getActionMasked();
+        if (action == MotionEvent.ACTION_BUTTON_PRESS
+                && event.getActionButton() == MotionEvent.BUTTON_PRIMARY) {
+            dispatchExternalPrimaryButton(true);
+            return true;
+        }
+        if (action == MotionEvent.ACTION_BUTTON_RELEASE
+                && event.getActionButton() == MotionEvent.BUTTON_PRIMARY) {
+            dispatchExternalPrimaryButton(false);
+            return true;
+        }
+        if (action == MotionEvent.ACTION_DOWN) {
+            dispatchExternalPrimaryButton(true);
+            return true;
+        }
+        if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+            dispatchExternalPrimaryButton(false);
+            return true;
+        }
+        return false;
+    }
+
+    private void dispatchExternalPrimaryButton(boolean pressed) {
+        if (externalPrimaryDown == pressed) return;
+        externalPrimaryDown = pressed;
+        if (xServer.isRelativeMouseMovement()) {
+            xServer.getWinHandler().mouseEvent(
+                    pressed ? MouseEventFlags.LEFTDOWN : MouseEventFlags.LEFTUP,
+                    0, 0, 0);
+        }
+        else if (pressed) {
+            xServer.injectPointerButtonPress(Pointer.Button.BUTTON_LEFT);
+        }
+        else {
+            xServer.injectPointerButtonRelease(Pointer.Button.BUTTON_LEFT);
+        }
     }
 
 

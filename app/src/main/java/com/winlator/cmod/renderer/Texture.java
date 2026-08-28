@@ -38,6 +38,8 @@ public class Texture {
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, minFilter);
 
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0);
+        // Data already uploaded via glTexImage2D, no pending sub-image.
+        needsUpdate = false;
     }
 
     public int getWrapS() {
@@ -94,13 +96,22 @@ public class Texture {
 
         if (!isAllocated()) {
             allocateTexture(drawable.width, drawable.height, data);
+            return;
         }
-        else if (needsUpdate) {
-            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureId);
-            GLES20.glTexSubImage2D(GLES20.GL_TEXTURE_2D, 0, 0, 0, drawable.width, drawable.height, format, GLES20.GL_UNSIGNED_BYTE, data);
-            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0);
-            needsUpdate = false;
-        }
+        if (!needsUpdate) return;
+        // Partial updates not yet tracked per-rect; full reupload when dirty.
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureId);
+        GLES20.glTexSubImage2D(GLES20.GL_TEXTURE_2D, 0, 0, 0, drawable.width, drawable.height, format, GLES20.GL_UNSIGNED_BYTE, data);
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0);
+        needsUpdate = false;
+    }
+
+    public void updateRegion(Drawable drawable, int x, int y, int width, int height) {
+        ByteBuffer data = drawable.getData();
+        if (data == null || !isAllocated()) return;
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureId);
+        GLES20.glTexSubImage2D(GLES20.GL_TEXTURE_2D, 0, x, y, width, height, format, GLES20.GL_UNSIGNED_BYTE, data);
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0);
     }
 
     public boolean isAllocated() {

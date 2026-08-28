@@ -3,9 +3,9 @@ package com.winlator.cmod;
 import static com.winlator.cmod.core.AppUtils.showToast;
 
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.Context;
 import android.content.Intent;
+import android.app.ActivityManager;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.Color;
@@ -27,16 +27,20 @@ import android.widget.CheckBox;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.EditText;
+import android.widget.ScrollView;
 import android.widget.PopupMenu;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.content.res.AppCompatResources;
 import androidx.appcompat.widget.AppCompatImageView;
 import androidx.core.view.ViewCompat;
+import androidx.core.content.FileProvider;
 import androidx.documentfile.provider.DocumentFile;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
@@ -48,11 +52,14 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.winlator.cmod.R;
 import com.winlator.cmod.container.Container;
 import com.winlator.cmod.container.ContainerManager;
+import com.winlator.cmod.container.CommunityConfigManager;
 import com.winlator.cmod.container.Shortcut;
 import com.winlator.cmod.contentdialog.ContentDialog;
 import com.winlator.cmod.contentdialog.StorageInfoDialog;
 import com.winlator.cmod.core.AppUtils;
 import com.winlator.cmod.core.FileUtils;
+import com.winlator.cmod.core.GPUInformation;
+import com.winlator.cmod.core.ContentOperationRegistry;
 import com.winlator.cmod.core.PreloaderDialog;
 import com.winlator.cmod.inputcontrols.ControllerManager;
 import com.winlator.cmod.xenvironment.ImageFs;
@@ -64,9 +71,14 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.concurrent.Executors;
+
+import org.json.JSONObject;
 
 public class ContainersFragment extends Fragment {
     private static final int REQUEST_CODE_IMPORT_CONTAINER = 1070;
+    private static final int REQUEST_CODE_IMPORT_COMMUNITY_CONFIG = 1071;
     private RecyclerView recyclerView;
     private TextView emptyTextView;
     private ContainerManager manager;
@@ -98,6 +110,14 @@ public class ContainersFragment extends Fragment {
         manager = new ContainerManager(getContext());
         loadContainersList();
         ((AppCompatActivity) getActivity()).getSupportActionBar().setTitle(R.string.containers);
+        Bundle arguments = getArguments();
+        if (arguments != null) {
+            String configUri = arguments.getString("community_config_uri", "");
+            if (!configUri.isEmpty()) {
+                arguments.remove("community_config_uri");
+                view.post(() -> readCommunityConfig(Uri.parse(configUri)));
+            }
+        }
     }
 
     @Nullable
@@ -193,6 +213,13 @@ public class ContainersFragment extends Fragment {
                         .commit();
                 return true;
 
+            case R.id.containers_menu_import_config:
+                Intent importConfig = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                importConfig.addCategory(Intent.CATEGORY_OPENABLE);
+                importConfig.setType("*/*");
+                startActivityForResult(importConfig, REQUEST_CODE_IMPORT_COMMUNITY_CONFIG);
+                return true;
+
 //            case R.id.containers_menu_import:
 //                showImportInfoDialog();
 //                return true;
@@ -234,6 +261,167 @@ public class ContainersFragment extends Fragment {
 
             default:
                 return super.onOptionsItemSelected(menuItem);
+        }
+    }
+
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_CODE_IMPORT_CONTAINER && resultCode == Activity.RESULT_OK) {
+            Uri uri = data != null ? data.getData() : null;
+            if (uri != null) {
+                File importDir = FileUtils.getFileFromUri(getContext(), uri);
+                if (importDir == null || !importDir.isDirectory()) {
+                    AppUtils.showToast(getContext(), "Invalid container directory.");
+                } else showImportConfirmationDialog(uri, importDir);
+            }
+            return;
+        }
+        if (requestCode != REQUEST_CODE_IMPORT_COMMUNITY_CONFIG
+                || resultCode != Activity.RESULT_OK || data == null || data.getData() == null) return;
+        readCommunityConfig(data.getData());
+    }
+
+    private void readCommunityConfig(Uri uri) {
+        Context appContext = requireContext().getApplicationContext();
+        Activity hostActivity = getActivity();
+        if (ContentOperationRegistry.hasActiveOperations()) {
+            Toast.makeText(requireContext(),
+                    "Waiting for the required downloads/installations to finish…",
+                    Toast.LENGTH_LONG).show();
+            ContentOperationRegistry.runWhenIdle(() -> {
+                if (hostActivity == null || hostActivity.isFinishing()) return;
+                hostActivity.runOnUiThread(() -> {
+                    if (isAdded()) readCommunityConfig(uri);
+                });
+            });
+            return;
+        }
+        preloaderDialog.allowBackground();
+        preloaderDialog.show(R.string.importing_container);
+        Executors.newSingleThreadExecutor().execute(() -> {
+            try {
+                JSONObject manifest = CommunityConfigManager.readConfig(appContext, uri);
+                List<CommunityConfigManager.ContentResolution> resolutions =
+                        CommunityConfigManager.resolveContents(appContext, manifest);
+                if (hostActivity == null || hostActivity.isFinishing()) return;
+                hostActivity.runOnUiThread(() -> {
+                    preloaderDialog.close();
+                    if (!isAdded()) return;
+                    resolveImportedContents(manifest, resolutions, new ArrayList<>(), 0);
+                });
+            } catch (Exception e) {
+                Log.e("ContainersFragment", "Unable to import community config", e);
+                if (hostActivity != null && !hostActivity.isFinishing()) hostActivity.runOnUiThread(() -> {
+                    preloaderDialog.close();
+                    if (isAdded()) ContentDialog.alert(requireContext(),
+                            "Invalid or unsupported community config.", null);
+                });
+            }
+        });
+    }
+
+    private void resolveImportedContents(JSONObject manifest,
+                                         List<CommunityConfigManager.ContentResolution> resolutions,
+                                         List<com.winlator.cmod.contents.ContentProfile> choices,
+                                         int index) {
+        if (index >= resolutions.size()) {
+            installImportedConfiguration(manifest, resolutions, choices);
+            return;
+        }
+        CommunityConfigManager.ContentResolution current = resolutions.get(index);
+        if (current.exact != null) {
+            choices.add(current.exact);
+            resolveImportedContents(manifest, resolutions, choices, index + 1);
+            return;
+        }
+
+        String message = "Required by config: " + current.requestedName();
+        if (current.similar != null) {
+            message += "\n\nClosest compatible installed content: "
+                    + com.winlator.cmod.contents.ContentsManager.getEntryName(current.similar)
+                    + " (" + current.similarity + "% match)";
+            AlertDialog dialog = new AlertDialog.Builder(requireContext())
+                    .setTitle("Content not found")
+                    .setMessage(message)
+                    .setPositiveButton("Use closest", (dialogInterface, which) -> {
+                        choices.add(current.similar);
+                        resolveImportedContents(manifest, resolutions, choices, index + 1);
+                    })
+                    .setNegativeButton("Continue without", (dialogInterface, which) -> {
+                        choices.add(null);
+                        resolveImportedContents(manifest, resolutions, choices, index + 1);
+                    })
+                    .setNeutralButton(android.R.string.cancel, null)
+                    .create();
+            showCommunityDialog(dialog);
+        } else if ("wineRuntime".equals(current.reference.optString("role", ""))
+                && !current.requestedName().toLowerCase(java.util.Locale.ENGLISH).contains("arm64ec")
+                && !current.requestedName().toLowerCase(java.util.Locale.ENGLISH).matches(".*(^|[-_])x86($|[-_]).*")) {
+            AlertDialog dialog = new AlertDialog.Builder(requireContext())
+                    .setTitle("Content not found")
+                    .setMessage(message + "\n\nClosest compatible built-in runtime: "
+                            + com.winlator.cmod.core.WineInfo.MAIN_WINE_VERSION.identifier())
+                    .setPositiveButton("Use closest", (dialogInterface, which) -> {
+                        // Null intentionally maps wineRuntime to the bundled default.
+                        choices.add(null);
+                        resolveImportedContents(manifest, resolutions, choices, index + 1);
+                    })
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .create();
+            showCommunityDialog(dialog);
+        } else {
+            AlertDialog dialog = new AlertDialog.Builder(requireContext())
+                    .setTitle("Content not found")
+                    .setMessage(message + "\n\nNo sufficiently similar installed content was found.")
+                    .setPositiveButton("Continue without", (dialogInterface, which) -> {
+                        choices.add(null);
+                        resolveImportedContents(manifest, resolutions, choices, index + 1);
+                    })
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .create();
+            showCommunityDialog(dialog);
+        }
+    }
+
+    private void showCommunityDialog(AlertDialog dialog) {
+        dialog.show();
+        if (AppUtils.isDarkMode(requireContext()) && dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawableResource(
+                    R.drawable.content_dialog_background_dark);
+        }
+    }
+
+    private void installImportedConfiguration(JSONObject manifest,
+                                              List<CommunityConfigManager.ContentResolution> resolutions,
+                                              List<com.winlator.cmod.contents.ContentProfile> choices) {
+        try {
+            JSONObject config = CommunityConfigManager.applyResolution(
+                    requireContext(), manifest, resolutions, choices);
+            JSONObject metadata = manifest.optJSONObject("metadata");
+            String gameName = metadata != null ? metadata.optString("gameName", "") : "";
+            if (!gameName.trim().isEmpty()) config.put("name", gameName.trim());
+            ContentOperationRegistry.Token operation =
+                    ContentOperationRegistry.begin(ContentOperationRegistry.Kind.INSTALL);
+            preloaderDialog.allowBackground();
+            preloaderDialog.show(R.string.creating_container);
+            com.winlator.cmod.contents.ContentsManager contents =
+                    new com.winlator.cmod.contents.ContentsManager(requireContext());
+            contents.syncContents();
+            manager.createContainerAsync(config, contents, created -> {
+                operation.close();
+                preloaderDialog.close();
+                if (!isAdded()) return;
+                if (created == null) {
+                    ContentDialog.alert(requireContext(), "Could not create the container from this config.", null);
+                } else {
+                    loadContainersList();
+                    Toast.makeText(requireContext(), "Community config imported.", Toast.LENGTH_SHORT).show();
+                }
+            });
+        } catch (Exception e) {
+            Log.e("ContainersFragment", "Unable to apply community config", e);
+            ContentDialog.alert(requireContext(), "Could not apply this community config.", null);
         }
     }
 
@@ -350,27 +538,6 @@ public class ContainersFragment extends Fragment {
         builder.setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss());
         builder.show();
     }
-
-    @Override
-    public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQUEST_CODE_IMPORT_CONTAINER && resultCode == Activity.RESULT_OK) {
-            if (data != null) {
-                Uri uri = data.getData();
-                if (uri != null) {
-                    // Get the directory path directly from the Uri using FileUtils
-                    File importDir = FileUtils.getFileFromUri(getContext(), uri);
-                    if (importDir == null || !importDir.isDirectory()) {
-                        AppUtils.showToast(getContext(), "Invalid container directory.");
-                        return;
-                    }
-                    // Show confirmation dialog before importing
-                    showImportConfirmationDialog(uri, importDir);
-                }
-            }
-        }
-    }
-
 
     private void openFilePicker() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
@@ -586,12 +753,6 @@ public class ContainersFragment extends Fragment {
         private void proceedWithLaunch(Container container) {
             final Context context = getContext();
 
-            File box64File = new File(context.getFilesDir(), "imagefs/usr/bin/box64");
-            if (box64File.exists()) {
-                box64File.delete();
-                Log.i("ContainersFragment", "Deleted existing box64 to ensure a clean launch.");
-            }
-
             if (!XrActivity.isEnabled(getContext())) {
                 Intent intent = new Intent(context, XServerDisplayActivity.class);
                 intent.putExtra("container_id", container.id);
@@ -650,6 +811,9 @@ public class ContainersFragment extends Fragment {
                     case R.id.container_export:
                         exportContainer(container);
                         break;
+                    case R.id.container_export_config:
+                        showCommunityConfigExportDialog(container);
+                        break;
                 }
                 return true;
             });
@@ -664,6 +828,106 @@ public class ContainersFragment extends Fragment {
                 preloaderDialog.close(); // Ensure the dialog is closed after operation
                 showToast("Container exported successfully to " + backupDir.getPath());
             });
+        }
+
+        private void showCommunityConfigExportDialog(Container container) {
+            Context context = requireContext();
+            LinearLayout fields = new LinearLayout(context);
+            fields.setOrientation(LinearLayout.VERTICAL);
+            int pad = dp(20);
+            fields.setPadding(pad, pad / 2, pad, 0);
+
+            EditText game = configField(fields, "Game name", container.getName());
+            EditText fps = configField(fields, "Average FPS", "");
+            EditText author = configField(fields, "Author name", "");
+            EditText discord = configField(fields, "Discord username", "");
+            EditText notes = configField(fields, "Notes (optional)", "");
+            notes.setMinLines(2);
+
+            ScrollView scroll = new ScrollView(context);
+            scroll.addView(fields);
+            AlertDialog dialog = new AlertDialog.Builder(context)
+                    .setTitle("Export Community Config")
+                    .setMessage("The portable ZIP contains a standardized text config and content IDs. You can share it to Discord after export.")
+                    .setView(scroll)
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .setPositiveButton("Export", null)
+                    .create();
+            dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+                    .setOnClickListener(v -> {
+                        if (game.getText().toString().trim().isEmpty()) {
+                            game.setError("Required"); return;
+                        }
+                        if (author.getText().toString().trim().isEmpty()) {
+                            author.setError("Required"); return;
+                        }
+                        if (discord.getText().toString().trim().isEmpty()) {
+                            discord.setError("Sign in to Discord and enter your username"); return;
+                        }
+                        dialog.dismiss();
+                        CommunityConfigManager.Metadata metadata = new CommunityConfigManager.Metadata();
+                        metadata.gameName = game.getText().toString();
+                        metadata.fps = fps.getText().toString();
+                        metadata.author = author.getText().toString();
+                        metadata.discord = discord.getText().toString();
+                        metadata.notes = notes.getText().toString();
+                        metadata.gpu = GPUInformation.getRenderer();
+                        ActivityManager.MemoryInfo memory = new ActivityManager.MemoryInfo();
+                        ActivityManager activityManager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
+                        if (activityManager != null) activityManager.getMemoryInfo(memory);
+                        metadata.ram = String.format(Locale.US, "%.1f GB", memory.totalMem / 1073741824.0);
+                        exportCommunityConfig(container, metadata);
+                    }));
+            dialog.show();
+        }
+
+        private EditText configField(LinearLayout parent, String hint, String value) {
+            EditText input = new EditText(parent.getContext());
+            input.setHint(hint);
+            input.setText(value);
+            input.setSingleLine(!hint.startsWith("Notes"));
+            parent.addView(input, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            return input;
+        }
+
+        private void exportCommunityConfig(Container container, CommunityConfigManager.Metadata metadata) {
+            Context appContext = requireContext().getApplicationContext();
+            Activity hostActivity = getActivity();
+            preloaderDialog.show(R.string.exporting_container);
+            Executors.newSingleThreadExecutor().execute(() -> {
+                try {
+                    File output = CommunityConfigManager.exportConfig(appContext, container, metadata);
+                    if (hostActivity == null || hostActivity.isFinishing()) return;
+                    hostActivity.runOnUiThread(() -> {
+                        preloaderDialog.close();
+                        if (!isAdded()) return;
+                        new AlertDialog.Builder(requireContext())
+                                .setTitle("Community Config exported")
+                                .setMessage("Saved to:\n" + output.getAbsolutePath())
+                                .setPositiveButton("Share to Discord", (dialog, which) -> shareConfig(output))
+                                .setNegativeButton(android.R.string.ok, null)
+                                .show();
+                    });
+                } catch (Exception e) {
+                    Log.e("ContainersFragment", "Unable to export community config", e);
+                    if (hostActivity != null && !hostActivity.isFinishing()) hostActivity.runOnUiThread(() -> {
+                        preloaderDialog.close();
+                        if (isAdded()) ContentDialog.alert(requireContext(),
+                                "Could not export this configuration.", null);
+                    });
+                }
+            });
+        }
+
+        private void shareConfig(File output) {
+            Uri uri = FileProvider.getUriForFile(requireContext(),
+                    requireContext().getPackageName() + ".fileprovider", output);
+            Intent share = new Intent(Intent.ACTION_SEND);
+            share.setType("application/zip");
+            share.putExtra(Intent.EXTRA_STREAM, uri);
+            share.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(Intent.createChooser(share, "Share community config"));
         }
 
         private void showToast(String message) {

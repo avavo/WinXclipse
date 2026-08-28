@@ -156,7 +156,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             openInputControls();
         } else {
             int selectedMenuItemId = intent.getIntExtra("selected_menu_item_id", 0);
-            int menuItemId = selectedMenuItemId > 0 ? selectedMenuItemId : R.id.main_menu_containers;
+            int menuItemId = selectedMenuItemId > 0 ? selectedMenuItemId : R.id.main_menu_shortcuts;
 
             actionBar.setHomeAsUpIndicator(R.drawable.icon_action_bar_menu);
             onNavigationItemSelected(navigationView.getMenu().findItem(menuItemId));
@@ -646,6 +646,9 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             case R.id.main_menu_contents:
                 show(new ContentsFragment(), false);  // Forward animation
                 break;
+            case R.id.main_menu_community_configs:
+                show(new CommunityConfigsFragment(), false);
+                break;
             case R.id.main_menu_file_manager:
                 show(new FileManagerFragment(), false);
                 break;
@@ -723,6 +726,8 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                     "Based on Winlator by Brunodev85 (<a href=\"https://github.com/brunodev85\">Git</a>)",
                     "Based on Winlator CMod by <a href=\"https://github.com/coffincolors/winlator\">coffincolors</a> and <a href=\"https://github.com/Pipetto-crypto/winlator\">Pipetto-crypto</a>",
                     "Ports from Winlator Mali (<a href=\"https://github.com/GunaCharanTeja/WinlatorMali\">Git</a>)",
+                    "Winlator Ludashi ports and interface references",
+                    "Native HUD architecture adapted from Bannerlator (<a href=\"https://github.com/The412Banner/Bannerlator\">Git</a>)",
                     "Wrappers from Leegao (<a href=\"https://github.com/leegao/bionic-vulkan-wrapper\">Git</a>), GameNative (<a href=\"https://github.com/utkarshdalal/GameNative\">Git</a>), Ref4ik-v6 (<a href=\"https://github.com/REF4IK/CronyX-\">Git</a>), Kirimu",
                     "Winlator Glibc by longjunyu2 (<a href=\"https://github.com/longjunyu2/winlator/\">Fork</a>)",
                     "Winlator OpenXR by lvonasek (<a href=\"https://github.com/lvonasek\">Git</a>)",
