@@ -41,8 +41,8 @@ public class ContainerManager {
     private boolean isInitialized = false; // New flag to track initialization
 
     public ContainerManager(Context context) {
-        this.context = context;
-        File rootDir = ImageFs.find(context).getRootDir();
+        this.context = context.getApplicationContext();
+        File rootDir = ImageFs.find(this.context).getRootDir();
         homeDir = new File(rootDir, "home");
         loadContainers();
         isInitialized = true;
