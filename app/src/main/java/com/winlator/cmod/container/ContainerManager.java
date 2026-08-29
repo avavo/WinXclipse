@@ -149,6 +149,9 @@ public class ContainerManager {
             // Refresh max from filesystem to avoid overwriting existing xuser-1
             // when this manager instance was created before that container existed.
             File[] existing = homeDir.listFiles();
+            StringBuilder listDbg = new StringBuilder();
+            if (existing != null) for (File f: existing) listDbg.append(f.getName()).append(f.isDirectory()?"[D]":"[F]").append(",");
+            Log.i("WineStartup","createContainer scan home="+homeDir.getAbsolutePath()+" exists="+homeDir.exists()+" list="+listDbg+" maxBefore="+maxContainerId);
             if (existing != null) {
                 for (File f : existing) {
                     if (f.isDirectory() && f.getName().startsWith(ImageFs.USER + "-")) {
