@@ -9,9 +9,12 @@ import android.widget.FrameLayout;
 import com.winlator.cmod.renderer.GLRenderer;
 import com.winlator.cmod.xserver.XServer;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 @SuppressLint("ViewConstructor")
 public class XServerView extends GLSurfaceView {
     private final GLRenderer renderer;
+    private final AtomicBoolean frameDispatchPosted = new AtomicBoolean();
 
     public XServerView(Context context, XServer xServer) {
         super(context);
@@ -26,5 +29,22 @@ public class XServerView extends GLSurfaceView {
 
     public GLRenderer getRenderer() {
         return renderer;
+    }
+
+    @Override
+    public void requestRender() {
+        // Submit at most one compositor frame per Android display pulse. Guest
+        // FPS remains independent, while SurfaceFlinger always receives a
+        // complete frame instead of an arbitrary mid-scan update.
+        if (!isAttachedToWindow()) {
+            super.requestRender();
+            return;
+        }
+        if (frameDispatchPosted.compareAndSet(false, true)) {
+            postOnAnimation(() -> {
+                frameDispatchPosted.set(false);
+                super.requestRender();
+            });
+        }
     }
 }

@@ -5,9 +5,6 @@ import static com.winlator.cmod.xserver.XClientRequestHandler.RESPONSE_CODE_SUCC
 import android.util.SparseArray;
 import android.util.SparseLongArray;
 
-import com.winlator.cmod.renderer.GPUImage;
-import com.winlator.cmod.renderer.GLRenderer;
-import com.winlator.cmod.renderer.Texture;
 import com.winlator.cmod.xconnector.XInputStream;
 import com.winlator.cmod.xconnector.XOutputStream;
 import com.winlator.cmod.xconnector.XStreamLock;
@@ -38,14 +35,30 @@ public class PresentExtension implements Extension {
     private final SparseLongArray nextFrameTimesNs = new SparseLongArray();
     private volatile int frameRateLimit;
     private volatile int refreshRateHz = 60;
+    private volatile String vsyncMode = "off";
 
     public void setFrameRateLimit(int limit) {
-        frameRateLimit = Math.max(0, limit);
-        if (frameRateLimit == 0) synchronized (nextFrameTimesNs) { nextFrameTimesNs.clear(); }
+        int normalized = Math.max(0, limit);
+        if (frameRateLimit != normalized) {
+            frameRateLimit = normalized;
+            synchronized (nextFrameTimesNs) { nextFrameTimesNs.clear(); }
+        }
     }
 
     public void setRefreshRate(float refreshRate) {
-        refreshRateHz = Math.max(1, Math.round(refreshRate));
+        int normalized = Math.max(1, Math.round(refreshRate));
+        if (refreshRateHz != normalized) {
+            refreshRateHz = normalized;
+            synchronized (nextFrameTimesNs) { nextFrameTimesNs.clear(); }
+        }
+    }
+
+    public void setVsyncMode(String mode) {
+        String normalized = "50".equals(mode) ? "50" : "100".equals(mode) ? "100" : "off";
+        if (!normalized.equals(vsyncMode)) {
+            vsyncMode = normalized;
+            synchronized (nextFrameTimesNs) { nextFrameTimesNs.clear(); }
+        }
     }
 
     private static abstract class ClientOpcodes {
@@ -159,12 +172,11 @@ public class PresentExtension implements Extension {
         Window window = client.xServer.windowManager.getWindow(windowId);
         if (window == null) throw new BadWindow(windowId);
 
-        if (GPUImage.isSupported() && !mask.isEmpty()) {
-            Drawable content = window.getContent();
-            final Texture oldTexture = content.getTexture();
-            client.xServer.getRenderer().xServerView.queueEvent(oldTexture::destroy);
-            content.setTexture(new GPUImage(content.width, content.height));
-        }
+        // Keep the window content on the upload-backed Texture path. The old
+        // optimization kept one AHardwareBuffer CPU-mapped while GLES sampled
+        // it, so the next DRI3 Present could overwrite scanlines still in use
+        // by the Xclipse GPU. Fast camera pans then showed a horizontal tear
+        // even when the guest swapchain selected FIFO/mailbox.
 
         synchronized (events) {
             Event event = events.get(eventId);
@@ -187,11 +199,13 @@ public class PresentExtension implements Extension {
         }
     }
 
-    /** Mali-style Present pacing. This throttles the guest's Present request,
-     * not the Android GL renderer, so the compositor remains responsive. */
-    private void enforceFrameRate(GLRenderer renderer, XClient client) {
-        int targetFps = frameRateLimit > 0 ? frameRateLimit
-                : renderer != null ? renderer.getFpsLimit() : 0;
+    /** Paces guest Present requests without sleeping Android's GL thread. */
+    private void enforceFrameRate(XClient client) {
+        int vsyncLimit = "100".equals(vsyncMode) ? refreshRateHz
+                : "50".equals(vsyncMode) ? Math.max(1, refreshRateHz / 2) : 0;
+        int targetFps = frameRateLimit > 0 && vsyncLimit > 0
+                ? Math.min(frameRateLimit, vsyncLimit)
+                : frameRateLimit > 0 ? frameRateLimit : vsyncLimit;
         if (targetFps <= 0) {
             synchronized (nextFrameTimesNs) { nextFrameTimesNs.delete(System.identityHashCode(client)); }
             return;
@@ -205,7 +219,7 @@ public class PresentExtension implements Extension {
             nextFrameTimeNs = nextFrameTimesNs.get(pacingKey, 0L);
         }
         if (nextFrameTimeNs == 0 || now > nextFrameTimeNs + frameNs)
-            nextFrameTimeNs = now + frameNs;
+            nextFrameTimeNs = now;
 
         long remaining = nextFrameTimeNs - now;
         if (remaining > 1_500_000L) {
@@ -235,11 +249,10 @@ public class PresentExtension implements Extension {
                 queryVersion(client, inputStream, outputStream);
                 break;
             case ClientOpcodes.PRESENT_PIXMAP:
+                enforceFrameRate(client);
                 try (XLock lock = client.xServer.lock(XServer.Lockable.WINDOW_MANAGER, XServer.Lockable.PIXMAP_MANAGER)) {
                     presentPixmap(client, inputStream, outputStream);
                 }
-                if (client.xServer.getRenderer() instanceof GLRenderer)
-                    enforceFrameRate((GLRenderer)client.xServer.getRenderer(), client);
                 break;
             case ClientOpcodes.SELECT_INPUT:
                 try (XLock lock = client.xServer.lock(XServer.Lockable.WINDOW_MANAGER)) {

@@ -248,14 +248,19 @@ public abstract class FileUtils {
                 throw new IllegalArgumentException("Context is required for Uri to File copying");
             }
             Uri srcUri = (Uri) src;
-            try (InputStream inputStream = context.getContentResolver().openInputStream(srcUri);
-                 OutputStream outputStream = new FileOutputStream(dstFile)) {
-                byte[] buffer = new byte[1024];
+            File parent = dstFile.getParentFile();
+            if (parent != null && !parent.isDirectory() && !parent.mkdirs()) return false;
+            try (InputStream inputStream = new BufferedInputStream(
+                    context.getContentResolver().openInputStream(srcUri), StreamUtils.BUFFER_SIZE);
+                 OutputStream outputStream = new BufferedOutputStream(
+                         new FileOutputStream(dstFile), StreamUtils.BUFFER_SIZE)) {
+                byte[] buffer = new byte[StreamUtils.BUFFER_SIZE];
                 int length;
 
                 while ((length = inputStream.read(buffer)) > 0) {
                     outputStream.write(buffer, 0, length);
                 }
+                outputStream.flush();
 
                 if (callback != null) callback.call(dstFile);
                 return true;

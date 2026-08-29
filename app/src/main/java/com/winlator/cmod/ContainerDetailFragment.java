@@ -756,6 +756,7 @@ public class ContainerDetailFragment extends Fragment {
                     container.putExtra("fsrMode", null);
                     container.putExtra("fsrUpscale", null);
                     container.putExtra("fsrQuality", null);
+                    container.putExtra("vsyncMode", null);
                 }
                 String dxwrapper = getDXWrapperIdentifier(sDXWrapper.getSelectedItem());
                 String dxwrapperConfig = vDXWrapperConfig.getTag().toString();

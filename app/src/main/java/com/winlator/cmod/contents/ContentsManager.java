@@ -34,6 +34,7 @@ public class ContentsManager {
     private static final String TAG = "ContentsManager";
     public static final String REMOTE_PROFILES = "contents.json";
     private static final String REMOTE_CACHE_KEY = "github_release_contents_cache";
+    private static final String REMOTE_REFRESH_TIME_KEY = "github_release_contents_refresh_time";
     private static final String GITHUB_RELEASE_API = "https://api.github.com/repos/avavo/WinXclipse/releases/tags/";
     private static final String[] REMOTE_RELEASE_TAGS = {
             "runtime-fexcore-v0.8",
@@ -194,8 +195,44 @@ public class ContentsManager {
         }
 
         String result = catalog.toString();
-        if (refreshedAnyRelease) preferences.edit().putString(REMOTE_CACHE_KEY, result).apply();
+        if (refreshedAnyRelease) preferences.edit()
+                .putString(REMOTE_CACHE_KEY, result)
+                .putLong(REMOTE_REFRESH_TIME_KEY, System.currentTimeMillis())
+                .apply();
         return result;
+    }
+
+    /** Returns immediately from disk so opening the Proton/Wine list never
+     * waits for four GitHub requests. Bundled entries are merged into an older
+     * cache after an app update. */
+    public String getCachedRemoteProfiles(String bundledJson) {
+        JSONArray cached = parseCatalog(preferences.getString(REMOTE_CACHE_KEY, null));
+        JSONArray bundled = parseCatalog(bundledJson);
+        if (cached.length() == 0) return bundled.toString();
+        for (int i = 0; i < bundled.length(); i++) {
+            JSONObject candidate = bundled.optJSONObject(i);
+            if (candidate == null) continue;
+            String url = candidate.optString("remoteUrl", "");
+            if (!url.isEmpty() && findProfileByUrl(cached, url) != null) continue;
+            boolean duplicate = false;
+            for (int j = 0; j < cached.length(); j++) {
+                JSONObject existing = cached.optJSONObject(j);
+                if (existing != null
+                        && candidate.optString("type").equals(existing.optString("type"))
+                        && candidate.optString("verName").equals(existing.optString("verName"))
+                        && candidate.optInt("verCode") == existing.optInt("verCode")) {
+                    duplicate = true;
+                    break;
+                }
+            }
+            if (!duplicate) cached.put(candidate);
+        }
+        return cached.toString();
+    }
+
+    public boolean shouldRefreshRemoteProfiles(long maximumAgeMs) {
+        long refreshedAt = preferences.getLong(REMOTE_REFRESH_TIME_KEY, 0L);
+        return refreshedAt <= 0L || System.currentTimeMillis() - refreshedAt >= maximumAgeMs;
     }
 
     private static JSONArray parseCatalog(String json) {

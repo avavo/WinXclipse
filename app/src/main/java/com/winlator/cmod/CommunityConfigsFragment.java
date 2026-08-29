@@ -2,6 +2,7 @@ package com.winlator.cmod;
 
 import android.app.AlertDialog;
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
@@ -66,6 +67,9 @@ public class CommunityConfigsFragment extends Fragment {
     private static final String RELEASE_ASSETS_PAGE =
             "https://github.com/avavo/WinXclipse/releases/expanded_assets/community-configs";
     private static final String RELEASE_INDEX_CACHE = "community_configs_release.json";
+    private static final String COMMUNITY_PREFS = "community_configs";
+    private static final String FIRST_VISIT_NOTICE = "export_notice_shown_v1";
+    private static final String DISCORD_URL = "https://discord.gg/u2nDTXRxyx";
     private RecyclerView recyclerView;
     private TextView emptyView;
     private final List<GameItem> allItems = new ArrayList<>();
@@ -136,6 +140,41 @@ public class CommunityConfigsFragment extends Fragment {
         super.onViewCreated(view, savedInstanceState);
         ((AppCompatActivity) requireActivity()).getSupportActionBar().setTitle("Community Configs");
         refresh();
+        view.post(this::showFirstVisitNotice);
+    }
+
+    private void showFirstVisitNotice() {
+        if (!isAdded()) return;
+        android.content.SharedPreferences preferences = requireContext()
+                .getSharedPreferences(COMMUNITY_PREFS, Context.MODE_PRIVATE);
+        if (preferences.getBoolean(FIRST_VISIT_NOTICE, false)) return;
+        // Mark it when displayed, not only when Discord is opened, so a screen
+        // rotation or a cancelled browser chooser cannot repeat the notice.
+        preferences.edit().putBoolean(FIRST_VISIT_NOTICE, true).apply();
+
+        AlertDialog dialog = new AlertDialog.Builder(requireContext())
+                .setTitle("Share your configuration")
+                .setMessage("You can export a tested game configuration and send the ZIP "
+                        + "to our Discord so it can be published for everyone.")
+                .setPositiveButton("Open Discord", (ignored, which) -> {
+                    try {
+                        startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(DISCORD_URL)));
+                    }
+                    catch (Exception error) {
+                        Toast.makeText(requireContext(), DISCORD_URL, Toast.LENGTH_LONG).show();
+                    }
+                })
+                .setNegativeButton("Later", null)
+                .create();
+        showCommunityDialog(dialog);
+    }
+
+    private void showCommunityDialog(AlertDialog dialog) {
+        dialog.show();
+        if (AppUtils.isDarkMode(requireContext()) && dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawableResource(
+                    R.drawable.content_dialog_background_dark);
+        }
     }
 
     @Override

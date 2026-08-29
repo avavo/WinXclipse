@@ -23,6 +23,7 @@ import java.util.Set;
 public final class ExternalDownloadCatalog {
     private static final String TAG = "ExternalDownloadCatalog";
     private static final String CACHE_KEY = "xclipse_driver_release_cache_v2";
+    private static final String REFRESH_TIME_KEY = "xclipse_driver_release_refresh_time";
     /** "owner/name" lists every release; "owner/name@tag" pins one release. */
     private static final String[] DRIVER_REPOSITORIES = {
             "WearyConcern1165/ExynosTools",
@@ -82,7 +83,10 @@ public final class ExternalDownloadCatalog {
             }
         }
         if (refreshed && combined.length() > 0) {
-            preferences.edit().putString(CACHE_KEY, combined.toString()).apply();
+            preferences.edit()
+                    .putString(CACHE_KEY, combined.toString())
+                    .putLong(REFRESH_TIME_KEY, System.currentTimeMillis())
+                    .apply();
         }
         else {
             try {
@@ -93,6 +97,14 @@ public final class ExternalDownloadCatalog {
             }
         }
         return parseItems(combined);
+    }
+
+    public List<Item> refreshDriversIfStale(long maximumAgeMs) {
+        long refreshedAt = preferences.getLong(REFRESH_TIME_KEY, 0L);
+        if (refreshedAt > 0L && System.currentTimeMillis() - refreshedAt < maximumAgeMs) {
+            return getCachedDrivers();
+        }
+        return refreshDrivers();
     }
 
     public List<Item> getCachedDrivers() {

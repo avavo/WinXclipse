@@ -3,6 +3,7 @@ package com.winlator.cmod.renderer;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.opengl.EGL14;
 import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
 import android.util.Log;
@@ -85,6 +86,15 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
     @Override
     public void onSurfaceCreated(GL10 gl, EGLConfig config) {
         GPUImage.checkIsSupported();
+
+        // Keep the Android compositor tear-free even when the guest uses an
+        // uncapped immediate swapchain. This does not cap guest-side FPS.
+        try {
+            if (EGL14.eglGetCurrentDisplay() != EGL14.EGL_NO_DISPLAY)
+                EGL14.eglSwapInterval(EGL14.eglGetCurrentDisplay(), 1);
+        }
+        catch (RuntimeException ignored) {
+        }
 
         // FBOs/textures from a previous EGL context are dead; force the
         // composer to reallocate against the new context.

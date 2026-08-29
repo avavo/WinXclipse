@@ -13,6 +13,9 @@ import com.winlator.cmod.box86_64.Box86_64Preset;
 import com.winlator.cmod.box86_64.Box86_64PresetManager;
 import com.winlator.cmod.contents.ContentProfile;
 import com.winlator.cmod.contents.ContentsManager;
+import com.winlator.cmod.contents.Downloader;
+import com.winlator.cmod.contents.ExternalDownloadCatalog;
+import com.winlator.cmod.contents.XclipseDriverManager;
 import com.winlator.cmod.core.FileUtils;
 import com.winlator.cmod.core.DefaultVersion;
 import com.winlator.cmod.core.WineInfo;
@@ -292,6 +295,11 @@ public final class CommunityConfigManager {
 
     public static List<ContentResolution> resolveContents(Context context, JSONObject manifest)
             throws JSONException {
+        // Schema-v1 exports already contain the selected external Xclipse
+        // driver in graphicsDriverConfig, but did not create a ContentProfile
+        // reference for it. Recover that existing information before the new
+        // container is created, so old published ZIPs do not need re-exporting.
+        ensureGraphicsDriver(context, manifest);
         ContentsManager manager = new ContentsManager(context);
         try {
             manager.syncContents();
@@ -380,6 +388,108 @@ public final class CommunityConfigManager {
         return result;
     }
 
+    private static void ensureGraphicsDriver(Context context, JSONObject manifest) {
+        JSONObject data = manifest.optJSONObject("container");
+        if (data == null) return;
+        String driverConfig = data.optString("graphicsDriverConfig", "");
+        String requested = semicolonConfigValue(driverConfig, "version");
+        if (isDisabledValue(requested)
+                || DefaultVersion.WRAPPER.equalsIgnoreCase(requested)) return;
+
+        XclipseDriverManager driverManager = new XclipseDriverManager(context);
+        String installedId = driverManager.findInstalledDriverId(requested);
+        if (installedId.isEmpty()) {
+            File downloads = Environment.getExternalStoragePublicDirectory(
+                    Environment.DIRECTORY_DOWNLOADS);
+            List<File> archives = new ArrayList<>();
+            collectDriverPackages(downloads, 0, new int[]{0}, archives);
+            File best = bestDriverPackage(requested, archives);
+            if (best != null) {
+                installedId = driverManager.installDriver(Uri.fromFile(best));
+                if (installedId.isEmpty()) {
+                    installedId = driverManager.findInstalledDriverId(requested);
+                }
+            }
+        }
+
+        if (installedId.isEmpty()) {
+            ExternalDownloadCatalog catalog = new ExternalDownloadCatalog(context);
+            ExternalDownloadCatalog.Item best = bestRemoteDriver(
+                    requested, catalog.refreshDrivers());
+            if (best != null && best.url != null && !best.url.isEmpty()) {
+                File downloaded = new File(context.getCacheDir(),
+                        "community-driver-" + Integer.toHexString(best.url.hashCode()) + ".zip");
+                try {
+                    if ((downloaded.isFile() || Downloader.downloadFile(best.url, downloaded))) {
+                        installedId = driverManager.installDriver(Uri.fromFile(downloaded));
+                        if (installedId.isEmpty()) {
+                            installedId = driverManager.findInstalledDriverId(requested);
+                        }
+                    }
+                }
+                finally {
+                    FileUtils.delete(downloaded);
+                }
+            }
+        }
+
+        if (!installedId.isEmpty()) {
+            try {
+                data.put("graphicsDriverConfig", replaceSemicolonConfigValue(
+                        driverConfig, "version", installedId));
+                Log.i("CommunityConfig", "Recovered Xclipse driver " + requested
+                        + " as " + installedId);
+            }
+            catch (JSONException ignored) {}
+        }
+        else {
+            Log.w("CommunityConfig", "Could not automatically recover Xclipse driver "
+                    + requested);
+        }
+    }
+
+    private static void collectDriverPackages(File directory, int depth, int[] visited,
+                                              List<File> output) {
+        if (directory == null || depth > 3 || visited[0] >= 800
+                || output.size() >= 200 || !directory.isDirectory()) return;
+        File[] files = directory.listFiles();
+        if (files == null) return;
+        for (File file : files) {
+            if (++visited[0] > 800 || output.size() >= 200) return;
+            if (file.isDirectory()) collectDriverPackages(file, depth + 1, visited, output);
+            else if (file.getName().toLowerCase(Locale.ENGLISH)
+                    .matches(".*\\.(?:zip|tzst)$")) output.add(file);
+        }
+    }
+
+    private static File bestDriverPackage(String requested, List<File> packages) {
+        File best = null;
+        int bestScore = -1;
+        for (File candidate : packages) {
+            int score = XclipseDriverManager.driverMatchScore(requested,
+                    ExternalDownloadCatalog.stripPackageSuffix(candidate.getName()));
+            if (score > bestScore) {
+                bestScore = score;
+                best = candidate;
+            }
+        }
+        return bestScore >= 82 ? best : null;
+    }
+
+    private static ExternalDownloadCatalog.Item bestRemoteDriver(
+            String requested, List<ExternalDownloadCatalog.Item> items) {
+        ExternalDownloadCatalog.Item best = null;
+        int bestScore = -1;
+        for (ExternalDownloadCatalog.Item item : items) {
+            int score = XclipseDriverManager.driverMatchScore(requested, item.name);
+            if (score > bestScore) {
+                bestScore = score;
+                best = item;
+            }
+        }
+        return bestScore >= 82 ? best : null;
+    }
+
     public static JSONObject applyResolution(Context context, JSONObject manifest,
                                              List<ContentResolution> resolutions,
                                              List<ContentProfile> choices) throws IOException, JSONException {
@@ -436,7 +546,7 @@ public final class CommunityConfigManager {
                 "desktopTheme", "audioDriver", "startupSelectionApplied", "wfmFixVersion",
                 "controllerFixVersion", "arm64ecInputDllsVersion", "lastInstalledMainWrapper",
                 "lastInstalledMainWrapperRevision", "graphicsDriver", "fexcoreVersion",
-                "box64Version"
+                "box64Version", "commonPatchRevision"
         };
         for (String key : transientKeys) extra.remove(key);
     }
@@ -866,6 +976,33 @@ public final class CommunityConfigManager {
         }
         if (!found) {
             if (out.length() > 0) out.append(',');
+            out.append(key).append('=').append(value);
+        }
+        return out.toString();
+    }
+    private static String semicolonConfigValue(String config, String key) {
+        if (config == null) return "";
+        for (String item : config.split(";")) {
+            String[] pair = item.split("=", 2);
+            if (pair.length == 2 && key.equals(pair[0].trim())) return pair[1].trim();
+        }
+        return "";
+    }
+    private static String replaceSemicolonConfigValue(String config, String key, String value) {
+        StringBuilder out = new StringBuilder();
+        boolean found = false;
+        for (String item : (config == null ? "" : config).split(";")) {
+            if (item.isEmpty()) continue;
+            String[] pair = item.split("=", 2);
+            if (out.length() > 0) out.append(';');
+            if (pair.length == 2 && key.equals(pair[0].trim())) {
+                out.append(key).append('=').append(value);
+                found = true;
+            }
+            else out.append(item);
+        }
+        if (!found) {
+            if (out.length() > 0) out.append(';');
             out.append(key).append('=').append(value);
         }
         return out.toString();

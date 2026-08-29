@@ -57,6 +57,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class ContentsFragment extends Fragment {
+    private static final long REMOTE_REFRESH_INTERVAL_MS = 15L * 60L * 1000L;
     private static final int CATEGORY_XCLIPSE_DRIVERS = 100;
     private static final int CATEGORY_WRAPPERS = 101;
     private static final int IMPORT_CONTENT = 0;
@@ -102,7 +103,8 @@ public class ContentsFragment extends Fragment {
         super.onCreate(savedInstanceState);
         setHasOptionsMenu(false);
         manager = new ContentsManager(getContext());
-        manager.syncContents();
+        String bundledJson = FileUtils.readString(requireContext(), ContentsManager.REMOTE_PROFILES);
+        manager.setRemoteProfiles(manager.getCachedRemoteProfiles(bundledJson));
         driverManager = new XclipseDriverManager(requireContext());
         wrapperManager = new CustomWrapperManager(requireContext());
         externalCatalog = new ExternalDownloadCatalog(requireContext());
@@ -137,27 +139,30 @@ public class ContentsFragment extends Fragment {
     public void onResume() {
         super.onResume();
 
+        if (manager.shouldRefreshRemoteProfiles(REMOTE_REFRESH_INTERVAL_MS)) {
+            new Thread(() -> {
+                Activity activity = getActivity();
+                if (activity == null) return;
+                String bundledJson = FileUtils.readString(activity, ContentsManager.REMOTE_PROFILES);
+                if (bundledJson == null) return;
+                String refreshedJson = manager.refreshRemoteProfiles(bundledJson);
+                activity.runOnUiThread(() -> {
+                    if (!isAdded()) return;
+                    manager.setRemoteProfiles(refreshedJson);
+                    loadContentList();
+                });
+            }, "ContentCatalogRefresh").start();
+        }
         new Thread(() -> {
-            Activity activity = getActivity();
-            if (activity == null) return;
-            String bundledJson = FileUtils.readString(activity, ContentsManager.REMOTE_PROFILES);
-            if (bundledJson == null) return;
-            String refreshedJson = manager.refreshRemoteProfiles(bundledJson);
-            activity.runOnUiThread(() -> {
-                if (!isAdded()) return;
-                manager.setRemoteProfiles(refreshedJson);
-                loadContentList();
-            });
-        }).start();
-        new Thread(() -> {
-            List<ExternalDownloadCatalog.Item> refreshed = externalCatalog.refreshDrivers();
+            List<ExternalDownloadCatalog.Item> refreshed = externalCatalog
+                    .refreshDriversIfStale(REMOTE_REFRESH_INTERVAL_MS);
             Activity activity = getActivity();
             if (activity == null) return;
             remoteDrivers = refreshed;
             activity.runOnUiThread(() -> {
                 if (isAdded() && selectedCategory == CATEGORY_XCLIPSE_DRIVERS) loadContentList();
             });
-        }).start();
+        }, "DriverCatalogRefresh").start();
     }
 
     @Override

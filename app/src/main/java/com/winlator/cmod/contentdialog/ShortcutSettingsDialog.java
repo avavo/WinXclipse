@@ -734,6 +734,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
                 shortcut.putExtra("fsrMode", null);
                 shortcut.putExtra("fsrUpscale", null);
                 shortcut.putExtra("fsrQuality", null);
+                shortcut.putExtra("vsyncMode", null);
 
                 // Save all changes to the shortcut
                 shortcut.saveData();

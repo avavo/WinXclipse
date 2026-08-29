@@ -10,12 +10,14 @@ This is an incremental update to WinXclipse v0.9 focused on Community Configs, W
 - Config ZIPs download automatically; users do not need to download or keep the ZIP manually.
 - Added fallback through the public release-assets page, a saved catalog index, and validated offline cache when the GitHub API is unavailable or rate-limited.
 - Added toolbar search by game name.
+- On the first visit, a one-time AMOLED dialog explains how to export and submit tested configs and opens the project Discord directly.
 - Equivalent names are grouped regardless of case, trailing spaces, punctuation, or Arabic/Roman sequel numbers through X.
 - Every matching config is checked for an embedded cover before browser artwork is requested.
 - Community covers can be replaced manually.
 - Multiple configs for one game show device choices first, followed by phone, RAM, GPU, CPU, expected FPS, tester, notes, and optional container details.
 - Export requires the game/container name, keeps the detected phone model fixed, removes the version suffix from the ZIP filename, and includes Discord handle, expected FPS, hardware metadata, notes, content requirements, and optional cover.
 - Fixed config staging, bundled-content matching, import-close failures, and false missing-content warnings.
+- Existing exported ZIPs automatically recover their external Xclipse driver from installed content, Downloads, or the maintained driver catalog; old exports such as Xclipse 920 Old do not need to be recreated.
 
 ### Wine Input and Shortcuts
 
@@ -46,6 +48,8 @@ This is an incremental update to WinXclipse v0.9 focused on Community Configs, W
 - Repeated startup service rewrites and temporary diagnostic logging were removed from normal launches.
 - Container filesystem deletion runs outside the UI thread.
 - VSync modes `100%`, `50%`, and `Off` are available independently from the FPS limiter.
+- Rockstar camera movement no longer shows horizontal tearing: synchronized modes force FIFO with real 100%/50% pacing, and Android presents complete compositor frames even when guest VSync is off.
+- Proton/Wine entries appear immediately from local cache; catalog refreshes are throttled, unchanged DOS drive maps and shared PulseAudio files are reused, and storage-provider transfers use 64 KiB buffering.
 
 ### Additional Fixes
 
@@ -54,6 +58,7 @@ This is an incremental update to WinXclipse v0.9 focused on Community Configs, W
 - External Android storage and configured Wine drives are available in File Manager.
 - Runtime/content names are deduplicated and old identifiers migrate automatically.
 - MangoHUD mode uses the stable Android-native HUD path adapted from Bannerlator.
+- Winlator HUD settings include battery percentage.
 
 ## APK Information
 

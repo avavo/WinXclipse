@@ -220,6 +220,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     private WineInfo wineInfo;
     private final EnvVars envVars = new EnvVars();
     private boolean firstTimeBoot = false;
+    private static final String CONTAINER_COMMON_ASSET_REVISION = "1";
+    private static final String PULSEAUDIO_ASSET_REVISION = "1";
     private SharedPreferences preferences;
     private OnExtractFileListener onExtractFileListener;
     private WinHandler winHandler;
@@ -1766,6 +1768,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 xServer.getExtension(com.winlator.cmod.xserver.extensions.PresentExtension.MAJOR_OPCODE);
         if (present != null) {
             present.setRefreshRate(activeDisplayRefreshRate);
+            present.setVsyncMode(resolveVsyncMode());
             present.setFrameRateLimit(requestedLimit);
         }
         if (persist && container != null) {
@@ -2766,6 +2769,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             String vsyncMode = sVsyncLimit.getSelectedItemPosition() == 2 ? "off"
                     : sVsyncLimit.getSelectedItemPosition() == 1 ? "50" : "100";
             persistRuntimeVideoOption("vsyncMode", vsyncMode);
+            setFpsLimit(renderer, renderer.getFpsLimit(), false);
         });
         dialog.show();
     }
@@ -3771,10 +3775,13 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             Log.w("GraphicsDriverExtraction", "Invalid max device memory: " + maxDeviceMemory);
         }
 
-        // Mailbox is synchronized to the physical display. "VSync off" must
-        // select immediate presentation or a 48 Hz panel still caps the guest.
-        String presentMode = "off".equals(resolveVsyncMode()) ? "immediate"
-                : graphicsDriverConfig.getOrDefault("presentMode", "mailbox");
+        // Synchronized modes must use FIFO: allowing an old immediate/relaxed
+        // selection here made the VSync control ineffective. Off keeps the
+        // guest uncapped; Android still presents the compositor surface
+        // atomically through its own EGL swap interval.
+        String vsyncMode = resolveVsyncMode();
+        boolean synchronizedPresent = !"off".equals(vsyncMode);
+        String presentMode = synchronizedPresent ? "fifo" : "immediate";
         envVars.put("MESA_VK_WSI_PRESENT_MODE", presentMode);
         envVars.put("WRAPPER_MAX_IMAGE_COUNT", presentMode.contains("immediate") ? "1" : "0");
         envVars.put("WRAPPER_RESOURCE_TYPE", graphicsDriverConfig.getOrDefault("resourceType", "auto"));
@@ -3782,9 +3789,11 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         String legacyFrameSync = graphicsDriverConfig.getOrDefault("frameSync", "Normal");
         boolean syncFrame = "1".equals(graphicsDriverConfig.getOrDefault("syncFrame", "0"))
                 || "Always".equals(legacyFrameSync);
-        if (syncFrame && useDRI3) envVars.put("MESA_VK_WSI_DEBUG", "forcesync");
+        if ((syncFrame || synchronizedPresent) && useDRI3)
+            envVars.put("MESA_VK_WSI_DEBUG", "forcesync");
         String disablePresentWait = graphicsDriverConfig.getOrDefault("disablePresentWait",
                 "Never".equals(legacyFrameSync) ? "1" : "0");
+        if (synchronizedPresent) disablePresentWait = "0";
         envVars.put("WRAPPER_DISABLE_PRESENT_WAIT", disablePresentWait);
 
         envVars.remove("ENABLE_BCN_COMPUTE");
@@ -4469,8 +4478,36 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     private void applyGeneralPatches(Container container) {
         File rootDir = imageFs.getRootDir();
-        TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "container_pattern_common.tzst", rootDir);
-        TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "pulseaudio.tzst", new File(getFilesDir(), "pulseaudio"));
+        File commonFont = new File(rootDir,
+                ImageFs.WINEPREFIX + "/drive_c/windows/Fonts/Arial.TTF");
+        File commonIcon = new File(rootDir,
+                ImageFs.WINEPREFIX + "/drive_c/windows/system32/image.ico");
+        boolean commonReady = commonFont.isFile() && commonIcon.isFile();
+        String appliedCommonRevision = container.getExtra("commonPatchRevision", "");
+        boolean commonUpdateRequired = !appliedCommonRevision.isEmpty()
+                && !CONTAINER_COMMON_ASSET_REVISION.equals(appliedCommonRevision);
+        if (!commonReady || commonUpdateRequired) {
+            commonReady = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD,
+                    this, "container_pattern_common.tzst", rootDir)
+                    && commonFont.isFile() && commonIcon.isFile();
+        }
+        if (commonReady) {
+            container.putExtra("commonPatchRevision", CONTAINER_COMMON_ASSET_REVISION);
+        }
+        // PulseAudio is shared by every container. Extracting the same archive
+        // for each container's first launch added avoidable work to Proton
+        // boot1 and rewrote hundreds of files. Keep one verified shared copy.
+        File pulseDir = new File(getFilesDir(), "pulseaudio");
+        File pulseMarker = new File(pulseDir, ".asset-revision");
+        File pulseBinary = new File(pulseDir, "libpulseaudio.so");
+        if (!pulseBinary.isFile()
+                || !PULSEAUDIO_ASSET_REVISION.equals(FileUtils.readString(pulseMarker))) {
+            boolean extracted = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD,
+                    this, "pulseaudio.tzst", pulseDir);
+            if (extracted && pulseBinary.isFile()) {
+                FileUtils.writeString(pulseMarker, PULSEAUDIO_ASSET_REVISION);
+            }
+        }
         WineUtils.applySystemTweaks(this, wineInfo);
         container.putExtra("graphicsDriver", null);
         container.putExtra("desktopTheme", null);

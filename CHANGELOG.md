@@ -12,6 +12,8 @@ All notable changes between WinXclipse releases, newest first.
 - VSync modes (`100%`, `50%`, and `Off`) are available for containers, shortcuts, and the live Display sidebar.
 - External Android storage and configured Wine drive roots are available from File Manager.
 - Input Controls now includes controller auto-grab (plug and play), master vibration, and vibration testing.
+- The Winlator HUD includes an independent battery-percentage option.
+- The first visit to Community Configs explains how to export a tested config and links directly to the project Discord for submission.
 
 ### Changed
 
@@ -21,6 +23,7 @@ All notable changes between WinXclipse releases, newest first.
 - MangoHUD mode uses the stable Android-native HUD path adapted from Bannerlator instead of injecting an unavailable guest Vulkan layer.
 - Runtime/content names are deduplicated and existing containers migrate automatically when an installed profile's old identifier is normalized.
 - The obsolete touchscreen-haptic option and runtime feedback path were removed; physical-controller vibration remains independently configurable.
+- Existing Community Config ZIPs recover their selected external Xclipse driver automatically: installed packages are checked first, then Downloads, then the maintained driver catalog. Older exports such as Xclipse 920 Old do not need to be recreated.
 
 ### Performance
 
@@ -29,6 +32,8 @@ All notable changes between WinXclipse releases, newest first.
 - Opaque Wine/game windows and full-screen post-processing passes render with blending disabled, and content fully hidden below the highest opaque full-screen window is skipped while later menus and popups remain visible.
 - Repeated startup service rewrites and temporary diagnostic logging were removed from the normal launch path.
 - Container filesystem deletion runs off the UI thread.
+- The Wine/Proton catalog is populated immediately from its local cache and throttles network refreshes; verified DOS drive maps and the shared PulseAudio payload are reused between launches.
+- Storage-provider copies use buffered 64 KiB transfers instead of 1 KiB chunks, improving config/driver import and large-file I/O.
 
 ### Fixed
 
@@ -43,6 +48,8 @@ All notable changes between WinXclipse releases, newest first.
 - FSR and other post-processing effects retry offscreen targets with core RGBA when a driver rejects BGRA, then fall back to direct rendering instead of a black screen if framebuffer creation still fails.
 - Container IDs are selected from both memory and the filesystem, preventing an imported or newly created container from overwriting `xuser-1`; valid on-disk metadata is preserved during defensive saves.
 - The startup controller-assignment notice was removed completely.
+- Rockstar titles no longer tear across the screen when panning: guest VSync now enforces FIFO and real 100%/50% pacing, Android compositor frames are synchronized to the display, and the unsafe single mutable AHardwareBuffer presentation path was removed.
+- Live/sidebar VSync values no longer remain as stale overrides after editing a container or shortcut, and `Off` keeps guest FPS uncapped without allowing partial Android compositor frames.
 
 ## 0.9
 

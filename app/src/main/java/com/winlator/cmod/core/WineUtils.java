@@ -25,8 +25,16 @@ public abstract class WineUtils {
     private static final String TAG = "WineUtils";
 
     public static void createDosdevicesSymlinks(Container container) {
-        String dosdevicesPath = (new File(container.getRootDir(), ".wine/dosdevices")).getPath();
-        File[] files = (new File(dosdevicesPath)).listFiles();
+        File dosdevicesDir = new File(container.getRootDir(), ".wine/dosdevices");
+        if (!dosdevicesDir.isDirectory() && !dosdevicesDir.mkdirs()) return;
+        String dosdevicesPath = dosdevicesDir.getPath();
+        String signature = "v2\n" + container.getRootDir().getAbsolutePath()
+                + "\n" + container.getDrives();
+        File signatureFile = new File(container.getRootDir(), ".dosdevices-map");
+        if (signature.equals(FileUtils.readString(signatureFile))
+                && areDosdevicesReady(container, dosdevicesDir)) return;
+
+        File[] files = dosdevicesDir.listFiles();
         if (files != null) for (File file : files) if (file.getName().matches("[a-z]:")) file.delete();
 
         FileUtils.symlink("../drive_c", dosdevicesPath+"/c:");
@@ -45,6 +53,22 @@ public abstract class WineUtils {
             }
             FileUtils.symlink(path, dosdevicesPath+"/"+drive[0].toLowerCase(Locale.ENGLISH)+":");
         }
+        if (areDosdevicesReady(container, dosdevicesDir)) {
+            FileUtils.writeString(signatureFile, signature);
+        }
+    }
+
+    private static boolean areDosdevicesReady(Container container, File dosdevicesDir) {
+        if (!FileUtils.isSymlink(new File(dosdevicesDir, "c:"))
+                || !FileUtils.isSymlink(new File(dosdevicesDir, "z:"))) return false;
+        for (String[] drive : container.drivesIterator()) {
+            File target = new File(drive[1]);
+            if (!target.isDirectory() || !target.canRead()) continue;
+            File link = new File(dosdevicesDir,
+                    drive[0].toLowerCase(Locale.ENGLISH) + ":");
+            if (!FileUtils.isSymlink(link)) return false;
+        }
+        return true;
     }
 
     private static void setWindowMetrics(WineRegistryEditor registryEditor) {
