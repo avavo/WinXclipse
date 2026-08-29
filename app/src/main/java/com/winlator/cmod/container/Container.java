@@ -478,6 +478,31 @@ public class Container {
 
     public void saveData() {
         try {
+            // Defensive merge: if in-memory extraData is empty/truncated but
+            // file on disk already has a valid appVersion, preserve it.
+            // This stops the 1579-byte overwrite that caused 8.5s every launch.
+            JSONObject mergedExtra = extraData;
+            File cfg = getConfigFile();
+            if (cfg.isFile() && (mergedExtra==null || mergedExtra.length()<5 || !mergedExtra.has("appVersion"))) {
+                String raw = FileUtils.readString(cfg);
+                if (raw != null && raw.contains("\"extraData\"")) {
+                    try {
+                        JSONObject existing = new JSONObject(raw);
+                        if (existing.has("extraData")) {
+                            JSONObject diskExtra = existing.getJSONObject("extraData");
+                            if (diskExtra.has("appVersion") && diskExtra.optString("appVersion").length()>0) {
+                                if (mergedExtra==null) mergedExtra = new JSONObject();
+                                // Preserve all disk keys that in-memory lacks
+                                for (Iterator<String> it = diskExtra.keys(); it.hasNext();) {
+                                    String k = it.next();
+                                    if (!mergedExtra.has(k)) mergedExtra.put(k, diskExtra.get(k));
+                                }
+                                Log.w("WineStartup","saveData id="+id+" MERGED disk extraData (had appVersion) into empty mem extra");
+                            }
+                        }
+                    } catch (Exception ignored) {}
+                }
+            }
             JSONObject data = new JSONObject();
             data.put("id", id);
             data.put("name", name);
@@ -507,7 +532,7 @@ public class Container {
             data.put("fexcoreVersion", fexcoreVersion);
                         data.put("fexcorePreset", getFEXCorePreset());
 data.put("desktopTheme", desktopTheme);
-            data.put("extraData", extraData);
+            data.put("extraData", mergedExtra!=null?mergedExtra:extraData);
             data.put("rcfileId", rcfileId);
             data.put("midiSoundFont", midiSoundFont);
             data.put("lc_all", lc_all);
@@ -516,10 +541,12 @@ data.put("desktopTheme", desktopTheme);
             data.put("gstreamerWorkaround", gstreamerWorkaround);
             if (!WineInfo.isMainWineVersion(wineVersion)) data.put("wineVersion", wineVersion);
             String out = data.toString();
-            if (out.length() < 1800 || (extraData==null || extraData.length()==0)) {
-                Log.w("WineStartup","saveData id="+id+" TRUNCATED? len="+out.length()+" extraLen="+(extraData==null?-1:extraData.length())+" extraHasApp="+(extraData!=null&&extraData.has("appVersion"))+" stack="+android.util.Log.getStackTraceString(new Throwable()));
+            if (out.length() < 1800 || (mergedExtra==null || mergedExtra.length()==0)) {
+                Log.w("WineStartup","saveData id="+id+" TRUNCATED? len="+out.length()+" extraLen="+(mergedExtra==null?-1:mergedExtra.length())+" extraHasApp="+(mergedExtra!=null&&mergedExtra.has("appVersion"))+" stack="+android.util.Log.getStackTraceString(new Throwable()));
             }
-            FileUtils.writeString(getConfigFile(), out);
+            FileUtils.writeString(cfg, out);
+            // Keep in-memory in sync if we merged
+            extraData = mergedExtra!=null?mergedExtra:extraData;
         }
         catch (JSONException e) {}
     }
