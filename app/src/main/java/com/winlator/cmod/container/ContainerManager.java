@@ -146,13 +146,16 @@ public class ContainerManager {
 
     private Container createContainer(JSONObject data, ContentsManager contentsManager) {
         try {
+            Log.i("WineStartup","createContainer maxId="+maxContainerId+" dataId="+data.optInt("id",-1)+" wine="+data.optString("wineVersion",""));
             int id = maxContainerId + 1;
             File containerDir = new File(homeDir, ImageFs.USER + "-" + id);
 
             while (containerDir.exists()) {
+                Log.i("WineStartup","createContainer dir exists "+containerDir.getAbsolutePath()+" bump id "+id+" -> "+(id+1));
                 id++;
                 containerDir = new File(homeDir, ImageFs.USER + "-" + id);
             }
+            Log.i("WineStartup","createContainer final id="+id+" dir="+containerDir.getAbsolutePath());
 
             data.put("id", id);
 
