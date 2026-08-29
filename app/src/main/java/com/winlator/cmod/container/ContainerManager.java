@@ -146,7 +146,17 @@ public class ContainerManager {
 
     private Container createContainer(JSONObject data, ContentsManager contentsManager) {
         try {
-            Log.i("WineStartup","createContainer maxId="+maxContainerId+" dataId="+data.optInt("id",-1)+" wine="+data.optString("wineVersion",""));
+            // Refresh max from filesystem to avoid overwriting existing xuser-1
+            // when this manager instance was created before that container existed.
+            File[] existing = homeDir.listFiles();
+            if (existing != null) {
+                for (File f : existing) {
+                    if (f.isDirectory() && f.getName().startsWith(ImageFs.USER + "-")) {
+                        try { int exId = Integer.parseInt(f.getName().replace(ImageFs.USER + "-", "")); maxContainerId = Math.max(maxContainerId, exId); } catch (Exception ignored) {}
+                    }
+                }
+            }
+            Log.i("WineStartup","createContainer maxId="+maxContainerId+" dataId="+data.optInt("id",-1)+" wine="+data.optString("wineVersion","")+" home="+homeDir.getAbsolutePath());
             int id = maxContainerId + 1;
             File containerDir = new File(homeDir, ImageFs.USER + "-" + id);
 
@@ -155,7 +165,7 @@ public class ContainerManager {
                 id++;
                 containerDir = new File(homeDir, ImageFs.USER + "-" + id);
             }
-            Log.i("WineStartup","createContainer final id="+id+" dir="+containerDir.getAbsolutePath());
+            Log.i("WineStartup","createContainer final id="+id+" dir="+containerDir.getAbsolutePath()+" exists="+containerDir.exists());
 
             data.put("id", id);
 
