@@ -146,19 +146,11 @@ public class ContainerManager {
 
     private Container createContainer(JSONObject data, ContentsManager contentsManager) {
         try {
-            // Refresh max from filesystem to avoid overwriting existing xuser-1
-            // when this manager instance was created before that container existed.
-            File[] existing = homeDir.listFiles();
-            StringBuilder listDbg = new StringBuilder();
-            if (existing != null) for (File f: existing) listDbg.append(f.getName()).append(f.isDirectory()?"[D]":"[F]").append(",");
-            Log.i("WineStartup","createContainer scan home="+homeDir.getAbsolutePath()+" exists="+homeDir.exists()+" list="+listDbg+" maxBefore="+maxContainerId);
-            if (existing != null) {
-                for (File f : existing) {
-                    if (f.isDirectory() && f.getName().startsWith(ImageFs.USER + "-")) {
-                        try { int exId = Integer.parseInt(f.getName().replace(ImageFs.USER + "-", "")); maxContainerId = Math.max(maxContainerId, exId); } catch (Exception ignored) {}
-                    }
-                }
-            }
+            // Refresh from disk to avoid stale maxId=0 overwriting xuser-1.
+            // Use loadContainers() which correctly handles symlinks and counts.
+            int before = maxContainerId;
+            loadContainers();
+            Log.i("WineStartup","createContainer refreshed max "+before+" -> "+maxContainerId+" home="+homeDir.getAbsolutePath()+" containers="+containers.size());
             Log.i("WineStartup","createContainer maxId="+maxContainerId+" dataId="+data.optInt("id",-1)+" wine="+data.optString("wineVersion","")+" home="+homeDir.getAbsolutePath());
             int id = maxContainerId + 1;
             File containerDir = new File(homeDir, ImageFs.USER + "-" + id);
