@@ -1,70 +1,131 @@
-WinXclipse v0.9.1 Release Notes
+# WinXclipse v0.9.1
 
-WinXclipse runs Windows applications on Exynos devices with Xclipse GPUs through Wine/Proton runtimes (including ARM64EC builds), FEXCore and Box64 CPU translation, and Vulkan-based graphics stacks (DXVK, VKD3D-Proton, and dedicated wrappers) tuned for Xclipse RDNA2/RDNA3/RDNA4.
+This is an incremental update to WinXclipse v0.9 focused on Community Configs, Wine input and shortcut reliability, x86/x86_64 and 32-bit compatibility, smoother Wine navigation, and safer DXVK/VKD3D setup.
 
-0.9.1 Highlights
+# What Changed Compared to v0.9
 
-- AMD FSR 1.1 (EASU + RCAS) with real guest render scaling when enabled. FSR is the standard texture filter while upscaling is off by default and opt-in per container/shortcut.
-- VSync limits at 100%, 50%, or Off in container Video, shortcut Video, and the live Display sidebar, derived from the active Android display mode.
-- Video tab: renderer (Vulkan/OpenGL/GDI), GPU name, present mode, texture filtering, vkBasalt sharpness (CAS/DLS) with level/denoise, and refresh rate; audio driver dialog with volume.
-- Shortcut artwork with SteamGridDB browser, EXE icon, and custom image sources.
-- New dark glassy touchscreen control style with a full gamepad skin set.
-- Experimental Performance tuning: per-model Exynos/Xclipse VRAM caps, BCn backends, CPU cluster scheduling, and unified-memory-aware defaults.
-- Lower-RAM devices use more aggressive memory reclamation; Aggressive startup is reapplied on every Wine launch while protecting essential input and RPC services.
-- External storage volumes and configured Wine drives are exposed in File Manager.
-- Community configuration ZIP export/import with standardized content IDs, metadata, fuzzy local-content matching, and a read-only GitHub release catalog.
-- Community catalog loading survives GitHub API rate limits through the public release page, a saved index, and validated offline ZIP cache. Downloaded configs are staged persistently until import completes.
-- Community entries are grouped by normalized game name, share embedded covers across matching configs, support custom covers, and show selectable device-specific configurations with hardware, expected FPS, tester, notes, and optional container details.
-- Exports require the game/container name, keep the detected phone model fixed, use version-free filenames, and include the Discord handle, expected FPS, notes, content requirements, and optional cover.
-- Concurrent downloads/install staging is isolated, and Wine cannot start until active content operations finish.
-- Native Android HUD path adapted from Bannerlator replaces failed MangoHUD guest-layer injection.
-- Physical mouse right-click compatibility for Android devices that report the secondary button as Back.
-- Physical mouse left-click handling is restored for both captured and regular external-pointer paths.
-- Touchscreen mouse handling is adapted from Winlator Mali for correct Wine left/right clicks, pointer grabs, context-menu selection, dragging, and shortcut creation.
-- Wine-created `.lnk` shortcuts are discovered and resolved reliably across relative, quoted, environment-based, and Wine/Unix path variants.
-- Proton x86_64 container creation/startup is restored by preserving bundled Box64, separating ARM64 and x86_64 library paths, and launching the installed Wine binary explicitly.
-- Box64 `0.4.3-260519` replaces the previous bundled package and is recognized as installed from first launch.
-- Default-container config ZIPs import without false `none`/bundled-content dependency prompts; import dialogs follow the black app theme.
-- Imported community containers no longer inherit stale install state that could make them close immediately after launch; deleting a container no longer blocks the UI during filesystem cleanup.
-- The controller startup notice was removed. Input Controls now includes plug-and-play controller assignment, master vibration, and vibration testing; the obsolete touchscreen-haptic option was removed.
-- ARM64EC compatibility fixes, X server hardening, and container boot fixes for raw Wine/Proton .tzst runtimes.
-- Window/fullscreen letterboxing is fixed for live FSR switches.
+### Community Configs
 
-See CHANGELOG.md for the complete list of changes.
+- Added a Community Configs catalog backed by the dedicated GitHub release.
+- Config ZIPs download automatically; users do not need to download or keep the ZIP manually.
+- Added fallback through the public release-assets page, a saved catalog index, and validated offline cache when the GitHub API is unavailable or rate-limited.
+- Added toolbar search by game name.
+- Equivalent names are grouped regardless of case, trailing spaces, punctuation, or Arabic/Roman sequel numbers through X.
+- Every matching config is checked for an embedded cover before browser artwork is requested.
+- Community covers can be replaced manually.
+- Multiple configs for one game show device choices first, followed by phone, RAM, GPU, CPU, expected FPS, tester, notes, and optional container details.
+- Export requires the game/container name, keeps the detected phone model fixed, removes the version suffix from the ZIP filename, and includes Discord handle, expected FPS, hardware metadata, notes, content requirements, and optional cover.
+- Fixed config staging, bundled-content matching, import-close failures, and false missing-content warnings.
 
-Support
+### Wine Input and Shortcuts
+
+- Touchscreen mouse handling was aligned with Winlator Mali for left/right clicks, dragging, pointer grabs, Wine context menus, and shortcut creation.
+- Wine-created `.lnk` files now resolve quoted, relative, environment, Unix, and Wine paths correctly.
+- Shortcut discovery refreshes executable targets, names, and artwork reliably.
+- The controller startup notice was removed.
+- Input Controls now includes controller auto-grab (plug and play), master vibration, and vibration testing.
+- The obsolete touchscreen-haptic option and feedback path were removed.
+
+### Runtime, DXVK, VKD3D, and 32-bit
+
+- Bundled Box64 is now `0.4.3-260519-024717c`; old `0.4.4` selections migrate automatically.
+- Fixed Proton x86_64 startup by preserving the shared Box64 executable, using the installed Wine path explicitly, and separating guest library paths from Android's native linker path.
+- Conventional x86/x86_64 Wine no longer receives incompatible ARM64EC DXVK entries.
+- Missing DXVK/VKD3D DLLs are verified and reinstalled instead of trusting a stale installation marker.
+- Disabling VKD3D restores Wine's D3D12 files after DXVK extraction.
+- Pure win32 prefixes keep 32-bit DLLs in `system32` and no longer create a synthetic `syswow64`; WoW64 prefixes still populate the required 32-bit side.
+- Offscreen FSR/effect buffers retry with core RGBA when a driver rejects BGRA and fall back to direct rendering instead of showing a black screen.
+
+### Performance and Responsiveness
+
+- Wine 2D navigation uploads only changed drawable regions for small menu and selection updates.
+- Padded-stride texture uploads are packed correctly.
+- Present notifications no longer hold the drawable render lock during X11 event delivery.
+- Opaque Wine/game windows and full-screen post-processing passes render without unnecessary blending.
+- Fully covered windows below the highest opaque full-screen window are skipped while later popups remain visible.
+- Repeated startup service rewrites and temporary diagnostic logging were removed from normal launches.
+- Container filesystem deletion runs outside the UI thread.
+- VSync modes `100%`, `50%`, and `Off` are available independently from the FPS limiter.
+
+### Additional Fixes
+
+- Community/container creation no longer overwrites an existing `xuser-1` when manager state is stale.
+- Valid on-disk container metadata is preserved during defensive saves.
+- External Android storage and configured Wine drives are available in File Manager.
+- Runtime/content names are deduplicated and old identifiers migrate automatically.
+- MangoHUD mode uses the stable Android-native HUD path adapted from Bannerlator.
+
+## APK Information
+
+- Version name: 0.9.1
+- Version code: 25
+- ABI: arm64-v8a
+- Minimum Android: 8.0 (API 26)
+- Target SDK: 28
+
+### Package Variants
+
+- Main: `com.win.xclipse`
+- AnTuTu: `com.antutu.ABenchMark`
+- Geekbench 6: `com.primatelabs.geekbench6`
+- PUBG Mobile: `com.tencent.ig`
+
+Providers and internal paths follow the active application ID for every variant.
+
+### Remote Sources
+
+- ExynosTools: https://github.com/WearyConcern1165/ExynosTools/releases
+- WinXclipse drivers: https://github.com/avavo/WinXclipse/releases/tag/drivers_0.9
+- Community configs: https://github.com/avavo/WinXclipse/releases/tag/community-configs
+
+## Status
+
+### Functionally experimental.
+
+Behavior can vary depending on the device, GPU, driver, wrapper, runtime, container, and application.
+
+A package appearing in Downloads does not guarantee compatibility with every device.
+
+## Credits
+
+- Winlator by Brunodev85
+- Winlator CMOD by coffincolors and Pipetto-crypto
+- Winlator Glibc by longjunyu2
+- Winlator OpenXR by lvonasek
+- FEX-Emu
+- AMD FidelityFX Super Resolution
+- Ports and implementation references from Winlator Mali
+- Ports and implementation references from Winlator Ludashi
+- Native HUD architecture adapted from Bannerlator
+- ExynosTools
+- GameNative Team
+- Leegao
+- Ref4ik-v6
+- Kirimu
+- Winlator Xclipse adaptation by Álvaro
+
+## Disclaimer
+
+WinXclipse is experimental.
+
+Performance, stability, game compatibility, and driver behavior vary depending on the device, runtime, wrapper, driver, and application.
+
+Use it at your own risk and test each configuration individually.
+
+## Support
 
 Discord: https://discord.gg/u2nDTXRxyx
+
 Email: avavosim@gmail.com
 
 When reporting a bug, please include:
 
 - Device model
 - Android version
-- WinXclipse version and report schema
+- WinXclipse version and package variant
 - Container configuration
 - Wrapper
 - Graphics driver
 - Runtime/FEXCore configuration
 - Steps to reproduce the issue
 - Logs, when available
-
-Package Variants
-
-- Main: com.win.xclipse
-- AnTuTu: com.antutu.ABenchMark
-- Geekbench 6: com.primatelabs.geekbench6
-
-Remote Sources
-
-- ExynosTools: https://github.com/WearyConcern1165/ExynosTools/releases
-- WinXclipse drivers: https://github.com/avavo/WinXclipse/releases/tag/drivers_0.9
-- Community configs: https://github.com/avavo/WinXclipse/releases/tag/community-configs
-
-Status
-
-Functionally experimental. Behavior can vary depending on the device, GPU, driver, wrapper, runtime, container, and game.
-
-Credits
-
-Winlator by Brunodev85 - Winlator CMOD by coffincolors and Pipetto-crypto - Winlator Glibc by longjunyu2 - Winlator OpenXR by lvonasek - FEX-Emu - AMD FidelityFX Super Resolution - Winlator Mali - Winlator Ludashi - Bannerlator - ExynosTools - Wrappers from Leegao, GameNative, Ref4ik-v6, and Kirimu - WinXclipse Exynos/Xclipse adaptation by Alvaro

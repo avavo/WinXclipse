@@ -7,6 +7,7 @@ import com.winlator.cmod.XrActivity;
 import com.winlator.cmod.xserver.Drawable;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 public class Texture {
     protected int textureId = 0;
@@ -17,6 +18,8 @@ public class Texture {
     protected int format = GLES11Ext.GL_BGRA;
     protected boolean needsUpdate = true;
     protected byte unpackAlignment = 4; // or add a getter method
+    private final int[] dirtyRegion = new int[4];
+    private ByteBuffer packedUploadBuffer;
 
 
     public void allocateTexture(short width, short height, ByteBuffer data) {
@@ -95,22 +98,86 @@ public class Texture {
         if (data == null) return;
 
         if (!isAllocated()) {
-            allocateTexture(drawable.width, drawable.height, data);
+            ByteBuffer initialData = drawable.getStridePixels() == drawable.width
+                    ? fullBufferView(data, drawable.width * drawable.height * 4)
+                    : packRegion(drawable, data, 0, 0, drawable.width, drawable.height);
+            allocateTexture(drawable.width, drawable.height, initialData);
+            drawable.consumeDirtyRegion(dirtyRegion);
             return;
         }
         if (!needsUpdate) return;
-        // Partial updates not yet tracked per-rect; full reupload when dirty.
+
+        boolean hasDirtyRegion = drawable.consumeDirtyRegion(dirtyRegion);
+        int x = hasDirtyRegion ? dirtyRegion[0] : 0;
+        int y = hasDirtyRegion ? dirtyRegion[1] : 0;
+        int width = hasDirtyRegion ? dirtyRegion[2] : drawable.width;
+        int height = hasDirtyRegion ? dirtyRegion[3] : drawable.height;
+        if (width <= 0 || height <= 0) {
+            needsUpdate = false;
+            return;
+        }
+
+        long dirtyArea = (long)width * height;
+        long fullArea = (long)drawable.width * drawable.height;
+        boolean uploadWholeDrawable = drawable.getStridePixels() == drawable.width
+                && (dirtyArea * 2 >= fullArea);
+        ByteBuffer uploadData;
+        if (uploadWholeDrawable) {
+            x = 0;
+            y = 0;
+            width = drawable.width;
+            height = drawable.height;
+            uploadData = fullBufferView(data, drawable.width * drawable.height * 4);
+        }
+        else {
+            uploadData = packRegion(drawable, data, x, y, width, height);
+        }
+
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureId);
-        GLES20.glTexSubImage2D(GLES20.GL_TEXTURE_2D, 0, 0, 0, drawable.width, drawable.height, format, GLES20.GL_UNSIGNED_BYTE, data);
+        GLES20.glPixelStorei(GLES20.GL_UNPACK_ALIGNMENT, 4);
+        GLES20.glTexSubImage2D(GLES20.GL_TEXTURE_2D, 0, x, y, width, height,
+                format, GLES20.GL_UNSIGNED_BYTE, uploadData);
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0);
         needsUpdate = false;
+    }
+
+    private ByteBuffer packRegion(Drawable drawable, ByteBuffer source, int x, int y,
+                                  int width, int height) {
+        int required = width * height * 4;
+        if (packedUploadBuffer == null || packedUploadBuffer.capacity() < required) {
+            packedUploadBuffer = ByteBuffer.allocateDirect(required).order(ByteOrder.nativeOrder());
+        }
+        packedUploadBuffer.clear();
+        packedUploadBuffer.limit(required);
+        ByteBuffer row = source.duplicate();
+        int stride = drawable.getStridePixels() & 0xFFFF;
+        int rowBytes = width * 4;
+        for (int line = 0; line < height; line++) {
+            int start = ((y + line) * stride + x) * 4;
+            row.clear();
+            row.position(start);
+            row.limit(start + rowBytes);
+            packedUploadBuffer.put(row);
+        }
+        packedUploadBuffer.flip();
+        return packedUploadBuffer;
+    }
+
+    private static ByteBuffer fullBufferView(ByteBuffer source, int size) {
+        ByteBuffer view = source.duplicate();
+        view.clear();
+        view.limit(Math.min(size, view.capacity()));
+        return view;
     }
 
     public void updateRegion(Drawable drawable, int x, int y, int width, int height) {
         ByteBuffer data = drawable.getData();
         if (data == null || !isAllocated()) return;
+        ByteBuffer uploadData = packRegion(drawable, data, x, y, width, height);
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureId);
-        GLES20.glTexSubImage2D(GLES20.GL_TEXTURE_2D, 0, x, y, width, height, format, GLES20.GL_UNSIGNED_BYTE, data);
+        GLES20.glPixelStorei(GLES20.GL_UNPACK_ALIGNMENT, 4);
+        GLES20.glTexSubImage2D(GLES20.GL_TEXTURE_2D, 0, x, y, width, height,
+                format, GLES20.GL_UNSIGNED_BYTE, uploadData);
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0);
     }
 

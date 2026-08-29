@@ -20,6 +20,11 @@ public class Drawable extends XResource {
     private Runnable onDrawListener;
     private Callback<Drawable> onDestroyListener;
     public final Object renderLock = new Object();
+    private final Object dirtyRegionLock = new Object();
+    private int dirtyLeft;
+    private int dirtyTop;
+    private int dirtyRight;
+    private int dirtyBottom;
 
     static {
         System.loadLibrary("winlator");
@@ -46,6 +51,7 @@ public class Drawable extends XResource {
         if (this.data == null) {
             throw new IllegalStateException("Drawable.data initialized as null!");
         }
+        markDirty(0, 0, width, height);
     }
 
     public static Drawable fromBitmap(Bitmap bitmap) {
@@ -72,6 +78,7 @@ public class Drawable extends XResource {
             throw new IllegalArgumentException("Attempting to set Drawable.data to null!");
         }
         this.data = data;
+        markDirty(0, 0, width, height);
     }
 
     private short getStride() {
@@ -113,6 +120,7 @@ public class Drawable extends XResource {
         this.data.rewind();
         data.rewind();
 
+        markDirty(depth == 1 ? 0 : dstX, depth == 1 ? 0 : dstY, width, height);
         if (texture != null) texture.setNeedsUpdate(true);
         if (onDrawListener != null) onDrawListener.run();
     }
@@ -150,6 +158,7 @@ public class Drawable extends XResource {
         this.data.rewind();
         drawable.data.rewind();
 
+        markDirty(dstX, dstY, width, height);
         texture.setNeedsUpdate(true);
         if (onDrawListener != null) onDrawListener.run();
     }
@@ -167,6 +176,7 @@ public class Drawable extends XResource {
         fillRect((short)x, (short)y, (short)width, (short)height, color, this.getStride(), this.data);
         this.data.rewind();
 
+        markDirty(x, y, width, height);
         texture.setNeedsUpdate(true);
         if (onDrawListener != null) onDrawListener.run();
     }
@@ -187,6 +197,11 @@ public class Drawable extends XResource {
 
         this.data.rewind();
 
+        int left = Math.min(x0, x1);
+        int top = Math.min(y0, y1);
+        int right = Math.max(x0, x1) + lineWidth;
+        int bottom = Math.max(y0, y1) + lineWidth;
+        markDirty(left, top, right - left, bottom - top);
         texture.setNeedsUpdate(true);
         if (onDrawListener != null) onDrawListener.run();
     }
@@ -195,6 +210,7 @@ public class Drawable extends XResource {
         drawAlphaMaskedBitmap(foreRed, foreGreen, foreBlue, backRed, backGreen, backBlue, srcDrawable.data, maskDrawable.data, this.data);
         this.data.rewind();
 
+        markDirty(0, 0, width, height);
         texture.setNeedsUpdate(true);
         if (onDrawListener != null) onDrawListener.run();
     }
@@ -212,6 +228,43 @@ public class Drawable extends XResource {
     private static native void drawLine(short x0, short y0, short x1, short y1, int color, short lineWidth, short stride, ByteBuffer data);
 
     private static native void fromBitmap(Bitmap bitmap, ByteBuffer data);
+
+    private void markDirty(int x, int y, int width, int height) {
+        if (width <= 0 || height <= 0 || this.width <= 0 || this.height <= 0) return;
+        int left = Mathf.clamp(x, 0, this.width);
+        int top = Mathf.clamp(y, 0, this.height);
+        int right = Mathf.clamp(x + width, 0, this.width);
+        int bottom = Mathf.clamp(y + height, 0, this.height);
+        if (right <= left || bottom <= top) return;
+        synchronized (dirtyRegionLock) {
+            if (dirtyRight <= dirtyLeft || dirtyBottom <= dirtyTop) {
+                dirtyLeft = left;
+                dirtyTop = top;
+                dirtyRight = right;
+                dirtyBottom = bottom;
+            }
+            else {
+                dirtyLeft = Math.min(dirtyLeft, left);
+                dirtyTop = Math.min(dirtyTop, top);
+                dirtyRight = Math.max(dirtyRight, right);
+                dirtyBottom = Math.max(dirtyBottom, bottom);
+            }
+        }
+    }
+
+    /** Copies and clears the accumulated changed rectangle. */
+    public boolean consumeDirtyRegion(int[] output) {
+        if (output == null || output.length < 4) return false;
+        synchronized (dirtyRegionLock) {
+            if (dirtyRight <= dirtyLeft || dirtyBottom <= dirtyTop) return false;
+            output[0] = dirtyLeft;
+            output[1] = dirtyTop;
+            output[2] = dirtyRight - dirtyLeft;
+            output[3] = dirtyBottom - dirtyTop;
+            dirtyLeft = dirtyTop = dirtyRight = dirtyBottom = 0;
+            return true;
+        }
+    }
 }
 
 //package com.winlator.cmod.xserver;

@@ -23,7 +23,7 @@ import com.winlator.cmod.widget.ThemedSpinnerAdapter;
 
 import java.io.File;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Locale;
 import java.util.List;
 
 public class DXVKConfigDialog extends ContentDialog {
@@ -37,11 +37,13 @@ public class DXVKConfigDialog extends ContentDialog {
     private final View llAsync;
     private final View llAsyncCache;
     private final Context context;
+    private final boolean arm64EC;
     private List<String> dxvkVersions;
 
-    public DXVKConfigDialog(View anchor) {
+    public DXVKConfigDialog(View anchor, boolean arm64EC) {
         super(anchor.getContext(), R.layout.dxvk_config_dialog);
         context = anchor.getContext();
+        this.arm64EC = arm64EC;
         setIcon(R.drawable.icon_settings);
         setTitle("DXVK + VKD3D "+context.getString(R.string.configuration));
 
@@ -69,6 +71,9 @@ public class DXVKConfigDialog extends ContentDialog {
         sVkd3dFeatureLevel.setAdapter(featureAdapter);
 
         KeyValueSet config = parseConfig(anchor.getTag());
+        if (!arm64EC && config.get("version").toLowerCase(Locale.ENGLISH).contains("arm64ec")) {
+            config.put("version", DefaultVersion.DXVK_X86);
+        }
         AppUtils.setSpinnerSelectionFromIdentifier(sVersion, config.get("version"));
         AppUtils.setSpinnerSelectionFromIdentifier(sFramerate, config.get("framerate"));
         AppUtils.setSpinnerSelectionFromIdentifier(sDDrawWrapper, config.get("ddrawrapper"));
@@ -185,7 +190,10 @@ public class DXVKConfigDialog extends ContentDialog {
 
     private void loadDxvkVersionSpinner(ContentsManager manager, Spinner spinner) {
         String[] originalItems = context.getResources().getStringArray(R.array.dxvk_version_entries);
-        List<String> itemList = new ArrayList<>(Arrays.asList(originalItems));
+        List<String> itemList = new ArrayList<>();
+        for (String version : originalItems) {
+            if (arm64EC || !version.toLowerCase(Locale.ENGLISH).contains("arm64ec")) itemList.add(version);
+        }
 
         /* Content profiles join the static list under their clean version name
          * (profile.verName, e.g. "1.7.2" or "2.6.2-arm64ec-gplasync") instead of
@@ -193,7 +201,9 @@ public class DXVKConfigDialog extends ContentDialog {
          * a bundled .wcp never shows up twice next to its array entry. */
         for (ContentProfile profile : manager.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_DXVK)) {
             String verName = profile.verName;
-            if (verName != null && !verName.isEmpty() && !itemList.contains(verName))
+            if (verName != null && !verName.isEmpty()
+                    && (arm64EC || !verName.toLowerCase(Locale.ENGLISH).contains("arm64ec"))
+                    && !itemList.contains(verName))
                 itemList.add(verName);
         }
 

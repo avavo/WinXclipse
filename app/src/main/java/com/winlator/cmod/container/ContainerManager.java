@@ -101,7 +101,6 @@ public class ContainerManager {
             try {
                 JSONObject data = new JSONObject(configString);
                 container.loadData(data);
-                Log.i("WineStartup","loadContainers id=" + id + " extra_appVersion=" + container.getExtra("appVersion") + " extra_dxwrapper=" + container.getExtra("dxwrapper") + " rawHasApp=" + configString.contains("appVersion") + " rawLen=" + configString.length() + " snippet=" + configString.substring(0, Math.min(250, configString.length())));
                 containers.add(container);
             }
             catch (JSONException e) {
@@ -169,34 +168,26 @@ public class ContainerManager {
             // Don't rely on instance maxId which can be stale (0) when this
             // manager was created before xuser-1 existed. Scan filesystem
             // directly and also consider already-loaded containers.
-            int before = maxContainerId;
             // Keep in-memory max
             int scannedMax = maxContainerId;
             for (Container c : containers) scannedMax = Math.max(scannedMax, c.id);
             // Filesystem scan using list() to avoid isDirectory symlink quirks
             String[] names = homeDir.list();
-            StringBuilder scanDbg = new StringBuilder();
             if (names != null) {
                 for (String n : names) {
-                    scanDbg.append(n).append(",");
                     if (n.startsWith(ImageFs.USER + "-")) {
                         try { int exId = Integer.parseInt(n.substring((ImageFs.USER + "-").length())); scannedMax = Math.max(scannedMax, exId); } catch (Exception ignored) {}
                     }
                 }
             }
             maxContainerId = Math.max(maxContainerId, scannedMax);
-            Log.i("WineStartup","createContainer scan home="+homeDir.getAbsolutePath()+" list="+scanDbg+" beforeMax="+before+" scannedMax="+scannedMax+" finalMax="+maxContainerId+" containersMem="+containers.size());
-            Log.i("WineStartup","createContainer maxId="+maxContainerId+" dataId="+data.optInt("id",-1)+" wine="+data.optString("wineVersion","")+" home="+homeDir.getAbsolutePath());
             int id = maxContainerId + 1;
             File containerDir = new File(homeDir, ImageFs.USER + "-" + id);
 
             while (containerDir.exists()) {
-                Log.i("WineStartup","createContainer dir exists "+containerDir.getAbsolutePath()+" bump id "+id+" -> "+(id+1));
                 id++;
                 containerDir = new File(homeDir, ImageFs.USER + "-" + id);
             }
-            Log.i("WineStartup","createContainer final id="+id+" dir="+containerDir.getAbsolutePath()+" exists="+containerDir.exists());
-
             data.put("id", id);
 
             if (!containerDir.mkdirs()) return null;

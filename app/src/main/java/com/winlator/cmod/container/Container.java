@@ -497,7 +497,6 @@ public class Container {
                                     String k = it.next();
                                     if (!mergedExtra.has(k)) mergedExtra.put(k, diskExtra.get(k));
                                 }
-                                Log.w("WineStartup","saveData id="+id+" MERGED disk extraData (had appVersion) into empty mem extra");
                             }
                         }
                     } catch (Exception ignored) {}

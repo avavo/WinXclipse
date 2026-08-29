@@ -144,9 +144,11 @@ public class PresentExtension implements Extension {
 
         synchronized (content.renderLock) {
             content.copyArea((short)0, (short)0, xOff, yOff, pixmap.drawable.width, pixmap.drawable.height, pixmap.drawable);
-            sendIdleNotify(window, pixmap, serial, idleFence);
-            sendCompleteNotify(window, serial, Kind.PIXMAP, Mode.COPY, ust, msc);
         }
+        // Socket/event delivery may block briefly. Keep it outside renderLock so
+        // the GL thread can upload the completed frame without waiting on Wine.
+        sendIdleNotify(window, pixmap, serial, idleFence);
+        sendCompleteNotify(window, serial, Kind.PIXMAP, Mode.COPY, ust, msc);
     }
 
     private void selectInput(XClient client, XInputStream inputStream, XOutputStream outputStream) throws IOException, XRequestError {

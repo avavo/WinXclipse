@@ -11,6 +11,9 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
@@ -27,6 +30,7 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.SearchView;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -64,7 +68,10 @@ public class CommunityConfigsFragment extends Fragment {
     private static final String RELEASE_INDEX_CACHE = "community_configs_release.json";
     private RecyclerView recyclerView;
     private TextView emptyView;
+    private final List<GameItem> allItems = new ArrayList<>();
     private final List<GameItem> items = new ArrayList<>();
+    private String searchQuery = "";
+    private boolean catalogLoaded;
     private GameItem pendingArtworkGame;
     private ActivityResultLauncher<String> artworkPicker;
 
@@ -90,6 +97,7 @@ public class CommunityConfigsFragment extends Fragment {
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        setHasOptionsMenu(true);
         artworkPicker = registerForActivityResult(new ActivityResultContracts.GetContent(), uri -> {
             GameItem game = pendingArtworkGame;
             pendingArtworkGame = null;
@@ -130,7 +138,38 @@ public class CommunityConfigsFragment extends Fragment {
         refresh();
     }
 
+    @Override
+    public void onCreateOptionsMenu(@NonNull Menu menu, @NonNull MenuInflater inflater) {
+        menu.clear();
+        inflater.inflate(R.menu.community_configs_menu, menu);
+        MenuItem searchItem = menu.findItem(R.id.community_configs_search);
+        if (searchItem == null) return;
+        SearchView searchView = (SearchView) searchItem.getActionView();
+        if (searchView == null) return;
+        searchView.setQueryHint("Search games");
+        searchView.setMaxWidth(Integer.MAX_VALUE);
+        searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
+            @Override
+            public boolean onQueryTextSubmit(String query) {
+                applyFilter(query);
+                searchView.clearFocus();
+                return true;
+            }
+
+            @Override
+            public boolean onQueryTextChange(String newText) {
+                applyFilter(newText);
+                return true;
+            }
+        });
+        if (!searchQuery.isEmpty()) {
+            searchItem.expandActionView();
+            searchView.setQuery(searchQuery, false);
+        }
+    }
+
     private void refresh() {
+        catalogLoaded = false;
         emptyView.setText("Loading community configs…");
         emptyView.setVisibility(View.VISIBLE);
         android.app.Activity hostActivity = getActivity();
@@ -201,16 +240,40 @@ public class CommunityConfigsFragment extends Fragment {
             if (hostActivity == null || hostActivity.isFinishing()) return;
             hostActivity.runOnUiThread(() -> {
                 if (!isAdded()) return;
-                items.clear();
-                items.addAll(loaded);
-                RecyclerView.Adapter<?> adapter = recyclerView.getAdapter();
-                if (adapter != null) adapter.notifyDataSetChanged();
-                emptyView.setText(items.isEmpty()
-                        ? "No valid community configs are published yet."
-                        : "");
-                emptyView.setVisibility(items.isEmpty() ? View.VISIBLE : View.GONE);
+                allItems.clear();
+                allItems.addAll(loaded);
+                catalogLoaded = true;
+                applyFilter(searchQuery);
             });
         }, "CommunityConfigCatalog").start();
+    }
+
+    private void applyFilter(String query) {
+        searchQuery = query == null ? "" : query.trim();
+        String normalizedQuery = normalizeGameName(searchQuery);
+        items.clear();
+        if (normalizedQuery.isEmpty()) {
+            items.addAll(allItems);
+        }
+        else {
+            for (GameItem game : allItems) {
+                if (game.key.contains(normalizedQuery)) items.add(game);
+            }
+        }
+        RecyclerView.Adapter<?> adapter = recyclerView != null ? recyclerView.getAdapter() : null;
+        if (adapter != null) adapter.notifyDataSetChanged();
+        if (emptyView == null) return;
+        boolean empty = items.isEmpty();
+        if (!catalogLoaded) {
+            emptyView.setText("Loading community configs…");
+        }
+        else if (!normalizedQuery.isEmpty() && empty) {
+            emptyView.setText("No games match your search.");
+        }
+        else {
+            emptyView.setText(empty ? "No valid community configs are published yet." : "");
+        }
+        emptyView.setVisibility(empty ? View.VISIBLE : View.GONE);
     }
 
     private static JSONObject loadReleaseIndex(Context context) {

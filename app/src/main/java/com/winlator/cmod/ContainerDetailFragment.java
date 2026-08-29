@@ -395,7 +395,7 @@ public class ContainerDetailFragment extends Fragment {
         final String[] pendingSharpnessLevel = {isEditMode() && container != null ? container.getExtra("sharpnessLevel", "100") : "100"};
         final String[] pendingSharpnessDenoise = {isEditMode() && container != null ? container.getExtra("sharpnessDenoise", "100") : "100"};
 
-        setupDXWrapperSpinner(sDXWrapper, vDXWrapperConfig);
+        setupDXWrapperSpinner(sDXWrapper, vDXWrapperConfig, sWineVersion, contentsManager);
         setupDDrawSpinner(sDDrawrapper, isEditMode() ? container.getDDrawWrapper() : Container.DEFAULT_DDRAWRAPPER);
         KeyValueSet initialDXConfig = DXVKConfigDialog.parseConfig(vDXWrapperConfig.getTag());
         if (initialDXConfig.get("ddrawrapper").isEmpty()) {
@@ -1189,13 +1189,21 @@ public class ContainerDetailFragment extends Fragment {
                 .show();
     }
 
-    public static void setupDXWrapperSpinner(final Spinner sDXWrapper, final View vDXWrapperConfig) {
+    public static void setupDXWrapperSpinner(final Spinner sDXWrapper,
+                                             final View vDXWrapperConfig,
+                                             final Spinner sWineVersion,
+                                             final ContentsManager contentsManager) {
         sDXWrapper.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 String dxwrapper = getDXWrapperIdentifier(sDXWrapper.getSelectedItem());
                 if (dxwrapper.equals("dxvk")) {
-                    vDXWrapperConfig.setOnClickListener((v) -> (new DXVKConfigDialog(vDXWrapperConfig)).show());
+                    vDXWrapperConfig.setOnClickListener((v) -> {
+                        String wineIdentifier = String.valueOf(sWineVersion.getSelectedItem());
+                        boolean arm64EC = WineInfo.fromIdentifier(v.getContext(), contentsManager,
+                                wineIdentifier).isArm64EC();
+                        new DXVKConfigDialog(vDXWrapperConfig, arm64EC).show();
+                    });
                     vDXWrapperConfig.setVisibility(View.VISIBLE);
                 }
                 else vDXWrapperConfig.setVisibility(View.GONE);
@@ -1203,6 +1211,25 @@ public class ContainerDetailFragment extends Fragment {
 
             @Override
             public void onNothingSelected(AdapterView<?> parent) {}
+        });
+    }
+
+    public static void setupDXWrapperSpinner(final Spinner sDXWrapper,
+                                             final View vDXWrapperConfig,
+                                             final boolean arm64EC) {
+        sDXWrapper.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                String dxwrapper = getDXWrapperIdentifier(sDXWrapper.getSelectedItem());
+                if (dxwrapper.equals("dxvk")) {
+                    vDXWrapperConfig.setOnClickListener(v ->
+                            new DXVKConfigDialog(vDXWrapperConfig, arm64EC).show());
+                    vDXWrapperConfig.setVisibility(View.VISIBLE);
+                }
+                else vDXWrapperConfig.setVisibility(View.GONE);
+            }
+
+            @Override public void onNothingSelected(AdapterView<?> parent) {}
         });
     }
 

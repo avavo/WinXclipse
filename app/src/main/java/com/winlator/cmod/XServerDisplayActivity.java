@@ -737,6 +737,17 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         if (dxwrapper.equals("dxvk") || dxwrapper.equals("vkd3d")) {
             this.dxwrapperConfig = DXVKConfigDialog.parseConfig(dxwrapperConfig);
+            String selectedDxvk = this.dxwrapperConfig.get("version", DefaultVersion.DXVK);
+            if (!wineInfo.isArm64EC()
+                    && selectedDxvk.toLowerCase(Locale.ENGLISH).contains("arm64ec")) {
+                // ARM64EC DLLs cannot be loaded by conventional x86/x86_64 Wine.
+                // Older containers inherited the ARM64EC default even after the
+                // runtime was changed; use the equivalent x86 async package.
+                Log.w("DXWrapperExtraction", "Replacing incompatible DXVK "
+                        + selectedDxvk + " with " + DefaultVersion.DXVK_X86
+                        + " for " + wineInfo.getArch());
+                this.dxwrapperConfig.put("version", DefaultVersion.DXVK_X86);
+            }
             // Older containers used a separate VKD3D wrapper. Migrate them to
             // the combined DXVK + VKD3D pipeline without changing their JSON.
             if (dxwrapper.equals("vkd3d")) this.dxwrapper = "dxvk";
@@ -1814,11 +1825,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     }
 
     private void setupWineSystemFiles() {
-        long setupT0 = System.currentTimeMillis();
-        Log.i("WineStartup","setupWineSystemFiles begin wine=" + container.getWineVersion() + " isArm64EC=" + (wineInfo!=null?wineInfo.isArm64EC():false));
         String appVersion = String.valueOf(AppUtils.getVersionCode(this));
         String imgVersion = String.valueOf(imageFs.getVersion());
-        Log.i("WineStartup","versionCheck storedApp=" + container.getExtra("appVersion") + " curApp=" + appVersion + " storedImg=" + container.getExtra("imgVersion") + " curImg=" + imgVersion + " configFile=" + container.getConfigFile().getAbsolutePath());
         boolean containerDataChanged = false;
         boolean prefixMetadataChanged = false;
 
@@ -1832,7 +1840,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         String dxwrapper = this.dxwrapper;
         String resolvedWrapper = dxwrapper;
-        long tDx = System.currentTimeMillis();
+        boolean resolvedWrapperReady = true;
         if (dxwrapper.equals("dxvk")) {
             String dxvkEntry = "dxvk-" + dxwrapperConfig.get("version", DefaultVersion.DXVK);
             String vkd3dVersion = dxwrapperConfig.get("vkd3dVersion", DefaultVersion.VKD3D);
@@ -1840,24 +1848,28 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             String vkd3dEntry = disableVkd3d ? null : "vkd3d-" + vkd3dVersion;
             resolvedWrapper = disableVkd3d ? dxvkEntry : dxvkEntry + "+" + vkd3dEntry;
             String storedWrapper = container.getExtra("dxwrapper");
-            Log.i("WineStartup","dxwrapper check resolved=" + resolvedWrapper + " stored=" + storedWrapper + " dxvkEntry=" + dxvkEntry);
-            if (!resolvedWrapper.equals(storedWrapper)) {
-                Log.i("WineStartup","dxwrapper MISMATCH -> extracting " + dxvkEntry + (disableVkd3d?"":" +"+vkd3dEntry));
+            boolean wrapperFilesReady = hasRequiredDxWrapperFiles(!disableVkd3d);
+            if (!resolvedWrapper.equals(storedWrapper) || !wrapperFilesReady) {
+                extractDXWrapperFiles(dxvkEntry);
+                if (!disableVkd3d) extractDXWrapperFiles(vkd3dEntry);
+                // Some legacy DXVK packs also contain a d3d12.dll. When
+                // VKD3D is explicitly disabled, restore Wine's implementation
+                // after DXVK extraction so the stale file cannot win again.
                 if (disableVkd3d) {
                     restoreOriginalDllFiles("d3d12.dll", "d3d12core.dll");
                     removeStaleVkd3dDlls();
                 }
-                extractDXWrapperFiles(dxvkEntry);
-                if (!disableVkd3d) extractDXWrapperFiles(vkd3dEntry);
-                Log.i("WineStartup","dxwrapper extract done +" + (System.currentTimeMillis()-tDx) + "ms");
+                wrapperFilesReady = hasRequiredDxWrapperFiles(!disableVkd3d);
+            }
+            if (!wrapperFilesReady) {
+                resolvedWrapperReady = false;
+                Log.e("DXWrapperExtraction", "Required DXVK/VKD3D DLLs are still missing; installation will retry next launch");
             }
         } else if (!resolvedWrapper.equals(container.getExtra("dxwrapper"))) {
-            Log.i("WineStartup","dxwrapper wined3d mismatch " + resolvedWrapper + " vs " + container.getExtra("dxwrapper"));
             extractDXWrapperFiles(resolvedWrapper);
         }
 
-        if (!resolvedWrapper.equals(container.getExtra("dxwrapper"))) {
-            Log.i("WineStartup","dxwrapper storing " + resolvedWrapper);
+        if (resolvedWrapperReady && !resolvedWrapper.equals(container.getExtra("dxwrapper"))) {
             container.putExtra("dxwrapper", resolvedWrapper);
             containerDataChanged = true;
         }
@@ -1865,7 +1877,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         String ddrawrapper = this.ddrawrapper;
 
         if (!ddrawrapper.equals(container.getExtra("ddrawrapper"))) {
-            Log.i("WineStartup","ddrawrapper mismatch " + ddrawrapper + " vs " + container.getExtra("ddrawrapper"));
             extractDDrawrapperFiles(ddrawrapper);
             container.putExtra("ddrawrapper", ddrawrapper);
             containerDataChanged = true;
@@ -1875,10 +1886,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         String wincomponents = shortcut != null ? shortcut.getExtra("wincomponents", container.getWinComponents()) : container.getWinComponents();
         if (!wincomponents.equals(container.getExtra("wincomponents"))) {
-            Log.i("WineStartup","wincomponents mismatch len " + wincomponents.length() + " vs " + container.getExtra("wincomponents").length());
-            long tWc = System.currentTimeMillis();
             extractWinComponentFiles();
-            Log.i("WineStartup","wincomponents extract +" + (System.currentTimeMillis()-tWc) + "ms");
             container.putExtra("wincomponents", wincomponents);
             containerDataChanged = true;
         }
@@ -1887,25 +1895,17 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         String themeKey = desktopTheme+","+xServer.screenInfo;
         String storedTheme = container.getExtra("desktopTheme");
         if (!themeKey.equals(storedTheme)) {
-            Log.i("WineStartup","desktopTheme mismatch '" + themeKey + "' vs '" + storedTheme + "'");
-            long tTh = System.currentTimeMillis();
             WineThemeManager.apply(this, new WineThemeManager.ThemeInfo(desktopTheme), xServer.screenInfo);
-            Log.i("WineStartup","WineThemeManager.apply +" + (System.currentTimeMillis()-tTh) + "ms");
             container.putExtra("desktopTheme", themeKey);
             containerDataChanged = true;
         }
 
-        long tMenu = System.currentTimeMillis();
         WineStartMenuCreator.create(this, container);
-        Log.i("WineStartup","WineStartMenuCreator +" + (System.currentTimeMillis()-tMenu) + "ms");
-        long tDos = System.currentTimeMillis();
         WineUtils.createDosdevicesSymlinks(container);
-        Log.i("WineStartup","createDosdevicesSymlinks +" + (System.currentTimeMillis()-tDos) + "ms");
 
         // The bionic WFM reliably executes the context-menu command that writes
         // a Shell Link. Re-copy it once for existing prefixes as well.
         if (!"3".equals(container.getExtra("wfmFixVersion"))) {
-            Log.i("WineStartup","wfmFixVersion missing, copying");
             File windowsDir = new File(container.getRootDir(), ".wine/drive_c/windows");
             File wfmFile = new File(windowsDir, "wfm.exe");
             File cdioFile = new File(windowsDir, "libcdio.dll");
@@ -1915,7 +1915,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 container.putExtra("wfmFixVersion", "3");
                 containerDataChanged = true;
             }
-        } else Log.i("WineStartup","wfmFixVersion ok");
+        }
 
         if (shortcut != null)
             startupSelection = shortcut.getExtra("startupSelection", String.valueOf(container.getStartupSelection()));
@@ -1935,17 +1935,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         // Reapply only after a prefix/image update or when the selected policy
         // has not actually been written to this prefix yet.
         String appliedSelection = container.getExtra("startupSelectionApplied");
-        Log.i("WineStartup","startup check prefixChanged=" + prefixMetadataChanged + " sel=" + selection + " applied=" + appliedSelection + " storedSel=" + container.getExtra("startupSelection"));
         if (prefixMetadataChanged || !String.valueOf(selection).equals(appliedSelection)) {
-            long tSvc = System.currentTimeMillis();
-            Log.i("WineStartup","changeServicesStatus begin sel=" + selection);
             WineUtils.changeServicesStatus(container, selection);
-            Log.i("WineStartup","changeServicesStatus end +" + (System.currentTimeMillis()-tSvc) + "ms");
             container.putExtra("startupSelectionApplied", String.valueOf(selection));
             containerDataChanged = true;
         }
         if (!startupSelection.equals(container.getExtra("startupSelection"))) {
-            Log.i("WineStartup","startupSelection mismatch " + startupSelection + " vs " + container.getExtra("startupSelection"));
             container.putExtra("startupSelection", startupSelection);
             containerDataChanged = true;
         }
@@ -1965,12 +1960,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             }
         }
 
-        if (containerDataChanged) {
-            long tSave = System.currentTimeMillis();
-            container.saveData();
-            Log.i("WineStartup","saveData +" + (System.currentTimeMillis()-tSave) + "ms extra_dxwrapper=" + container.getExtra("dxwrapper") + " extra_wincomponents_len=" + container.getExtra("wincomponents").length() + " storedApp=" + container.getExtra("appVersion") + " storedImg=" + container.getExtra("imgVersion") + " fileExists=" + container.getConfigFile().isFile());
-        }
-        Log.i("WineStartup","setupWineSystemFiles end +" + (System.currentTimeMillis()-setupT0) + "ms changed=" + containerDataChanged);
+        if (containerDataChanged) container.saveData();
     }
 
     private void setupXEnvironment() throws PackageManager.NameNotFoundException {
@@ -4523,6 +4513,20 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             if (wineInfo.isWin64() && !new File(wow64Source, dll).exists())
                 FileUtils.delete(new File(windowsDir, "syswow64/" + dll));
         }
+    }
+
+    private boolean hasRequiredDxWrapperFiles(boolean requireVkd3d) {
+        File windowsDir = new File(imageFs.getRootDir(),
+                ImageFs.WINEPREFIX + "/drive_c/windows");
+        ArrayList<File> architectureDirs = new ArrayList<>();
+        architectureDirs.add(new File(windowsDir, "system32"));
+        if (wineInfo.isWin64()) architectureDirs.add(new File(windowsDir, "syswow64"));
+        for (File directory : architectureDirs) {
+            if (!new File(directory, "dxgi.dll").isFile()
+                    || !new File(directory, "d3d11.dll").isFile()) return false;
+            if (requireVkd3d && !new File(directory, "d3d12.dll").isFile()) return false;
+        }
+        return true;
     }
 
     private String getHudApiName() {

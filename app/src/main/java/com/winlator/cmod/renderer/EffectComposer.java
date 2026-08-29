@@ -272,6 +272,16 @@ public class EffectComposer {
 
         initBuffers();
 
+        if (readBuffer == null || writeBuffer == null
+                || !readBuffer.isComplete() || !writeBuffer.isComplete()
+                || (sceneUpscale && (sceneBuffer == null || !sceneBuffer.isComplete()))) {
+            // Preserve compatibility on drivers that reject offscreen targets:
+            // render normally instead of leaving a permanent black screen.
+            renderer.drawScene(false);
+            isRendering = false;
+            return;
+        }
+
         boolean useScene = sceneUpscale && sceneBuffer != null;
 
         // Set up framebuffer if there are effects to render
@@ -318,6 +328,11 @@ public class EffectComposer {
             }
         }
 
+        // Every effect draws a full-screen replacement quad. Source-over
+        // blending is both unnecessary and expensive for FSR's EASU/RCAS
+        // passes on tile GPUs.
+        if (!effects.isEmpty()) GLES20.glDisable(GLES20.GL_BLEND);
+
         // Iterate through each effect and render it
         for (int i = 0; i < effects.size(); i++) {
             Effect effect = effects.get(i);
@@ -347,6 +362,8 @@ public class EffectComposer {
             swapBuffers();
 //            Log.d(TAG, "Buffers swapped");
         }
+
+        if (!effects.isEmpty()) GLES20.glEnable(GLES20.GL_BLEND);
 
         if (useScene) renderer.setRenderTargetSize(bufferWidth, bufferHeight);
 

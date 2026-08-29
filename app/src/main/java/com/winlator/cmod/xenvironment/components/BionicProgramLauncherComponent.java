@@ -157,7 +157,7 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         }
         else {
             Log.e("BionicProgramLauncherComponent",
-                    "Cannot start x86_64 runtime: Box64 " + box64Version + " is missing");
+                    "Cannot start x86/x86_64 runtime: Box64 " + box64Version + " is missing");
         }
     }
 
@@ -197,16 +197,18 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
     }
 
     private void populateSysWow64() {
+        // A pure win32 prefix stores its 32-bit DLLs in system32 and must not
+        // grow a synthetic syswow64 directory. Only 64-bit/WoW64 prefixes use it.
+        if (!wineInfo.isWin64()) return;
         try {
             Context context = environment.getContext();
             File rootDir = environment.getImageFs().getRootDir();
             File sysWow64 = new File(rootDir, "/home/xuser/.wine/drive_c/windows/syswow64");
-            // x86 needs 32-bit syswow64, arm64ec does not. The old check
+            // A 64-bit/WoW64 prefix needs its 32-bit DLL set in syswow64. The old check
             // `!isDirectory() || hasKernel` skipped population entirely when
             // the directory was missing, leaving a broken WoW64 prefix that
             // Wine then tries to repair on every launch (very slow).
             if (sysWow64.isDirectory() && new File(sysWow64, "kernel32.dll").isFile()) {
-                Log.i("BionicStartup","syswow64 already populated, skip");
                 return;
             }
             if (!sysWow64.isDirectory() && !sysWow64.mkdirs()) {
@@ -242,20 +244,12 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
     @Override
     public void start() {
         synchronized (lock) {
-            long t0 = System.currentTimeMillis();
-            Log.i("BionicStartup", "start arch=" + (wineInfo!=null?wineInfo.getArch():"null") + " isArm64EC=" + (wineInfo!=null?wineInfo.isArm64EC():false) + " isWin64=" + (wineInfo!=null?wineInfo.isWin64():false) + " box64=" + container.getBox64Version() + " wine=" + container.getWineVersion());
             if (wineInfo.isArm64EC()) {
-                Log.i("BionicStartup","extractEmulatorsDlls begin");
                 extractEmulatorsDlls();
-                Log.i("BionicStartup","extractEmulatorsDlls end +" + (System.currentTimeMillis()-t0) + "ms");
             } else {
-                Log.i("BionicStartup","extractBox64 begin arch=" + wineInfo.getArch());
                 extractBox86_64Files();
-                Log.i("BionicStartup","extractBox64 end +" + (System.currentTimeMillis()-t0) + "ms");
             }
-            long t1 = System.currentTimeMillis();
             populateSysWow64();
-            Log.i("BionicStartup","populateSysWow64 +" + (System.currentTimeMillis()-t1) + "ms total +" + (System.currentTimeMillis()-t0) + "ms");
 //            checkDependencies();
             // If we end up needing to inject winebus.so into user installed contents
 //            EvshimPatcher.patchWineTree(

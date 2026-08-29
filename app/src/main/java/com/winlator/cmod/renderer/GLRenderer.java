@@ -336,6 +336,9 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
     }
 
     private void renderWindows(boolean forceFullscreen) {
+        // WindowMaterial always writes alpha=1. Blending every opaque desktop
+        // and game pixel only adds bandwidth on tile GPUs such as Xclipse.
+        GLES20.glDisable(GLES20.GL_BLEND);
         windowMaterial.use();
         GLES20.glUniform2f(windowMaterial.getUniformLocation("viewSize"), xServer.screenInfo.width, xServer.screenInfo.height);
         GLES20.glUniform1i(windowMaterial.getUniformLocation("swapRB"), swapRedBlue ? 1 : 0);
@@ -355,13 +358,28 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
                 RenderableWindow window = renderableWindows.get(renderableWindows.size() - 1);
                 renderDrawable(window.content, window.rootX, window.rootY, windowMaterial, true);
             } else {
-                for (RenderableWindow window : renderableWindows) {
+                int firstVisible = 0;
+                // Everything below the highest opaque full-screen window is
+                // guaranteed to be covered. Keep later popups/menus intact.
+                for (int i = renderableWindows.size() - 1; i >= 0; i--) {
+                    RenderableWindow window = renderableWindows.get(i);
+                    if (window.forceFullscreen
+                            || (window.rootX <= 0 && window.rootY <= 0
+                            && window.rootX + window.content.width >= xServer.screenInfo.width
+                            && window.rootY + window.content.height >= xServer.screenInfo.height)) {
+                        firstVisible = i;
+                        break;
+                    }
+                }
+                for (int i = firstVisible; i < renderableWindows.size(); i++) {
+                    RenderableWindow window = renderableWindows.get(i);
                     renderDrawable(window.content, window.rootX, window.rootY, windowMaterial, window.forceFullscreen);
                 }
             }
         }
 
         quadVertices.disable();
+        GLES20.glEnable(GLES20.GL_BLEND);
 
         if (BuildConfig.DEBUG) {
             int error = GLES20.glGetError();

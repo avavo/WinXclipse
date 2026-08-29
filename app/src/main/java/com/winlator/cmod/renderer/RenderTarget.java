@@ -6,6 +6,7 @@ import android.opengl.GLES20;
 public class RenderTarget extends Texture {
     // Field to store the OpenGL framebuffer ID.
     private int framebuffer;
+    private boolean complete;
 
     // Constructor
     public RenderTarget() {
@@ -63,10 +64,24 @@ public class RenderTarget extends Texture {
                 GLES20.GL_TEXTURE_2D, textureId, 0
         );
 
-        // Fail loudly if the driver could not complete the FBO: rendering into
-        // an incomplete framebuffer silently produces a black screen.
+        // BGRA render targets are fast on Xclipse but not accepted by every
+        // GLES driver. Retry with core RGBA before disabling post-processing.
         int status = GLES20.glCheckFramebufferStatus(GLES20.GL_FRAMEBUFFER);
-        if (status != GLES20.GL_FRAMEBUFFER_COMPLETE) {
+        complete = status == GLES20.GL_FRAMEBUFFER_COMPLETE;
+        if (!complete && format != GLES20.GL_RGBA) {
+            android.util.Log.w("RenderTarget", "BGRA framebuffer incomplete (0x"
+                    + Integer.toHexString(status) + "); retrying RGBA");
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0);
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
+            GLES20.glDeleteTextures(1, new int[]{textureId}, 0);
+            GLES20.glDeleteFramebuffers(1, new int[]{framebuffer}, 0);
+            textureId = 0;
+            framebuffer = 0;
+            format = GLES20.GL_RGBA;
+            allocateFramebuffer(width, height);
+            return;
+        }
+        if (!complete) {
             android.util.Log.e("RenderTarget", "Framebuffer incomplete (0x"
                     + Integer.toHexString(status) + ") for " + width + "x" + height);
         }
@@ -83,6 +98,10 @@ public class RenderTarget extends Texture {
         return framebuffer;
     }
 
+    public boolean isComplete() {
+        return complete;
+    }
+
     // Deletes the framebuffer and the attached texture.
     @Override
     public void destroy() {
@@ -90,6 +109,7 @@ public class RenderTarget extends Texture {
             GLES20.glDeleteFramebuffers(1, new int[]{framebuffer}, 0);
             framebuffer = 0;
         }
+        complete = false;
         super.destroy();
     }
 }

@@ -149,7 +149,9 @@ public class ShortcutSettingsDialog extends ContentDialog {
         final View vDXWrapperConfig = findViewById(R.id.BTDXWrapperConfig);
         vDXWrapperConfig.setTag(shortcut.getExtra("dxwrapperConfig", shortcut.container.getDXWrapperConfig()));
 
-        ContainerDetailFragment.setupDXWrapperSpinner(sDXWrapper, vDXWrapperConfig);
+        boolean arm64ECWine = WineInfo.fromIdentifier(context, contentsManager,
+                shortcut.container.getWineVersion()).isArm64EC();
+        ContainerDetailFragment.setupDXWrapperSpinner(sDXWrapper, vDXWrapperConfig, arm64ECWine);
         ContainerDetailFragment.setupDDrawSpinner(sDDrawrapper, shortcut.getExtra("ddrawrapper", shortcut.container.getDDrawWrapper()));
         KeyValueSet initialDXConfig = DXVKConfigDialog.parseConfig(vDXWrapperConfig.getTag());
         if (initialDXConfig.get("ddrawrapper").isEmpty()) {
