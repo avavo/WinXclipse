@@ -581,15 +581,28 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         firstTimeBoot = container.getExtra("appVersion").isEmpty();
 
         String wineVersion = container.getWineVersion();
+        ContentProfile installedRuntime = WineInfo.findInstalledRuntimeProfile(
+                contentsManager, wineVersion);
+        if (installedRuntime != null) {
+            String normalizedWineVersion = ContentsManager.getEntryName(installedRuntime);
+            if (!normalizedWineVersion.equals(wineVersion)) {
+                Log.i("WineStartup", "Migrating runtime identifier " + wineVersion
+                        + " to " + normalizedWineVersion);
+                container.setWineVersion(normalizedWineVersion);
+                container.saveData();
+                wineVersion = normalizedWineVersion;
+            }
+        }
         wineInfo = WineInfo.fromIdentifier(this, contentsManager, wineVersion);
 
         imageFs.setWinePath(wineInfo.path);
 
-        // Self-heal the shared WINEPREFIX registries: wineserver saves them on
+        // Self-heal the WINEPREFIX registries: wineserver saves them on
         // exit and a hard kill (OOM/task removal) can truncate the files, which
         // makes every later launch fail with "not a valid registry file" and a
-        // 32/64-bit wineserver mismatch.
-        ContainerManager.ensureValidPrefixRegistries(new File(imageFs.getRootDir(), ImageFs.WINEPREFIX));
+        // 32/64-bit wineserver mismatch. Use the container's actual arch so
+        // win32 (x86) prefixes get #arch=win32.
+        ContainerManager.ensureValidPrefixRegistries(new File(imageFs.getRootDir(), ImageFs.WINEPREFIX), wineInfo.isWin64());
 
         ProcessHelper.removeAllDebugCallbacks();
         if (enableLogs) {
@@ -799,7 +812,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                     preloaderDialog.closeOnUiThread();
                     winStarted[0] = true;
                 }
-
                 if (frameRatingWindowId == window.id) frameRating.update();
             }
 
@@ -1029,7 +1041,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 touchpadView.requestPointerCapture();
                 touchpadView.setOnCapturedPointerListener((v, e) -> { handleCapturedPointer(e); return true; });
                 pointerCaptureRequested = true;
-
             }
         };
         // Try quickly a few times to dodge transient focus transitions
@@ -1782,11 +1793,19 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         // cause a black screen. External runtimes use Mali's fake-input layer.
         if (wineInfo != null && wineInfo.isArm64EC()
                 && WineInfo.MAIN_WINE_VERSION.identifier().equals(wineVersion)) {
+            if ("1".equals(container.getExtra("arm64ecInputDllsVersion"))) {
+                Log.d("XServerDisplayActivity", "ARM64EC input DLLs already current; skipping extraction.");
+                return;
+            }
             File wineFolder = new File(imageFs.getWinePath() + "/lib/wine/");
             Log.d("XServerDisplayActivity", "Extracting ARM64EC input DLLs to " + wineFolder.getPath());
             boolean success = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, inputAsset, wineFolder);
             if (!success) {
                 Log.d("XServerDisplayActivity", "Failed to extract input dlls");
+            }
+            else {
+                container.putExtra("arm64ecInputDllsVersion", "1");
+                container.saveData();
             }
         }
         else {
@@ -1883,18 +1902,17 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         WineUtils.createDosdevicesSymlinks(container);
         Log.i("WineStartup","createDosdevicesSymlinks +" + (System.currentTimeMillis()-tDos) + "ms");
 
-        // WFM v2 dispatches popup-menu selections synchronously. The previous
-        // build could show the right-click menu under Wine while never receiving
-        // WM_COMMAND, so Copy/Delete/New Folder/Create Shortcut all appeared dead.
-        if (!"2".equals(container.getExtra("wfmFixVersion"))) {
+        // The bionic WFM reliably executes the context-menu command that writes
+        // a Shell Link. Re-copy it once for existing prefixes as well.
+        if (!"3".equals(container.getExtra("wfmFixVersion"))) {
             Log.i("WineStartup","wfmFixVersion missing, copying");
             File windowsDir = new File(container.getRootDir(), ".wine/drive_c/windows");
             File wfmFile = new File(windowsDir, "wfm.exe");
             File cdioFile = new File(windowsDir, "libcdio.dll");
             FileUtils.copy(this, "wfm.exe", wfmFile);
             FileUtils.copy(this, "libcdio.dll", cdioFile);
-            if (wfmFile.length() == 312832L && cdioFile.length() == 187392L) {
-                container.putExtra("wfmFixVersion", "2");
+            if (wfmFile.length() == 291840L && cdioFile.length() == 187392L) {
+                container.putExtra("wfmFixVersion", "3");
                 containerDataChanged = true;
             }
         } else Log.i("WineStartup","wfmFixVersion ok");
@@ -1951,7 +1969,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             long tSave = System.currentTimeMillis();
             container.saveData();
             Log.i("WineStartup","saveData +" + (System.currentTimeMillis()-tSave) + "ms extra_dxwrapper=" + container.getExtra("dxwrapper") + " extra_wincomponents_len=" + container.getExtra("wincomponents").length() + " storedApp=" + container.getExtra("appVersion") + " storedImg=" + container.getExtra("imgVersion") + " fileExists=" + container.getConfigFile().isFile());
-            try { String raw = com.winlator.cmod.core.FileUtils.readString(container.getConfigFile()); Log.i("WineStartup","raw len=" + (raw!=null?raw.length():0) + " contains dxwrapper=" + (raw!=null && raw.contains("dxvk-1.10.3")) + " contains appVersion=" + (raw!=null && raw.contains("appVersion")) + " snippet=" + (raw!=null?raw.substring(0, Math.min(400, raw.length())):"null")); } catch (Exception e) { Log.w("WineStartup","readback fail",e); }
         }
         Log.i("WineStartup","setupWineSystemFiles end +" + (System.currentTimeMillis()-setupT0) + "ms changed=" + containerDataChanged);
     }
@@ -3234,8 +3251,23 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         final CheckBox cbEnableTimeout = dialog.findViewById(R.id.CBEnableTimeout);
         cbEnableTimeout.setChecked(preferences.getBoolean("touchscreen_timeout_enabled", false));
 
-        final CheckBox cbEnableHaptics = dialog.findViewById(R.id.CBEnableHaptics);
-        cbEnableHaptics.setChecked(preferences.getBoolean("touchscreen_haptics_enabled", true));
+        final ControllerManager controllerManager = ControllerManager.getInstance();
+        final CheckBox cbAutoGrabController = dialog.findViewById(R.id.CBAutoGrabController);
+        cbAutoGrabController.setChecked(controllerManager.isAutoGrabEnabled());
+
+        final CheckBox cbMasterVibration = dialog.findViewById(R.id.CBMasterVibration);
+        cbMasterVibration.setChecked(controllerManager.isMasterVibrationEnabled());
+        final Button btTestVibration = dialog.findViewById(R.id.BTTestVibration);
+        btTestVibration.setEnabled(cbMasterVibration.isChecked());
+        cbMasterVibration.setOnCheckedChangeListener((button, enabled) ->
+                btTestVibration.setEnabled(enabled));
+        btTestVibration.setOnClickListener(view -> {
+            if (!cbMasterVibration.isChecked()) {
+                Toast.makeText(this, "Vibration OFF", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            testControllerVibration(controllerManager);
+        });
 
         final CheckBox cbDisableTouchscreenMouse = dialog.findViewById(R.id.CBDisableTouchscreenMouse);
         cbDisableTouchscreenMouse.setChecked(preferences.getBoolean("touchscreen_mouse_disabled", false));
@@ -3266,13 +3298,14 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         dialog.setOnConfirmCallback(() -> {
             inputControlsView.setShowTouchscreenControls(cbShowTouchscreenControls.isChecked());
             boolean isTimeoutEnabled = cbEnableTimeout.isChecked();
-            boolean isHapticsEnabled = cbEnableHaptics.isChecked();
             boolean isMouseDisabled = cbDisableTouchscreenMouse.isChecked();
             SharedPreferences.Editor editor = preferences.edit();
             editor.putBoolean("touchscreen_timeout_enabled", isTimeoutEnabled);
-            editor.putBoolean("touchscreen_haptics_enabled", isHapticsEnabled);
+            editor.putBoolean("touchscreen_haptics_enabled", false);
             editor.putBoolean("touchscreen_mouse_disabled", isMouseDisabled);
             editor.apply();
+            controllerManager.setAutoGrabEnabled(cbAutoGrabController.isChecked());
+            controllerManager.setMasterVibrationEnabled(cbMasterVibration.isChecked());
 
             if (isTimeoutEnabled) {
                 startTouchscreenTimeout(); // Start the timeout functionality if enabled
@@ -3307,6 +3340,43 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         dialog.setCanceledOnTouchOutside(false);
         dialog.show();
+    }
+
+    private void testControllerVibration(ControllerManager controllerManager) {
+        controllerManager.scanForDevices();
+        boolean didVibrate = false;
+        for (int slot = 0; slot < 4; slot++) {
+            if (!controllerManager.isSlotEnabled(slot)
+                    || !controllerManager.isVibrationEnabled(slot)) continue;
+            InputDevice device = controllerManager.getAssignedDeviceForSlot(slot);
+            if (device == null) continue;
+            android.os.Vibrator vibrator = device.getVibrator();
+            if (vibrator == null || !vibrator.hasVibrator()) continue;
+            try {
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    vibrator.vibrate(android.os.VibrationEffect.createOneShot(300,
+                            android.os.VibrationEffect.DEFAULT_AMPLITUDE));
+                }
+                else vibrator.vibrate(300);
+                didVibrate = true;
+            }
+            catch (Exception ignored) {}
+        }
+        if (didVibrate) return;
+
+        // Keep the same useful fallback as Controller Manager when no assigned
+        // physical controller exposes an Android vibrator.
+        android.os.Vibrator phone = (android.os.Vibrator)
+                getSystemService(Context.VIBRATOR_SERVICE);
+        if (phone == null || !phone.hasVibrator()) return;
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                phone.vibrate(android.os.VibrationEffect.createOneShot(250,
+                        android.os.VibrationEffect.DEFAULT_AMPLITUDE));
+            }
+            else phone.vibrate(250);
+        }
+        catch (Exception ignored) {}
     }
 
     private void showHUDConfigDialog() {
@@ -3437,12 +3507,10 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         inputControlsView.setShowTouchscreenControls(isShowTouchscreenControls);
 
         boolean isTimeoutEnabled = preferences.getBoolean("touchscreen_timeout_enabled", false);
-        boolean isHapticsEnabled = preferences.getBoolean("touchscreen_haptics_enabled", true);
-
         // Apply these settings as if the user confirmed the dialog
         SharedPreferences.Editor editor = preferences.edit();
         editor.putBoolean("touchscreen_timeout_enabled", isTimeoutEnabled);
-        editor.putBoolean("touchscreen_haptics_enabled", isHapticsEnabled);
+        editor.putBoolean("touchscreen_haptics_enabled", false);
         editor.apply();
 
         // If no profile is selected, hide the controls
@@ -3713,7 +3781,10 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             Log.w("GraphicsDriverExtraction", "Invalid max device memory: " + maxDeviceMemory);
         }
 
-        String presentMode = graphicsDriverConfig.getOrDefault("presentMode", "mailbox");
+        // Mailbox is synchronized to the physical display. "VSync off" must
+        // select immediate presentation or a 48 Hz panel still caps the guest.
+        String presentMode = "off".equals(resolveVsyncMode()) ? "immediate"
+                : graphicsDriverConfig.getOrDefault("presentMode", "mailbox");
         envVars.put("MESA_VK_WSI_PRESENT_MODE", presentMode);
         envVars.put("WRAPPER_MAX_IMAGE_COUNT", presentMode.contains("immediate") ? "1" : "0");
         envVars.put("WRAPPER_RESOURCE_TYPE", graphicsDriverConfig.getOrDefault("resourceType", "auto"));
@@ -4281,6 +4352,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         if (wineInfo.isArm64EC())
             system32dlls = new File(imageFs.getWinePath() + "/lib/wine/aarch64-windows");
+        else if (!wineInfo.isWin64())
+            system32dlls = new File(imageFs.getWinePath() + "/lib/wine/i386-windows");
         else
             system32dlls = new File(imageFs.getWinePath() + "/lib/wine/x86_64-windows");
 
@@ -4291,9 +4364,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             File srcFile = new File(system32dlls, dll);
             File dstFile = new File(windowsDir, "system32/" + dll);
             FileUtils.copy(srcFile, dstFile);
-            srcFile = new File(syswow64dlls, dll);
-            dstFile = new File(windowsDir, "syswow64/" + dll);
-            FileUtils.copy(srcFile, dstFile);
+            // Win32 prefixes have no syswow64; avoid creating spurious WOW64 files
+            if (wineInfo.isWin64()) {
+                srcFile = new File(syswow64dlls, dll);
+                dstFile = new File(windowsDir, "syswow64/" + dll);
+                FileUtils.copy(srcFile, dstFile);
+            }
         }
    }
 
@@ -4438,13 +4514,13 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     private void removeStaleVkd3dDlls() {
         File windowsDir = new File(imageFs.getRootDir(), ImageFs.WINEPREFIX + "/drive_c/windows");
-        File systemSource = new File(imageFs.getWinePath() + "/lib/wine/"
-                + (wineInfo.isArm64EC() ? "aarch64-windows" : "x86_64-windows"));
+        String sysArch = wineInfo.isArm64EC() ? "aarch64-windows" : (!wineInfo.isWin64() ? "i386-windows" : "x86_64-windows");
+        File systemSource = new File(imageFs.getWinePath() + "/lib/wine/" + sysArch);
         File wow64Source = new File(imageFs.getWinePath() + "/lib/wine/i386-windows");
         for (String dll : new String[]{"d3d12.dll", "d3d12core.dll"}) {
             if (!new File(systemSource, dll).exists())
                 FileUtils.delete(new File(windowsDir, "system32/" + dll));
-            if (!new File(wow64Source, dll).exists())
+            if (wineInfo.isWin64() && !new File(wow64Source, dll).exists())
                 FileUtils.delete(new File(windowsDir, "syswow64/" + dll));
         }
     }

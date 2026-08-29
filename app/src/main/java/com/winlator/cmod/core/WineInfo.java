@@ -18,7 +18,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class WineInfo implements Parcelable {
-    public static final WineInfo MAIN_WINE_VERSION = new WineInfo("proton","9.0", "x86_64");
+    public static final WineInfo MAIN_WINE_VERSION = new WineInfo("proton", "9.0", "arm64ec");
     private static final Pattern pattern = Pattern.compile("^(wine|proton|Proton)\\-([0-9\\.]+)\\-?([0-9\\.]+)?\\-(x86|x86_64|arm64ec)$");
     public final String version;
     public final String type;
@@ -124,14 +124,14 @@ public class WineInfo implements Parcelable {
 
         if (identifier.equals(MAIN_WINE_VERSION.identifier())) return new WineInfo(MAIN_WINE_VERSION.type, MAIN_WINE_VERSION.version, MAIN_WINE_VERSION.arch, imageFs.getRootDir().getPath() + "/opt/" + MAIN_WINE_VERSION.identifier());
 
-        ContentProfile wineProfile = contentsManager.getProfileByEntryName(identifier);
+        ContentProfile selectedEntry = contentsManager.getProfileByEntryName(identifier);
+        ContentProfile wineProfile = findInstalledRuntimeProfile(contentsManager, identifier);
 
         // getProfileByEntryName also sees downloadable catalog entries. An
         // uninstalled entry has no usable bin/lib tree and must not masquerade
         // as a launchable Proton runtime.
-        if (wineProfile != null && !contentsManager.isInstalledProfile(wineProfile)) {
+        if (selectedEntry != null && wineProfile == null) {
             Log.w("WineInfo", "Ignoring uninstalled runtime profile " + identifier);
-            wineProfile = null;
         }
 
         if (wineProfile != null && (wineProfile.type == ContentProfile.ContentType.CONTENT_TYPE_WINE || wineProfile.type == ContentProfile.ContentType.CONTENT_TYPE_PROTON)) {
@@ -157,18 +157,62 @@ public class WineInfo implements Parcelable {
         if (matcher.find()) {
             String[] wineVersions = context.getResources().getStringArray(R.array.wine_entries);
             for (String wineVersion : wineVersions) {
-                if (wineVersion.contains(identifier)) {
+                if (path.isEmpty() && wineVersion.contains(identifier)) {
                     path = imageFs.getRootDir().getPath() + "/opt/" + identifier;
                     break;
                 }
             }
 
-            if (wineProfile != null && (wineProfile.type == ContentProfile.ContentType.CONTENT_TYPE_WINE || wineProfile.type == ContentProfile.ContentType.CONTENT_TYPE_PROTON))
-                path = contentsManager.getInstallDir(context, wineProfile).getPath();
+            if (path.isEmpty()) {
+                File legacyDir = new File(imageFs.getRootDir(), "opt/" + identifier);
+                if (legacyDir.isDirectory()) path = legacyDir.getPath();
+            }
 
-            return new WineInfo(matcher.group(1), matcher.group(2), matcher.group(4), path);
+            if (path.isEmpty()) {
+                // Keep an explicit expected path instead of the empty string,
+                // which previously produced commands such as "/wine" and hid
+                // the actual missing-runtime error in startup logs.
+                path = new File(imageFs.getRootDir(), "opt/" + identifier).getPath();
+                Log.e("WineInfo", "Runtime is not installed: " + identifier
+                        + " (expected " + path + ")");
+            }
+
+            return new WineInfo(matcher.group(1), matcher.group(2), matcher.group(3),
+                    matcher.group(4), path);
         }
         else return new WineInfo(MAIN_WINE_VERSION.type, MAIN_WINE_VERSION.version, MAIN_WINE_VERSION.arch, imageFs.getRootDir().getPath() + "/opt/" + MAIN_WINE_VERSION.identifier());
+    }
+
+    /** Resolves both current content entry names and the identifiers stored by
+     * older containers (for example proton-9.0-x86_64) to an installed WCP. */
+    public static ContentProfile findInstalledRuntimeProfile(ContentsManager contentsManager,
+                                                             String identifier) {
+        ContentProfile direct = contentsManager.getProfileByEntryName(identifier);
+        if (direct != null && contentsManager.isInstalledProfile(direct)
+                && (direct.type == ContentProfile.ContentType.CONTENT_TYPE_WINE
+                || direct.type == ContentProfile.ContentType.CONTENT_TYPE_PROTON)) {
+            return direct;
+        }
+
+        Matcher matcher = pattern.matcher(identifier == null ? "" : identifier);
+        if (!matcher.find()) return null;
+        String subversion = matcher.group(3);
+        String profileVersion = matcher.group(2)
+                + (subversion != null && !subversion.isEmpty() ? "-" + subversion : "")
+                + "-" + matcher.group(4);
+        ContentProfile.ContentType profileType = matcher.group(1).equalsIgnoreCase("proton")
+                ? ContentProfile.ContentType.CONTENT_TYPE_PROTON
+                : ContentProfile.ContentType.CONTENT_TYPE_WINE;
+
+        ContentProfile best = null;
+        for (ContentProfile profile : contentsManager.getProfiles(profileType)) {
+            if (profileVersion.equalsIgnoreCase(profile.verName)
+                    && contentsManager.isInstalledProfile(profile)
+                    && (best == null || profile.verCode > best.verCode)) {
+                best = profile;
+            }
+        }
+        return best;
     }
 
     public static boolean isMainWineVersion(String wineVersion) {

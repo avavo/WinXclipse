@@ -1,6 +1,10 @@
 package com.winlator.cmod.core;
 
+import android.content.Context;
 import android.util.Log;
+
+import com.winlator.cmod.container.Container;
+import com.winlator.cmod.xenvironment.ImageFs;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -17,8 +21,10 @@ public abstract class MSLink {
     private static final int HasLinkTargetIDList = 1<<0;
 
     private static final int HasLinkInfo = 1 << 1;
+    private static final int HasRelativePath = 1<<3;
     private static final int HasArguments = 1<<5;
     private static final int HasIconLocation = 1<<6;
+    private static final int IsUnicode = 1<<7;
     private static final int ForceNoLinkInfo = 1<<8;
 
     public static final class Options {
@@ -184,52 +190,178 @@ public abstract class MSLink {
      */
     public static String parse(File lnkFile) throws IOException {
         try (FileInputStream fis = new FileInputStream(lnkFile)) {
+            if (lnkFile.length() < 76 || lnkFile.length() > 8 * 1024 * 1024) return null;
             byte[] fileBytes = new byte[(int) lnkFile.length()];
-            fis.read(fileBytes);
+            int total = 0;
+            while (total < fileBytes.length) {
+                int count = fis.read(fileBytes, total, fileBytes.length - total);
+                if (count < 0) break;
+                total += count;
+            }
+            if (total != fileBytes.length || readIntLittleEndian(fileBytes, 0) != 0x4c) return null;
 
             int linkFlags = readIntLittleEndian(fileBytes, 20);
+            int currentOffset = 76;
+            if ((linkFlags & HasLinkTargetIDList) != 0) {
+                int idListSize = readShortLittleEndian(fileBytes, currentOffset);
+                currentOffset += idListSize + 2;
+            }
 
-            // Primary Method: Check for the LinkInfo block
+            // The old parser read +28 as an ANSI path. In Shell Link files +16
+            // is LocalBasePath and +28 is LocalBasePathUnicode (only when the
+            // extended header is present). Wine commonly emits the Unicode form.
             if ((linkFlags & HasLinkInfo) != 0) {
-                int currentOffset = 76; // Start after the header
-                if ((linkFlags & HasLinkTargetIDList) != 0) {
-                    int idListSize = readShortLittleEndian(fileBytes, currentOffset);
-                    currentOffset += idListSize + 2;
-                }
-
-                if (currentOffset < fileBytes.length) {
-                    int localBasePathOffsetInBlock = readIntLittleEndian(fileBytes, currentOffset + 28);
-                    if (localBasePathOffsetInBlock > 0) {
-                        String path = readNullTerminatedString(fileBytes, currentOffset + localBasePathOffsetInBlock);
-                        if (path != null && !path.isEmpty()) return path;
+                int linkInfoSize = readIntLittleEndian(fileBytes, currentOffset);
+                int headerSize = readIntLittleEndian(fileBytes, currentOffset + 4);
+                if (linkInfoSize >= 0x1c && currentOffset + linkInfoSize <= fileBytes.length) {
+                    String base = readOffsetAnsi(fileBytes, currentOffset, linkInfoSize,
+                            readIntLittleEndian(fileBytes, currentOffset + 16));
+                    String suffix = readOffsetAnsi(fileBytes, currentOffset, linkInfoSize,
+                            readIntLittleEndian(fileBytes, currentOffset + 24));
+                    if (headerSize >= 0x24) {
+                        String unicodeBase = readOffsetUnicode(fileBytes, currentOffset, linkInfoSize,
+                                readIntLittleEndian(fileBytes, currentOffset + 28));
+                        String unicodeSuffix = readOffsetUnicode(fileBytes, currentOffset, linkInfoSize,
+                                readIntLittleEndian(fileBytes, currentOffset + 32));
+                        if (!unicodeBase.isEmpty()) base = unicodeBase;
+                        if (!unicodeSuffix.isEmpty()) suffix = unicodeSuffix;
                     }
+                    String path = joinWindowsPath(base, suffix);
+                    if (isUsableTarget(path)) return path;
+                    currentOffset += linkInfoSize;
                 }
             }
 
-            // Fallback Method: Aggressively scan the entire file for a plausible path
-            Log.w("MSLinkParser", "Primary parse failed. Using aggressive fallback search.");
+            // StringData may contain a relative target even when LinkInfo is absent.
+            if ((linkFlags & HasRelativePath) != 0 && currentOffset + 2 <= fileBytes.length) {
+                int chars = readShortLittleEndian(fileBytes, currentOffset);
+                String relative = (linkFlags & IsUnicode) != 0
+                        ? readFixedUnicode(fileBytes, currentOffset + 2, chars)
+                        : readFixedAnsi(fileBytes, currentOffset + 2, chars);
+                if (isUsableTarget(relative)) return relative;
+            }
+
+            Log.w("MSLinkParser", "Structured parse failed; scanning ANSI and Unicode paths.");
             for (int i = 0; i < fileBytes.length - 4; i++) {
-                // Look for a drive letter pattern like "C:\"
-                if (Character.isLetter((char)fileBytes[i]) && fileBytes[i+1] == ':' && fileBytes[i+2] == '\\') {
-                    String potentialPath = readNullTerminatedString(fileBytes, i);
-                    String p = potentialPath.toLowerCase();
-                    if (p.endsWith(".exe") || p.endsWith(".bat") || p.endsWith(".msi")) {
-                        Log.d("MSLinkParser", "Found potential path via fallback: " + potentialPath);
-                        return potentialPath;
-                    }
+                if (isDriveLetter(fileBytes[i]) && fileBytes[i + 1] == ':'
+                        && fileBytes[i + 2] == '\\') {
+                    String path = readNullTerminatedAnsi(fileBytes, i, fileBytes.length);
+                    if (isUsableTarget(path)) return path;
+                }
+                if (i + 5 < fileBytes.length && isDriveLetter(fileBytes[i])
+                        && fileBytes[i + 1] == 0 && fileBytes[i + 2] == ':'
+                        && fileBytes[i + 3] == 0 && fileBytes[i + 4] == '\\'
+                        && fileBytes[i + 5] == 0) {
+                    String path = readNullTerminatedUnicode(fileBytes, i, fileBytes.length);
+                    if (isUsableTarget(path)) return path;
                 }
             }
 
-            return null; // Both methods failed
+            return null;
         }
     }
 
-    private static String readNullTerminatedString(byte[] data, int offset) {
+    /** Converts a Wine-created .lnk into the Android-visible .desktop shortcut. */
+    public static File createDesktopFile(File lnkFile, Context context, Container container)
+            throws IOException {
+        String targetPath = parse(lnkFile);
+        if (!isUsableTarget(targetPath)) return null;
+        File desktopDir = container.getDesktopDir();
+        if (!desktopDir.isDirectory() && !desktopDir.mkdirs()) return null;
+        String name = FileUtils.getBasename(lnkFile.getName()).replace('\n', ' ').replace('\r', ' ').trim();
+        if (name.isEmpty()) return null;
+        File desktopFile = new File(desktopDir, name + ".desktop");
+        if (desktopFile.isFile()) return desktopFile;
+
+        String prefix = new File(context.getFilesDir(), "imagefs" + ImageFs.WINEPREFIX)
+                .getAbsolutePath();
+        String escapedTarget = StringUtils.escapeFileDOSPath(targetPath);
+        String executable = FileUtils.getName(targetPath);
+        String workDir = windowsWorkingDirectory(container, targetPath);
+        String content = "[Desktop Entry]\n"
+                + "Name=" + name + "\n"
+                + "Exec=env WINEPREFIX=\"" + prefix + "\" wine " + escapedTarget + "\n"
+                + "Type=Application\n"
+                + "StartupNotify=true\n"
+                + (workDir.isEmpty() ? "" : "Path=" + workDir + "\n")
+                + "Icon=\n"
+                + "StartupWMClass=" + executable + "\n\n"
+                + "[Extra Data]\n"
+                + "container_id=" + container.id + "\n";
+        FileUtils.writeString(desktopFile, content);
+        return desktopFile.isFile() ? desktopFile : null;
+    }
+
+    private static String windowsWorkingDirectory(Container container, String targetPath) {
+        if (targetPath == null || targetPath.length() < 3 || targetPath.charAt(1) != ':') return "";
+        int slash = targetPath.lastIndexOf('\\');
+        if (slash <= 2) return "";
+        String drive = String.valueOf(Character.toLowerCase(targetPath.charAt(0))) + ":";
+        String relative = targetPath.substring(3, slash).replace('\\', File.separatorChar);
+        return new File(new File(container.getRootDir(), ".wine/dosdevices/" + drive), relative)
+                .getAbsolutePath();
+    }
+
+    private static String readOffsetAnsi(byte[] data, int block, int size, int offset) {
+        if (offset <= 0 || offset >= size) return "";
+        return readNullTerminatedAnsi(data, block + offset, block + size);
+    }
+
+    private static String readOffsetUnicode(byte[] data, int block, int size, int offset) {
+        if (offset <= 0 || offset >= size) return "";
+        return readNullTerminatedUnicode(data, block + offset, block + size);
+    }
+
+    private static String readNullTerminatedAnsi(byte[] data, int offset, int limit) {
         int length = 0;
-        while (offset + length < data.length && data[offset + length] != 0x00) {
-            length++;
-        }
-        return new String(data, offset, length, StandardCharsets.UTF_8);
+        int end = Math.min(data.length, limit);
+        while (offset + length < end && data[offset + length] != 0) length++;
+        return offset >= 0 && offset + length <= end
+                ? new String(data, offset, length, StandardCharsets.ISO_8859_1) : "";
+    }
+
+    private static String readNullTerminatedUnicode(byte[] data, int offset, int limit) {
+        int end = Math.min(data.length, limit);
+        int length = 0;
+        while (offset + length + 1 < end
+                && (data[offset + length] != 0 || data[offset + length + 1] != 0)) length += 2;
+        return offset >= 0 && offset + length <= end
+                ? new String(data, offset, length, StandardCharsets.UTF_16LE) : "";
+    }
+
+    private static String readFixedAnsi(byte[] data, int offset, int chars) {
+        int length = Math.max(0, Math.min(chars, data.length - offset));
+        return offset >= 0 && offset <= data.length
+                ? new String(data, offset, length, StandardCharsets.ISO_8859_1) : "";
+    }
+
+    private static String readFixedUnicode(byte[] data, int offset, int chars) {
+        int length = Math.max(0, Math.min(chars * 2, data.length - offset));
+        return offset >= 0 && offset <= data.length
+                ? new String(data, offset, length, StandardCharsets.UTF_16LE) : "";
+    }
+
+    private static String joinWindowsPath(String base, String suffix) {
+        if (base == null) base = "";
+        if (suffix == null) suffix = "";
+        if (base.isEmpty()) return suffix;
+        if (suffix.isEmpty() || base.toLowerCase(java.util.Locale.ENGLISH)
+                .endsWith(suffix.toLowerCase(java.util.Locale.ENGLISH))) return base;
+        if (base.endsWith("\\") || suffix.startsWith("\\")) return base + suffix;
+        return base + "\\" + suffix;
+    }
+
+    private static boolean isDriveLetter(byte value) {
+        char c = (char) (value & 0xff);
+        return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
+    }
+
+    private static boolean isUsableTarget(String value) {
+        if (value == null) return false;
+        String lower = value.trim().toLowerCase(java.util.Locale.ENGLISH);
+        return lower.endsWith(".exe") || lower.endsWith(".bat")
+                || lower.endsWith(".cmd") || lower.endsWith(".com")
+                || lower.endsWith(".msi");
     }
 
     private static int readIntLittleEndian(byte[] data, int offset) {

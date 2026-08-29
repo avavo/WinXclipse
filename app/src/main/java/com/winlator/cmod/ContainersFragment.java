@@ -23,7 +23,6 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.CheckBox;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -61,7 +60,6 @@ import com.winlator.cmod.core.FileUtils;
 import com.winlator.cmod.core.GPUInformation;
 import com.winlator.cmod.core.ContentOperationRegistry;
 import com.winlator.cmod.core.PreloaderDialog;
-import com.winlator.cmod.inputcontrols.ControllerManager;
 import com.winlator.cmod.xenvironment.ImageFs;
 
 import java.io.File;
@@ -112,6 +110,12 @@ public class ContainersFragment extends Fragment {
         ((AppCompatActivity) getActivity()).getSupportActionBar().setTitle(R.string.containers);
         Bundle arguments = getArguments();
         if (arguments != null) {
+            String configPath = arguments.getString("community_config_path", "");
+            if (!configPath.isEmpty()) {
+                arguments.remove("community_config_path");
+                view.post(() -> readCommunityConfig(new File(configPath)));
+                return;
+            }
             String configUri = arguments.getString("community_config_uri", "");
             if (!configUri.isEmpty()) {
                 arguments.remove("community_config_uri");
@@ -282,7 +286,30 @@ public class ContainersFragment extends Fragment {
         readCommunityConfig(data.getData());
     }
 
+    private interface CommunityManifestReader {
+        JSONObject read() throws Exception;
+    }
+
     private void readCommunityConfig(Uri uri) {
+        readCommunityConfig(() -> CommunityConfigManager.readConfig(
+                requireContext().getApplicationContext(), uri));
+    }
+
+    private void readCommunityConfig(File file) {
+        readCommunityConfig(() -> {
+            try {
+                return CommunityConfigManager.readConfig(file);
+            }
+            finally {
+                File parent = file.getParentFile();
+                if (parent != null && "pending_community_configs".equals(parent.getName())) {
+                    FileUtils.delete(file);
+                }
+            }
+        });
+    }
+
+    private void readCommunityConfig(CommunityManifestReader manifestReader) {
         Context appContext = requireContext().getApplicationContext();
         Activity hostActivity = getActivity();
         if (ContentOperationRegistry.hasActiveOperations()) {
@@ -292,7 +319,7 @@ public class ContainersFragment extends Fragment {
             ContentOperationRegistry.runWhenIdle(() -> {
                 if (hostActivity == null || hostActivity.isFinishing()) return;
                 hostActivity.runOnUiThread(() -> {
-                    if (isAdded()) readCommunityConfig(uri);
+                    if (isAdded()) readCommunityConfig(manifestReader);
                 });
             });
             return;
@@ -301,7 +328,7 @@ public class ContainersFragment extends Fragment {
         preloaderDialog.show(R.string.importing_container);
         Executors.newSingleThreadExecutor().execute(() -> {
             try {
-                JSONObject manifest = CommunityConfigManager.readConfig(appContext, uri);
+                JSONObject manifest = manifestReader.read();
                 List<CommunityConfigManager.ContentResolution> resolutions =
                         CommunityConfigManager.resolveContents(appContext, manifest);
                 if (hostActivity == null || hostActivity.isFinishing()) return;
@@ -703,52 +730,7 @@ public class ContainersFragment extends Fragment {
         }
 
         private void runContainer(Container container) {
-            final Context context = getContext();
-            final SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
-            final String DONT_SHOW_KEY = "dont_show_controller_notice";
-
-            // 1. Check if the user has opted out of the warning
-            if (prefs.getBoolean(DONT_SHOW_KEY, false)) {
-                proceedWithLaunch(container);
-                return;
-            }
-
-            // 2. Check if any controllers are assigned
-            ControllerManager controllerManager = ControllerManager.getInstance();
-            boolean hasAssignedControllers = false;
-            for (int i = 0; i < 4; i++) {
-                // We only need to check if a device is assigned to any slot
-                if (controllerManager.getAssignedDeviceForSlot(i) != null) {
-                    hasAssignedControllers = true;
-                    break;
-                }
-            }
-
-            // 3. If controllers are already assigned, launch immediately
-            if (hasAssignedControllers) {
-                proceedWithLaunch(container);
-                return;
-            }
-
-            // 4. Keep first-run notices inside WinXclipse's themed dialog instead
-            // of falling back to the platform/Holo palette.
-            ContentDialog dialog = new ContentDialog(context);
-            dialog.setTitle("Controller Notice");
-            dialog.setMessage("No controllers have been assigned. If you are using a physical controller, open the Controller Manager and assign it to a slot.");
-
-            CheckBox checkbox = dialog.findViewById(R.id.CBExtraOption);
-            checkbox.setText("Don't show this again");
-            checkbox.setVisibility(View.VISIBLE);
-
-            dialog.findViewById(R.id.BTCancel).setVisibility(View.GONE);
-            dialog.setCancelable(false);
-            dialog.setOnConfirmCallback(() -> {
-                if (checkbox.isChecked()) {
-                    prefs.edit().putBoolean(DONT_SHOW_KEY, true).apply();
-                }
-                proceedWithLaunch(container);
-            });
-            dialog.show();
+            proceedWithLaunch(container);
         }
         private void proceedWithLaunch(Container container) {
             final Context context = getContext();
@@ -790,11 +772,12 @@ public class ContainersFragment extends Fragment {
                     case R.id.container_remove:
                         ContentDialog.confirm(getContext(), R.string.do_you_want_to_remove_this_container, () -> {
                             preloaderDialog.show(R.string.removing_container);
-                            for (Shortcut shortcut : manager.loadShortcuts()) {
-                                if (shortcut.container == container)
-                                    ShortcutsFragment.disableShortcutOnScreen(context, shortcut);
-                            }
                             manager.removeContainerAsync(container, () -> {
+                                // Read only this container's existing desktop entries. A full
+                                // mounted-drive discovery is unnecessary during deletion.
+                                for (Shortcut shortcut : manager.loadShortcutsForContainer(container))
+                                    ShortcutsFragment.disableShortcutOnScreen(context, shortcut);
+                            }, () -> {
                                 preloaderDialog.close();
                                 loadContainersList();
                             });
@@ -837,18 +820,29 @@ public class ContainersFragment extends Fragment {
             int pad = dp(20);
             fields.setPadding(pad, pad / 2, pad, 0);
 
-            EditText game = configField(fields, "Game name", container.getName());
-            EditText fps = configField(fields, "Average FPS", "");
-            EditText author = configField(fields, "Author name", "");
-            EditText discord = configField(fields, "Discord username", "");
-            EditText notes = configField(fields, "Notes (optional)", "");
+            CommunityConfigManager.DeviceProfile deviceProfile =
+                    CommunityConfigManager.getCurrentDeviceProfile();
+            // Never pre-fill this from the generic container name: typing it is
+            // the deliberate confirmation that this is the actual game title.
+            EditText game = configField(fields, "Game name (required)", "");
+            EditText discord = configField(fields, "Your @ on Discord (required)", "");
+            EditText fps = configField(fields, "Expected average FPS (required)", "");
+            EditText device = configField(fields, "Phone model (detected, fixed)",
+                    deviceProfile.fullLabel());
+            device.setFocusable(false);
+            device.setCursorVisible(false);
+            device.setLongClickable(false);
+            device.setKeyListener(null);
+            EditText notes = configField(fields,
+                    "Notes: required fix, preset or variable (optional)", "");
             notes.setMinLines(2);
 
             ScrollView scroll = new ScrollView(context);
             scroll.addView(fields);
             AlertDialog dialog = new AlertDialog.Builder(context)
                     .setTitle("Export Community Config")
-                    .setMessage("The portable ZIP contains a standardized text config and content IDs. You can share it to Discord after export.")
+                    .setMessage("Fill in the game name, your Discord @ and the expected average FPS. "
+                            + "The detected phone model cannot be changed. In Notes, mention any required fix, preset or variable; otherwise leave it blank.")
                     .setView(scroll)
                     .setNegativeButton(android.R.string.cancel, null)
                     .setPositiveButton("Export", null)
@@ -856,22 +850,31 @@ public class ContainersFragment extends Fragment {
             dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE)
                     .setOnClickListener(v -> {
                         if (game.getText().toString().trim().isEmpty()) {
-                            game.setError("Required"); return;
+                            game.setError("Enter the game's real name"); return;
                         }
-                        if (author.getText().toString().trim().isEmpty()) {
-                            author.setError("Required"); return;
+                        if (game.getText().toString().trim().matches("(?i)container[- _]*\\d+")) {
+                            game.setError("Replace the generic container name with the game name"); return;
                         }
                         if (discord.getText().toString().trim().isEmpty()) {
-                            discord.setError("Sign in to Discord and enter your username"); return;
+                            discord.setError("Enter your Discord @"); return;
+                        }
+                        if (fps.getText().toString().trim().isEmpty()) {
+                            fps.setError("Enter the expected average FPS"); return;
                         }
                         dialog.dismiss();
                         CommunityConfigManager.Metadata metadata = new CommunityConfigManager.Metadata();
                         metadata.gameName = game.getText().toString();
                         metadata.fps = fps.getText().toString();
-                        metadata.author = author.getText().toString();
+                        metadata.device = deviceProfile.device;
+                        metadata.model = deviceProfile.model;
+                        metadata.soc = deviceProfile.soc;
+                        metadata.gpu = deviceProfile.gpu;
                         metadata.discord = discord.getText().toString();
+                        // Discord is the public author identity; a separate real-name
+                        // field is unnecessary, but keep the legacy manifest key useful.
+                        metadata.author = metadata.discord;
                         metadata.notes = notes.getText().toString();
-                        metadata.gpu = GPUInformation.getRenderer();
+                        if (metadata.gpu.isEmpty()) metadata.gpu = GPUInformation.getRenderer();
                         ActivityManager.MemoryInfo memory = new ActivityManager.MemoryInfo();
                         ActivityManager activityManager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
                         if (activityManager != null) activityManager.getMemoryInfo(memory);

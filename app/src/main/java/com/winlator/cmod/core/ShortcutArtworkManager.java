@@ -126,41 +126,18 @@ public final class ShortcutArtworkManager {
         }
         EXECUTOR.execute(() -> {
             boolean ok = false;
+            Bitmap bitmap = null;
             try {
-                SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
-                String key = BUILT_IN_API_KEY;
-                if (prefs.getBoolean("enable_custom_api_key", false)) {
-                    String custom = prefs.getString("custom_api_key", "");
-                    if (custom != null && !custom.trim().isEmpty()) key = custom.trim();
-                }
-                SteamGridDBApi api = getSteamGridApi();
-                retrofit2.Response<SteamGridSearchResponse> search =
-                        api.searchGame("Bearer " + key, cleanSearchName(gameName)).execute();
-                if (search.isSuccessful() && search.body() != null && search.body().data != null
-                        && !search.body().data.isEmpty()) {
-                    retrofit2.Response<SteamGridGridsResponse> grids = api.getGridsByGameId(
-                            "Bearer " + key, search.body().data.get(0).id,
-                            "alternate,blurred,material", "600x900", "static").execute();
-                    if (grids.isSuccessful() && grids.body() != null && grids.body().data != null) {
-                        String imageUrl = firstImageUrl(grids.body().data);
-                        if (imageUrl != null) {
-                            try (Response response = HTTP_CLIENT.newCall(
-                                    new Request.Builder().url(imageUrl).build()).execute()) {
-                                if (response.isSuccessful() && response.body() != null) {
-                                    try (InputStream input = response.body().byteStream()) {
-                                        Bitmap bitmap = BitmapFactory.decodeStream(input);
-                                        File parent = output.getParentFile();
-                                        if (parent != null && (parent.isDirectory() || parent.mkdirs())) {
-                                            ok = bitmap != null && FileUtils.saveBitmapToFile(bitmap, output);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
+                bitmap = fetchBrowserArtwork(context, gameName);
+                File parent = output.getParentFile();
+                if (bitmap != null && parent != null
+                        && (parent.isDirectory() || parent.mkdirs())) {
+                    ok = FileUtils.saveBitmapToFile(bitmap, output);
                 }
             } catch (Exception e) {
                 Log.w(TAG, "Community artwork failed for " + gameName, e);
+            } finally {
+                if (bitmap != null) bitmap.recycle();
             }
             post(callback, ok);
         });
@@ -193,41 +170,44 @@ public final class ShortcutArtworkManager {
 
     private static boolean downloadBrowserArtwork(Context context, Shortcut shortcut) {
         try {
-            SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
-            String key = BUILT_IN_API_KEY;
-            if (prefs.getBoolean("enable_custom_api_key", false)) {
-                String custom = prefs.getString("custom_api_key", "");
-                if (custom != null && !custom.trim().isEmpty()) key = custom.trim();
-            }
-
-            SteamGridDBApi api = getSteamGridApi();
-
-            String query = cleanSearchName(shortcut.name);
-            retrofit2.Response<SteamGridSearchResponse> search =
-                    api.searchGame("Bearer " + key, query).execute();
-            if (!search.isSuccessful() || search.body() == null || search.body().data == null
-                    || search.body().data.isEmpty()) return false;
-
-            int gameId = search.body().data.get(0).id;
-            retrofit2.Response<SteamGridGridsResponse> grids =
-                    api.getGridsByGameId("Bearer " + key, gameId, "alternate,blurred,material",
-                            "600x900", "static").execute();
-            if (!grids.isSuccessful() || grids.body() == null || grids.body().data == null
-                    || grids.body().data.isEmpty()) return false;
-
-            String imageUrl = firstImageUrl(grids.body().data);
-            if (imageUrl == null) return false;
-            try (Response response = HTTP_CLIENT.newCall(new Request.Builder().url(imageUrl).build()).execute()) {
-                if (!response.isSuccessful() || response.body() == null) return false;
-                try (InputStream input = response.body().byteStream()) {
-                    // Do not recycle: the bitmap is stored as shortcut cover art
-                    // until reloadCoverArt() replaces it with a fresh decode.
-                    return shortcut.saveGeneratedCoverArt(BitmapFactory.decodeStream(input));
-                }
-            }
+            // Community cards call the same fetcher, so query cleanup, API key,
+            // dimensions, filters and result selection cannot drift apart.
+            Bitmap bitmap = fetchBrowserArtwork(context, shortcut.name);
+            return bitmap != null && shortcut.saveGeneratedCoverArt(bitmap);
         } catch (Exception e) {
             Log.w(TAG, "Online artwork failed for " + shortcut.name, e);
             return false;
+        }
+    }
+
+    private static Bitmap fetchBrowserArtwork(Context context, String gameName) throws Exception {
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
+        String key = BUILT_IN_API_KEY;
+        if (prefs.getBoolean("enable_custom_api_key", false)) {
+            String custom = prefs.getString("custom_api_key", "");
+            if (custom != null && !custom.trim().isEmpty()) key = custom.trim();
+        }
+
+        SteamGridDBApi api = getSteamGridApi();
+        retrofit2.Response<SteamGridSearchResponse> search =
+                api.searchGame("Bearer " + key, cleanSearchName(gameName)).execute();
+        if (!search.isSuccessful() || search.body() == null || search.body().data == null
+                || search.body().data.isEmpty()) return null;
+
+        retrofit2.Response<SteamGridGridsResponse> grids = api.getGridsByGameId(
+                "Bearer " + key, search.body().data.get(0).id,
+                "alternate,blurred,material", "600x900", "static").execute();
+        if (!grids.isSuccessful() || grids.body() == null || grids.body().data == null
+                || grids.body().data.isEmpty()) return null;
+
+        String imageUrl = firstImageUrl(grids.body().data);
+        if (imageUrl == null) return null;
+        try (Response response = HTTP_CLIENT.newCall(
+                new Request.Builder().url(imageUrl).build()).execute()) {
+            if (!response.isSuccessful() || response.body() == null) return null;
+            try (InputStream input = response.body().byteStream()) {
+                return BitmapFactory.decodeStream(input);
+            }
         }
     }
 

@@ -79,9 +79,17 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         ImageFs imageFs = environment.getImageFs();
         Context context = environment.getContext();
         String box64Version = container.getBox64Version();
+        String originalContainerVersion = box64Version;
 
         if (shortcut != null) {
             box64Version = shortcut.getExtra("box64Version", shortcut.container.getBox64Version());
+        }
+
+        if (box64Version != null && (box64Version.equals("0.4.4")
+                || box64Version.startsWith("0.4.4-"))) {
+            Log.i("BionicProgramLauncherComponent",
+                    "Migrating removed Box64 " + box64Version + " to " + DefaultVersion.BOX64);
+            box64Version = DefaultVersion.BOX64;
         }
 
         Log.i("BionicProgramLauncherComponent", "Extracting required box64 version: " + box64Version);
@@ -104,6 +112,10 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
 
         String installedVersion = PreferenceManager.getDefaultSharedPreferences(context)
                 .getString("current_box64_version", "");
+        // Version mismatch is sufficient to replace the previously bundled
+        // 0.4.4. Searching the whole executable for "ld-linux" was a false
+        // positive: Box64 contains those guest-loader strings even in its
+        // Android/bionic build, causing a reinstall on every launch.
         boolean needsInstall = !box64File.isFile() || !box64Version.equals(installedVersion);
         if (needsInstall) {
             boolean installed;
@@ -120,9 +132,22 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
             }
         }
 
-        // Update the metadata so the container knows which version is installed.
-        container.putExtra("box64Version", box64Version);
-        container.saveData();
+        // Persist the migration in both the normal container field and a
+        // shortcut override, otherwise an old 0.4.4 selection wins again on
+        // the next launch.
+        boolean containerChanged = !box64Version.equals(originalContainerVersion)
+                || !box64Version.equals(container.getExtra("box64Version"));
+        if (containerChanged) {
+            container.setBox64Version(box64Version);
+            container.putExtra("box64Version", box64Version);
+            container.saveData();
+        }
+        if (shortcut != null) {
+            if (!box64Version.equals(shortcut.getExtra("box64Version", ""))) {
+                shortcut.putExtra("box64Version", box64Version);
+                shortcut.saveData();
+            }
+        }
 
         // Set execute permissions. Do not delete this shared executable before
         // launch: x86_64 Proton depends on it and not every version has a
@@ -218,15 +243,15 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
     public void start() {
         synchronized (lock) {
             long t0 = System.currentTimeMillis();
-            Log.i("BionicStartup", "start arch=" + (wineInfo!=null?wineInfo.getArch():"null") + " isArm64EC=" + (wineInfo!=null?wineInfo.isArm64EC():false) + " box64=" + container.getBox64Version() + " wine=" + container.getWineVersion());
+            Log.i("BionicStartup", "start arch=" + (wineInfo!=null?wineInfo.getArch():"null") + " isArm64EC=" + (wineInfo!=null?wineInfo.isArm64EC():false) + " isWin64=" + (wineInfo!=null?wineInfo.isWin64():false) + " box64=" + container.getBox64Version() + " wine=" + container.getWineVersion());
             if (wineInfo.isArm64EC()) {
                 Log.i("BionicStartup","extractEmulatorsDlls begin");
                 extractEmulatorsDlls();
                 Log.i("BionicStartup","extractEmulatorsDlls end +" + (System.currentTimeMillis()-t0) + "ms");
             } else {
-                Log.i("BionicStartup","extractBox86_64Files begin");
+                Log.i("BionicStartup","extractBox64 begin arch=" + wineInfo.getArch());
                 extractBox86_64Files();
-                Log.i("BionicStartup","extractBox86_64Files end +" + (System.currentTimeMillis()-t0) + "ms");
+                Log.i("BionicStartup","extractBox64 end +" + (System.currentTimeMillis()-t0) + "ms");
             }
             long t1 = System.currentTimeMillis();
             populateSysWow64();
@@ -429,7 +454,7 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
             else box64LibraryPaths.add(wineLibRoot.getAbsolutePath());
         }
         // LD_LIBRARY_PATH is consumed by Android's native arm64 linker. Never
-        // put x86_64 Wine modules in it: doing so can terminate Box64 before
+        // put guest Wine modules in it: doing so can terminate the emulator before
         // Wine starts. Guest x86_64 paths belong to BOX64_LD_LIBRARY_PATH.
         nativeLibraryPaths.add(rootDir.getPath() + "/usr/lib");
         nativeLibraryPaths.add("/system/lib64");
@@ -567,7 +592,7 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
             envVars.putAll(this.envVars);
         }
 
-        // Construct the command without Box64 to the Wine executable
+        // Construct the native ARM64EC command or the Box64 x86_64 command.
         String command = "";
         String overriddenCommand = envVars.get("GUEST_PROGRAM_LAUNCHER_COMMAND");
         if (!overriddenCommand.isEmpty()) {
@@ -594,10 +619,12 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
             }
         }
 
-        // **Maybe remove this: Set execute permissions for box64 if necessary (Glibc/Proot artifact)
-        File box64File = new File(rootDir, "/usr/bin/box64");
-        if (box64File.exists()) {
-            FileUtils.chmod(box64File, 0755);
+        // Ensure the shared Box64 emulator is executable.
+        if (!wineInfo.isArm64EC()) {
+            File box64File = new File(rootDir, "/usr/bin/box64");
+            if (box64File.exists()) {
+                FileUtils.chmod(box64File, 0755);
+            }
         }
 
         return ProcessHelper.exec(command, envVars.toStringArray(), rootDir, (status) -> {

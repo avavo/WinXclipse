@@ -13,14 +13,22 @@ WinXclipse runs Windows applications on Exynos devices with Xclipse GPUs through
 - Lower-RAM devices use more aggressive memory reclamation; Aggressive startup is reapplied on every Wine launch while protecting essential input and RPC services.
 - External storage volumes and configured Wine drives are exposed in File Manager.
 - Community configuration ZIP export/import with standardized content IDs, metadata, fuzzy local-content matching, and a read-only GitHub release catalog.
+- Community catalog loading survives GitHub API rate limits through the public release page, a saved index, and validated offline ZIP cache. Downloaded configs are staged persistently until import completes.
+- Community entries are grouped by normalized game name, share embedded covers across matching configs, support custom covers, and show selectable device-specific configurations with hardware, expected FPS, tester, notes, and optional container details.
+- Exports require the game/container name, keep the detected phone model fixed, use version-free filenames, and include the Discord handle, expected FPS, notes, content requirements, and optional cover.
 - Concurrent downloads/install staging is isolated, and Wine cannot start until active content operations finish.
 - Native Android HUD path adapted from Bannerlator replaces failed MangoHUD guest-layer injection.
 - Physical mouse right-click compatibility for Android devices that report the secondary button as Back.
 - Physical mouse left-click handling is restored for both captured and regular external-pointer paths.
+- Touchscreen mouse handling is adapted from Winlator Mali for correct Wine left/right clicks, pointer grabs, context-menu selection, dragging, and shortcut creation.
+- Wine-created `.lnk` shortcuts are discovered and resolved reliably across relative, quoted, environment-based, and Wine/Unix path variants.
 - Proton x86_64 container creation/startup is restored by preserving bundled Box64, separating ARM64 and x86_64 library paths, and launching the installed Wine binary explicitly.
+- Box64 `0.4.3-260519` replaces the previous bundled package and is recognized as installed from first launch.
 - Default-container config ZIPs import without false `none`/bundled-content dependency prompts; import dialogs follow the black app theme.
+- Imported community containers no longer inherit stale install state that could make them close immediately after launch; deleting a container no longer blocks the UI during filesystem cleanup.
+- The controller startup notice was removed. Input Controls now includes plug-and-play controller assignment, master vibration, and vibration testing; the obsolete touchscreen-haptic option was removed.
 - ARM64EC compatibility fixes, X server hardening, and container boot fixes for raw Wine/Proton .tzst runtimes.
-- Touchscreen haptics are enabled by default; window/fullscreen letterboxing is fixed for live FSR switches.
+- Window/fullscreen letterboxing is fixed for live FSR switches.
 
 See CHANGELOG.md for the complete list of changes.
 

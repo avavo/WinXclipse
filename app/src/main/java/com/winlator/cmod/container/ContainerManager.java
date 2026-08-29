@@ -12,6 +12,7 @@ import com.winlator.cmod.contents.ContentProfile;
 import com.winlator.cmod.contents.ContentsManager;
 import com.winlator.cmod.core.Callback;
 import com.winlator.cmod.core.FileUtils;
+import com.winlator.cmod.core.MSLink;
 import com.winlator.cmod.core.OnExtractFileListener;
 import com.winlator.cmod.core.TarCompressorUtils;
 import com.winlator.cmod.core.WineInfo;
@@ -30,6 +31,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.Executors;
 
 public class ContainerManager {
@@ -137,10 +140,27 @@ public class ContainerManager {
     }
 
     public void removeContainerAsync(Container container, Runnable callback) {
-        final Handler handler = new Handler();
+        removeContainerAsync(container, null, callback);
+    }
+
+    public void removeContainerAsync(Container container, Runnable backgroundCleanup, Runnable callback) {
+        final Handler handler = new Handler(Looper.getMainLooper());
         Executors.newSingleThreadExecutor().execute(() -> {
-            removeContainer(container);
-            handler.post(callback);
+            if (backgroundCleanup != null) {
+                try {
+                    backgroundCleanup.run();
+                }
+                catch (Throwable error) {
+                    Log.w("ContainerManager", "Container cleanup failed; continuing removal", error);
+                }
+            }
+            boolean removed = removeContainer(container);
+            handler.post(() -> {
+                // RecyclerView reads this same list. Mutate it only on the main
+                // thread so deletion cannot race a layout/bind pass.
+                if (removed) containers.remove(container);
+                if (callback != null) callback.run();
+            });
         });
     }
 
@@ -238,8 +258,8 @@ public class ContainerManager {
     }
 
 
-    private void removeContainer(Container container) {
-        if (FileUtils.delete(container.getRootDir())) containers.remove(container);
+    private boolean removeContainer(Container container) {
+        return FileUtils.delete(container.getRootDir());
     }
 
     public ArrayList<Shortcut> loadShortcuts() {
@@ -248,11 +268,34 @@ public class ContainerManager {
         for (Container container : containers) {
             File desktopDir = container.getDesktopDir();
             File[] list = (desktopDir.exists() ? desktopDir.listFiles() : null);
-            if (list == null) continue;
 
+            // Wine/WFM creates Windows .lnk files. Convert them whenever the
+            // central shortcut list is loaded. WFM writes "Create Shortcut"
+            // beside the selected EXE (often D:\\Downloads), rather than on the
+            // Wine Desktop, so include configured drive folders as well.
+            ArrayList<File> wineLinks = new ArrayList<>();
+            Set<String> visitedRoots = new HashSet<>();
+            collectWineLinks(desktopDir, 0, new int[]{0}, wineLinks, visitedRoots);
+            for (String[] drive : container.drivesIterator()) {
+                File driveRoot = new File(drive[1]);
+                collectWineLinks(driveRoot, 0, new int[]{0}, wineLinks, visitedRoots);
+            }
+            for (File file : wineLinks) {
+                File desktop = new File(desktopDir,
+                        FileUtils.getBasename(file.getName()) + ".desktop");
+                if (desktop.isFile()) continue;
+                try {
+                    MSLink.createDesktopFile(file, context, container);
+                } catch (IOException ex) {
+                    Log.w("ContainerManager", "Unable to convert Wine shortcut: "
+                            + file.getAbsolutePath(), ex);
+                }
+            }
+
+            list = desktopDir.listFiles();
+            if (list == null) continue;
             for (File file : list) {
                 if (!file.getName().toLowerCase().endsWith(".desktop")) continue;
-
                 try {
                     shortcuts.add(new Shortcut(container, file));
                 } catch (Exception ex) {
@@ -265,6 +308,51 @@ public class ContainerManager {
 
         shortcuts.sort(Comparator.comparing(a -> a.name, String::compareToIgnoreCase));
         return shortcuts;
+    }
+
+    /** Loads only shortcuts already belonging to one container. This intentionally
+     * avoids the recursive mounted-drive scan used by the global shortcut screen,
+     * making pre-removal cleanup cheap and predictable. */
+    public ArrayList<Shortcut> loadShortcutsForContainer(Container container) {
+        ArrayList<Shortcut> shortcuts = new ArrayList<>();
+        if (container == null) return shortcuts;
+        File desktopDir = container.getDesktopDir();
+        File[] files = desktopDir.isDirectory() ? desktopDir.listFiles() : null;
+        if (files == null) return shortcuts;
+        for (File file : files) {
+            if (!file.isFile() || !file.getName().toLowerCase(java.util.Locale.ENGLISH)
+                    .endsWith(".desktop")) continue;
+            try {
+                shortcuts.add(new Shortcut(container, file));
+            }
+            catch (Exception error) {
+                Log.w("ContainerManager", "Skipping malformed shortcut during removal: "
+                        + file.getAbsolutePath(), error);
+            }
+        }
+        return shortcuts;
+    }
+
+    private static void collectWineLinks(File directory, int depth, int[] visited,
+                                         ArrayList<File> output, Set<String> visitedRoots) {
+        if (directory == null || depth > 4 || visited[0] >= 1500 || output.size() >= 128
+                || !directory.isDirectory() || !directory.canRead()) return;
+        String absolute = directory.getAbsolutePath();
+        if (depth == 0 && !visitedRoots.add(absolute)) return;
+        File[] files = directory.listFiles();
+        if (files == null) return;
+        for (File file : files) {
+            if (++visited[0] > 1500 || output.size() >= 128) return;
+            String lower = file.getName().toLowerCase(java.util.Locale.ENGLISH);
+            if (file.isFile() && lower.endsWith(".lnk")) {
+                output.add(file);
+            }
+            else if (file.isDirectory() && depth < 4 && !lower.startsWith(".")
+                    && !"android".equals(lower) && !"obb".equals(lower)
+                    && !"data".equals(lower)) {
+                collectWineLinks(file, depth + 1, visited, output, visitedRoots);
+            }
+        }
     }
 
 
@@ -282,6 +370,14 @@ public class ContainerManager {
     }
 
     private void extractCommonDlls(WineInfo wineInfo, File wineLibDir, String srcName, String dstName, File containerDir, OnExtractFileListener onExtractFileListener) throws JSONException {
+        extractCommonDlls(wineInfo, wineLibDir, srcName, dstName, containerDir,
+                onExtractFileListener, false);
+    }
+
+    private void extractCommonDlls(WineInfo wineInfo, File wineLibDir, String srcName,
+                                   String dstName, File containerDir,
+                                   OnExtractFileListener onExtractFileListener,
+                                   boolean overwriteExisting) throws JSONException {
         if (wineInfo == null || wineLibDir == null) {
             Log.w("ContainerManager", "Skipping common DLL extraction: missing WineInfo for " + srcName);
             return;
@@ -315,7 +411,7 @@ public class ContainerManager {
             }
 
             File dstFile = new File(dstDir, dllName);
-            if (dstFile.exists()) { skipped++; continue; }
+            if (dstFile.exists() && !overwriteExisting) { skipped++; continue; }
 
             if (onExtractFileListener != null) {
                 dstFile = onExtractFileListener.onExtractFile(dstFile, 0);
@@ -386,23 +482,47 @@ public class ContainerManager {
                     }
                 }
                 if (result) {
-                    ensureValidPrefixRegistries(new File(containerDir, ".wine"));
-                    Log.i("ContainerManager", "Created container by cloning the shared imagefs prefix for " + wineVersion);
+                    ensureValidPrefixRegistries(new File(containerDir, ".wine"),
+                            wineInfo.isWin64());
+                    Log.i("ContainerManager", "Created container by cloning the shared imagefs prefix for "
+                            + wineVersion);
                 }
                 else FileUtils.delete(containerDir);
             }
         }
 
         if (result) {
-            ensureValidPrefixRegistries(new File(containerDir, ".wine"));
+            ensureValidPrefixRegistries(new File(containerDir, ".wine"), wineInfo.isWin64());
             try {
-                Log.i("ContainerManager", "extractContainerPatternFile: populating DLL dirs (arm64EC=" + wineInfo.isArm64EC() + ", wineLibDir=" + wineLibDir + ")");
-                if (wineInfo.isArm64EC())
-                    extractCommonDlls(wineInfo, wineLibDir, "aarch64-windows", "system32", containerDir, onExtractFileListener); // arm64ec only
-                else
-                    extractCommonDlls(wineInfo, wineLibDir, "x86_64-windows", "system32", containerDir, onExtractFileListener);
-
-                extractCommonDlls(wineInfo, wineLibDir, "i386-windows", "syswow64", containerDir, onExtractFileListener);
+                Log.i("ContainerManager", "extractContainerPatternFile: populating DLL dirs (arch="
+                        + wineInfo.getArch() + ", isArm64EC=" + wineInfo.isArm64EC()
+                        + ", isWin64=" + wineInfo.isWin64() + ", wineLibDir=" + wineLibDir + ")");
+                if (wineInfo.isArm64EC()) {
+                    extractCommonDlls(wineInfo, wineLibDir, "aarch64-windows", "system32",
+                            containerDir, onExtractFileListener);
+                    extractCommonDlls(wineInfo, wineLibDir, "i386-windows", "syswow64",
+                            containerDir, onExtractFileListener);
+                }
+                else if (!wineInfo.isWin64()) {
+                    // Pure 32-bit (x86) prefix: system32 gets the i386 payload, no syswow64.
+                    // The fallback prefix is bundled as win64/ARM64EC. Replace
+                    // same-named system DLLs instead of skipping them, otherwise
+                    // a nominal win32 prefix still contains 64-bit system32.
+                    extractCommonDlls(wineInfo, wineLibDir, "i386-windows", "system32",
+                            containerDir, onExtractFileListener, true);
+                    File spuriousWow64 = new File(containerDir,
+                            ".wine/drive_c/windows/syswow64");
+                    if (spuriousWow64.isDirectory()) {
+                        FileUtils.delete(spuriousWow64);
+                        Log.i("ContainerManager", "Removed spurious syswow64 for win32 prefix");
+                    }
+                }
+                else {
+                    extractCommonDlls(wineInfo, wineLibDir, "x86_64-windows", "system32",
+                            containerDir, onExtractFileListener);
+                    extractCommonDlls(wineInfo, wineLibDir, "i386-windows", "syswow64",
+                            containerDir, onExtractFileListener);
+                }
             }
             catch (JSONException e) {
                 return false;
@@ -413,26 +533,50 @@ public class ContainerManager {
     }
 
     /** Wine rejects a prefix whose registry files lack the "WINE REGISTRY"
-     *  header line, and then misdetects its bitness ("64-bit installation
-     *  ... 32-bit wineserver"). Make sure the three base registries exist
-     *  with valid win64 headers. */
+     *  header or whose #arch marker disagrees with the selected runtime. Keep
+     *  valid registry contents and repair only the header/architecture marker. */
     public static void ensureValidPrefixRegistries(File prefixDir) {
+        ensureValidPrefixRegistries(prefixDir, true);
+    }
+
+    public static void ensureValidPrefixRegistries(File prefixDir, boolean isWin64) {
         if (!prefixDir.isDirectory()) return;
         String[] registries = {"system.reg", "user.reg", "userdef.reg"};
-        java.util.regex.Pattern header = java.util.regex.Pattern.compile("^WINE REGISTRY Version \\d+\\s*$");
+        java.util.regex.Pattern header = java.util.regex.Pattern.compile(
+                "^WINE REGISTRY Version \\d+\\s*$");
+        java.util.regex.Pattern arch = java.util.regex.Pattern.compile(
+                "(?m)^#arch=win(?:32|64)[\\t ]*\\r?$");
+        String desiredArch = isWin64 ? "#arch=win64" : "#arch=win32";
         for (String name : registries) {
             File file = new File(prefixDir, name);
-            boolean valid = false;
-            if (file.isFile() && file.length() >= 4) {
-                try (java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.FileReader(file))) {
-                    String firstLine = reader.readLine();
-                    valid = firstLine != null && header.matcher(firstLine).matches();
-                }
-                catch (IOException ignored) {}
+            String content = file.isFile() ? FileUtils.readString(file) : "";
+            int firstBreak = content.indexOf('\n');
+            String firstLine = firstBreak >= 0 ? content.substring(0, firstBreak) : content;
+            boolean validHeader = header.matcher(firstLine).matches();
+            String repaired = content;
+
+            if (!validHeader) {
+                repaired = "WINE REGISTRY Version 2\n" + desiredArch + "\n";
             }
-            if (!valid) {
-                Log.w("ContainerManager", "Rewriting invalid/missing " + name + " header");
-                FileUtils.writeString(file, "WINE REGISTRY Version 2\n#arch=win64\n");
+            else {
+                java.util.regex.Matcher archMatcher = arch.matcher(content);
+                if (archMatcher.find()) {
+                    if (!desiredArch.equals(archMatcher.group().trim())) {
+                        repaired = archMatcher.replaceFirst(
+                                java.util.regex.Matcher.quoteReplacement(desiredArch));
+                    }
+                }
+                else {
+                    int insertAt = firstBreak >= 0 ? firstBreak + 1 : content.length();
+                    repaired = content.substring(0, insertAt) + desiredArch + "\n"
+                            + content.substring(insertAt);
+                }
+            }
+
+            if (!repaired.equals(content)) {
+                Log.w("ContainerManager", "Repairing " + name + " as "
+                        + (isWin64 ? "win64" : "win32"));
+                FileUtils.writeString(file, repaired);
             }
         }
     }

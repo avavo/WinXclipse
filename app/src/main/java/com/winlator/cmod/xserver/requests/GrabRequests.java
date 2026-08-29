@@ -34,9 +34,12 @@ public abstract class GrabRequests {
         Window window = client.xServer.windowManager.getWindow(windowId);
         if (window == null) throw new BadWindow(windowId);
 
-        inputStream.skip(8); // confine-to window + time
+        // X11 GrabPointer body order after grab-window is: event-mask,
+        // pointer-mode, keyboard-mode, confine-to, cursor, time. Reading the
+        // mask after skipping confine-to/time makes popup grabs discard the
+        // release/motion events used to select Wine context-menu entries.
         Bitmask eventMask = new Bitmask(inputStream.readShort());
-        inputStream.skip(6); // pointer-mode + keyboard-mode + unused
+        inputStream.skip(14);
 
         Status status;
         if (client.xServer.grabManager.getWindow() != null && client.xServer.grabManager.getClient() != client) {

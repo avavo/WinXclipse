@@ -295,65 +295,12 @@ public class ShortcutsFragment extends Fragment {
         }
         try {
             Log.d("ShortcutCreation", "Processing .lnk: " + lnkFile.getAbsolutePath());
-            String targetPath = MSLink.parse(lnkFile); // e.g., "D:\\Games\\Example Folder\\Example.exe"
-
-            if (targetPath == null || targetPath.isEmpty() || !targetPath.contains(":")) {
-                Log.e("ShortcutCreation", "Failed to parse a valid target path from " + lnkFile.getName());
+            File desktopFile = MSLink.createDesktopFile(lnkFile, lnkContext, container);
+            if (desktopFile == null) {
+                Log.e("ShortcutCreation", "No executable target found in " + lnkFile.getName());
                 return false;
             }
-            Log.d("ShortcutCreation", "Parsed target path: " + targetPath);
-
-            String lnkName = FileUtils.getBasename(lnkFile.getName());
-            File desktopFile = new File(container.getDesktopDir(), lnkName + ".desktop");
-
-            if (desktopFile.exists()) {
-                Log.d("ShortcutCreation", "Skipping existing .desktop file: " + desktopFile.getName());
-                return false;
-            }
-
-            // --- FINAL LOGIC TO MATCH YOUR EXACT EXAMPLE ---
-
-            // 1. Get the app's root files directory to construct the generic path
-            String filesDir = lnkContext.getFilesDir().getAbsolutePath(); // e.g., /data/user/0/com.winlator.cmod/files
-            String genericHomePath = filesDir + "/imagefs/home/xuser";
-
-            // 2. Construct the specific, complex WINEPREFIX path
-            String winePrefix = genericHomePath + "/.wine/dosdevices/z:" + genericHomePath + "/.wine";
-
-            // 3. To get "\\\\", we need to escape twice. Once for Java, once for the file.
-            String escapedTargetPath = targetPath.replace("\\", "\\\\\\\\");
-
-            // 4. Construct the full Exec command
-            String execCommand = "env WINEPREFIX=\"" + winePrefix + "\" wine " + escapedTargetPath;
-
-            // 5. Construct the working directory Path using the generic dosdevices path
-            File genericDosdevicesDir = new File(genericHomePath, ".wine/dosdevices");
-            String driveLetter = targetPath.substring(0, 1).toLowerCase();
-            File driveSymlink = new File(genericDosdevicesDir, driveLetter + ":");
-            String pathAfterDrive = targetPath.substring(targetPath.indexOf('\\') + 1);
-            String windowsWorkingDir = FileUtils.getDirname(pathAfterDrive);
-            String finalWorkingPath = new File(driveSymlink, windowsWorkingDir).getAbsolutePath();
-
-            // 6. Get the executable name for StartupWMClass
-            String wmClass = FileUtils.getName(targetPath);
-
-            // 7. Construct the final .desktop file content
-            String content =
-                    "[Desktop Entry]\n" +
-                            "Name=" + lnkName + "\n" +
-                            "Exec=" + execCommand + "\n" +
-                            "Type=Application\n" +
-                            "StartupNotify=true\n" +
-                            "Path=" + finalWorkingPath + "\n" +
-                            "Icon=\n" +
-                            "StartupWMClass=" + wmClass + "\n\n" +
-                            "[Extra Data]\n" +
-                            "container_id=" + container.id + "\n";
-
-            FileUtils.writeString(desktopFile, content);
-            Log.d("ShortcutCreation", "SUCCESS: Created .desktop file at " + desktopFile.getAbsolutePath());
-            Log.d("ShortcutCreation", "Content:\n" + content);
-
+            Log.d("ShortcutCreation", "Created .desktop file at " + desktopFile.getAbsolutePath());
             return true;
         } catch (IOException e) {
             Log.e("ShortcutCreation", "IOException creating .desktop file from .lnk", e);
@@ -372,28 +319,11 @@ public class ShortcutsFragment extends Fragment {
     public void loadShortcutsList() {
 
         ArrayList<Shortcut> shortcuts = new ArrayList<>();
-        ArrayList<File> quarantined   = new ArrayList<>();
 
-        // ContainerManager can still throw (e.g. I/O permission issues).
-        // Keep the whole call in one try/catch so the UI never dies.
+        // This also discovers Wine/WFM .lnk files beside executables on mounted
+        // drives and converts them to the container Desktop before listing.
         try {
-            for (Container c : manager.getContainers()) {
-                for (File f : c.getDesktopDir().listFiles((dir, n) -> n.endsWith(".desktop"))) {
-                    try {
-                        Shortcut s = new Shortcut(c, f);   // may throw
-                        // very cheap logical sanity check
-                        if (s.name == null || s.name.trim().isEmpty()) {
-                            throw new IllegalStateException("empty name");
-                        }
-                        shortcuts.add(s);
-
-                    } catch (Throwable t) {               // <-- swallow & quarantine
-                        Log.e("ShortcutsFragment", "Bad shortcut: " + f.getAbsolutePath(), t);
-                        quarantined.add(f);
-                    }
-                }
-            }
-
+            shortcuts.addAll(manager.loadShortcuts());
         } catch (Throwable fatal) {
             Log.e("ShortcutsFragment", "Fatal error while scanning shortcuts!", fatal);
             Toast.makeText(getContext(),
@@ -404,22 +334,6 @@ public class ShortcutsFragment extends Fragment {
 //        Collections.sort(shortcuts);           // keep existing order logic
         recyclerView.setAdapter(new ShortcutsAdapter(shortcuts));
         emptyTextView.setVisibility(shortcuts.isEmpty() ? View.VISIBLE : View.GONE);
-
-        // ---- quarantine report ----
-        if (!quarantined.isEmpty()) {
-            Toast.makeText(getContext(),
-                    quarantined.size() + " shortcut(s) ignored (corrupted):",
-                    Toast.LENGTH_LONG).show();
-
-            // Move them out of the way so the crash never happens again.
-            for (File bad : quarantined) {
-                File dst = new File(bad.getParent(), bad.getName() + ".bad");
-                Toast.makeText(getContext(), bad.getName() + " renamed to " + dst.getName(), Toast.LENGTH_LONG).show();
-                // ignore return value – it’s a best-effort quarantine
-                //noinspection ResultOfMethodCallIgnored
-                bad.renameTo(dst);
-            }
-        }
     }
 
 

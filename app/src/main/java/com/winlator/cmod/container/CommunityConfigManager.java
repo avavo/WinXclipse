@@ -2,9 +2,11 @@ package com.winlator.cmod.container;
 
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
+import android.util.Log;
 
 import com.winlator.cmod.BuildConfig;
 import com.winlator.cmod.box86_64.Box86_64Preset;
@@ -26,6 +28,7 @@ import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -44,19 +47,93 @@ public final class CommunityConfigManager {
     public static final String FORMAT = "winxclipse-community-config";
     public static final int SCHEMA_VERSION = 1;
     private static final int MAX_CONFIG_BYTES = 5 * 1024 * 1024;
+    private static final int MAX_COVER_BYTES = 16 * 1024 * 1024;
 
     private CommunityConfigManager() {}
 
     public static final class Metadata {
         public String gameName = "";
-        public String device = Build.MANUFACTURER + " " + Build.MODEL;
+        public String device;
+        public String model;
         public String fps = "";
         public String ram = "";
-        public String soc = Build.HARDWARE;
-        public String gpu = "";
+        public String soc;
+        public String gpu;
         public String author = "";
         public String discord = "";
         public String notes = "";
+
+        public Metadata() {
+            DeviceProfile profile = getCurrentDeviceProfile();
+            device = profile.device;
+            model = profile.model;
+            soc = profile.soc;
+            gpu = profile.gpu;
+        }
+    }
+
+    public static final class DeviceProfile {
+        public final String device;
+        public final String model;
+        public final String soc;
+        public final String gpu;
+
+        DeviceProfile(String device, String model, String soc, String gpu) {
+            this.device = device;
+            this.model = model;
+            this.soc = soc;
+            this.gpu = gpu;
+        }
+
+        public String fullLabel() {
+            StringBuilder label = new StringBuilder(device);
+            if (!model.isEmpty()) label.append(" | ").append(model);
+            if (!soc.isEmpty()) label.append(" | ").append(soc);
+            if (!gpu.isEmpty()) label.append(" | ").append(gpu);
+            return label.toString();
+        }
+    }
+
+    private static final DeviceProfile[] SUPPORTED_DEVICES = {
+            new DeviceProfile("Galaxy S22", "SM-S901", "Exynos 2200", "Xclipse 920"),
+            new DeviceProfile("Galaxy S22+", "SM-S906", "Exynos 2200", "Xclipse 920"),
+            new DeviceProfile("Galaxy S22 Ultra", "SM-S908", "Exynos 2200", "Xclipse 920"),
+            new DeviceProfile("Galaxy S23 FE", "SM-S711", "Exynos 2200", "Xclipse 920"),
+            new DeviceProfile("Galaxy S24", "SM-S921", "Exynos 2400", "Xclipse 940"),
+            new DeviceProfile("Galaxy S24+", "SM-S926", "Exynos 2400", "Xclipse 940"),
+            new DeviceProfile("Galaxy S24 FE", "SM-S721", "Exynos 2400e", "Xclipse 940"),
+            new DeviceProfile("Galaxy S25 FE", "SM-S731", "Exynos 2500", "Xclipse 950"),
+            new DeviceProfile("Galaxy Z Flip7", "SM-F766", "Exynos 2500", "Xclipse 950"),
+            new DeviceProfile("Galaxy Z Flip7 FE", "SM-F761", "Exynos 2400", "Xclipse 940"),
+            new DeviceProfile("Galaxy Z Flip8", "SM-F776", "Exynos 2600", "Xclipse 960"),
+            new DeviceProfile("Galaxy S26", "SM-S942", "Exynos 2600", "Xclipse 960"),
+            new DeviceProfile("Galaxy S26+", "SM-S947", "Exynos 2600", "Xclipse 960"),
+            new DeviceProfile("Galaxy A55 5G", "SM-A556", "Exynos 1480", "Xclipse 530"),
+            new DeviceProfile("Galaxy A37 5G", "SM-A376", "Exynos 1480", "Xclipse 530"),
+            new DeviceProfile("Galaxy A56 5G", "SM-A566", "Exynos 1580", "Xclipse 540"),
+            new DeviceProfile("Galaxy A57 5G", "SM-A576", "Exynos 1680", "Xclipse 550")
+    };
+
+    /** Matches Samsung model prefixes and deliberately discards regional suffixes (B, U, N, etc.). */
+    public static DeviceProfile getCurrentDeviceProfile() {
+        String reported = ((Build.MANUFACTURER == null ? "" : Build.MANUFACTURER) + " "
+                + (Build.MODEL == null ? "" : Build.MODEL)).toUpperCase(Locale.ENGLISH);
+        for (DeviceProfile profile : SUPPORTED_DEVICES) {
+            if (reported.contains(profile.model.toUpperCase(Locale.ENGLISH))) return profile;
+        }
+        java.util.regex.Matcher matcher = java.util.regex.Pattern
+                .compile("SM-(?:[A-Z])?\\d{3}").matcher(reported);
+        String model = matcher.find() ? matcher.group() : clean(Build.MODEL).toUpperCase(Locale.ENGLISH);
+        // Also tolerate vendor strings that omit the family letter, e.g.
+        // "Samsung SM-926B" for the otherwise canonical SM-S926B.
+        if (model.matches("SM-\\d{3}")) {
+            String digits = model.substring(3);
+            for (DeviceProfile profile : SUPPORTED_DEVICES) {
+                if (profile.model.endsWith(digits)) return profile;
+            }
+        }
+        String device = clean(Build.MANUFACTURER + " " + Build.MODEL);
+        return new DeviceProfile(device, model, clean(Build.HARDWARE), "");
     }
 
     public static final class ContentResolution {
@@ -96,6 +173,7 @@ public final class CommunityConfigManager {
         JSONObject info = new JSONObject();
         info.put("gameName", clean(metadata.gameName));
         info.put("device", clean(metadata.device));
+        info.put("model", clean(metadata.model));
         info.put("fps", clean(metadata.fps));
         info.put("ram", clean(metadata.ram));
         info.put("soc", clean(metadata.soc));
@@ -128,7 +206,9 @@ public final class CommunityConfigManager {
         if (game.isEmpty()) game = container.getName();
         String base = game.replaceAll("[^A-Za-z0-9._-]+", "-").replaceAll("^-+|-+$", "");
         if (base.isEmpty()) base = "WinXclipse-config";
-        File output = uniqueFile(dir, base + "-" + BuildConfig.VERSION_NAME, ".zip");
+        String model = clean(metadata.model).replaceAll("[^A-Za-z0-9._-]+", "-")
+                .replaceAll("^-+|-+$", "");
+        File output = uniqueFile(dir, base + (model.isEmpty() ? "" : "-" + model), ".zip");
 
         try (ZipOutputStream zip = new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(output)))) {
             byte[] text = manifest.toString(2).getBytes(StandardCharsets.UTF_8);
@@ -149,42 +229,108 @@ public final class CommunityConfigManager {
     }
 
     public static JSONObject readConfig(Context context, Uri uri) throws IOException, JSONException {
+        if (uri != null && "file".equalsIgnoreCase(uri.getScheme()) && uri.getPath() != null) {
+            return readConfig(new File(uri.getPath()));
+        }
         try (InputStream raw = context.getContentResolver().openInputStream(uri)) {
             if (raw == null) throw new IOException("Unable to open configuration");
-            BufferedInputStream buffered = new BufferedInputStream(raw);
-            buffered.mark(8);
-            int magic0 = buffered.read();
-            int magic1 = buffered.read();
-            buffered.reset();
-            if (magic0 != 'P' || magic1 != 'K') {
-                return validate(new JSONObject(readLimited(buffered)));
-            }
-            try (ZipInputStream zip = new ZipInputStream(buffered)) {
-                ZipEntry entry;
-                while ((entry = zip.getNextEntry()) != null) {
-                    String name = entry.getName();
-                    if (!entry.isDirectory() && ("config.txt".equalsIgnoreCase(name)
-                            || "manifest.json".equalsIgnoreCase(name))) {
-                        return validate(new JSONObject(readLimited(zip)));
-                    }
+            return readConfig(raw);
+        }
+    }
+
+    public static JSONObject readConfig(File file) throws IOException, JSONException {
+        try (InputStream raw = new FileInputStream(file)) {
+            return readConfig(raw);
+        }
+    }
+
+    private static JSONObject readConfig(InputStream raw) throws IOException, JSONException {
+        BufferedInputStream buffered = new BufferedInputStream(raw);
+        buffered.mark(8);
+        int magic0 = buffered.read();
+        int magic1 = buffered.read();
+        buffered.reset();
+        if (magic0 != 'P' || magic1 != 'K') {
+            return validate(new JSONObject(readLimited(buffered)));
+        }
+        try (ZipInputStream zip = new ZipInputStream(buffered)) {
+            ZipEntry entry;
+            while ((entry = zip.getNextEntry()) != null) {
+                String name = entry.getName();
+                if (!entry.isDirectory() && ("config.txt".equalsIgnoreCase(name)
+                        || "manifest.json".equalsIgnoreCase(name))) {
+                    return validate(new JSONObject(readLimited(zip)));
                 }
             }
         }
         throw new IOException("config.txt was not found in the archive");
     }
 
+    /** Extracts the preferred embedded cover, or the first valid image in the ZIP. */
+    public static boolean extractEmbeddedCover(File archive, File output) {
+        byte[] fallback = null;
+        try (ZipInputStream zip = new ZipInputStream(
+                new BufferedInputStream(new FileInputStream(archive)))) {
+            ZipEntry entry;
+            while ((entry = zip.getNextEntry()) != null) {
+                if (entry.isDirectory() || !isImageName(entry.getName())) continue;
+                byte[] bytes = readLimited(zip, MAX_COVER_BYTES);
+                BitmapFactory.Options bounds = new BitmapFactory.Options();
+                bounds.inJustDecodeBounds = true;
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.length, bounds);
+                if (bounds.outWidth <= 0 || bounds.outHeight <= 0
+                        || bounds.outWidth > 8192 || bounds.outHeight > 8192) continue;
+                String lower = new File(entry.getName()).getName().toLowerCase(Locale.ENGLISH);
+                if (lower.startsWith("cover.") || lower.startsWith("artwork.")) {
+                    return writeCover(output, bytes);
+                }
+                if (fallback == null) fallback = bytes;
+            }
+        } catch (Exception ignored) {}
+        return fallback != null && writeCover(output, fallback);
+    }
+
     public static List<ContentResolution> resolveContents(Context context, JSONObject manifest)
             throws JSONException {
         ContentsManager manager = new ContentsManager(context);
-        manager.syncContents();
-        List<ContentProfile> installed = allProfiles(manager);
+        try {
+            manager.syncContents();
+        }
+        catch (RuntimeException error) {
+            // syncContents initializes every profile bucket before reading disk,
+            // so resolution can still continue and offer fallbacks when one
+            // locally installed profile is malformed.
+            Log.w("CommunityConfig", "Could not read all installed content", error);
+        }
         JSONArray refs = manifest.optJSONArray("contents");
         if (refs == null) refs = manifest.getJSONObject("container").optJSONArray("contentRefs");
         List<ContentResolution> result = new ArrayList<>();
         if (refs == null) return result;
 
+        // The installed profiles on disk are authoritative. If an exact package
+        // is missing, recover a matching WCP the user already downloaded before
+        // showing a missing-content prompt.
+        try {
+            installExactPackagesFromDownloads(context, manager, refs);
+            manager.syncContents();
+        }
+        catch (RuntimeException error) {
+            // A corrupt/unreadable WCP in Downloads must not make a valid
+            // community configuration itself look invalid. Missing content is
+            // handled by the normal resolver dialog below.
+            Log.w("CommunityConfig", "Could not recover content from Downloads", error);
+            try {
+                manager.syncContents();
+            }
+            catch (RuntimeException syncError) {
+                Log.w("CommunityConfig", "Could not refresh installed content", syncError);
+            }
+        }
+        List<ContentProfile> installed = allInstalledProfiles(manager);
+
         for (int i = 0; i < refs.length(); i++) {
-            JSONObject ref = refs.getJSONObject(i);
+            JSONObject ref = refs.optJSONObject(i);
+            if (ref == null) continue;
             String id = ref.optString("contentId", "");
             String type = ref.optString("type", "");
             String name = ref.optString("entryName", ref.optString("versionName", ""));
@@ -205,10 +351,8 @@ public final class CommunityConfigManager {
             ContentProfile similar = null;
             int best = -1;
             for (ContentProfile profile : installed) {
-                if (!type.isEmpty() && !profile.type.toString().equalsIgnoreCase(type)) continue;
+                if (!isCompatibleProfile(profile, type, role)) continue;
                 if ("wineRuntime".equals(role)) {
-                    if (profile.type != ContentProfile.ContentType.CONTENT_TYPE_WINE
-                            && profile.type != ContentProfile.ContentType.CONTENT_TYPE_PROTON) continue;
                     String candidateArch = runtimeArchitecture(
                             ContentsManager.getEntryName(profile) + " " + profile.verName);
                     // A 32-bit/x86 runtime cannot replace ARM64EC or x86_64 (and
@@ -216,27 +360,21 @@ public final class CommunityConfigManager {
                     if (!requestedRuntimeArch.isEmpty()
                             && !requestedRuntimeArch.equals(candidateArch)) continue;
                 }
-                if (!id.isEmpty() && id.equals(profile.getContentId())) {
-                    exact = profile;
-                    break;
-                }
                 String entry = ContentsManager.getEntryName(profile);
                 // A package imported by the user may have received its stable id
                 // only after an older configuration was exported.  Exact visible
                 // type/name/version is still the same content and must not prompt.
-                if (normalize(entry).equals(normalize(name))
-                        || normalize(profile.verName).equals(normalize(name))) {
+                if ((!id.isEmpty() && id.equals(profile.getContentId()))
+                        || matchesReference(profile, ref)) {
                     exact = profile;
                     break;
                 }
-                int score = similarity(normalize(name), normalize(entry));
+                int score = similarity(contentIdentity(name), contentIdentity(entry));
                 if (score > best) {
                     best = score;
                     similar = profile;
                 }
             }
-            // Avoid offering a misleading replacement for unrelated names.
-            if (best < 55 && !"wineRuntime".equals(role)) similar = null;
             result.add(new ContentResolution(ref, exact, similar, best));
         }
         return result;
@@ -254,7 +392,21 @@ public final class CommunityConfigManager {
             ContentProfile selected = choices.get(i);
             String role = resolution.reference.optString("role", "");
             if (selected == null) {
-                if ("wineRuntime".equals(role)) data.put("wineVersion", WineInfo.MAIN_WINE_VERSION.identifier());
+                if ("wineRuntime".equals(role)) {
+                    data.put("wineVersion", WineInfo.MAIN_WINE_VERSION.identifier());
+                }
+                else if ("box64".equals(role)) {
+                    data.put("box64Version", DefaultVersion.BOX64);
+                }
+                else if ("fexcore".equals(role)) {
+                    data.put("fexcoreVersion", DefaultVersion.FEXCORE);
+                }
+                else if ("dxvk".equals(role) || "vkd3d".equals(role)) {
+                    String config = data.optString("dxwrapperConfig", "");
+                    String key = "dxvk".equals(role) ? "version" : "vkd3dVersion";
+                    String fallback = "dxvk".equals(role) ? DefaultVersion.DXVK : DefaultVersion.VKD3D;
+                    data.put("dxwrapperConfig", replaceConfigValue(config, key, fallback));
+                }
                 continue;
             }
             String entry = ContentsManager.getEntryName(selected);
@@ -264,11 +416,29 @@ public final class CommunityConfigManager {
             else if ("dxvk".equals(role) || "vkd3d".equals(role)) {
                 String config = data.optString("dxwrapperConfig", "");
                 String key = "dxvk".equals(role) ? "version" : "vkd3dVersion";
-                data.put("dxwrapperConfig", replaceConfigValue(config, key, selected.verName));
+                // Keep the installed profile's versionCode in the selector. It
+                // disambiguates duplicate versions and lets VKD3D resolve the
+                // profile instead of falling through to a nonexistent APK asset.
+                data.put("dxwrapperConfig", replaceConfigValue(config, key, tail(entry)));
             }
         }
+        clearImportedPrefixState(data);
         restoreCustomPresets(context, manifest.optJSONObject("presets"), data);
         return data;
+    }
+
+    /** A new prefix must never inherit "already applied" cache flags from the exporter. */
+    private static void clearImportedPrefixState(JSONObject data) {
+        JSONObject extra = data.optJSONObject("extraData");
+        if (extra == null) return;
+        String[] transientKeys = {
+                "appVersion", "imgVersion", "dxwrapper", "ddrawrapper", "wincomponents",
+                "desktopTheme", "audioDriver", "startupSelectionApplied", "wfmFixVersion",
+                "controllerFixVersion", "arm64ecInputDllsVersion", "lastInstalledMainWrapper",
+                "lastInstalledMainWrapperRevision", "graphicsDriver", "fexcoreVersion",
+                "box64Version"
+        };
+        for (String key : transientKeys) extra.remove(key);
     }
 
     private static JSONObject collectCustomPresets(Context context, Container container)
@@ -380,13 +550,13 @@ public final class CommunityConfigManager {
                 }
                 return false;
             case "box64":
-                return DefaultVersion.BOX64.equalsIgnoreCase(normalized);
+                return sameContentVersion(normalized, DefaultVersion.BOX64);
             case "fexcore":
-                return DefaultVersion.FEXCORE.equalsIgnoreCase(normalized);
+                return sameContentVersion(normalized, DefaultVersion.FEXCORE);
             case "dxvk":
-                return DefaultVersion.DXVK.equalsIgnoreCase(normalized);
+                return sameContentVersion(normalized, DefaultVersion.DXVK);
             case "vkd3d":
-                return DefaultVersion.VKD3D.equalsIgnoreCase(normalized);
+                return sameContentVersion(normalized, DefaultVersion.VKD3D);
             default:
                 return false;
         }
@@ -412,13 +582,189 @@ public final class CommunityConfigManager {
         return findByTail(manager, type, value);
     }
 
-    private static List<ContentProfile> allProfiles(ContentsManager manager) {
+    private static List<ContentProfile> allInstalledProfiles(ContentsManager manager) {
         List<ContentProfile> profiles = new ArrayList<>();
         for (ContentProfile.ContentType type : ContentProfile.ContentType.values()) {
             List<ContentProfile> part = manager.getProfiles(type);
-            if (part != null) profiles.addAll(part);
+            if (part == null) continue;
+            for (ContentProfile profile : part) {
+                // Ignore one malformed local profile instead of aborting the
+                // import of an otherwise valid configuration.
+                if (profile == null || profile.type == null) continue;
+                try {
+                    if (manager.isInstalledProfile(profile)) profiles.add(profile);
+                }
+                catch (RuntimeException error) {
+                    Log.w("CommunityConfig", "Ignoring invalid installed content profile", error);
+                }
+            }
         }
         return profiles;
+    }
+
+    private static boolean isCompatibleProfile(ContentProfile profile, String type, String role) {
+        if (profile == null || profile.type == null) return false;
+        if (!type.isEmpty()) {
+            if (profile.type.toString().equalsIgnoreCase(type)) return true;
+            return "wineRuntime".equals(role)
+                    && (profile.type == ContentProfile.ContentType.CONTENT_TYPE_WINE
+                    || profile.type == ContentProfile.ContentType.CONTENT_TYPE_PROTON)
+                    && ("Wine".equalsIgnoreCase(type) || "Proton".equalsIgnoreCase(type));
+        }
+        switch (role) {
+            case "wineRuntime":
+                return profile.type == ContentProfile.ContentType.CONTENT_TYPE_WINE
+                        || profile.type == ContentProfile.ContentType.CONTENT_TYPE_PROTON;
+            case "box64":
+                return profile.type == ContentProfile.ContentType.CONTENT_TYPE_BOX64;
+            case "fexcore":
+                return profile.type == ContentProfile.ContentType.CONTENT_TYPE_FEXCORE;
+            case "dxvk":
+                return profile.type == ContentProfile.ContentType.CONTENT_TYPE_DXVK;
+            case "vkd3d":
+                return profile.type == ContentProfile.ContentType.CONTENT_TYPE_VKD3D;
+            default:
+                return false;
+        }
+    }
+
+    private static void installExactPackagesFromDownloads(Context context, ContentsManager manager,
+                                                           JSONArray refs) {
+        File downloads = Environment.getExternalStoragePublicDirectory(
+                Environment.DIRECTORY_DOWNLOADS);
+        if (!downloads.isDirectory()) return;
+        List<File> packages = new ArrayList<>();
+        collectContentPackages(downloads, 0, new int[]{0}, packages);
+        if (packages.isEmpty()) return;
+
+        for (int index = 0; index < refs.length(); index++) {
+            JSONObject ref = refs.optJSONObject(index);
+            if (ref == null) continue;
+            String role = ref.optString("role", "");
+            String requested = ref.optString("entryName", ref.optString("versionName", ""));
+            if (isDisabledValue(requested) || isBundledReference(context, role, requested)
+                    || findExactInstalled(manager, ref) != null) continue;
+
+            File bestFile = null;
+            int bestScore = -1;
+            for (File candidate : packages) {
+                int score = packageNameScore(ref, candidate.getName());
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestFile = candidate;
+                }
+            }
+            // Avoid unpacking unrelated archives. Exact/reordered package names
+            // normally score 100; 72 still tolerates a type prefix or build code.
+            if (bestFile == null || bestScore < 72) continue;
+            if (installMatchingPackage(context, manager, ref, bestFile)) {
+                manager.syncContents();
+                packages.remove(bestFile);
+            }
+        }
+    }
+
+    private static void collectContentPackages(File directory, int depth, int[] visited,
+                                               List<File> output) {
+        if (depth > 3 || visited[0] >= 800 || output.size() >= 200) return;
+        File[] files = directory.listFiles();
+        if (files == null) return;
+        for (File file : files) {
+            if (++visited[0] > 800 || output.size() >= 200) return;
+            if (file.isDirectory()) {
+                collectContentPackages(file, depth + 1, visited, output);
+            }
+            else if (isContentPackage(file.getName())) {
+                output.add(file);
+            }
+        }
+    }
+
+    private static boolean isContentPackage(String name) {
+        String lower = clean(name).toLowerCase(Locale.ENGLISH);
+        return lower.endsWith(".wcp") || lower.endsWith(".wcp.xz")
+                || lower.endsWith(".wcp.zst") || lower.endsWith(".tzst")
+                || lower.endsWith(".tar.xz") || lower.endsWith(".tar.zst");
+    }
+
+    private static int packageNameScore(JSONObject ref, String fileName) {
+        String requested = contentIdentity(ref.optString("entryName",
+                ref.optString("versionName", "")));
+        String candidate = contentIdentity(stripPackageExtension(fileName));
+        if (requested.isEmpty() || candidate.isEmpty()) return -1;
+        if (requested.equals(candidate)) return 100;
+        if (requested.contains(candidate) || candidate.contains(requested)) return 92;
+        return similarity(requested, candidate);
+    }
+
+    private static String stripPackageExtension(String name) {
+        return clean(name).replaceFirst("(?i)\\.(?:wcp(?:\\.(?:xz|zst))?|t?zst|tar\\.(?:xz|zst))$", "");
+    }
+
+    private static String contentIdentity(String value) {
+        String result = clean(value).toLowerCase(Locale.ENGLISH)
+                .replaceFirst("(?i)\\.(?:wcp(?:\\.(?:xz|zst))?|t?zst|tar\\.(?:xz|zst)|zip)$", "")
+                .replaceFirst("^(?:wine|proton|dxvk|vkd3d|box64|fexcore)[\\s._-]+", "")
+                .replaceAll("[^a-z0-9]+", "-")
+                .replaceAll("^-+|-+$", "");
+        // ContentsManager entry names append a numeric versionCode that package
+        // filenames and versionName fields do not necessarily contain.
+        return result.replaceFirst("-[0-9]{1,10}$", "");
+    }
+
+    private static boolean sameContentVersion(String left, String right) {
+        return clean(left).equalsIgnoreCase(clean(right))
+                || contentIdentity(left).equals(contentIdentity(right));
+    }
+
+    private static ContentProfile findExactInstalled(ContentsManager manager, JSONObject ref) {
+        for (ContentProfile profile : allInstalledProfiles(manager)) {
+            if (!isCompatibleProfile(profile, ref.optString("type", ""),
+                    ref.optString("role", ""))) continue;
+            if (matchesReference(profile, ref)) return profile;
+        }
+        return null;
+    }
+
+    private static boolean matchesReference(ContentProfile profile, JSONObject ref) {
+        String id = ref.optString("contentId", "");
+        if (!id.isEmpty() && id.equals(profile.getContentId())) return true;
+        String requested = contentIdentity(ref.optString("entryName",
+                ref.optString("versionName", "")));
+        return requested.equals(contentIdentity(ContentsManager.getEntryName(profile)))
+                || requested.equals(contentIdentity(profile.verName));
+    }
+
+    private static boolean installMatchingPackage(Context context, ContentsManager manager,
+                                                  JSONObject ref, File packageFile) {
+        final boolean[] installed = {false};
+        manager.extraContentFile(Uri.fromFile(packageFile),
+                new ContentsManager.OnInstallFinishedCallback() {
+                    private boolean staged = true;
+
+                    @Override
+                    public void onFailed(ContentsManager.InstallFailedReason reason, Exception error) {
+                        if (reason != ContentsManager.InstallFailedReason.ERROR_EXIST) {
+                            Log.w("CommunityConfig", "Could not recover " + packageFile
+                                    + " from Downloads: " + reason, error);
+                        }
+                    }
+
+                    @Override
+                    public void onSucceed(ContentProfile profile) {
+                        if (staged) {
+                            staged = false;
+                            if (!isCompatibleProfile(profile, ref.optString("type", ""),
+                                    ref.optString("role", "")) || !matchesReference(profile, ref)) {
+                                manager.discardStagedContent(profile);
+                                return;
+                            }
+                            manager.finishInstallContent(profile, this);
+                        }
+                        else installed[0] = true;
+                    }
+                });
+        return installed[0];
     }
 
     private static Shortcut bestShortcut(Container container, String gameName) {
@@ -451,16 +797,40 @@ public final class CommunityConfigManager {
     }
 
     private static String readLimited(InputStream input) throws IOException {
+        return new String(readLimited(input, MAX_CONFIG_BYTES), StandardCharsets.UTF_8);
+    }
+
+    private static byte[] readLimited(InputStream input, int maximum) throws IOException {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         byte[] buffer = new byte[8192];
         int total = 0;
         int count;
         while ((count = input.read(buffer)) != -1) {
             total += count;
-            if (total > MAX_CONFIG_BYTES) throw new IOException("Configuration is too large");
+            if (total > maximum) throw new IOException("Archive entry is too large");
             output.write(buffer, 0, count);
         }
-        return output.toString(StandardCharsets.UTF_8.name());
+        return output.toByteArray();
+    }
+
+    private static boolean isImageName(String name) {
+        String lower = name == null ? "" : name.toLowerCase(Locale.ENGLISH);
+        return lower.endsWith(".png") || lower.endsWith(".jpg")
+                || lower.endsWith(".jpeg") || lower.endsWith(".webp")
+                || lower.endsWith(".bmp");
+    }
+
+    private static boolean writeCover(File output, byte[] bytes) {
+        try {
+            File parent = output.getParentFile();
+            if (parent != null && !parent.isDirectory() && !parent.mkdirs()) return false;
+            try (FileOutputStream stream = new FileOutputStream(output)) {
+                stream.write(bytes);
+            }
+            return true;
+        } catch (IOException ignored) {
+            return false;
+        }
     }
 
     private static File uniqueFile(File dir, String base, String extension) {

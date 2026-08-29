@@ -658,7 +658,7 @@ public class FileManagerFragment extends Fragment {
                 writer.println("Type=Application");
                 if (!workDir.isEmpty()) writer.println("Path=" + workDir);
                 writer.println("Icon=" + displayName);
-                writer.println("container_id:" + container.id);
+                writer.println("container_id=" + container.id);
             }
             Toast.makeText(getContext(), "Shortcut created on container desktop!", Toast.LENGTH_SHORT).show();
 

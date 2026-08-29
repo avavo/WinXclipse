@@ -539,11 +539,9 @@ data.put("desktopTheme", desktopTheme);
             data.put("primaryController", primaryController);
             data.put("controllerMapping", controllerMapping);
             data.put("gstreamerWorkaround", gstreamerWorkaround);
-            if (!WineInfo.isMainWineVersion(wineVersion)) data.put("wineVersion", wineVersion);
+            // Always persist wineVersion so a later MAIN change doesn't flip old containers
+            data.put("wineVersion", wineVersion);
             String out = data.toString();
-            if (out.length() < 1800 || (mergedExtra==null || mergedExtra.length()==0)) {
-                Log.w("WineStartup","saveData id="+id+" TRUNCATED? len="+out.length()+" extraLen="+(mergedExtra==null?-1:mergedExtra.length())+" extraHasApp="+(mergedExtra!=null&&mergedExtra.has("appVersion"))+" stack="+android.util.Log.getStackTraceString(new Throwable()));
-            }
             FileUtils.writeString(cfg, out);
             // Keep in-memory in sync if we merged
             extraData = mergedExtra!=null?mergedExtra:extraData;
@@ -562,7 +560,11 @@ data.put("desktopTheme", desktopTheme);
     }
 
     public void loadData(JSONObject data) throws JSONException {
-        wineVersion = WineInfo.MAIN_WINE_VERSION.identifier();
+        // New MAIN is arm64ec, but old containers saved without a wineVersion key used the
+        // previous x86_64 main. Default to the old main when the key is absent so existing
+        // prefixes don't flip architecture on upgrade.
+        boolean hasWineVersionKey = data.has("wineVersion");
+        wineVersion = hasWineVersionKey ? WineInfo.MAIN_WINE_VERSION.identifier() : "proton-9.0-x86_64";
         dxwrapperConfig = "";
         checkObsoleteOrMissingProperties(data);
 

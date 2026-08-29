@@ -48,11 +48,27 @@
             android:checked="false" />
 
         <CheckBox
-            android:id="@+id/CBEnableHaptics"
+            android:id="@+id/CBAutoGrabController"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/enable_touchscreen_haptics"
-            android:checked="false" />
+            android:text="Auto-grab controller (plug &amp; play)"
+            android:checked="true" />
+
+        <CheckBox
+            android:id="@+id/CBMasterVibration"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/vibrate"
+            android:checked="true" />
+
+        <Button
+            android:id="@+id/BTTestVibration"
+            style="@style/ButtonNeutral"
+            android:layout_width="match_parent"
+            android:layout_height="40dp"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="4dp"
+            android:text="Test Vibration" />
 
         <CheckBox
             android:id="@+id/CBSimulateTouchScreen"

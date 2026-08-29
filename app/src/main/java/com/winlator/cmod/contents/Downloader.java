@@ -63,23 +63,35 @@ public class Downloader {
     }
 
     public static String downloadString(String address) {
+        URLConnection connection = null;
         try {
             URL url = new URL(address);
-            URLConnection connection = url.openConnection();
+            connection = url.openConnection();
+            connection.setConnectTimeout(15000);
+            connection.setReadTimeout(30000);
+            connection.setRequestProperty("User-Agent", "WinXclipse-Android");
             connection.connect();
 
-            InputStream input = url.openStream();
-            BufferedReader reader = new BufferedReader(new InputStreamReader(input));
-            StringBuilder sb = new StringBuilder();
-            String line = null;
-            while ((line = reader.readLine()) != null) {
-                sb.append(line).append("\n");
+            if (connection instanceof HttpURLConnection) {
+                int response = ((HttpURLConnection) connection).getResponseCode();
+                if (response < 200 || response >= 300) return null;
             }
-            reader.close();
-            return sb.toString();
+            try (InputStream input = connection.getInputStream();
+                 BufferedReader reader = new BufferedReader(new InputStreamReader(input))) {
+                StringBuilder sb = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    sb.append(line).append("\n");
+                }
+                return sb.toString();
+            }
         } catch (Exception e) {
             e.printStackTrace();
             return null;
+        } finally {
+            if (connection instanceof HttpURLConnection) {
+                ((HttpURLConnection) connection).disconnect();
+            }
         }
     }
 }

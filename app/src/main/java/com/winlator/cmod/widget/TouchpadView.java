@@ -352,6 +352,17 @@ public class TouchpadView extends View {
             case MotionEvent.ACTION_CANCEL:
                 for (byte i = 0; i < MAX_FINGERS; i++) fingers[i] = null;
                 numFingers = 0;
+                continueClick = false;
+                fingerPointerButtonLeft = null;
+                fingerPointerButtonRight = null;
+                if (xServer.isRelativeMouseMovement()) {
+                    xServer.getWinHandler().mouseEvent(MouseEventFlags.LEFTUP, 0, 0, 0);
+                    xServer.getWinHandler().mouseEvent(MouseEventFlags.RIGHTUP, 0, 0, 0);
+                }
+                else {
+                    xServer.injectPointerButtonRelease(Pointer.Button.BUTTON_LEFT);
+                    xServer.injectPointerButtonRelease(Pointer.Button.BUTTON_RIGHT);
+                }
                 break;
         }
 
@@ -398,7 +409,8 @@ public class TouchpadView extends View {
     private void handleTouchDown(MotionEvent event) {
         float[] transformedPoint = XForm.transformPoint(xform, event.getX(), event.getY());
         if (xServer.isRelativeMouseMovement())
-            xServer.getWinHandler().mouseEvent(MouseEventFlags.MOVE, (int)transformedPoint[0], (int)transformedPoint[1], 0);
+            xServer.getWinHandler().mouseEvent(MouseEventFlags.MOVE,
+                    (int)transformedPoint[0], (int)transformedPoint[1], 0);
         else
             xServer.injectPointerMove((int) transformedPoint[0], (int) transformedPoint[1]);
 
@@ -414,7 +426,8 @@ public class TouchpadView extends View {
     private void handleTouchMove(MotionEvent event) {
         float[] transformedPoint = XForm.transformPoint(xform, event.getX(), event.getY());
         if (xServer.isRelativeMouseMovement())
-            xServer.getWinHandler().mouseEvent(MouseEventFlags.MOVE, (int)transformedPoint[0], (int)transformedPoint[1], 0);
+            xServer.getWinHandler().mouseEvent(MouseEventFlags.MOVE,
+                    (int)transformedPoint[0], (int)transformedPoint[1], 0);
         else
             xServer.injectPointerMove((int) transformedPoint[0], (int) transformedPoint[1]);
     }
@@ -538,21 +551,24 @@ public class TouchpadView extends View {
     }
 
     private void pressPointerButtonLeft(Finger finger) {
-        if (pointerButtonLeftEnabled && !xServer.pointer.isButtonPressed(Pointer.Button.BUTTON_LEFT)) {
+        if (pointerButtonLeftEnabled
+                && !xServer.pointer.isButtonPressed(Pointer.Button.BUTTON_LEFT)) {
             xServer.injectPointerButtonPress(Pointer.Button.BUTTON_LEFT);
             fingerPointerButtonLeft = finger;
         }
     }
 
     private void pressPointerButtonRight(Finger finger) {
-        if (pointerButtonRightEnabled && !xServer.pointer.isButtonPressed(Pointer.Button.BUTTON_RIGHT)) {
+        if (pointerButtonRightEnabled
+                && !xServer.pointer.isButtonPressed(Pointer.Button.BUTTON_RIGHT)) {
             xServer.injectPointerButtonPress(Pointer.Button.BUTTON_RIGHT);
             fingerPointerButtonRight = finger;
         }
     }
 
     private void releasePointerButtonLeft(final Finger finger) {
-        if (pointerButtonLeftEnabled && finger == fingerPointerButtonLeft && xServer.pointer.isButtonPressed(Pointer.Button.BUTTON_LEFT)) {
+        if (pointerButtonLeftEnabled && finger == fingerPointerButtonLeft
+                && xServer.pointer.isButtonPressed(Pointer.Button.BUTTON_LEFT)) {
             postDelayed(() -> {
                 xServer.injectPointerButtonRelease(Pointer.Button.BUTTON_LEFT);
                 fingerPointerButtonLeft = null;
@@ -561,7 +577,8 @@ public class TouchpadView extends View {
     }
 
     private void releasePointerButtonRight(final Finger finger) {
-        if (pointerButtonRightEnabled && finger == fingerPointerButtonRight && xServer.pointer.isButtonPressed(Pointer.Button.BUTTON_RIGHT)) {
+        if (pointerButtonRightEnabled && finger == fingerPointerButtonRight
+                && xServer.pointer.isButtonPressed(Pointer.Button.BUTTON_RIGHT)) {
             postDelayed(() -> {
                 xServer.injectPointerButtonRelease(Pointer.Button.BUTTON_RIGHT);
                 fingerPointerButtonRight = null;
@@ -689,6 +706,7 @@ public class TouchpadView extends View {
             dispatchExternalPrimaryButton(false);
             return true;
         }
+
         return false;
     }
 

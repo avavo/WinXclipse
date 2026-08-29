@@ -114,10 +114,21 @@ public class ContentsFragment extends Fragment {
 
     @Override
     public void onDestroy() {
-        // Downloads/installations are allowed to outlive this screen. Clearing
-        // cache here used to delete their source files midway through work.
+        // This screen shares Context.getCacheDir() with the rest of the app.
+        // Never clear the whole directory here: Community Configs, artwork and
+        // other screens may be handing a cached file to the next fragment.
         if (!ContentOperationRegistry.hasActiveOperations() && getContext() != null) {
-            FileUtils.clear(getContext().getCacheDir());
+            File[] cached = getContext().getCacheDir().listFiles();
+            if (cached != null) {
+                for (File file : cached) {
+                    String name = file.getName();
+                    if (name.startsWith("remote-wrapper-")
+                            || name.startsWith("xclipse-driver-")
+                            || name.startsWith("temp_")) {
+                        FileUtils.delete(file);
+                    }
+                }
+            }
         }
         super.onDestroy();
     }
