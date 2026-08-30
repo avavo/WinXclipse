@@ -37,6 +37,13 @@
                     android:textColor="@color/colorAccent" />
 
                 <TextView
+                    android:id="@+id/TVDiscord"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="14sp"
+                    android:textColor="@color/colorAccent" />
+
+                <TextView
                     android:id="@+id/TVAppVersion"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"

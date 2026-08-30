@@ -20,7 +20,7 @@ import com.winlator.cmod.widget.ThemedSpinnerAdapter;
  */
 public class ExperimentalPerformanceDialog extends ContentDialog {
     public static final String DEFAULT_CONFIG =
-            "vramCap=1,vramCapMode=auto,perfcache=0,mdiex=1,ramAggro=0,wow64Pin=1";
+            "vramCap=1,vramCapMode=auto,perfcache=0,mdiex=1,ramAggro=0,wow64Pin=1,translationTurbo=0";
 
     public interface OnConfirmCallback {
         void onConfirm(String config);
@@ -48,9 +48,10 @@ public class ExperimentalPerformanceDialog extends ContentDialog {
         CheckBox cbMdiex = findViewById(R.id.CBXPerfMdiex);
         CheckBox cbNramv = findViewById(R.id.CBXPerfNramv);
         CheckBox cbWow64Pin = findViewById(R.id.CBXPerfWow64Pin);
+        CheckBox cbTranslationTurbo = findViewById(R.id.CBXPerfTranslationTurbo);
 
         sVramCapMode.setAdapter(new ThemedSpinnerAdapter<>(context,
-                new String[]{"Auto", "2048 MB", "3072 MB", "4092 MB"}));
+                new String[]{"Auto", "2048 MB", "3072 MB", "4092 MB", "6144 MB"}));
         cbVramCap.setChecked("1".equals(config.get("vramCap")));
         // Stored values are bare tokens ("2048"); spinner entries carry the
         // unit suffix ("2048 MB"), so translate before matching by value.
@@ -58,12 +59,14 @@ public class ExperimentalPerformanceDialog extends ContentDialog {
         if ("2048".equals(capMode)) capMode = "2048 MB";
         else if ("3072".equals(capMode)) capMode = "3072 MB";
         else if ("4092".equals(capMode)) capMode = "4092 MB";
+        else if ("6144".equals(capMode)) capMode = "6144 MB";
         else if ("auto".equalsIgnoreCase(capMode) || capMode == null || capMode.isEmpty()) capMode = "Auto";
         AppUtils.setSpinnerSelectionFromValue(sVramCapMode, capMode);
         cbPerfcache.setChecked("1".equals(config.get("perfcache")));
         cbMdiex.setChecked("1".equals(config.get("mdiex")));
         cbNramv.setChecked("1".equals(config.get("ramAggro")));
         cbWow64Pin.setChecked(!"0".equals(config.get("wow64Pin")));
+        cbTranslationTurbo.setChecked("1".equals(config.get("translationTurbo")));
 
         Runnable updateVramCapUi = () -> {
             float alpha = cbVramCap.isChecked() ? 1f : 0.45f;
@@ -86,6 +89,8 @@ public class ExperimentalPerformanceDialog extends ContentDialog {
                 AppUtils.showHelpBox(context, v, R.string.xperf_help_nramv));
         findViewById(R.id.BTXPerfWow64PinHelp).setOnClickListener(v ->
                 AppUtils.showHelpBox(context, v, R.string.xperf_help_wow64_pin));
+        findViewById(R.id.BTXPerfTranslationTurboHelp).setOnClickListener(v ->
+                AppUtils.showHelpBox(context, v, R.string.xperf_help_translation_turbo));
 
         setOnConfirmCallback(() -> {
             config.put("vramCap", cbVramCap.isChecked() ? "1" : "0");
@@ -94,12 +99,14 @@ public class ExperimentalPerformanceDialog extends ContentDialog {
             if (modeValue.startsWith("2048")) modeValue = "2048";
             else if (modeValue.startsWith("3072")) modeValue = "3072";
             else if (modeValue.startsWith("4092")) modeValue = "4092";
+            else if (modeValue.startsWith("6144")) modeValue = "6144";
             else modeValue = "auto";
             config.put("vramCapMode", modeValue);
             config.put("perfcache", cbPerfcache.isChecked() ? "1" : "0");
             config.put("mdiex", cbMdiex.isChecked() ? "1" : "0");
             config.put("ramAggro", cbNramv.isChecked() ? "1" : "0");
             config.put("wow64Pin", cbWow64Pin.isChecked() ? "1" : "0");
+            config.put("translationTurbo", cbTranslationTurbo.isChecked() ? "1" : "0");
             callback.onConfirm(config.toString());
         });
     }

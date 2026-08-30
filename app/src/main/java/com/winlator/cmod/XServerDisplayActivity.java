@@ -366,7 +366,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         // Wine sessions are always landscape, from either a container or a
         // shortcut. The launcher activity keeps its own system-following
         // orientation and is restored automatically when this activity exits.
-        setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+        setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
         AppUtils.hideSystemUI(this);
         AppUtils.keepScreenOn(this);
         setContentView(R.layout.xserver_display_activity);
@@ -1747,6 +1747,27 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         return "off".equals(value) || "50".equals(value) ? value : "100";
     }
 
+    /**
+     * Presentation mode and frame pacing are deliberately independent.  In
+     * particular, VSync Off means "do not throttle guest Present requests";
+     * it must not silently turn a requested mailbox swapchain into immediate.
+     */
+    private String resolvePresentMode() {
+        String value = graphicsDriverConfig != null
+                ? graphicsDriverConfig.getOrDefault("presentMode", "mailbox")
+                : "mailbox";
+        value = value == null ? "mailbox" : value.trim().toLowerCase(Locale.ENGLISH);
+        switch (value) {
+            case "fifo":
+            case "immediate":
+            case "relaxed":
+            case "mailbox":
+                return value;
+            default:
+                return "mailbox";
+        }
+    }
+
     private int getStoredFpsLimit() {
         try {
             String value = shortcut != null
@@ -2085,13 +2106,19 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             }
             if ("1".equals(xperfConfig.get("perfcache")) && GPUInformation.isXclipse())
                 installPerfCacheLayer(envVars);
+            if ("1".equals(xperfConfig.get("translationTurbo")))
+                applyTranslationTurbo(envVars);
         }
 
         // NRAMV unified-memory manager runs in our process for every session;
         // its baseline trim level follows device RAM while live escalation is
         // driven by the HUD RAM alert through RamOptimizerXclipse.escalate().
         // Video tab choices apply regardless of the Experimental master switch.
-        if ("off".equals(resolveVsyncMode()))
+        // vblank_mode=0 is only valid for an explicitly immediate swapchain.
+        // Applying it merely because the independent FPS pacing control is Off
+        // defeats mailbox and produces the exact high-FPS horizontal tear that
+        // the mailbox selection is meant to avoid.
+        if ("off".equals(resolveVsyncMode()) && "immediate".equals(resolvePresentMode()))
             envVars.put("vblank_mode", "0");
         if ("1".equals(graphicsDriverConfig.getOrDefault("unlimitedImages", "0")))
             envVars.put("WRAPPER_MAX_IMAGE_COUNT", "0");
@@ -3762,6 +3789,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 int vramCap = "2048".equals(capMode) ? 2048
                         : "3072".equals(capMode) ? 3072
                         : "4092".equals(capMode) ? 4092
+                        : "6144".equals(capMode) ? 6144
                         : suggestVramCap();
                 if (vramCap > 0) {
                     envVars.put("WRAPPER_VMEM_MAX_SIZE", String.valueOf(vramCap));
@@ -3775,25 +3803,31 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             Log.w("GraphicsDriverExtraction", "Invalid max device memory: " + maxDeviceMemory);
         }
 
-        // Synchronized modes must use FIFO: allowing an old immediate/relaxed
-        // selection here made the VSync control ineffective. Off keeps the
-        // guest uncapped; Android still presents the compositor surface
-        // atomically through its own EGL swap interval.
-        String vsyncMode = resolveVsyncMode();
-        boolean synchronizedPresent = !"off".equals(vsyncMode);
-        String presentMode = synchronizedPresent ? "fifo" : "immediate";
+        // Do not derive the swapchain mode from the FPS/VSync limiter. Mailbox
+        // is the high-throughput tear-free path: Wine may render above the
+        // panel rate while the WSI keeps only the newest complete image.
+        String presentMode = resolvePresentMode();
         envVars.put("MESA_VK_WSI_PRESENT_MODE", presentMode);
+        envVars.put("VKD3D_SWAPCHAIN_PRESENT_MODE",
+                "relaxed".equals(presentMode)
+                        ? "FIFO_RELAXED" : presentMode.toUpperCase(Locale.ENGLISH));
         envVars.put("WRAPPER_MAX_IMAGE_COUNT", presentMode.contains("immediate") ? "1" : "0");
         envVars.put("WRAPPER_RESOURCE_TYPE", graphicsDriverConfig.getOrDefault("resourceType", "auto"));
 
         String legacyFrameSync = graphicsDriverConfig.getOrDefault("frameSync", "Normal");
         boolean syncFrame = "1".equals(graphicsDriverConfig.getOrDefault("syncFrame", "0"))
                 || "Always".equals(legacyFrameSync);
-        if ((syncFrame || synchronizedPresent) && useDRI3)
-            envVars.put("MESA_VK_WSI_DEBUG", "forcesync");
+        // forcesync is an explicit compatibility option. Enabling it for every
+        // mailbox frame serializes the queue and turns mailbox into FIFO in
+        // practice, reducing FPS for no benefit once the real mode is honored.
+        if (syncFrame && useDRI3) envVars.put("MESA_VK_WSI_DEBUG", "forcesync");
         String disablePresentWait = graphicsDriverConfig.getOrDefault("disablePresentWait",
                 "Never".equals(legacyFrameSync) ? "1" : "0");
-        if (synchronizedPresent) disablePresentWait = "0";
+        // Every synchronized Vulkan present mode must keep presentation waits.
+        // Bypassing them can recycle an image while the compositor still owns
+        // it. Only immediate is intentionally allowed to trade integrity for
+        // throughput; mailbox, FIFO and relaxed keep their defined semantics.
+        if (!"immediate".equals(presentMode)) disablePresentWait = "0";
         envVars.put("WRAPPER_DISABLE_PRESENT_WAIT", disablePresentWait);
 
         envVars.remove("ENABLE_BCN_COMPUTE");
@@ -3877,6 +3911,36 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             experimental = "1".equals(shortcut.getExtra("experimentalPerformance"));
         }
         return experimental;
+    }
+
+    /**
+     * Opt-in translator settings for games where raw throughput matters more
+     * than strict x86 memory ordering. Kept behind the per-container master and
+     * its own switch so a title that depends on stronger ordering can disable
+     * the complete group without rebuilding its presets.
+     */
+    private static void applyTranslationTurbo(EnvVars vars) {
+        for (String prefix : new String[]{"BOX64", "BOX86"}) {
+            vars.put(prefix + "_DYNAREC_SAFEFLAGS", "0");
+            vars.put(prefix + "_DYNAREC_FASTNAN", "1");
+            vars.put(prefix + "_DYNAREC_FASTROUND", "1");
+            vars.put(prefix + "_DYNAREC_X87DOUBLE", "0");
+            vars.put(prefix + "_DYNAREC_BIGBLOCK", "3");
+            vars.put(prefix + "_DYNAREC_STRONGMEM", "0");
+            vars.put(prefix + "_DYNAREC_FORWARD", "1024");
+            vars.put(prefix + "_DYNAREC_CALLRET", "1");
+            vars.put(prefix + "_DYNAREC_WAIT", "1");
+        }
+        vars.put("FEX_TSOENABLED", "0");
+        vars.put("FEX_VECTORTSOENABLED", "0");
+        vars.put("FEX_MEMCPYSETTSOENABLED", "0");
+        vars.put("FEX_HALFBARRIERTSOENABLED", "0");
+        vars.put("FEX_X87REDUCEDPRECISION", "1");
+        vars.put("FEX_MULTIBLOCK", "1");
+        vars.put("FEX_DYNAMICL1CACHE", "1");
+        vars.put("FEX_DISABLEL2CACHE", "1");
+        vars.put("FEX_MAXINST", "10000");
+        vars.put("FEX_SMC_CHECKS", "none");
     }
 
     /** Vulkan layer manifest for LayerCache Helix; library_path must match

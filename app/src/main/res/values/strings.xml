@@ -308,6 +308,7 @@
     <string name="trigger_type">Trigger Type</string>
     <string name="experimental">Experimental</string>
     <string name="experimental_performance">Experimental Performance</string>
+    <string name="turbo">Turbo (Aggressive)</string>
     <string name="experimental_performance_description">Optional runtime performance tweaks. May improve demanding games, but compatibility can vary.</string>
     <string name="video_fsr_upscale">FSR Upscale</string>
     <string name="video_fsr_mode">FSR Mode</string>
@@ -322,12 +323,14 @@
     <string name="xperf_help_mdiex">WinXclipse policy engine: tunes scheduling and memory hints specifically for your SoC (chipset) during the session.</string>
     <string name="xperf_help_nramv">RAM Optimizer Xclipse: aggressively reclaims unused RAM from background apps while a game is running to give the container more memory.</string>
     <string name="xperf_help_wow64_pin">Pins WoW64 (32-bit on 64-bit) translation threads to the performance (big) cores, reducing stutter in 32-bit games.</string>
+    <string name="xperf_help_translation_turbo">Applies the new Turbo translator settings without changing the selected preset: larger translated blocks, faster floating-point paths, and relaxed x86 memory/self-modifying-code checks in Box86/Box64 and FEXCore. It can noticeably improve CPU-limited games. Turn it off if a game crashes, hangs, or shows simulation glitches.</string>
     <string name="gdc_help_sync_frame">Waits for the display on every frame (lowest input latency, slightly lower FPS).</string>
     <string name="gdc_help_disable_present_wait">Skips waiting for the display after presenting each frame. Gives more FPS at the cost of possible tearing and higher input latency.</string>
     <string name="dxvk_help_no_timeline">Disables VKD3D timeline semaphores. Use only if a game shows graphical glitches or driver errors on older drivers.</string>
     <string name="dxvk_help_vk3d66">Forces VKD3D-Proton to use shader model 6.6. Can improve performance in some DX12 games; disable if shaders fail to compile.</string>
     <string name="video_help_vsync_off">Disables guest frame pacing for maximum FPS. Android still presents complete compositor frames to prevent physical tearing.</string>
     <string name="video_help_unlimited_images">Allows the swapchain to use unlimited images instead of capping them. Lower latency, uses more memory.</string>
+    <string name="video_help_present_modes">Mailbox: tear-free and keeps the newest frame, best default for high FPS. FIFO: tear-free queue synchronized to the display, most compatible but may cap FPS. Immediate: lowest wait and can tear. Relaxed: FIFO normally, but may tear after a missed refresh deadline.</string>
     <string name="gdc_help_bcn_software">Uses the software BCn compression path. Lighter for small WGPs (workgroup sizes) and helps when hardware BCn emulation misbehaves.</string>
     <string name="gdc_help_etc2">Transcodes ETC2 compressed textures to BCn. Mutually exclusive with ASTC Transcode.</string>
     <string name="video_vsync_off">VSync limit</string>
@@ -337,6 +340,7 @@
     <string name="gdc_bcn_software_switch">BCn software path (lighter for small WGPs)</string>
     <string name="gdc_astc_auto_default">BCn→ASTC transcode auto-default</string>
     <string name="xperf_wow64_pin">WoW64 performance-core pinning</string>
+    <string name="xperf_translation_turbo">Translation Turbo (Box86/64 + FEX)</string>
     <string name="experimental_performance_config">Tuning</string>
 
 

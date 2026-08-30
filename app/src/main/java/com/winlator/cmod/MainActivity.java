@@ -783,6 +783,10 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             tvWebpage.setText(Html.fromHtml("<a href=\"https://github.com/avavo/WinXclipse\">github.com/avavo/WinXclipse</a>", Html.FROM_HTML_MODE_LEGACY));
             tvWebpage.setMovementMethod(LinkMovementMethod.getInstance());
 
+            TextView tvDiscord = dialog.findViewById(R.id.TVDiscord);
+            tvDiscord.setText(Html.fromHtml("Discord: <a href=\"https://discord.gg/u2nDTXRxyx\">discord.gg/u2nDTXRxyx</a>", Html.FROM_HTML_MODE_LEGACY));
+            tvDiscord.setMovementMethod(LinkMovementMethod.getInstance());
+
             ((TextView) dialog.findViewById(R.id.TVAppVersion)).setText(getString(R.string.version) + " " + pInfo.versionName);
 
             String creditsAndThirdPartyAppsHTML = String.join("<br />",

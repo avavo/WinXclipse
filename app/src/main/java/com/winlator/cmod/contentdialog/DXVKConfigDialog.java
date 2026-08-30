@@ -156,8 +156,22 @@ public class DXVKConfigDialog extends ContentDialog {
     }
 
     public static void setEnvVars(Context context, KeyValueSet config, EnvVars envVars) {
-        envVars.put("DXVK_STATE_CACHE_PATH", context.getFilesDir() + "/imagefs/" + ImageFs.CACHE_PATH);
+        // Keep every D3D shader cache on fast internal storage. DXVK 1.x uses
+        // STATE_CACHE_PATH while modern DXVK and VKD3D-Proton use their shader
+        // cache variables, so set all three for both ARM64EC and x86 runtimes.
+        File cacheDir = new File(ImageFs.find(context).getRootDir(),
+                ImageFs.CACHE_PATH + "/d3d");
+        if (!cacheDir.isDirectory() && !cacheDir.mkdirs()) {
+            Log.w("DXVKConfigDialog", "Could not create D3D cache directory: " + cacheDir);
+        }
+        String cachePath = cacheDir.getAbsolutePath();
+        envVars.put("DXVK_STATE_CACHE_PATH", cachePath);
+        envVars.put("DXVK_SHADER_CACHE_PATH", cachePath);
+        envVars.put("VKD3D_SHADER_CACHE_PATH", cachePath);
         envVars.put("DXVK_LOG_LEVEL", "none");
+        envVars.put("DXVK_LOG_PATH", "none");
+        envVars.put("VKD3D_DEBUG", "none");
+        envVars.put("VKD3D_SHADER_DEBUG", "none");
         if ("1".equals(config.get("noTimeline")))
             envVars.put("DXVK_DISABLE_TIMELINE_SEMAPHORES", "1");
         if ("1".equals(config.get("vk3d66")))

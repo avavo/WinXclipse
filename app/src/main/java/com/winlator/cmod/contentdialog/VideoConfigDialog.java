@@ -77,6 +77,8 @@ public class VideoConfigDialog extends ContentDialog {
         View fsrQualityRow = findViewById(R.id.LLVideoFsrMode);
         Spinner vsyncLimit = findViewById(R.id.SVideoVsyncLimit);
         CheckBox unlimitedImages = findViewById(R.id.CBVideoUnlimitedImages);
+        findViewById(R.id.BTVideoPresentModeHelp).setOnClickListener(v ->
+                AppUtils.showHelpBox(context, v, R.string.video_help_present_modes));
         findViewById(R.id.BTVideoVsyncOffHelp).setOnClickListener(v ->
                 AppUtils.showHelpBox(context, v, R.string.video_help_vsync_off));
         findViewById(R.id.BTVideoUnlimitedImagesHelp).setOnClickListener(v ->

@@ -53,7 +53,8 @@ public final class FEXCorePresetManager {
         // never explicitly picked Compatibility themselves (still on the old
         // default value).
         if (!preferences.getBoolean(INTERMEDIATE_DEFAULT_MIGRATED_KEY, false)
-                && !FEXCorePreset.PERFORMANCE.equals(selected)) {
+                && !FEXCorePreset.PERFORMANCE.equals(selected)
+                && !FEXCorePreset.TURBO.equals(selected)) {
             selected = FEXCorePreset.INTERMEDIATE;
             preferences.edit()
                     .putString("fexcore_preset", selected)
@@ -93,6 +94,18 @@ public final class FEXCorePresetManager {
                 envVars.put("FEX_MULTIBLOCK", "1");
                 envVars.put("FEX_DYNAMICL1CACHE", "1");
                 envVars.put("FEX_DISABLEL2CACHE", "1");
+                break;
+            case FEXCorePreset.TURBO:
+                envVars.put("FEX_TSOENABLED", "0");
+                envVars.put("FEX_VECTORTSOENABLED", "0");
+                envVars.put("FEX_MEMCPYSETTSOENABLED", "0");
+                envVars.put("FEX_HALFBARRIERTSOENABLED", "0");
+                envVars.put("FEX_X87REDUCEDPRECISION", "1");
+                envVars.put("FEX_MULTIBLOCK", "1");
+                envVars.put("FEX_DYNAMICL1CACHE", "1");
+                envVars.put("FEX_DISABLEL2CACHE", "1");
+                envVars.put("FEX_MAXINST", "10000");
+                envVars.put("FEX_SMC_CHECKS", "none");
                 break;
             case FEXCorePreset.INTERMEDIATE:
                 putIntermediateEnvVars(envVars);
@@ -137,6 +150,7 @@ public final class FEXCorePresetManager {
         presets.add(new FEXCorePreset(FEXCorePreset.COMPATIBILITY, "Compatibility"));
         presets.add(new FEXCorePreset(FEXCorePreset.INTERMEDIATE, "Intermediate"));
         presets.add(new FEXCorePreset(FEXCorePreset.PERFORMANCE, "Performance"));
+        presets.add(new FEXCorePreset(FEXCorePreset.TURBO, "Turbo (Aggressive)"));
         for (String[] preset : getCustomPresets(context)) {
             presets.add(new FEXCorePreset(preset[0], preset[1]));
         }
