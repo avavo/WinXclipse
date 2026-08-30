@@ -61,6 +61,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class ShortcutsFragment extends Fragment {
@@ -71,6 +73,12 @@ public class ShortcutsFragment extends Fragment {
 
     private ArrayList<FileObserver> fileObservers = new ArrayList<>();
     private PreloaderDialog preloaderDialog;
+    private final ExecutorService shortcutWorker = Executors.newSingleThreadExecutor();
+    private final Object shortcutLoadLock = new Object();
+    private boolean shortcutLoadRunning;
+    private boolean shortcutReloadPending;
+    private volatile int shortcutViewGeneration;
+    private volatile boolean wineDiscoveryFinished;
 
     private final ActivityResultLauncher<Intent> artworkPickerLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
@@ -145,18 +153,31 @@ public class ShortcutsFragment extends Fragment {
 
     @Override
     public void onDestroyView() {
-        super.onDestroyView();
+        shortcutViewGeneration++;
         stopFileObservers(); // Stop watching to prevent memory leaks
-        preloaderDialog.close();
+        if (preloaderDialog != null) preloaderDialog.close();
+        recyclerView = null;
+        emptyTextView = null;
+        preloaderDialog = null;
+        super.onDestroyView();
+    }
+
+    @Override
+    public void onDestroy() {
+        shortcutWorker.shutdownNow();
+        super.onDestroy();
     }
 
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
+        shortcutViewGeneration++;
+        wineDiscoveryFinished = false;
         manager = new ContainerManager(getContext());
         preloaderDialog = new PreloaderDialog(getActivity());
         loadShortcutsList();
         startFileObservers(); // Start watching for new file
+        discoverWineShortcutsAsync();
         ((AppCompatActivity)getActivity()).getSupportActionBar().setTitle(R.string.shortcuts);
     }
 
@@ -173,18 +194,9 @@ public class ShortcutsFragment extends Fragment {
         return frameLayout;
     }
 
-    private Container findContainerForFile(File file) {
-        for (Container container : manager.getContainers()) {
-            if (file.getAbsolutePath().startsWith(container.getDesktopDir().getAbsolutePath())) {
-                return container;
-            }
-        }
-        return null;
-    }
     private void startFileObservers() {
         stopFileObservers();
         ArrayList<Container> containers = manager.getContainers();
-        ArrayList<File> orphanedLinks = new ArrayList<>();
         Log.d("ShortcutObserver", "Starting observers for " + containers.size() + " containers.");
 
         for (Container container : containers) {
@@ -192,29 +204,18 @@ public class ShortcutsFragment extends Fragment {
             Log.d("ShortcutObserver", "Checking container " + container.id + " at path: " + desktopDir.getAbsolutePath());
 
             if (desktopDir.exists() && desktopDir.isDirectory()) {
-                File[] files = desktopDir.listFiles();
-                if (files != null) {
-                    for (File file : files) {
-                        if (file.getName().toLowerCase().endsWith(".lnk")) {
-                            String desktopFileName = FileUtils.getBasename(file.getName()) + ".desktop";
-                            File desktopFile = new File(desktopDir, desktopFileName);
-                            if (!desktopFile.exists()) {
-                                Log.d("ShortcutObserver", "Found orphaned .lnk file: " + file.getName());
-                                orphanedLinks.add(file);
-                            }
-                        }
-                    }
-                }
-
                 FileObserver observer = new FileObserver(desktopDir, FileObserver.CREATE) {
                     @Override
                     public void onEvent(int event, @Nullable String path) {
-                        if (path != null && path.toLowerCase().endsWith(".lnk")) {
+                        if (path != null && path.toLowerCase(Locale.ENGLISH).endsWith(".lnk")) {
                             Log.d("ShortcutObserver", "New .lnk file created: " + path);
                             final File newLnkFile = new File(desktopDir, path);
-                            if (getActivity() != null) {
-                                getActivity().runOnUiThread(() -> {
-                                    preloaderDialog.show(R.string.creating_shortcut);
+                            Activity activity = getActivity();
+                            if (activity != null) {
+                                activity.runOnUiThread(() -> {
+                                    if (preloaderDialog != null) {
+                                        preloaderDialog.show(R.string.creating_shortcut);
+                                    }
                                     processNewLinkFile(newLnkFile, container);
                                 });
                             }
@@ -227,52 +228,43 @@ public class ShortcutsFragment extends Fragment {
                 Log.w("ShortcutObserver", "Desktop directory does not exist for container " + container.id + ": " + desktopDir.getAbsolutePath());
             }
         }
-
-        if (!orphanedLinks.isEmpty()) {
-            Log.d("ShortcutObserver", "Processing " + orphanedLinks.size() + " orphaned links.");
-            preloaderDialog.show(R.string.creating_shortcut);
-            processOrphanedLinkFiles(orphanedLinks);
-        } else {
-            Log.d("ShortcutObserver", "No orphaned links found.");
-        }
     }
 
-    private void processOrphanedLinkFiles(ArrayList<File> lnkFiles) {
-        Executors.newSingleThreadExecutor().execute(() -> {
-            boolean shortcutsChanged = false;
+    private void discoverWineShortcutsAsync() {
+        if (shortcutWorker.isShutdown()) return;
+        final int generation = shortcutViewGeneration;
+        final ContainerManager taskManager = manager;
+        shortcutWorker.execute(() -> {
             try {
-                for (File lnkFile : lnkFiles) {
-                    Container owner = findContainerForFile(lnkFile);
-                    if (owner != null) {
-                        if (createDesktopFileFromLnk(lnkFile, owner)) {
-                            shortcutsChanged = true;
-                        }
-                    }
-                }
-            } finally {
-                if (getActivity() != null) {
-                    final boolean finalShortcutsChanged = shortcutsChanged;
-                    getActivity().runOnUiThread(() -> {
-                        if (preloaderDialog != null) preloaderDialog.close();
-                        if (finalShortcutsChanged) {
-                            loadShortcutsList();
-                            Toast.makeText(getContext(), "Shortcuts updated.", Toast.LENGTH_SHORT).show();
-                        }
-                    });
-                }
+                taskManager.discoverWineShortcuts();
             }
+            catch (Throwable error) {
+                Log.e("ShortcutsFragment", "Unable to discover Wine shortcuts", error);
+            }
+
+            Activity activity = getActivity();
+            if (activity == null) return;
+            activity.runOnUiThread(() -> {
+                if (generation != shortcutViewGeneration || recyclerView == null) return;
+                wineDiscoveryFinished = true;
+                // Always refresh: when no link was converted this is also what
+                // reveals the empty-state message after background discovery.
+                loadShortcutsList();
+            });
         });
     }
 
     private void processNewLinkFile(File lnkFile, Container container) {
-        Executors.newSingleThreadExecutor().execute(() -> {
+        if (shortcutWorker.isShutdown()) return;
+        shortcutWorker.execute(() -> {
             boolean shortcutCreated = false;
             try {
                 shortcutCreated = createDesktopFileFromLnk(lnkFile, container);
             } finally {
-                if (getActivity() != null) {
+                Activity activity = getActivity();
+                if (activity != null) {
                     final boolean finalShortcutCreated = shortcutCreated;
-                    getActivity().runOnUiThread(() -> {
+                    activity.runOnUiThread(() -> {
                         if (preloaderDialog != null) preloaderDialog.close();
                         if (finalShortcutCreated) {
                             loadShortcutsList();
@@ -317,23 +309,63 @@ public class ShortcutsFragment extends Fragment {
         fileObservers.clear();
     }
     public void loadShortcutsList() {
-
-        ArrayList<Shortcut> shortcuts = new ArrayList<>();
-
-        // This also discovers Wine/WFM .lnk files beside executables on mounted
-        // drives and converts them to the container Desktop before listing.
-        try {
-            shortcuts.addAll(manager.loadShortcuts());
-        } catch (Throwable fatal) {
-            Log.e("ShortcutsFragment", "Fatal error while scanning shortcuts!", fatal);
-            Toast.makeText(getContext(),
-                    "Couldn’t load shortcuts (see log).", Toast.LENGTH_LONG).show();
+        if (manager == null || shortcutWorker.isShutdown()) return;
+        synchronized (shortcutLoadLock) {
+            if (shortcutLoadRunning) {
+                shortcutReloadPending = true;
+                return;
+            }
+            shortcutLoadRunning = true;
         }
 
-        // ---- UI update ----
-//        Collections.sort(shortcuts);           // keep existing order logic
-        recyclerView.setAdapter(new ShortcutsAdapter(shortcuts));
-        emptyTextView.setVisibility(shortcuts.isEmpty() ? View.VISIBLE : View.GONE);
+        final int generation = shortcutViewGeneration;
+        final ContainerManager taskManager = manager;
+        shortcutWorker.execute(() -> {
+            ArrayList<Shortcut> shortcuts = new ArrayList<>();
+            Throwable loadError = null;
+            try {
+                shortcuts.addAll(taskManager.loadShortcutsFast());
+            }
+            catch (Throwable fatal) {
+                loadError = fatal;
+                Log.e("ShortcutsFragment", "Fatal error while loading shortcuts!", fatal);
+            }
+
+            final ArrayList<Shortcut> loadedShortcuts = shortcuts;
+            final Throwable finalLoadError = loadError;
+            Activity activity = getActivity();
+            if (activity == null) {
+                finishShortcutLoad(false);
+                return;
+            }
+            activity.runOnUiThread(() -> {
+                boolean viewAlive = generation == shortcutViewGeneration
+                        && recyclerView != null && emptyTextView != null;
+                if (viewAlive) {
+                    recyclerView.setAdapter(new ShortcutsAdapter(loadedShortcuts));
+                    emptyTextView.setVisibility(loadedShortcuts.isEmpty()
+                            && wineDiscoveryFinished ? View.VISIBLE : View.GONE);
+                    if (finalLoadError != null) {
+                        Toast.makeText(getContext(),
+                                "Couldn’t load shortcuts (see log).", Toast.LENGTH_LONG).show();
+                    }
+                }
+                // A newer view may have requested a refresh while this old
+                // generation was finishing. Allow that request to run even
+                // though these particular results must not be displayed.
+                finishShortcutLoad(recyclerView != null && emptyTextView != null);
+            });
+        });
+    }
+
+    private void finishShortcutLoad(boolean viewAlive) {
+        boolean reload;
+        synchronized (shortcutLoadLock) {
+            shortcutLoadRunning = false;
+            reload = shortcutReloadPending;
+            shortcutReloadPending = false;
+        }
+        if (reload && viewAlive) loadShortcutsList();
     }
 
 

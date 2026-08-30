@@ -254,42 +254,31 @@ public class ContainerManager {
     }
 
     public ArrayList<Shortcut> loadShortcuts() {
+        discoverWineShortcuts();
+        return loadShortcutsFast();
+    }
+
+    /**
+     * Lists shortcuts that have already been converted to Linux desktop files.
+     *
+     * <p>This path deliberately does not crawl mounted drives. It is suitable for
+     * latency-sensitive screens; cover and icon decoding still happens here, so
+     * callers should run it away from the main thread.</p>
+     */
+    public ArrayList<Shortcut> loadShortcutsFast() {
         ArrayList<Shortcut> shortcuts = new ArrayList<>();
 
         for (Container container : containers) {
             File desktopDir = container.getDesktopDir();
             File[] list = (desktopDir.exists() ? desktopDir.listFiles() : null);
-
-            // Wine/WFM creates Windows .lnk files. Convert them whenever the
-            // central shortcut list is loaded. WFM writes "Create Shortcut"
-            // beside the selected EXE (often D:\\Downloads), rather than on the
-            // Wine Desktop, so include configured drive folders as well.
-            ArrayList<File> wineLinks = new ArrayList<>();
-            Set<String> visitedRoots = new HashSet<>();
-            collectWineLinks(desktopDir, 0, new int[]{0}, wineLinks, visitedRoots);
-            for (String[] drive : container.drivesIterator()) {
-                File driveRoot = new File(drive[1]);
-                collectWineLinks(driveRoot, 0, new int[]{0}, wineLinks, visitedRoots);
-            }
-            for (File file : wineLinks) {
-                File desktop = new File(desktopDir,
-                        FileUtils.getBasename(file.getName()) + ".desktop");
-                if (desktop.isFile()) continue;
-                try {
-                    MSLink.createDesktopFile(file, context, container);
-                } catch (IOException ex) {
-                    Log.w("ContainerManager", "Unable to convert Wine shortcut: "
-                            + file.getAbsolutePath(), ex);
-                }
-            }
-
-            list = desktopDir.listFiles();
             if (list == null) continue;
             for (File file : list) {
-                if (!file.getName().toLowerCase().endsWith(".desktop")) continue;
+                if (!file.getName().toLowerCase(java.util.Locale.ENGLISH)
+                        .endsWith(".desktop")) continue;
                 try {
                     shortcuts.add(new Shortcut(container, file));
-                } catch (Exception ex) {
+                }
+                catch (Exception ex) {
                     Log.w("ContainerManager",
                             "Skipping malformed shortcut: " + file.getAbsolutePath(), ex);
                     // TODO: move the bad file to a “quarantine” folder or delete it
@@ -299,6 +288,47 @@ public class ContainerManager {
 
         shortcuts.sort(Comparator.comparing(a -> a.name, String::compareToIgnoreCase));
         return shortcuts;
+    }
+
+    /**
+     * Finds shortcuts produced by Wine/WFM and converts previously unseen links.
+     * WFM may create a link beside the selected executable rather than on the
+     * Wine Desktop, so configured drive roots must be included in the scan.
+     *
+     * @return true when at least one new desktop shortcut was created.
+     */
+    public boolean discoverWineShortcuts() {
+        boolean changed = false;
+        for (Container container : containers) {
+            if (Thread.currentThread().isInterrupted()) return changed;
+
+            File desktopDir = container.getDesktopDir();
+            ArrayList<File> wineLinks = new ArrayList<>();
+            Set<String> visitedRoots = new HashSet<>();
+            collectWineLinks(desktopDir, 0, new int[]{0}, wineLinks, visitedRoots);
+            for (String[] drive : container.drivesIterator()) {
+                if (Thread.currentThread().isInterrupted()) return changed;
+                collectWineLinks(new File(drive[1]), 0, new int[]{0}, wineLinks,
+                        visitedRoots);
+            }
+
+            for (File file : wineLinks) {
+                if (Thread.currentThread().isInterrupted()) return changed;
+                File desktop = new File(desktopDir,
+                        FileUtils.getBasename(file.getName()) + ".desktop");
+                if (desktop.isFile()) continue;
+                try {
+                    if (MSLink.createDesktopFile(file, context, container) != null) {
+                        changed = true;
+                    }
+                }
+                catch (IOException ex) {
+                    Log.w("ContainerManager", "Unable to convert Wine shortcut: "
+                            + file.getAbsolutePath(), ex);
+                }
+            }
+        }
+        return changed;
     }
 
     /** Loads only shortcuts already belonging to one container. This intentionally
@@ -326,14 +356,16 @@ public class ContainerManager {
 
     private static void collectWineLinks(File directory, int depth, int[] visited,
                                          ArrayList<File> output, Set<String> visitedRoots) {
-        if (directory == null || depth > 4 || visited[0] >= 1500 || output.size() >= 128
+        if (Thread.currentThread().isInterrupted() || directory == null || depth > 4
+                || visited[0] >= 1500 || output.size() >= 128
                 || !directory.isDirectory() || !directory.canRead()) return;
         String absolute = directory.getAbsolutePath();
         if (depth == 0 && !visitedRoots.add(absolute)) return;
         File[] files = directory.listFiles();
         if (files == null) return;
         for (File file : files) {
-            if (++visited[0] > 1500 || output.size() >= 128) return;
+            if (Thread.currentThread().isInterrupted() || ++visited[0] > 1500
+                    || output.size() >= 128) return;
             String lower = file.getName().toLowerCase(java.util.Locale.ENGLISH);
             if (file.isFile() && lower.endsWith(".lnk")) {
                 output.add(file);
