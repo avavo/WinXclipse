@@ -93,8 +93,6 @@ add_library(evshim SHARED winlator/evshim.c)
 add_library(fakeinput SHARED winlator/fakeinput.cpp)
 target_compile_options(fakeinput PRIVATE -Wall -Wextra -fvisibility=hidden)
 target_link_libraries(fakeinput log dl)
-set_target_properties(fakeinput PROPERTIES
-        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../jniLibs/${ANDROID_ABI}")
 
 # ---------- SDL2 library (Build from source) ----------
 # Add SDL2 as a library target.
