@@ -168,7 +168,7 @@ public class InputControlsView extends View {
     public int getControlBorderColor(boolean pressed) {
         int alpha = Math.min(255, (int)(overlayOpacity * 480));
         return pressed ? Color.argb(Math.min(255, alpha + 30), 230, 230, 230)
-                : Color.argb(alpha, 190, 190, 190);
+                : Color.argb(alpha, 255, 0, 0);
     }
 
     public int getSnappingSize() {
