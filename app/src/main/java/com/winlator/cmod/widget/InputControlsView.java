@@ -153,22 +153,22 @@ public class InputControlsView extends View {
     /** Dark radial-gradient button bodies (center). */
     public int getControlBodyCenterColor(boolean pressed) {
         int alpha = Math.min(255, (int)(overlayOpacity * 235));
-        return pressed ? Color.argb(Math.min(255, alpha + 50), 28, 28, 28)
-                : Color.argb(alpha, 10, 10, 10);
+        return pressed ? Color.argb(Math.min(255, alpha + 60), 0, 0, 0)
+                : Color.argb(30, 0, 0, 0);
     }
 
     /** Dark radial-gradient button bodies (outer edge). */
     public int getControlBodyEdgeColor(boolean pressed) {
         int alpha = Math.min(255, (int)(overlayOpacity * 255));
-        return pressed ? Color.argb(alpha, 95, 95, 95)
-                : Color.argb(alpha, 58, 58, 58);
+        return pressed ? Color.argb(alpha, 255, 255, 255)
+                : Color.argb(30, 255, 255, 255);
     }
 
     /** Thin light border around buttons, sticks and d-pad petals. */
     public int getControlBorderColor(boolean pressed) {
         int alpha = Math.min(255, (int)(overlayOpacity * 480));
-        return pressed ? Color.argb(Math.min(255, alpha + 30), 230, 230, 230)
-                : Color.argb(alpha, 255, 0, 0);
+        return pressed ? Color.argb(Math.min(255, alpha + 60), 255, 255, 255)
+                : Color.argb(170, 255, 255, 255);
     }
 
     public int getSnappingSize() {

@@ -394,7 +394,7 @@ public class ControlElement {
 
         paint.setColor(selected ? inputControlsView.getSecondaryColor() : primaryColor);
         paint.setStyle(Paint.Style.STROKE);
-        float strokeWidth = snappingSize * 0.25f;
+        float strokeWidth = snappingSize * 0.10f;
         paint.setStrokeWidth(strokeWidth);
         Rect boundingBox = getBoundingBox();
 
@@ -405,7 +405,7 @@ public class ControlElement {
                 boolean pressed = isEngaged();
                 float halfStroke = strokeWidth * 0.5f;
 
-                /* dark glassy body with radial gradient */
+                /* Light glassy body with radial gradient */
                 paint.setStyle(Paint.Style.FILL);
                 applyBodyShader(paint, SHADER_SLOT_BODY, cx, cy,
                         Math.max(boundingBox.width(), boundingBox.height()) * 0.7f, pressed);
@@ -413,10 +413,12 @@ public class ControlElement {
                     case CIRCLE:
                         canvas.drawCircle(cx, cy, boundingBox.width() * 0.5f - halfStroke, paint);
                         break;
-                    case RECT:
-                        canvas.drawRect(boundingBox.left + halfStroke, boundingBox.top + halfStroke,
-                                boundingBox.right - halfStroke, boundingBox.bottom - halfStroke, paint);
-                        break;
+                    case RECT: {
+                         float r = snappingSize * 0.10f * scale;
+                         canvas.drawRoundRect( boundingBox.left + halfStroke, boundingBox.top + halfStroke,
+                           boundingBox.right - halfStroke, boundingBox.bottom - halfStroke, r, r, paint);
+                         break;
+}
                     case ROUND_RECT: {
                         float r = boundingBox.height() * 0.5f - halfStroke;
                         canvas.drawRoundRect(boundingBox.left + halfStroke, boundingBox.top + halfStroke,
