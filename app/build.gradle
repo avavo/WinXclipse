@@ -77,13 +77,7 @@ android {
         }
     }
 
-    buildTypes {
-        debug {
-            signingConfig signingConfigs.winxclipseUpdate
-        }
-    }
-
-    flavorDimensions "identity"
+   flavorDimensions "identity"
     productFlavors {
         winxclipse {
             dimension "identity"
