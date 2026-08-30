@@ -14,6 +14,8 @@ All notable changes between WinXclipse releases, newest first.
 - Input Controls now includes controller auto-grab (plug and play), master vibration, and vibration testing.
 - The Winlator HUD includes an independent battery-percentage option.
 - The first visit to Community Configs explains how to export a tested config and links directly to the project Discord for submission.
+- The About dialog now exposes the project Discord beside the GitHub link.
+- Experimental Performance adds a per-game Translation Turbo switch and a manual 6144 MB unified-memory VRAM cap.
 
 ### Changed
 
@@ -24,6 +26,8 @@ All notable changes between WinXclipse releases, newest first.
 - Runtime/content names are deduplicated and existing containers migrate automatically when an installed profile's old identifier is normalized.
 - The obsolete touchscreen-haptic option and runtime feedback path were removed; physical-controller vibration remains independently configurable.
 - Existing Community Config ZIPs recover their selected external Xclipse driver automatically: installed packages are checked first, then Downloads, then the maintained driver catalog. Older exports such as Xclipse 920 Old do not need to be recreated.
+- Wine sessions now use fixed landscape orientation, so device rotation cannot turn the guest desktop vertical.
+- The Video dialog documents Mailbox, FIFO, Immediate, and Relaxed behavior; all bundled Vulkan wrappers were checked for the four modes.
 
 ### Performance
 
@@ -34,6 +38,9 @@ All notable changes between WinXclipse releases, newest first.
 - Container filesystem deletion runs off the UI thread.
 - The Wine/Proton catalog is populated immediately from its local cache and throttles network refreshes; verified DOS drive maps and the shared PulseAudio payload are reused between launches.
 - Storage-provider copies use buffered 64 KiB transfers instead of 1 KiB chunks, improving config/driver import and large-file I/O.
+- The Shortcuts screen opens from the sidebar without crawling every Wine drive on the UI thread; existing entries and artwork load through a fast background path while new `.lnk` files are discovered separately.
+- New Box86/Box64 and FEXCore **Turbo (Aggressive)** presets provide larger translation blocks and relaxed compatibility checks without changing Stability, Compatibility, Intermediate, or Performance. Experimental Translation Turbo can apply the same opt-in group per game without destroying the selected preset.
+- DXVK 1.x state caches, DXVK 2.x shader caches, and VKD3D-Proton shader caches now share a persistent fast-internal-storage directory; disabled renderer logs no longer create files.
 
 ### Fixed
 
@@ -48,8 +55,10 @@ All notable changes between WinXclipse releases, newest first.
 - FSR and other post-processing effects retry offscreen targets with core RGBA when a driver rejects BGRA, then fall back to direct rendering instead of a black screen if framebuffer creation still fails.
 - Container IDs are selected from both memory and the filesystem, preventing an imported or newly created container from overwriting `xuser-1`; valid on-disk metadata is preserved during defensive saves.
 - The startup controller-assignment notice was removed completely.
-- Rockstar titles no longer tear across the screen when panning: guest VSync now enforces FIFO and real 100%/50% pacing, Android compositor frames are synchronized to the display, and the unsafe single mutable AHardwareBuffer presentation path was removed.
+- Rockstar titles no longer tear across the screen when panning: the selected present mode is honored independently from 100%/50%/Off pacing, mailbox keeps the newest complete image without serializing the game like FIFO, Android compositor frames are synchronized to the display, and the unsafe single mutable AHardwareBuffer presentation path was removed.
 - Live/sidebar VSync values no longer remain as stale overrides after editing a container or shortcut, and `Off` keeps guest FPS uncapped without allowing partial Android compositor frames.
+- Mailbox, FIFO, and Relaxed keep required presentation waits even if an old advanced config requested they be bypassed; only Immediate can opt into that tearing-prone fast path.
+- VKD3D-Proton receives the selected Vulkan present mode explicitly, including the correct `FIFO_RELAXED` spelling, so DX12 follows the same Mailbox/FIFO/Immediate/Relaxed choice as DXVK and the wrapper.
 
 ## 0.9
 

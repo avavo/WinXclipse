@@ -27,6 +27,7 @@ This is an incremental update to WinXclipse v0.9 focused on Community Configs, W
 - The controller startup notice was removed.
 - Input Controls now includes controller auto-grab (plug and play), master vibration, and vibration testing.
 - The obsolete touchscreen-haptic option and feedback path were removed.
+- The About dialog links directly to the WinXclipse Discord.
 
 ### Runtime, DXVK, VKD3D, and 32-bit
 
@@ -37,6 +38,7 @@ This is an incremental update to WinXclipse v0.9 focused on Community Configs, W
 - Disabling VKD3D restores Wine's D3D12 files after DXVK extraction.
 - Pure win32 prefixes keep 32-bit DLLs in `system32` and no longer create a synthetic `syswow64`; WoW64 prefixes still populate the required 32-bit side.
 - Offscreen FSR/effect buffers retry with core RGBA when a driver rejects BGRA and fall back to direct rendering instead of showing a black screen.
+- Wine always opens in fixed landscape orientation, independent of device rotation.
 
 ### Performance and Responsiveness
 
@@ -48,8 +50,14 @@ This is an incremental update to WinXclipse v0.9 focused on Community Configs, W
 - Repeated startup service rewrites and temporary diagnostic logging were removed from normal launches.
 - Container filesystem deletion runs outside the UI thread.
 - VSync modes `100%`, `50%`, and `Off` are available independently from the FPS limiter.
-- Rockstar camera movement no longer shows horizontal tearing: synchronized modes force FIFO with real 100%/50% pacing, and Android presents complete compositor frames even when guest VSync is off.
+- Rockstar camera movement no longer shows horizontal tearing: mailbox is preserved independently from 100%/50%/Off pacing, keeps the newest complete image without FIFO's FPS serialization, and Android presents complete compositor frames even when guest pacing is off.
 - Proton/Wine entries appear immediately from local cache; catalog refreshes are throttled, unchanged DOS drive maps and shared PulseAudio files are reused, and storage-provider transfers use 64 KiB buffering.
+- The Shortcuts screen opens immediately from the sidebar: existing shortcuts and covers load in the background, and recursive Wine `.lnk` discovery no longer blocks the interface.
+- New Box86/Box64 and FEXCore Turbo presets add larger translation blocks and relaxed compatibility checks without altering the existing presets; Experimental Performance can apply the same Turbo group per game without replacing its selected preset.
+- DXVK 1.x/2.x and VKD3D-Proton caches are kept on fast internal storage for reuse across launches on both ARM64EC/FEX and x86_64/Box64; disabled renderer logs no longer touch storage.
+- Experimental Performance includes a manual 6144 MB VRAM cap option; Auto remains the safe default.
+- The Video help explains Mailbox, FIFO, Immediate, and Relaxed. Synchronized modes retain their required presentation wait, while Immediate remains the explicit lowest-wait/tearing path.
+- DX12 now receives the chosen present mode directly through VKD3D-Proton, including the correct FIFO Relaxed mapping.
 
 ### Additional Fixes
 
