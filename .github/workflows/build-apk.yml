@@ -1,0 +1,41 @@
+name: Build APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, souza ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: baixar código
+        uses: actions/checkout@v4
+
+      - name: configurar java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: configurar android sdk
+        uses: android-actions/setup-android@v3
+
+      - name: instalar sdk android
+        run: |
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: dar permissão pro gradle
+        run: chmod +x ./gradlew
+
+      - name: compilar apk
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: salvar apk
+        uses: actions/upload-artifact@v4
+        with:
+          name: winxclipse-apk-debug
+          path: |
+            **/build/outputs/apk/**/*.apk
