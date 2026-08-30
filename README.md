@@ -36,3 +36,5 @@ WinXclipse builds upon the work of:
 - Wrappers from [Leegao](https://github.com/leegao/bionic-vulkan-wrapper), [GameNative](https://github.com/utkarshdalal/GameNative), [Ref4ik-v6](https://github.com/REF4IK/CronyX-), and Kirimu  
   
 Winlator Xclipse adaptation by Álvaro
+
+Build de teste pela branch souza.
