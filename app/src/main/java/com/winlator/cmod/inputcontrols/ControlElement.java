@@ -107,7 +107,8 @@ public class ControlElement {
     /* text-layout cache: measureText is expensive and the label/width rarely change */
     private String cachedTextMetricsKey;
     private float cachedTextSizeValue = -1f;
-
+    private static final int HALO_ALPHA = 100;
+    private static final float HALO_RADIUS = 35f;
 
     public ControlElement(InputControlsView inputControlsView) {
         this.inputControlsView = inputControlsView;
@@ -448,6 +449,7 @@ public class ControlElement {
                         canvas.drawRoundRect(boundingBox.left, boundingBox.top, boundingBox.right, boundingBox.bottom, r, r, paint);
                         break;
                     }
+                        break;
                     case ROUND_RECT: {
                         float r = boundingBox.height() * 0.5f;
                         canvas.drawRoundRect(boundingBox.left, boundingBox.top, boundingBox.right, boundingBox.bottom, r, r, paint);
@@ -698,6 +700,34 @@ public class ControlElement {
                 Math.max(petal.width(), petal.height()) * 0.7f, pressed);
         canvas.drawRoundRect(petal, cornerRadius, cornerRadius, paint);
         paint.setShader(null);
+
+        /* halo effect */
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setColor(android.graphics.Color.WHITE);
+        paint.setAlpha(100);
+        paint.setShadowLayer(35, 0, 0, android.graphics.Color.WHITE);
+        switch (shape) {
+            case CIRCLE:
+                canvas.drawCircle(cx, cy, boundingBox.width() * 0.5f, paint);
+                break;
+            case RECT: {
+                  float r = snappingSize * 0.10f * scale;
+                    canvas.drawRoundRect(boundingBox.left, boundingBox.top, boundingBox.right, boundingBox.bottom, r, r, paint);
+                    break;
+                 }
+            case ROUND_RECT: {
+                  float r = boundingBox.height() * 0.5f;
+                    canvas.drawRoundRect(boundingBox.left, boundingBox.top, boundingBox.right, boundingBox.bottom, r, r, paint);
+                    break;
+                 }
+            case SQUARE: {
+                    float r = snappingSize * 0.75f * scale;
+                    canvas.drawRoundRect(boundingBox.left, boundingBox.top, boundingBox.right, boundingBox.bottom, r, r, paint);
+                    break;
+                }
+        }
+        
+        paint.clearShadowLayer();
 
         /* thin light border */
         paint.setStyle(Paint.Style.STROKE);
