@@ -28,9 +28,9 @@ import org.json.JSONObject;
 import java.util.Arrays;
 
 public class ControlElement {
-    public static final float STICK_DEAD_ZONE = 0.15f;
+    public static final float STICK_DEAD_ZONE = 0.25f;
     public static final float DPAD_DEAD_ZONE = 0.3f;
-    public static final float STICK_SENSITIVITY = 3.0f;
+    public static final float STICK_SENSITIVITY = 2.70f;
     public static final float TRACKPAD_MIN_SPEED = 0.8f;
     public static final float TRACKPAD_MAX_SPEED = 20.0f;
     public static final byte TRACKPAD_ACCELERATION_THRESHOLD = 4;
@@ -447,7 +447,7 @@ public class ControlElement {
                         canvas.drawCircle(cx, cy, boundingBox.width() * 0.5f, paint);
                         break;
                     case RECT: {
-                         float r = snappingSize * 0.10f * scale;
+                         float r = snappingSize * 0.75f * scale;
                          canvas.drawRoundRect(boundingBox.left, boundingBox.top,
                          boundingBox.right, boundingBox.bottom, r, r, paint);
                             
@@ -514,12 +514,14 @@ public class ControlElement {
                         cachedTextSizeValue = Math.min(getTextSizeForWidth(paint, text, targetWidth), snappingSize * 2 * scale);
                         cachedTextMetricsKey = metricsKey;
                     }
-                    paint.setTextSize(cachedTextSizeValue);
+                    paint.setTextSize(cachedTextSizeValue * 1.08f);
                     paint.setTextAlign(Paint.Align.CENTER);
                     paint.setStyle(Paint.Style.FILL);
-                    paint.setColor(primaryColor);
+                    paint.setColor(Color.WHITE);
+                    paint.setAlpha(220);
                     canvas.drawText(text, x, (y - ((paint.descent() + paint.ascent()) * 0.5f)), paint);
                     paint.setFakeBoldText(false);
+                    paint.setAlpha(255);
                 }
                 break;
             }
