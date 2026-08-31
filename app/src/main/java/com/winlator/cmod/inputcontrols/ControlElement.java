@@ -450,7 +450,6 @@ public class ControlElement {
                         canvas.drawRoundRect(boundingBox.left, boundingBox.top, boundingBox.right, boundingBox.bottom, r, r, paint);
                         break;
                     }
-                        break;
                     case ROUND_RECT: {
                         float r = boundingBox.height() * 0.5f;
                         canvas.drawRoundRect(boundingBox.left, boundingBox.top, boundingBox.right, boundingBox.bottom, r, r, paint);
