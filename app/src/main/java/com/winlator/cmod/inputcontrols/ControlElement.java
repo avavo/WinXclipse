@@ -420,7 +420,7 @@ public class ControlElement {
                          canvas.drawRoundRect( boundingBox.left + halfStroke, boundingBox.top + halfStroke,
                            boundingBox.right - halfStroke, boundingBox.bottom - halfStroke, r, r, paint);
                          break;
-}
+                    }
                     case ROUND_RECT: {
                         float r = boundingBox.height() * 0.5f - halfStroke;
                         canvas.drawRoundRect(boundingBox.left + halfStroke, boundingBox.top + halfStroke,
@@ -435,6 +435,46 @@ public class ControlElement {
                     }
                 }
                 paint.setShader(null);
+
+                //halo
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setColor(Color.WHITE);
+                paint.setAlpha(130);
+                paint.setShadowLayer(60, 0, 0, Color.WHITE);
+
+                switch (shape) {
+                    case CIRCLE:
+                        canvas.drawCircle(cx, cy, boundingBox.width() * 0.5f, paint);
+                        break;
+                    case RECT: {
+                         float r = snappingSize * 0.10f * scale;
+                         canvas.drawRoundRect(boundingBox.left, boundingBox.top,
+                         boundingBox.right, boundingBox.bottom, r, r, paint);
+                            
+                         break;
+                            
+                    }
+
+                    case ROUND_RECT: {
+                        float r = boundingBox.height() * 0.5f;
+                        canvas.drawRoundRect(boundingBox.left, boundingBox.top,
+                        boundingBox.right, boundingBox.bottom, r, r, paint);
+                                
+                        break;
+                            
+                    }
+
+                    case SQUARE: {
+                        float r = snappingSize * 0.75f * scale;
+                        canvas.drawRoundRect(boundingBox.left, boundingBox.top,
+                        boundingBox.right, boundingBox.bottom, r, r, paint);
+                                
+                        break;
+                    }
+                 
+               }
+
+                paint.clearShadowLayer();
 
                 /* thin light border */
                 paint.setStyle(Paint.Style.STROKE);
@@ -617,6 +657,16 @@ public class ControlElement {
                 canvas.drawCircle(cx, cy, radius, paint);
                 paint.setShader(null);
 
+                /* halo */
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setColor(Color.WHITE);
+                paint.setAlpha(130);
+                paint.setShadowLayer(60, 0, 0, Color.WHITE);
+
+                canvas.drawCircle(cx, cy, radius, paint);
+
+                paint.clearShadowLayer();
+
                 /* thin light border ring */
                 paint.setStyle(Paint.Style.STROKE);
                 paint.setColor(selected ? inputControlsView.getSecondaryColor()
@@ -704,8 +754,8 @@ public class ControlElement {
         //Halo
         paint.setStyle(Paint.Style.STROKE);
         paint.setColor(Color.WHITE);
-        paint.setAlpha(100);
-        paint.setShadowLayer(35, 0, 0, Color.WHITE);
+        paint.setAlpha(130);
+        paint.setShadowLayer(60, 0, 0, Color.WHITE);
          canvas.drawRoundRect(petal, cornerRadius, cornerRadius, paint);
         paint.clearShadowLayer();
         
