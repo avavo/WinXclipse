@@ -701,33 +701,14 @@ public class ControlElement {
         canvas.drawRoundRect(petal, cornerRadius, cornerRadius, paint);
         paint.setShader(null);
 
-        /* halo effect */
+        //Halo
         paint.setStyle(Paint.Style.STROKE);
-        paint.setColor(android.graphics.Color.WHITE);
+        paint.setColor(Color.WHITE);
         paint.setAlpha(100);
-        paint.setShadowLayer(35, 0, 0, android.graphics.Color.WHITE);
-        switch (shape) {
-            case CIRCLE:
-                canvas.drawCircle(cx, cy, boundingBox.width() * 0.5f, paint);
-                break;
-            case RECT: {
-                  float r = snappingSize * 0.10f * scale;
-                    canvas.drawRoundRect(boundingBox.left, boundingBox.top, boundingBox.right, boundingBox.bottom, r, r, paint);
-                    break;
-                 }
-            case ROUND_RECT: {
-                  float r = boundingBox.height() * 0.5f;
-                    canvas.drawRoundRect(boundingBox.left, boundingBox.top, boundingBox.right, boundingBox.bottom, r, r, paint);
-                    break;
-                 }
-            case SQUARE: {
-                    float r = snappingSize * 0.75f * scale;
-                    canvas.drawRoundRect(boundingBox.left, boundingBox.top, boundingBox.right, boundingBox.bottom, r, r, paint);
-                    break;
-                }
-        }
-        
+        paint.setShadowLayer(35, 0, 0, Color.WHITE);
+         canvas.drawRoundRect(petal, cornerRadius, cornerRadius, paint);
         paint.clearShadowLayer();
+        
 
         /* thin light border */
         paint.setStyle(Paint.Style.STROKE);
