@@ -443,8 +443,11 @@ public class ControlElement {
                     case CIRCLE:
                         canvas.drawCircle(cx, cy, boundingBox.width() * 0.5f, paint);
                         break;
-                    case RECT:
-                        canvas.drawRect(boundingBox, paint);
+                    case RECT: {
+                        float r = snappingSize * 0.75f * scale;
+                        canvas.drawRoundRect(boundingBox.left, boundingBox.top, boundingBox.right, boundingBox.bottom, r, r, paint);
+                        break;
+                    }
                         break;
                     case ROUND_RECT: {
                         float r = boundingBox.height() * 0.5f;
@@ -485,7 +488,7 @@ public class ControlElement {
                 float halfStroke = strokeWidth * 0.5f;
                 float size = Math.min(boundingBox.width(), boundingBox.height());
                 float petalWidth = size * 0.32f;
-                float gap = size * 0.055f;
+                float gap = size * 0.070f;
                 float cornerRadius = petalWidth * 0.45f;
                 boolean engaged = isEngaged();
 
@@ -699,7 +702,7 @@ public class ControlElement {
 
         /* thin light border */
         paint.setStyle(Paint.Style.STROKE);
-        paint.setStrokeWidth(snappingSize * 0.25f);
+        paint.setStrokeWidth(snappingSize * 0.10f);
         paint.setColor(selected ? inputControlsView.getSecondaryColor()
                 : inputControlsView.getControlBorderColor(pressed));
         canvas.drawRoundRect(petal, cornerRadius, cornerRadius, paint);
@@ -708,28 +711,29 @@ public class ControlElement {
         float cx = petal.centerX();
         float cy = petal.centerY();
         float arm = Math.min(petal.width(), petal.height()) * 0.24f;
+        float arrowOffset = Math.min(petal.width(), petal.height()) * 0.20f;
         Path path = inputControlsView.getPath();
         path.reset();
         switch (direction) {
-            case 0:
-                path.moveTo(cx - arm, cy + arm * 0.6f);
-                path.lineTo(cx, cy - arm * 0.6f);
-                path.lineTo(cx + arm, cy + arm * 0.6f);
+            case 0: //UP
+                path.moveTo(cx - arm, cy + arm * 0.6f - arrowOffset);
+                path.lineTo(cx, cy - arm * 0.6f - arrowOffset);
+                path.lineTo(cx + arm, cy + arm * 0.6f - arrowOffset);
                 break;
-            case 1:
-                path.moveTo(cx - arm * 0.6f, cy - arm);
-                path.lineTo(cx + arm * 0.6f, cy);
-                path.lineTo(cx - arm * 0.6f, cy + arm);
+            case 1: //RIGHT
+                path.moveTo(cx - arm * 0.6f + arrowOffset, cy - arm);
+                path.lineTo(cx + arm * 0.6f + arrowOffset, cy);
+                path.lineTo(cx - arm * 0.6f + arrowOffset, cy + arm);
                 break;
-            case 2:
-                path.moveTo(cx - arm, cy - arm * 0.6f);
-                path.lineTo(cx, cy + arm * 0.6f);
-                path.lineTo(cx + arm, cy - arm * 0.6f);
+            case 2: //DOWN
+                path.moveTo(cx - arm, cy - arm * 0.6f + arrowOffset);
+                path.lineTo(cx, cy + arm * 0.6f + arrowOffset);
+                path.lineTo(cx + arm, cy - arm * 0.6f + arrowOffset);
                 break;
-            default:
-                path.moveTo(cx + arm * 0.6f, cy - arm);
-                path.lineTo(cx - arm * 0.6f, cy);
-                path.lineTo(cx + arm * 0.6f, cy + arm);
+            default: //LEFT
+                path.moveTo(cx + arm * 0.6f - arrowOffset, cy - arm);
+                path.lineTo(cx - arm * 0.6f - arrowOffset, cy);
+                path.lineTo(cx + arm * 0.6f - arrowOffset, cy + arm);
                 break;
         }
         paint.setStyle(Paint.Style.STROKE);
