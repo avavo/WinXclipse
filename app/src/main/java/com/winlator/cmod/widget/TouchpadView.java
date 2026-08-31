@@ -36,7 +36,7 @@ public class TouchpadView extends View {
     public static final byte CURSOR_ACCELERATION_THRESHOLD = 6;
     private final Finger[] fingers = new Finger[MAX_FINGERS];
     private byte numFingers = 0;
-    private float sensitivity = 1.0f;
+    private float sensitivity = 1.6f;
     private boolean pointerButtonLeftEnabled = true;
     private boolean pointerButtonRightEnabled = true;
     /** Tracks the physical primary button across Android's touch/generic paths. */

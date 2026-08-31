@@ -7,6 +7,8 @@ public class RenderTarget extends Texture {
     // Field to store the OpenGL framebuffer ID.
     private int framebuffer;
     private boolean complete;
+    private int width;
+    private int height;
 
     // Constructor
     public RenderTarget() {
@@ -27,9 +29,15 @@ public class RenderTarget extends Texture {
     // Allocates and initializes the framebuffer and texture with the specified width and height.
     public void allocateFramebuffer(int width, int height) {
         // Check if the framebuffer is already allocated.
-        if (framebuffer != 0) {
-            return; // If the framebuffer is already allocated, return.
+        if (framebuffer != 0 && this.width == width && this.height == height) {
+            return;
         }
+        if (framebuffer != 0) {
+            destroy();
+        }
+
+        this.width = width;
+        this.height = height;
 
         // Generate the framebuffer if not already done.
         generateFramebuffer();
@@ -102,6 +110,14 @@ public class RenderTarget extends Texture {
         return complete;
     }
 
+    public int getWidth() {
+        return width;
+    }
+
+    public int getHeight() {
+        return height;
+    }
+
     // Deletes the framebuffer and the attached texture.
     @Override
     public void destroy() {
@@ -110,6 +126,8 @@ public class RenderTarget extends Texture {
             framebuffer = 0;
         }
         complete = false;
+        width = 0;
+        height = 0;
         super.destroy();
     }
 }

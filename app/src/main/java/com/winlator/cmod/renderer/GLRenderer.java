@@ -6,7 +6,10 @@ import android.graphics.BitmapFactory;
 import android.opengl.EGL14;
 import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
+import android.view.Choreographer;
 
 import com.winlator.cmod.BuildConfig;
 import com.winlator.cmod.R;
@@ -16,6 +19,9 @@ import com.winlator.cmod.math.XForm;
 import com.winlator.cmod.renderer.material.CursorMaterial;
 import com.winlator.cmod.renderer.material.ShaderMaterial;
 import com.winlator.cmod.renderer.material.WindowMaterial;
+import com.winlator.cmod.renderer.lsfg.LSFGEffect;
+import com.winlator.cmod.renderer.lsfg.LSFGManager;
+import com.winlator.cmod.widget.WinlatorHUD;
 import com.winlator.cmod.widget.XServerView;
 import com.winlator.cmod.xserver.Bitmask;
 import com.winlator.cmod.xserver.Cursor;
@@ -32,7 +38,8 @@ import java.util.ArrayList;
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
 
-public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindowModificationListener, Pointer.OnPointerMotionListener {
+public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindowModificationListener,
+        Pointer.OnPointerMotionListener, Choreographer.FrameCallback {
     public final XServerView xServerView;
     private final XServer xServer;
     public final VertexAttribute quadVertices = new VertexAttribute("position", 2);
@@ -60,6 +67,17 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
     private int renderTargetWidth;
     private int renderTargetHeight;
     private final EffectComposer effectComposer;
+    private final LSFGManager lsfgManager;
+    private boolean renderCursorEnabled = true;
+    private long lastApexFrameNanos;
+    private volatile boolean requestedApexEnabled;
+    private volatile int requestedApexQuality = 1;
+    private volatile float requestedApexMultiplier;
+    private volatile int requestedApexTargetFPS = 60;
+    private volatile float requestedApexStability = 0.6f;
+    private WinlatorHUD winlatorHUD;
+    private long apexStatsStartNanos;
+    private volatile boolean apexChoreographerRunning;
     private volatile int fpsLimit;
     public static final int TEXTURE_FILTER_NONE = 3;
     private int lastForcedFilter = GLES20.GL_LINEAR;
@@ -69,6 +87,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
     public GLRenderer(XServerView xServerView, XServer xServer) {
         this.xServerView = xServerView;
         this.xServer = xServer;
+        this.lsfgManager = new LSFGManager(this);
         this.effectComposer = new EffectComposer(this);
         rootCursorDrawable = createRootCursorDrawable();
 
@@ -99,6 +118,9 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
         // FBOs/textures from a previous EGL context are dead; force the
         // composer to reallocate against the new context.
         effectComposer.invalidateBuffers();
+        LSFGEffect lsfg = effectComposer.getEffect(LSFGEffect.class);
+        if (lsfg != null) lsfg.resetGLResources();
+        lastApexFrameNanos = 0;
 
         GLES20.glFrontFace(GLES20.GL_CCW);
         GLES20.glDisable(GLES20.GL_CULL_FACE);
@@ -153,6 +175,22 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
 
     @Override
     public void onDrawFrame(GL10 gl) {
+        if (lsfgManager.isActive()) {
+            long interval = lsfgManager.getOutputFrameIntervalNanos();
+            long elapsed = System.nanoTime() - lastApexFrameNanos;
+            if (lastApexFrameNanos != 0 && elapsed < interval) {
+                long remaining = interval - elapsed;
+                try {
+                    Thread.sleep(remaining / 1_000_000L, (int)(remaining % 1_000_000L));
+                }
+                catch (InterruptedException ignored) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        }
+        lastApexFrameNanos = System.nanoTime();
+        lsfgManager.prepareFrame();
+
         if (toggleFullscreen) {
             fullscreen = !fullscreen;
             toggleFullscreen = false;
@@ -161,6 +199,8 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
         }
 
         drawFrame();
+        lsfgManager.onPostDraw();
+        updateApexHudStats();
     }
 
     public void drawFrame() {
@@ -240,7 +280,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
         renderWindows(xrImmersive);
 
         // Render cursor if enabled
-        if (cursorVisible && !rootWindowDownsized) renderCursor();
+        if (renderCursorEnabled && cursorVisible && !rootWindowDownsized) renderCursor();
 
         // Disable scissor test if magnifier is disabled and not in fullscreen mode
         if (!magnifierEnabled && !fullscreen) {
@@ -258,29 +298,34 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
 
     @Override
     public void onMapWindow(Window window) {
+        lsfgManager.notifyRealFramePending();
         xServerView.queueEvent(this::updateScene);
         xServerView.requestRender();
     }
 
     @Override
     public void onUnmapWindow(Window window) {
+        lsfgManager.notifyRealFramePending();
         xServerView.queueEvent(this::updateScene);
         xServerView.requestRender();
     }
 
     @Override
     public void onChangeWindowZOrder(Window window) {
+        lsfgManager.notifyRealFramePending();
         xServerView.queueEvent(this::updateScene);
         xServerView.requestRender();
     }
 
     @Override
     public void onUpdateWindowContent(Window window) {
+        lsfgManager.notifyRealFramePending();
         xServerView.requestRender();
     }
 
     @Override
     public void onUpdateWindowGeometry(final Window window, boolean resized) {
+        lsfgManager.notifyRealFramePending();
         if (resized) {
             xServerView.queueEvent(this::updateScene);
         }
@@ -564,6 +609,27 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
         return surfaceHeight;
     }
 
+    public void setRenderCursorEnabled(boolean enabled) {
+        renderCursorEnabled = enabled;
+    }
+
+    public void drawCursorExplicitly() {
+        if (!cursorVisible || rootWindowDownsized) return;
+        GLES20.glEnable(GLES20.GL_BLEND);
+        GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA);
+        boolean immersiveXR = XrActivity.isEnabled(null)
+                && XrActivity.getInstance().getImmersive();
+        if (fullscreen || immersiveXR) {
+            GLES20.glViewport(0, 0, surfaceWidth, surfaceHeight);
+        }
+        else {
+            GLES20.glViewport(viewTransformation.viewOffsetX, viewTransformation.viewOffsetY,
+                    viewTransformation.viewWidth, viewTransformation.viewHeight);
+        }
+        renderCursor();
+        viewportNeedsUpdate = true;
+    }
+
     public int getTextureFilterMode() {
         return textureFilterMode;
     }
@@ -612,6 +678,122 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
 
     public EffectComposer getEffectComposer (){
         return effectComposer;
+    }
+
+    public LSFGManager getLSFGManager() {
+        return lsfgManager;
+    }
+
+    public void setApex(boolean enabled, int quality, int targetFPS, float stability) {
+        setApex(enabled, quality, 0.0f, targetFPS, stability);
+    }
+
+    public void setApex(boolean enabled, int quality, float multiplier,
+            int targetFPS, float stability) {
+        requestedApexEnabled = enabled;
+        requestedApexQuality = Math.max(0, Math.min(2, quality));
+        requestedApexMultiplier = multiplier >= 1.5f
+                ? Math.min(6.0f, multiplier) : 0.0f;
+        requestedApexTargetFPS = Math.max(15, Math.min(240, targetFPS));
+        requestedApexStability = Math.max(0.0f, Math.min(1.0f, stability));
+        xServerView.queueEvent(() -> {
+            boolean applied = effectComposer.setLSFGEnabled(requestedApexEnabled,
+                    requestedApexQuality, requestedApexMultiplier,
+                    requestedApexTargetFPS, requestedApexStability);
+            if (!applied) requestedApexEnabled = false;
+            lastApexFrameNanos = 0;
+            apexStatsStartNanos = 0;
+            WinlatorHUD hud = winlatorHUD;
+            if (hud != null) {
+                boolean active = requestedApexEnabled && lsfgManager.isActive();
+                hud.setApexStats(active ? lsfgManager.getMultiplier() : 1.0f, active);
+            }
+            xServerView.requestRender();
+        });
+    }
+
+    public boolean isApexEnabled() {
+        return lsfgManager.isActive();
+    }
+
+    /**
+     * Returns the state selected by the user immediately, without waiting for
+     * the GL thread to finish applying it.  Sidebar clicks can arrive while an
+     * earlier enable request is still queued, so using only isApexEnabled()
+     * can invert the first click and turn Apex back on.
+     */
+    public boolean isApexRequestedEnabled() {
+        return requestedApexEnabled;
+    }
+
+    public int getApexQuality() {
+        return requestedApexQuality;
+    }
+
+    public int getApexTargetFPS() {
+        return requestedApexTargetFPS;
+    }
+
+    public float getApexMultiplier() {
+        return requestedApexMultiplier;
+    }
+
+    public float getApexStability() {
+        return requestedApexStability;
+    }
+
+    public void setWinlatorHUD(WinlatorHUD hud) {
+        winlatorHUD = hud;
+        apexStatsStartNanos = 0;
+    }
+
+    /**
+     * GLSurfaceView continuous mode is not reliable on every vendor EGL stack
+     * while the guest is idle between real Presents. Drive one request from
+     * Android's display clock as well, matching the scheduler used by the
+     * original Apex implementation.
+     */
+    public void startApexChoreographer() {
+        if (apexChoreographerRunning) return;
+        apexChoreographerRunning = true;
+        new Handler(Looper.getMainLooper()).post(() ->
+                Choreographer.getInstance().postFrameCallback(this));
+    }
+
+    public void stopApexChoreographer() {
+        apexChoreographerRunning = false;
+    }
+
+    @Override
+    public void doFrame(long frameTimeNanos) {
+        if (!apexChoreographerRunning) return;
+        if (lsfgManager.isActive()) xServerView.requestRender();
+        Choreographer.getInstance().postFrameCallback(this);
+    }
+
+    private void updateApexHudStats() {
+        WinlatorHUD hud = winlatorHUD;
+        if (hud == null) return;
+        long now = System.nanoTime();
+        if (apexStatsStartNanos == 0) apexStatsStartNanos = now;
+        long elapsed = now - apexStatsStartNanos;
+        if (elapsed < 500_000_000L) return;
+        // WinlatorHUD owns the real game-present counter.  Passing compositor
+        // frame counts here made the displayed value equal to the panel refresh
+        // rate whenever Choreographer was driving Apex.  Only pass the effective
+        // multiplier; the HUD applies it to the real game FPS.
+        hud.setApexStats(lsfgManager.getMultiplier(), lsfgManager.isActive());
+        lsfgManager.resetFrameCounts();
+        apexStatsStartNanos = now;
+    }
+
+    /** Called by the composer when the runtime backend is rejected after setup. */
+    void onApexRuntimeFailure() {
+        requestedApexEnabled = false;
+        lastApexFrameNanos = 0;
+        apexStatsStartNanos = 0;
+        WinlatorHUD hud = winlatorHUD;
+        if (hud != null) hud.setApexStats(1.0f, false);
     }
 
 

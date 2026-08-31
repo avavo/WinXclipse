@@ -1,0 +1,132 @@
+# WinXclipse v0.9.5
+
+WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It adds configurable Apex frame generation, reorganizes the Vulkan wrappers, ports the newer Souza touch controls, improves the HUD and fixes several container, shortcut and input-editor crashes.
+
+# Highlights
+
+### Apex Frame Generation
+
+- Added experimental GLES 3.1 frame generation for Vulkan containers.
+- Frame Generation is configured inside Video Configuration for both containers and shortcuts; shortcut values can override the container without changing it.
+- Added Fast, Balanced and Quality profiles with clear trade-offs:
+  - Fast has the lowest GPU cost and latency, but may deform edges more often.
+  - Balanced uses a larger motion search for a middle ground.
+  - Quality reduces warped edges with more conservative blending, but costs more GPU time and may introduce blur, double images or additional latency.
+- Added fixed 1.5x, 2x, 2.5x, 3x, 3.5x, 4x, 4.5x, 5x, 5.5x and 6x modes.
+- Automatic mode targets a user-entered output FPS.
+- Long explanations now live behind the `?` help button instead of occupying the main screen.
+- The in-session sidebar tile remains locked until Frame Generation is enabled in Video Configuration and the renderer is Vulkan.
+- Persisted Frame Generation starts only after the Android EGL surface is stable, avoiding the shortcut crash loop seen when enabling it, exiting and reopening the game.
+- Runtime backend failures disable the active state instead of leaving a false enabled indicator.
+- The Apex HUD counter uses the real guest-present rate multiplied by the effective Frame Generation multiplier; it no longer reports the phone panel refresh rate as game FPS.
+
+### Wrappers, ASTC and ETC2
+
+- The matched July 13 Winlator-Mali/Leegao stack is now `Wrapper-Default` and is selected for new containers.
+- Old `Wrapper-BCN` and `Wrapper-Xclipse` selections migrate to `Wrapper-Default`.
+- The previous generic `wrapper` selection migrates to `Wrapper-CMOD-V1`; the V2 path has its own stable `Wrapper-CMOD-V2` identity.
+- Built-in choices are Wrapper-Default, Wrapper-CMOD-V1 and Wrapper-Kirimu.
+- Wrapper-CMOD-V2 is available only through the existing Wrappers release.
+- Wrapper-GameNative is download-only and is no longer embedded in the APK.
+- The existing Wrappers release contains BCN, CMOD V2, GameNative and Ref4ik-v6. No new GitHub release is required.
+- The Downloads page reads the maintained wrapper release, downloads archives directly and installs them under stable identifiers.
+- Community configs automatically recognize bundled wrappers and recover missing downloadable wrappers from Downloads or the remote catalog without recreating the config.
+- Fixed ASTC/ETC2 transcoding activation so a requested transcode can enable the compute layer even when BCN emulation is set to None or Partial.
+- The HUD reports the effective BCN-to-ASTC or BCN-to-ETC2 path and exposes an error state when the required layer did not reach Vulkan.
+- Wrapper-Default uses the safer Mali shader-patch policy intended to avoid the wrapper-side pipeline crash observed in Red Dead Redemption.
+
+### Controls
+
+- Ported the Souza Final control refinements while preserving WinXclipse touch, mouse and vibration behavior.
+- Kept the current spaced D-pad layout and made its outline as thin as the other buttons and sticks.
+- Added outward D-pad arrows, rounded glass controls, larger high-contrast labels and lightweight button/stick glow.
+- Updated the analog response to Souza Final's 0.25 dead zone and 2.70 sensitivity, with the 1.6 touchpad base retained where no user preference overrides it.
+- Fixed the editable-template crash after changing a button icon: the icon cache now covers the complete Souza icon set and validates missing or invalid icons before drawing.
+
+### Display Sidebar and HUD
+
+- The FPS Limiter tile now toggles the saved limit on and off.
+- Its three-dot button accepts a custom value from 15 to 240 FPS.
+- Removed the obsolete Unlimited choice; disabled state is shown as Off.
+- Shortcut limiter changes stay on the shortcut instead of silently modifying its base container.
+- The live Display panel can configure Frame Generation with the same profiles, multiplier and automatic target used by the container or shortcut.
+- The HUD can show the container graphics API, DX wrapper, effective BCN transcode path and physical phone GPU.
+- Phone GPU is shown above the SoC in the vertical HUD, and the redundant `Samsung` prefix is removed from the GPU name.
+
+### Devices, Rotation and Interface
+
+- Added Galaxy Tab S10 FE SM-X520 and SM-X526B detection.
+- Added Galaxy Tab S10 FE+ SM-X620 and SM-X626B detection.
+- All four models receive Exynos 1580 / Xclipse 540 handling even when early Android startup exposes only a generic GLES renderer.
+- Wine sessions support normal and reverse landscape, allowing either long edge of the phone or tablet to face upward without enabling portrait rotation.
+- Replaced the old update alert with a WinXclipse-styled AMOLED dialog that clearly shows installed and available versions.
+- Corrected the application version display to `0.9.5`.
+
+### Stability and Rendering
+
+- OpenGL/GDI startup keeps the required system GL libraries available instead of depending on the experimental BCN extraction path.
+- Frame Generation is restricted to compatible Vulkan sessions and is rearmed after surface initialization.
+- VSync, present mode and the FPS limiter remain independent settings.
+- Mailbox remains the high-throughput tear-free path while FIFO, Immediate and Relaxed retain their explicit behavior.
+- FSR, color effects and the Frame Generation compositor share validated render targets and fall back safely when a GPU rejects an intermediate format.
+
+## APK Information
+
+- Version name: 0.9.5
+- Version code: 26
+- ABI: arm64-v8a
+- Minimum Android: 8.0 (API 26)
+- Target SDK: 28
+
+### Package Variants
+
+- Main: `com.win.xclipse`
+- AnTuTu: `com.antutu.ABenchMark`
+- Geekbench 6: `com.primatelabs.geekbench6`
+- PUBG Mobile: `com.tencent.ig`
+
+Providers and internal paths follow the active application ID for every variant.
+
+### Existing Download Sources
+
+- Wrappers: https://github.com/avavo/WinXclipse/releases/tag/wrappers-9.5
+- ExynosTools: https://github.com/WearyConcern1165/ExynosTools/releases
+- WinXclipse drivers: https://github.com/avavo/WinXclipse/releases/tag/drivers_0.9
+- Community configs: https://github.com/avavo/WinXclipse/releases/tag/community-configs
+
+## Status
+
+### Functionally experimental
+
+Frame Generation, wrapper behavior, ASTC/ETC2 transcoding and game compatibility vary by device, GPU driver, Android firmware, runtime and game. A wrapper appearing in Downloads does not guarantee compatibility with every device.
+
+## Credits
+
+- Winlator by Brunodev85
+- Winlator CMOD by coffincolors and Pipetto-crypto
+- Winlator Glibc by longjunyu2
+- Winlator OpenXR by lvonasek
+- FEX-Emu
+- AMD FidelityFX Super Resolution
+- Souza controls branch
+- Winlator Mali
+- Winlator Ludashi
+- Bannerlator HUD references
+- ExynosTools
+- GameNative Team
+- Leegao
+- Ref4ik-v6
+- Kirimu
+- Winlator Xclipse adaptation by Álvaro
+
+## Disclaimer
+
+WinXclipse is experimental. Performance, stability, game compatibility and driver behavior vary depending on the device and selected configuration. Use it at your own risk and test each game individually.
+
+## Support
+
+Discord: https://discord.gg/u2nDTXRxyx
+
+Email: avavosim@gmail.com
+
+When reporting a bug, include the device model, Android version, WinXclipse version, container or shortcut configuration, wrapper, graphics driver, runtime, reproduction steps and logs when available.

@@ -1,5 +1,7 @@
 package com.winlator.cmod.renderer;
 
+import android.app.ActivityManager;
+import android.content.Context;
 import android.opengl.GLES20;
 import android.util.Log;
 
@@ -8,6 +10,7 @@ import com.winlator.cmod.renderer.effects.Effect;
 import com.winlator.cmod.renderer.effects.FSREasuEffect;
 import com.winlator.cmod.renderer.effects.FSREffect;
 import com.winlator.cmod.renderer.effects.ToonEffect;
+import com.winlator.cmod.renderer.lsfg.LSFGEffect;
 import com.winlator.cmod.renderer.material.ShaderMaterial;
 
 import java.util.ArrayList;
@@ -17,6 +20,7 @@ public class EffectComposer {
     // Constants
     private static final String TAG = "EffectComposer";
     private boolean isRendering = false;
+    private Boolean supportsGLES31Cache;
 
     public boolean isRendering() { return isRendering; }
 
@@ -162,9 +166,14 @@ public class EffectComposer {
     public synchronized void addEffect(Effect effect) {
         if (!effects.contains(effect)) {
             // EASU must always run first: it consumes the reduced-resolution
-            // scene buffer; every other effect works on full-size buffers.
+            // scene buffer. Frame generation must always run last because it
+            // captures the fully processed image.
             if (effect instanceof FSREasuEffect) effects.add(0, effect);
-            else effects.add(effect);
+            else if (effect instanceof LSFGEffect) effects.add(effect);
+            else {
+                int lsfgIndex = indexOfLSFG();
+                effects.add(lsfgIndex >= 0 ? lsfgIndex : effects.size(), effect);
+            }
 //            Log.d(TAG, "Effect added: " + effect.getClass().getSimpleName());
         } else {
 //            Log.d(TAG, "Effect already present: " + effect.getClass().getSimpleName());
@@ -239,14 +248,26 @@ public class EffectComposer {
     private void replaceFsrPasses(FSREasuEffect easu, FSREffect rcas) {
         for (int i = effects.size() - 1; i >= 0; i--) {
             Effect e = effects.get(i);
-            if (e instanceof FSREasuEffect || e instanceof FSREffect) effects.remove(i);
+            if (e instanceof FSREasuEffect || e instanceof FSREffect) {
+                effects.remove(i);
+            }
         }
         if (easu != null) effects.add(0, easu);
         if (rcas != null) {
             if (easu != null) effects.add(1, rcas);
-            else effects.add(rcas);
+            else {
+                int lsfgIndex = indexOfLSFG();
+                effects.add(lsfgIndex >= 0 ? lsfgIndex : effects.size(), rcas);
+            }
         }
         renderer.xServerView.requestRender();
+    }
+
+    private int indexOfLSFG() {
+        for (int i = 0; i < effects.size(); i++) {
+            if (effects.get(i) instanceof LSFGEffect) return i;
+        }
+        return -1;
     }
 
     /**
@@ -266,108 +287,133 @@ public class EffectComposer {
             return;
         }
 
-        isRendering = true; // Set flag to true
+        isRendering = true;
+        LSFGEffect lsfg = getEffect(LSFGEffect.class);
+        boolean frameGenerationActive = lsfg != null && lsfg.getManager().isActive();
+        boolean generatedFrame = frameGenerationActive && lsfg.getManager().isGeneratedFrame();
 
-//        Log.d(TAG, "render() called");
+        try {
+            initBuffers();
+            if (readBuffer == null || writeBuffer == null
+                    || !readBuffer.isComplete() || !writeBuffer.isComplete()
+                    || (sceneUpscale && (sceneBuffer == null || !sceneBuffer.isComplete()))) {
+                // Preserve compatibility on drivers that reject offscreen targets.
+                if (frameGenerationActive) {
+                    effects.remove(lsfg);
+                    lsfg.destroy();
+                    renderer.onApexRuntimeFailure();
+                    renderer.setRenderCursorEnabled(true);
+                }
+                renderer.drawScene(false);
+                return;
+            }
 
-        initBuffers();
+            if (generatedFrame) {
+                renderer.setRenderTargetSize(bufferWidth, bufferHeight);
+                GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
+                GLES20.glDisable(GLES20.GL_BLEND);
+                GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
+                GLES20.glViewport(0, 0, bufferWidth, bufferHeight);
+                GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+                renderEffect(lsfg, false);
+                GLES20.glEnable(GLES20.GL_BLEND);
+                renderer.drawCursorExplicitly();
+                return;
+            }
 
-        if (readBuffer == null || writeBuffer == null
-                || !readBuffer.isComplete() || !writeBuffer.isComplete()
-                || (sceneUpscale && (sceneBuffer == null || !sceneBuffer.isComplete()))) {
-            // Preserve compatibility on drivers that reject offscreen targets:
-            // render normally instead of leaving a permanent black screen.
-            renderer.drawScene(false);
-            isRendering = false;
-            return;
-        }
-
-        boolean useScene = sceneUpscale && sceneBuffer != null;
-
-        // Set up framebuffer if there are effects to render
-        if (hasEffects()) {
+            boolean useScene = sceneUpscale && sceneBuffer != null;
+            renderer.setRenderCursorEnabled(!frameGenerationActive);
             if (useScene) {
-                // Scene pass: composite the X server content at reduced resolution.
                 GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, sceneBuffer.getFramebuffer());
                 renderer.setRenderTargetSize(sceneBufferWidth, sceneBufferHeight);
-                // Snapshot the exact rect the scene pass draws into, so EASU
-                // samples the content region instead of guessing it.
                 ViewTransformation vt = renderer.viewTransformation;
                 sceneViewOffsetX = vt.viewOffsetX;
                 sceneViewOffsetYGl = vt.viewOffsetY;
                 sceneViewWidth = vt.viewWidth;
                 sceneViewHeight = vt.viewHeight;
-            } else {
+            }
+            else {
                 GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, readBuffer.getFramebuffer());
             }
-//            Log.d(TAG, "Binding to readBuffer framebuffer: " + readBuffer.getFramebuffer());
-        } else {
-            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
-//            Log.d(TAG, "Binding to default framebuffer (0)");
-        }
 
-        // Draw the initial frame directly into the bound offscreen buffer.
-        // Must not call GLRenderer.drawFrame() which would dispatch back to
-        // the composer and cause a duplicate full-screen draw.
-        renderer.drawScene(false);
-//        Log.d(TAG, "Initial frame drawn");
+            renderer.drawScene(false);
 
-        // Effects before (and including) the first FSREasuEffect read the raw
-        // scene buffer; everything after it runs on the ping-pong buffers at
-        // display resolution. Keying this on the EASU position instead of
-        // index 0 keeps the pipeline correct regardless of effect ordering
-        // (e.g. HDREffect added before or after the FSR passes).
-        int sceneConsumer = -1;
-        if (useScene && !effects.isEmpty()) {
-            sceneConsumer = 0;
-            for (int i = 0; i < effects.size(); i++) {
-                if (effects.get(i) instanceof FSREasuEffect) {
-                    sceneConsumer = i;
-                    break;
+            int sceneConsumer = -1;
+            if (useScene) {
+                sceneConsumer = 0;
+                for (int i = 0; i < effects.size(); i++) {
+                    if (effects.get(i) instanceof FSREasuEffect) {
+                        sceneConsumer = i;
+                        break;
+                    }
                 }
             }
-        }
 
-        // Every effect draws a full-screen replacement quad. Source-over
-        // blending is both unnecessary and expensive for FSR's EASU/RCAS
-        // passes on tile GPUs.
-        if (!effects.isEmpty()) GLES20.glDisable(GLES20.GL_BLEND);
+            GLES20.glDisable(GLES20.GL_BLEND);
+            for (int i = 0; i < effects.size(); i++) {
+                Effect effect = effects.get(i);
+                if (effect instanceof LSFGEffect) continue;
 
-        // Iterate through each effect and render it
-        for (int i = 0; i < effects.size(); i++) {
-            Effect effect = effects.get(i);
-            boolean renderToScreen = effect == effects.get(effects.size() - 1);
-            int targetFramebuffer = renderToScreen ? 0 : writeBuffer.getFramebuffer();
+                boolean renderToScreen = !frameGenerationActive
+                        && effect == effects.get(effects.size() - 1);
+                if (useScene) renderer.setRenderTargetSize(bufferWidth, bufferHeight);
+                GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER,
+                        renderToScreen ? 0 : writeBuffer.getFramebuffer());
+                GLES20.glViewport(0, 0, bufferWidth, bufferHeight);
+                renderer.setViewportNeedsUpdate(true);
+                GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+                renderEffect(effect, i <= sceneConsumer);
+                swapBuffers();
+            }
 
-            // Restore full-size render target for effect passes.
+            if (frameGenerationActive) {
+                renderer.setRenderTargetSize(bufferWidth, bufferHeight);
+                lsfg.onPreRender(readBuffer, null);
+                GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
+                GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
+                GLES20.glViewport(0, 0, bufferWidth, bufferHeight);
+                GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+                renderEffect(lsfg, false);
+                GLES20.glEnable(GLES20.GL_BLEND);
+                renderer.setRenderCursorEnabled(true);
+                renderer.drawCursorExplicitly();
+            }
+            else {
+                GLES20.glEnable(GLES20.GL_BLEND);
+            }
+
             if (useScene) renderer.setRenderTargetSize(bufferWidth, bufferHeight);
-
-            // Bind appropriate framebuffer
-            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, targetFramebuffer);
-//            Log.d(TAG, "Binding to " + (renderToScreen ? "screen" : "writeBuffer") + " framebuffer: " + targetFramebuffer);
-
-            GLES20.glViewport(0, 0, renderer.surfaceWidth, renderer.surfaceHeight);
-            renderer.setViewportNeedsUpdate(true);
-//            Log.d(TAG, "Viewport updated to size: " + renderer.surfaceWidth + "x" + renderer.surfaceHeight);
-
-            // Clear the buffer
-            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
-//            Log.d(TAG, "Framebuffer cleared");
-
-            // Render the effect
-            renderEffect(effect, i <= sceneConsumer);
-//            Log.d(TAG, "Effect rendered: " + effect.getClass().getSimpleName());
-
-            // Swap the read and write buffers
-            swapBuffers();
-//            Log.d(TAG, "Buffers swapped");
         }
-
-        if (!effects.isEmpty()) GLES20.glEnable(GLES20.GL_BLEND);
-
-        if (useScene) renderer.setRenderTargetSize(bufferWidth, bufferHeight);
-
-        isRendering = false; // Reset flag after rendering
+        catch (Throwable error) {
+            Log.e(TAG, "Post-processing failed; disabling experimental frame generation", error);
+            if (lsfg != null) {
+                effects.remove(lsfg);
+                try {
+                    lsfg.destroy();
+                }
+                catch (Throwable cleanupError) {
+                    Log.w(TAG, "Unable to fully release frame-generation resources", cleanupError);
+                }
+            }
+            renderer.onApexRuntimeFailure();
+            // Restore a known GLES state and draw the Wine surface directly.
+            // This keeps the container alive if a device rejects a compute/FBO path.
+            try {
+                GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
+                GLES20.glEnable(GLES20.GL_BLEND);
+                renderer.setRenderTargetSize(renderer.getSurfaceWidth(), renderer.getSurfaceHeight());
+                renderer.setViewportNeedsUpdate(true);
+                renderer.setRenderCursorEnabled(true);
+                renderer.drawScene(false);
+            }
+            catch (Throwable fallbackError) {
+                Log.e(TAG, "Direct-render recovery failed", fallbackError);
+            }
+        }
+        finally {
+            renderer.setRenderCursorEnabled(true);
+            isRendering = false;
+        }
     }
 
     // Renders a single effect
@@ -476,6 +522,55 @@ public class EffectComposer {
             Log.d(TAG, "ToonEffect added");
         }
         renderer.xServerView.requestRender();
+    }
+
+    /** Enables/disables Apex only on the GL thread. Unsupported devices stay off. */
+    public synchronized boolean setLSFGEnabled(boolean enabled, int quality,
+            float multiplier, int targetFPS, float stability) {
+        LSFGEffect effect = getEffect(LSFGEffect.class);
+        if (!enabled) {
+            if (effect != null) {
+                effects.remove(effect);
+                effect.destroy();
+                renderer.xServerView.requestRender();
+            }
+            return true;
+        }
+
+        if (!supportsGLES31()) {
+            Log.e(TAG, "GLES 3.1 is required for experimental frame generation");
+            return false;
+        }
+        if (effect == null) {
+            effect = new LSFGEffect(renderer, renderer.getLSFGManager());
+            addEffect(effect);
+        }
+        effect.setQuality(quality);
+        effect.setStability(stability);
+        effect.setMultiplier(multiplier);
+        effect.setTargetFPS(targetFPS);
+        effect.getManager().setEnabled(true);
+        return true;
+    }
+
+    private boolean supportsGLES31() {
+        if (supportsGLES31Cache != null) return supportsGLES31Cache;
+        boolean supported = false;
+        try {
+            String version = GLES20.glGetString(GLES20.GL_VERSION);
+            supported = version != null && (version.contains("OpenGL ES 3.1")
+                    || version.contains("OpenGL ES 3.2"));
+            if (!supported) {
+                ActivityManager manager = (ActivityManager)renderer.xServerView.getContext()
+                        .getSystemService(Context.ACTIVITY_SERVICE);
+                supported = manager != null
+                        && manager.getDeviceConfigurationInfo().reqGlEsVersion >= 0x00030001;
+            }
+        }
+        catch (Throwable ignored) {
+        }
+        supportsGLES31Cache = supported;
+        return supported;
     }
 
 }

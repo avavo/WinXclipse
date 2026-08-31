@@ -62,7 +62,9 @@ public class InputControlsView extends View {
     private float overlayOpacity = DEFAULT_OVERLAY_OPACITY;
     private TouchpadView touchpadView;
     private XServer xServer;
-    private final Bitmap[] icons = new Bitmap[17];
+    // Souza V4 ships icon ids through 56. The former 17-slot cache crashed
+    // immediately after selecting any of the newer icons in the editor.
+    private final Bitmap[] icons = new Bitmap[128];
     private Timer mouseMoveTimer;
     private final PointF mouseMoveOffset = new PointF();
     private boolean showTouchscreenControls = true;
@@ -151,22 +153,25 @@ public class InputControlsView extends View {
     /** Dark radial-gradient button bodies (center). */
     public int getControlBodyCenterColor(boolean pressed) {
         int alpha = Math.min(255, (int)(overlayOpacity * 235));
-        return pressed ? Color.argb(Math.min(255, alpha + 50), 28, 28, 28)
-                : Color.argb(alpha, 10, 10, 10);
+        int idleAlpha = Math.min(255, (int)(overlayOpacity * 150));
+        return pressed ? Color.argb(Math.min(255, alpha + 90), 0, 0, 0)
+                : Color.argb(idleAlpha, 0, 0, 0);
     }
 
     /** Dark radial-gradient button bodies (outer edge). */
     public int getControlBodyEdgeColor(boolean pressed) {
         int alpha = Math.min(255, (int)(overlayOpacity * 255));
-        return pressed ? Color.argb(alpha, 95, 95, 95)
-                : Color.argb(alpha, 58, 58, 58);
+        int idleAlpha = Math.min(255, (int)(overlayOpacity * 150));
+        return pressed ? Color.argb(alpha, 255, 255, 255)
+                : Color.argb(idleAlpha, 255, 255, 255);
     }
 
     /** Thin light border around buttons, sticks and d-pad petals. */
     public int getControlBorderColor(boolean pressed) {
         int alpha = Math.min(255, (int)(overlayOpacity * 480));
-        return pressed ? Color.argb(Math.min(255, alpha + 30), 230, 230, 230)
-                : Color.argb(alpha, 190, 190, 190);
+        int idleAlpha = Math.min(255, (int)(overlayOpacity * 325));
+        return pressed ? Color.argb(Math.min(255, alpha + 60), 255, 255, 255)
+                : Color.argb(idleAlpha, 255, 255, 255);
     }
 
     public int getSnappingSize() {
@@ -761,6 +766,7 @@ public class InputControlsView extends View {
     }
 
     public Bitmap getIcon(byte id) {
+        if (id < 0 || id >= icons.length) return null;
         if (icons[id] == null) {
             Context context = getContext();
             try (InputStream is = context.getAssets().open("inputcontrols/icons/"+id+".png")) {

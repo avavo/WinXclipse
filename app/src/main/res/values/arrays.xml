@@ -22,12 +22,9 @@
         <item>3120x1440 (19.5:9)</item>
     </string-array>
     <string-array name="graphics_driver_entries">
-        <item>Wrapper</item>
-        <item>Wrapper-v2</item>
-        <item>Wrapper-Leegao</item>
+        <item>Wrapper-Default</item>
+        <item>Wrapper-CMOD-V1</item>
         <item>Wrapper-Kirimu</item>
-        <item>Wrapper-Ref4ik-v6</item>
-        <item>Wrapper-GameNative</item>
     </string-array>
     <string-array name="wrapper_graphics_driver_version_entries">
         <item>System</item>
@@ -357,5 +354,23 @@
         <item>None</item>
         <item>CAS</item>
         <item>DLS</item>
+    </string-array>
+    <string-array name="frame_generation_profile_entries">
+        <item>Fast (low GPU)</item>
+        <item>Balanced (recommended)</item>
+        <item>Quality (fewer warps)</item>
+    </string-array>
+    <string-array name="frame_generation_multiplier_entries">
+        <item>Automatic (target FPS)</item>
+        <item>1.5x</item>
+        <item>2x</item>
+        <item>2.5x</item>
+        <item>3x</item>
+        <item>3.5x</item>
+        <item>4x</item>
+        <item>4.5x</item>
+        <item>5x</item>
+        <item>5.5x</item>
+        <item>6x</item>
     </string-array>
 </resources>

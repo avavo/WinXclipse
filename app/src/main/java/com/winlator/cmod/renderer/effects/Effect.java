@@ -1,5 +1,6 @@
 package com.winlator.cmod.renderer.effects;
 
+import com.winlator.cmod.renderer.RenderTarget;
 import com.winlator.cmod.renderer.material.ShaderMaterial;
 
 public abstract class Effect {
@@ -24,5 +25,17 @@ public abstract class Effect {
             material = createMaterial();
         }
         return material;
+    }
+
+    /** Optional hook for effects that need to capture or analyse the input. */
+    public void onPreRender(RenderTarget readBuffer, RenderTarget writeBuffer) {
+    }
+
+    /** Releases material resources on the GL thread. */
+    public void destroy() {
+        if (material != null) {
+            material.destroy();
+            material = null;
+        }
     }
 }

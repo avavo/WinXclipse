@@ -199,6 +199,22 @@ public class ShortcutSettingsDialog extends ContentDialog {
                 shortcut.container.getExtra("rendererSwapRB", "0"));
         final boolean[] rendererSwapRB = {"1".equals(shortcut.getExtra(
                 "rendererSwapRB", containerRendererSwapRB ? "1" : "0"))};
+        final String containerFrameGenerationEnabled = shortcut.container.getExtra(
+                "frameGenerationEnabled", "0");
+        final String containerFrameGenerationProfile = shortcut.container.getExtra(
+                "frameGenerationProfile", "balanced");
+        final String containerFrameGenerationMultiplier = shortcut.container.getExtra(
+                "frameGenerationMultiplier", "auto");
+        final String containerFrameGenerationTargetFPS = shortcut.container.getExtra(
+                "frameGenerationTargetFPS", "60");
+        final String[] pendingFrameGenerationEnabled = {shortcut.getExtra(
+                "frameGenerationEnabled", containerFrameGenerationEnabled)};
+        final String[] pendingFrameGenerationProfile = {shortcut.getExtra(
+                "frameGenerationProfile", containerFrameGenerationProfile)};
+        final String[] pendingFrameGenerationMultiplier = {shortcut.getExtra(
+                "frameGenerationMultiplier", containerFrameGenerationMultiplier)};
+        final String[] pendingFrameGenerationTargetFPS = {shortcut.getExtra(
+                "frameGenerationTargetFPS", containerFrameGenerationTargetFPS)};
 
         findViewById(R.id.BTVideoConfig).setOnClickListener(button ->
                 new VideoConfigDialog(context, new VideoConfigDialog.Config() {
@@ -293,13 +309,36 @@ public class ShortcutSettingsDialog extends ContentDialog {
                     }
 
                     @Override
+                    public boolean isFrameGenerationCompatible() {
+                        return "vulkan".equals(StringUtils.parseIdentifier(
+                                sRenderer.getSelectedItem()));
+                    }
+
+                    @Override public String getFrameGenerationEnabled() {
+                        return pendingFrameGenerationEnabled[0];
+                    }
+                    @Override public String getFrameGenerationProfile() {
+                        return pendingFrameGenerationProfile[0];
+                    }
+                    @Override public String getFrameGenerationMultiplier() {
+                        return pendingFrameGenerationMultiplier[0];
+                    }
+                    @Override public String getFrameGenerationTargetFPS() {
+                        return pendingFrameGenerationTargetFPS[0];
+                    }
+
+                    @Override
                     public void apply(String gpuName, String presentMode,
                                       int textureFilterMode, boolean swapRedBlue,
                                       String fsrUpscale,
                                       String fsrQuality, String vsyncMode,
                                       boolean unlimitedImages, String refreshRate,
                                       String sharpnessEffect, String sharpnessLevel,
-                                      String sharpnessDenoise) {
+                                      String sharpnessDenoise,
+                                      boolean frameGenerationEnabled,
+                                      String frameGenerationProfile,
+                                      String frameGenerationMultiplier,
+                                      String frameGenerationTargetFPS) {
                         HashMap<String, String> config = GraphicsDriverConfigDialog
                                 .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()));
                         config.put("gpuName", gpuName);
@@ -322,6 +361,10 @@ public class ShortcutSettingsDialog extends ContentDialog {
                         shortcut.putExtra("sharpnessEffect", !sharpnessEffect.equals(cEff) ? sharpnessEffect : null);
                         shortcut.putExtra("sharpnessLevel", !sharpnessLevel.equals(cLev) ? sharpnessLevel : null);
                         shortcut.putExtra("sharpnessDenoise", !sharpnessDenoise.equals(cDen) ? sharpnessDenoise : null);
+                        pendingFrameGenerationEnabled[0] = frameGenerationEnabled ? "1" : "0";
+                        pendingFrameGenerationProfile[0] = frameGenerationProfile;
+                        pendingFrameGenerationMultiplier[0] = frameGenerationMultiplier;
+                        pendingFrameGenerationTargetFPS[0] = frameGenerationTargetFPS;
                     }
                 }).show());
 
@@ -673,6 +716,18 @@ public class ShortcutSettingsDialog extends ContentDialog {
                 shortcut.putExtra("rendererSwapRB",
                         rendererSwapRB[0] != containerRendererSwapRB
                                 ? (rendererSwapRB[0] ? "1" : "0") : null);
+                shortcut.putExtra("frameGenerationEnabled",
+                        pendingFrameGenerationEnabled[0].equals(containerFrameGenerationEnabled)
+                                ? null : pendingFrameGenerationEnabled[0]);
+                shortcut.putExtra("frameGenerationProfile",
+                        pendingFrameGenerationProfile[0].equals(containerFrameGenerationProfile)
+                                ? null : pendingFrameGenerationProfile[0]);
+                shortcut.putExtra("frameGenerationMultiplier",
+                        pendingFrameGenerationMultiplier[0].equals(containerFrameGenerationMultiplier)
+                                ? null : pendingFrameGenerationMultiplier[0]);
+                shortcut.putExtra("frameGenerationTargetFPS",
+                        pendingFrameGenerationTargetFPS[0].equals(containerFrameGenerationTargetFPS)
+                                ? null : pendingFrameGenerationTargetFPS[0]);
                 shortcut.putExtra("dxwrapper", !dxwrapper.equals(shortcut.container.getDXWrapper()) ? dxwrapper : null);
                 shortcut.putExtra("ddrawrapper", !ddrawrapper.equals(shortcut.container.getDDrawWrapper()) ? ddrawrapper : null);
                 shortcut.putExtra("dxwrapperConfig", !dxwrapperConfig.equals(shortcut.container.getDXWrapperConfig()) ? dxwrapperConfig : null);
@@ -1030,7 +1085,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 update.run();
-                if (!initializing[0] && "wrapper-v2".equals(
+                if (!initializing[0] && "wrapper-cmod-v2".equals(
                         StringUtils.parseIdentifier(sGraphicsDriver.getSelectedItem()))) {
                     ContainerDetailFragment.showWrapperV2Comparison(context);
                 }

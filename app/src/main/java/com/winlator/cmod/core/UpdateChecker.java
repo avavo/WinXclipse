@@ -1,14 +1,17 @@
 package com.winlator.cmod.core;
 
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
+import android.widget.Button;
+import android.widget.TextView;
 
 import androidx.preference.PreferenceManager;
 
 import com.winlator.cmod.BuildConfig;
+import com.winlator.cmod.R;
+import com.winlator.cmod.contentdialog.ContentDialog;
 
 import org.json.JSONObject;
 
@@ -59,14 +62,22 @@ public final class UpdateChecker {
                     if (activity.isFinishing() || activity.isDestroyed()) return;
                     preferences.edit().putLong("update_last_prompt",
                             System.currentTimeMillis()).apply();
-                    new AlertDialog.Builder(activity)
-                            .setTitle("WinXclipse update available")
-                            .setMessage("Version " + tag + " is available. Update now?\n\n"
-                                    + "Installed: " + BuildConfig.VERSION_NAME)
-                            .setPositiveButton("Update", (dialog, which) -> activity.startActivity(
-                                    new Intent(Intent.ACTION_VIEW, Uri.parse(page))))
-                            .setNegativeButton("Later", null)
-                            .show();
+                    ContentDialog dialog = new ContentDialog(activity, R.layout.update_dialog);
+                    dialog.setTitle("Atualização do WinXclipse");
+
+                    TextView latestVersion = dialog.findViewById(R.id.TVUpdateLatestVersion);
+                    TextView installedVersion = dialog.findViewById(R.id.TVUpdateInstalledVersion);
+                    latestVersion.setText(tag.startsWith("v") || tag.startsWith("V") ? tag : "v" + tag);
+                    installedVersion.setText("Versão instalada: v" + BuildConfig.VERSION_NAME);
+
+                    Button laterButton = dialog.findViewById(R.id.BTCancel);
+                    Button updateButton = dialog.findViewById(R.id.BTConfirm);
+                    laterButton.setText("Depois");
+                    updateButton.setText("Baixar");
+                    updateButton.setBackgroundResource(R.drawable.button_positive);
+                    dialog.setOnConfirmCallback(() -> activity.startActivity(
+                            new Intent(Intent.ACTION_VIEW, Uri.parse(page))));
+                    dialog.show();
                 });
             }
             catch (Exception ignored) {

@@ -1,5 +1,7 @@
 package com.winlator.cmod.core;
 
+import android.os.Build;
+
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -145,12 +147,25 @@ public abstract class GPUInformation {
         RendererInfo(String name) {
             this.name = name;
             String lower = name.toLowerCase(Locale.ENGLISH);
-            this.xclipse = lower.contains("xclipse");
+            boolean detectedXclipse = lower.contains("xclipse");
             int parsedModel = MODEL_NONE;
-            if (this.xclipse) {
+            if (detectedXclipse) {
                 Matcher matcher = XCLIPSE_MODEL_PATTERN.matcher(lower);
                 if (matcher.find()) parsedModel = Integer.parseInt(matcher.group(1));
             }
+            // Samsung firmware can expose only a generic GLES renderer during
+            // early startup. These Tab S10 FE identifiers are unambiguous and
+            // let the same Xclipse 540 tuning apply before the GL cache fills.
+            String deviceModel = Build.MODEL == null ? ""
+                    : Build.MODEL.toUpperCase(Locale.ENGLISH);
+            if (parsedModel == MODEL_NONE && (deviceModel.startsWith("SM-X520")
+                    || deviceModel.startsWith("SM-X526")
+                    || deviceModel.startsWith("SM-X620")
+                    || deviceModel.startsWith("SM-X626"))) {
+                parsedModel = 540;
+                detectedXclipse = true;
+            }
+            this.xclipse = detectedXclipse;
             this.model = parsedModel;
             int rdnaVersion = MODEL_NONE;
             switch (parsedModel) {

@@ -355,7 +355,7 @@
 
     <string name="xperf_need_master">Enable Experimental Performance first</string>
     <string name="experimental_bcn">Experimental BCN Support</string>
-    <string name="experimental_bcn_description">Loads the WinXclipse 0.8.6 BCN compatibility layer. Disabled by default for maximum driver compatibility.</string>
+    <string name="experimental_bcn_description">Loads the opt-in BCN compatibility layer. Wrapper-Default uses the matched July 13 Winlator-Mali wrapper and Leegao layer; existing wrappers keep their current stack.</string>
     <string name="bcn_emulation">BCn Emulation</string>
     <string name="bcn_emulation_type">BCn Emulation Type</string>
     <string name="bcn_emulation_cache">BCn Emulation Cache</string>
@@ -366,7 +366,7 @@
         <b>Benefits:</b> lower VRAM/RAM usage on the unified memory pool and fewer out-of-memory crashes on texture-heavy games, with quality close to the original.<br /><br />
         Requires Emulation Type = Compute. Mutually exclusive with ETC2 Transcode.]]></string>
     <string name="graphics_driver_help_content"><![CDATA[
-        <i><b>Wrapper</b></i> variants provide the Vulkan driver used by DXVK/VKD3D on Exynos Xclipse GPUs.<br /><br />
+        <i><b>Wrapper</b></i> variants provide the Vulkan driver used by DXVK/VKD3D on Exynos Xclipse GPUs. <b>Wrapper-Default</b> is the matched July 13 stack and the recommended starting point for ASTC/ETC2 transcoding. CMOD v1 and v2 remain available for compatibility testing.<br /><br />
         <b>Kirimu</b> and <b>GameNative</b> are recommended for BCn texture errors in DirectX 11 and DirectX 12 games.<br /><br />
         Enable <b>Experimental BCN Support</b> to expose per-driver BCn controls.
     ]]></string>
@@ -878,4 +878,15 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="wrapper_name">Wrapper Name</string>
     <string name="unable_to_install_wrapper">Unable to install this wrapper package</string>
     <string name="unable_to_install_driver">Unable to install this Xclipse driver package</string>
+    <string name="experimental_frame_generation">Experimental Frame Generation (Apex)</string>
+    <string name="experimental_frame_generation_warning">Apex/GLES 3.1 experimental mode. Vulkan is required. It may add latency or visual artifacts; disable it if a game becomes unstable.</string>
+    <string name="frame_generation_profile">Profile</string>
+    <string name="frame_generation_profile_help">Fast uses 1/8-resolution motion search: lowest GPU cost and least added render time, but more warped edges. Balanced uses 1/4 resolution. Quality uses 1/2-resolution search and more conservative blending: fewer deformed edges, but higher GPU cost and possible blur/double images. All profiles use the same two-frame history; Quality only adds noticeable latency if its extra GPU work misses the frame deadline.</string>
+    <string name="frame_generation_help">Experimental GLES 3.1 frame interpolation for Vulkan containers. It can increase perceived smoothness, but generated frames may add artifacts and GPU load. Fast uses 1/8-resolution motion search for the lowest cost and more warped edges. Balanced uses 1/4 resolution. Quality uses 1/2 resolution and conservative blending for fewer deformed edges, at higher GPU cost and possible blur or double images. Fixed multipliers generate up to 6x output; Automatic targets the FPS entered below.</string>
+    <string name="frame_generation_multiplier">Multiplier</string>
+    <string name="frame_generation_target_fps">Automatic target FPS</string>
+    <string name="frame_generation_unavailable">Frame Generation requires OpenGL ES 3.1 and could not be enabled on this device.</string>
+    <string name="frame_generation_vulkan_only">Frame Generation is available only when the container Display renderer is set to Vulkan.</string>
+    <string name="frame_generation_configure_first">Enable and configure Frame Generation in Display before using the sidebar shortcut.</string>
+    <string name="frame_generation_locked">Locked</string>
 </resources>

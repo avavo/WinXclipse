@@ -55,6 +55,7 @@ public class WinlatorHUD extends View {
     public static final int SHOW_LOCKED   = 1<<13;
     public static final int SHOW_SOC      = 1<<14;
     public static final int SHOW_GPU_TEMP = 1<<15;
+    public static final int SHOW_PHONE_GPU = 1<<16;
     private static final int SHOW_DEFAULT = SHOW_FPS | SHOW_MONO | SHOW_WRAPPER | SHOW_GPU | SHOW_CPU | SHOW_RAM | SHOW_BATT | SHOW_BORDER | SHOW_SOC;
     /**
      * A conservative one-line MangoHUD layout which stays readable at 720p.
@@ -104,7 +105,7 @@ public class WinlatorHUD extends View {
 
     private String strGpu = "N/A", strCpu = "N/A", strRam = "N/A";
     private String strPwr = "N/A", strTmp = "", strCTmp = "", strGTmp = "", strFps = "0", strPct = "";
-    private String strRend = "OpenGL", strWrapper = "WineD3D";
+    private String strRend = "OpenGL", strWrapper = "WineD3D", strPhoneGpu = "Unknown GPU";
     private final String strSoc;
     private boolean snapCharging = false;
     private final int ramBlinkThreshold;
@@ -122,9 +123,8 @@ public class WinlatorHUD extends View {
     private final AtomicInteger frameAccum = new AtomicInteger(0);
     private long lastFpsNs = 0;
     private float snapFps = 0;
-    private float snapTotalFps = 0;
     private boolean apexActive = false;
-    private int apexMultiplier = 2;
+    private float apexMultiplier = 2.0f;
 
     private int snapGpu=-1, snapCpu=-1, snapMw=-1, snapTmp=-1, snapCTmp=-1, snapGTmp=-1, snapPct=-1, snapRam=-1;
     private String rendererLabel = "OpenGL";
@@ -310,7 +310,11 @@ public class WinlatorHUD extends View {
             snapFps = f * 1_000_000_000f / dt;
             lastFpsNs = now;
 
-            float displayFps = apexActive ? snapTotalFps : snapFps;
+            // frameAccum is fed by the guest renderer window, so snapFps is
+            // the real game-present rate.  Apex output is that rate multiplied
+            // by its effective fixed/automatic multiplier; compositor ticks are
+            // deliberately excluded because they merely mirror panel Hz.
+            float displayFps = apexActive ? snapFps * apexMultiplier : snapFps;
             graph[gHead % GBUF] = displayFps;
             gHead++;
             cachedPath = null;
@@ -318,7 +322,10 @@ public class WinlatorHUD extends View {
             gMax = gMax + (targetMax - gMax) * 0.15f;
             
             if (apexActive) {
-                strFps = String.format(Locale.US, "%.0f (%dx)", displayFps, apexMultiplier);
+                String multiplier = Math.abs(apexMultiplier - Math.round(apexMultiplier)) < 0.01f
+                        ? String.format(Locale.US, "%.0f", apexMultiplier)
+                        : String.format(Locale.US, "%.1f", apexMultiplier);
+                strFps = String.format(Locale.US, "%.0f (%sx)", displayFps, multiplier);
             } else {
                 strFps = String.format(Locale.US, "%.0f", displayFps);
             }
@@ -417,7 +424,7 @@ public class WinlatorHUD extends View {
     }
 
     private void updatePaintColors(boolean mono) {
-        float fps = apexActive ? snapTotalFps : snapFps;
+        float fps = apexActive ? snapFps * apexMultiplier : snapFps;
         int fpsColor = mono ? C_WHITE : (fps >= 55 ? C_FPS : (fps >= 25 ? C_REND : C_TEMP));
         pFps.setColor(fpsColor);
         pGraph.setColor(fpsColor);
@@ -445,6 +452,13 @@ public class WinlatorHUD extends View {
             float baseline = getBaseline(pRend, 0, rowH);
             c.drawText(strRend, x, baseline, pRend);
             x += pRend.measureText(strRend);
+            first = false;
+        }
+        if ((showMask & SHOW_PHONE_GPU) != 0) {
+            if (!first) x += drawSep(c, x, 0);
+            float baseline = getBaseline(pRend, 0, rowH);
+            c.drawText(strPhoneGpu, x, baseline, pRend);
+            x += pRend.measureText(strPhoneGpu);
             first = false;
         }
         if ((showMask & SHOW_WRAPPER) != 0) {
@@ -571,6 +585,10 @@ public class WinlatorHUD extends View {
             c.drawText(strRend, PAD, getBaseline(pRend, y, lineH), pRend);
             y += lineH;
         }
+        if ((showMask & SHOW_PHONE_GPU) != 0) {
+            c.drawText(strPhoneGpu, PAD, getBaseline(pRend, y, lineH), pRend);
+            y += lineH;
+        }
         if ((showMask & SHOW_WRAPPER) != 0) {
             c.drawText(strWrapper, PAD, getBaseline(pRend, y, lineH), pRend);
             y += lineH;
@@ -686,6 +704,11 @@ public class WinlatorHUD extends View {
             w += pRend.measureText(strRend);
             first = false;
         }
+        if ((showMask & SHOW_PHONE_GPU) != 0) {
+            if (!first) w += drawSep(null, 0, 0);
+            w += pRend.measureText(strPhoneGpu);
+            first = false;
+        }
         if ((showMask & SHOW_WRAPPER) != 0) {
             if (!first) w += drawSep(null, 0, 0);
             w += pRend.measureText(strWrapper);
@@ -748,6 +771,7 @@ public class WinlatorHUD extends View {
         boolean compact = (showMask & SHOW_COMPACT) != 0;
         float w = PAD * 2;
         if ((showMask & SHOW_RENDERER) != 0) w = Math.max(w, PAD * 2 + pRend.measureText(strRend));
+        if ((showMask & SHOW_PHONE_GPU) != 0) w = Math.max(w, PAD * 2 + pRend.measureText(strPhoneGpu));
         if ((showMask & SHOW_WRAPPER)  != 0) w = Math.max(w, PAD * 2 + pRend.measureText(strWrapper));
         if ((showMask & SHOW_GPU)      != 0) w = Math.max(w, PAD * 2 + (compact ? 0 : wLabelGpu) + Math.max(pVal.measureText(strGpu), wVal100pct));
         if ((showMask & SHOW_CPU)      != 0) w = Math.max(w, PAD * 2 + (compact ? 0 : wLabelCpu) + Math.max(pVal.measureText(strCpu), wVal100pct));
@@ -789,6 +813,7 @@ public class WinlatorHUD extends View {
     private float countVerticalRows() {
         float r = 0;
         if ((showMask & SHOW_RENDERER) != 0) r++;
+        if ((showMask & SHOW_PHONE_GPU) != 0) r++;
         if ((showMask & SHOW_WRAPPER)  != 0) r++;
         if ((showMask & SHOW_GPU)      != 0) r++;
         if ((showMask & SHOW_CPU)      != 0) r++;
@@ -997,10 +1022,9 @@ public class WinlatorHUD extends View {
         });
     }
 
-    public void setApexStats(float totalFps, int multiplier, boolean active) {
+    public void setApexStats(float multiplier, boolean active) {
         uiHandler.post(() -> {
-            this.snapTotalFps = totalFps;
-            this.apexMultiplier = multiplier;
+            this.apexMultiplier = Math.max(1.0f, Math.min(6.0f, multiplier));
             if (this.apexActive != active) {
                 this.apexActive = active;
                 layoutDirty = true;
@@ -1033,7 +1057,18 @@ public class WinlatorHUD extends View {
             invalidate();
         }
     }
-    public void setGpuName(String name) {}
+    public void setGpuName(String name) {
+        // Guest-reported names can be spoofed by the container. The dedicated
+        // phone-GPU field is populated from Android's physical GLES renderer.
+    }
+
+    public void setPhoneGpuName(String name) {
+        if (name == null || name.trim().isEmpty()) return;
+        strPhoneGpu = name.trim().replaceFirst("(?i)^Samsung\\s+", "");
+        layoutDirty = true;
+        requestLayout();
+        invalidate();
+    }
 
     public void setVertical(boolean v) {
         vertical = v;
@@ -1063,7 +1098,8 @@ public class WinlatorHUD extends View {
             android.widget.CheckBox cbMono, android.widget.CheckBox cbBorder,
             android.widget.CheckBox cbCompact, android.widget.CheckBox cbWrapper,
             android.widget.CheckBox cbLocked, android.widget.CheckBox cbCpuTemp,
-            android.widget.CheckBox cbSoc, android.widget.CheckBox cbGpuTemp) {
+            android.widget.CheckBox cbSoc, android.widget.CheckBox cbGpuTemp,
+            android.widget.CheckBox cbPhoneGpu) {
         if (cbFps      != null) cbFps.setChecked((showMask & SHOW_FPS)       != 0);
         if (cbGpu      != null) cbGpu.setChecked((showMask & SHOW_GPU)       != 0);
         if (cbCpu      != null) cbCpu.setChecked((showMask & SHOW_CPU)       != 0);
@@ -1080,6 +1116,7 @@ public class WinlatorHUD extends View {
         if (cbCpuTemp  != null) cbCpuTemp.setChecked((showMask & SHOW_CPU_TEMP) != 0);
         if (cbSoc      != null) cbSoc.setChecked((showMask & SHOW_SOC)         != 0);
         if (cbGpuTemp  != null) cbGpuTemp.setChecked((showMask & SHOW_GPU_TEMP) != 0);
+        if (cbPhoneGpu != null) cbPhoneGpu.setChecked((showMask & SHOW_PHONE_GPU) != 0);
     }
 
     public void setHudScale(float scale) {
@@ -1154,6 +1191,7 @@ public class WinlatorHUD extends View {
             case 14: return SHOW_CPU_TEMP;
             case 15: return SHOW_SOC;
             case 16: return SHOW_GPU_TEMP;
+            case 17: return SHOW_PHONE_GPU;
             default: return 0;
         }
     }

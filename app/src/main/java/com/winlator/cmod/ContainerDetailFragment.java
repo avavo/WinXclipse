@@ -394,6 +394,14 @@ public class ContainerDetailFragment extends Fragment {
         final String[] pendingSharpnessEffect = {isEditMode() && container != null ? container.getExtra("sharpnessEffect", "None") : "None"};
         final String[] pendingSharpnessLevel = {isEditMode() && container != null ? container.getExtra("sharpnessLevel", "100") : "100"};
         final String[] pendingSharpnessDenoise = {isEditMode() && container != null ? container.getExtra("sharpnessDenoise", "100") : "100"};
+        final String[] pendingFrameGenerationEnabled = {isEditMode() && container != null
+                ? container.getExtra("frameGenerationEnabled", "0") : "0"};
+        final String[] pendingFrameGenerationProfile = {isEditMode() && container != null
+                ? container.getExtra("frameGenerationProfile", "balanced") : "balanced"};
+        final String[] pendingFrameGenerationMultiplier = {isEditMode() && container != null
+                ? container.getExtra("frameGenerationMultiplier", "auto") : "auto"};
+        final String[] pendingFrameGenerationTargetFPS = {isEditMode() && container != null
+                ? container.getExtra("frameGenerationTargetFPS", "60") : "60"};
 
         setupDXWrapperSpinner(sDXWrapper, vDXWrapperConfig, sWineVersion, contentsManager);
         setupDDrawSpinner(sDDrawrapper, isEditMode() ? container.getDDrawWrapper() : Container.DEFAULT_DDRAWRAPPER);
@@ -693,13 +701,36 @@ public class ContainerDetailFragment extends Fragment {
                     }
 
                     @Override
+                    public boolean isFrameGenerationCompatible() {
+                        return "vulkan".equals(StringUtils.parseIdentifier(
+                                ((Spinner)view.findViewById(R.id.SRenderer)).getSelectedItem()));
+                    }
+
+                    @Override public String getFrameGenerationEnabled() {
+                        return pendingFrameGenerationEnabled[0];
+                    }
+                    @Override public String getFrameGenerationProfile() {
+                        return pendingFrameGenerationProfile[0];
+                    }
+                    @Override public String getFrameGenerationMultiplier() {
+                        return pendingFrameGenerationMultiplier[0];
+                    }
+                    @Override public String getFrameGenerationTargetFPS() {
+                        return pendingFrameGenerationTargetFPS[0];
+                    }
+
+                    @Override
                     public void apply(String gpuName, String presentMode,
                                       int textureFilterMode, boolean swapRedBlue,
                                       String fsrUpscale,
                                       String fsrQuality, String vsyncMode,
                                       boolean unlimitedImages, String refreshRate,
                                       String sharpnessEffect, String sharpnessLevel,
-                                      String sharpnessDenoise) {
+                                      String sharpnessDenoise,
+                                      boolean frameGenerationEnabled,
+                                      String frameGenerationProfile,
+                                      String frameGenerationMultiplier,
+                                      String frameGenerationTargetFPS) {
                         HashMap<String, String> config = GraphicsDriverConfigDialog
                                 .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()));
                         config.put("gpuName", gpuName);
@@ -719,6 +750,10 @@ public class ContainerDetailFragment extends Fragment {
                         pendingSharpnessEffect[0] = sharpnessEffect;
                         pendingSharpnessLevel[0] = sharpnessLevel;
                         pendingSharpnessDenoise[0] = sharpnessDenoise;
+                        pendingFrameGenerationEnabled[0] = frameGenerationEnabled ? "1" : "0";
+                        pendingFrameGenerationProfile[0] = frameGenerationProfile;
+                        pendingFrameGenerationMultiplier[0] = frameGenerationMultiplier;
+                        pendingFrameGenerationTargetFPS[0] = frameGenerationTargetFPS;
                         if (container != null) {
                             container.putExtra("sharpnessEffect", sharpnessEffect);
                             container.putExtra("sharpnessLevel", sharpnessLevel);
@@ -749,6 +784,8 @@ public class ContainerDetailFragment extends Fragment {
                 String envVars = envVarsView.getEnvVars();
                 String graphicsDriver = StringUtils.parseIdentifier(sGraphicsDriver.getSelectedItem());
                 String graphicsDriverConfig = vGraphicsDriverConfig.getTag().toString();
+                String wineRenderer = StringUtils.parseIdentifier(
+                        ((Spinner) view.findViewById(R.id.SRenderer)).getSelectedItem());
                 // The runtime FSR extras must not override the Video Configuration
                 // dialog on the next launch (edit mode only: in create mode the
                 // container object does not exist yet).
@@ -858,6 +895,11 @@ public class ContainerDetailFragment extends Fragment {
                     container.putExtra("rendererSwapRB", rendererSwapRB[0] ? "1" : null);
                     container.putExtra("audioVolume",
                             audioVolume[0] != 100 ? String.valueOf(audioVolume[0]) : null);
+                    container.putExtra("renderer", wineRenderer);
+                    saveFrameGenerationExtras(container, wineRenderer,
+                            pendingFrameGenerationEnabled[0], pendingFrameGenerationProfile[0],
+                            pendingFrameGenerationMultiplier[0],
+                            pendingFrameGenerationTargetFPS[0]);
                     container.saveData();
                     saveWineRegistryKeys(view);
                     getActivity().onBackPressed();
@@ -898,30 +940,28 @@ public class ContainerDetailFragment extends Fragment {
                     data.put("primaryController", primaryController);
                     data.put("controllerMapping", controllerMapping);
                     data.put("gstreamerWorkaround", gstreamerWorkaround);
-                    if (experimentalPerformance || experimentalBCN
-                            || rendererFilterMode[0] > 0 || rendererSwapRB[0]
-                            || audioVolume[0] != 100
-                            || !"None".equals(pendingSharpnessEffect[0])
-                            || !"100".equals(pendingSharpnessLevel[0])
-                            || !"100".equals(pendingSharpnessDenoise[0])) {
-                        JSONObject extraData = new JSONObject();
-                        if (experimentalPerformance) extraData.put("experimentalPerformance", "1");
-                        if (experimentalPerformance && !xperfConfig.isEmpty()) {
-                            extraData.put("xperfConfig", xperfConfig);
-                        }
-                        if (experimentalBCN) extraData.put("experimentalBCN", "1");
-                        if (rendererFilterMode[0] > 0) {
-                            extraData.put("rendererFilterMode", String.valueOf(rendererFilterMode[0]));
-                        }
-                        if (rendererSwapRB[0]) extraData.put("rendererSwapRB", "1");
-                        if (audioVolume[0] != 100) {
-                            extraData.put("audioVolume", String.valueOf(audioVolume[0]));
-                        }
-                        if (!"None".equals(pendingSharpnessEffect[0])) extraData.put("sharpnessEffect", pendingSharpnessEffect[0]);
-                        if (!"100".equals(pendingSharpnessLevel[0])) extraData.put("sharpnessLevel", pendingSharpnessLevel[0]);
-                        if (!"100".equals(pendingSharpnessDenoise[0])) extraData.put("sharpnessDenoise", pendingSharpnessDenoise[0]);
-                        data.put("extraData", extraData);
+                    JSONObject extraData = new JSONObject();
+                    extraData.put("renderer", wineRenderer);
+                    if (experimentalPerformance) extraData.put("experimentalPerformance", "1");
+                    if (experimentalPerformance && !xperfConfig.isEmpty()) {
+                        extraData.put("xperfConfig", xperfConfig);
                     }
+                    if (experimentalBCN) extraData.put("experimentalBCN", "1");
+                    if (rendererFilterMode[0] > 0) {
+                        extraData.put("rendererFilterMode", String.valueOf(rendererFilterMode[0]));
+                    }
+                    if (rendererSwapRB[0]) extraData.put("rendererSwapRB", "1");
+                    if (audioVolume[0] != 100) {
+                        extraData.put("audioVolume", String.valueOf(audioVolume[0]));
+                    }
+                    if (!"None".equals(pendingSharpnessEffect[0])) extraData.put("sharpnessEffect", pendingSharpnessEffect[0]);
+                    if (!"100".equals(pendingSharpnessLevel[0])) extraData.put("sharpnessLevel", pendingSharpnessLevel[0]);
+                    if (!"100".equals(pendingSharpnessDenoise[0])) extraData.put("sharpnessDenoise", pendingSharpnessDenoise[0]);
+                    saveFrameGenerationExtras(extraData, wineRenderer,
+                            pendingFrameGenerationEnabled[0], pendingFrameGenerationProfile[0],
+                            pendingFrameGenerationMultiplier[0],
+                            pendingFrameGenerationTargetFPS[0]);
+                    data.put("extraData", extraData);
 
                     preloaderDialog.show(R.string.creating_container);
 
@@ -944,6 +984,26 @@ public class ContainerDetailFragment extends Fragment {
             }
         });
         return view;
+    }
+
+    private static void saveFrameGenerationExtras(Container target, String renderer,
+            String enabled, String profile, String multiplier, String targetFps) {
+        boolean active = "vulkan".equals(renderer) && "1".equals(enabled);
+        target.putExtra("frameGenerationEnabled", active ? "1" : null);
+        target.putExtra("frameGenerationProfile", profile);
+        target.putExtra("frameGenerationMultiplier", multiplier);
+        target.putExtra("frameGenerationTargetFPS", targetFps);
+    }
+
+    private static void saveFrameGenerationExtras(JSONObject target, String renderer,
+            String enabled, String profile, String multiplier, String targetFps)
+            throws JSONException {
+        if ("vulkan".equals(renderer) && "1".equals(enabled)) {
+            target.put("frameGenerationEnabled", "1");
+        }
+        target.put("frameGenerationProfile", profile);
+        target.put("frameGenerationMultiplier", multiplier);
+        target.put("frameGenerationTargetFPS", targetFps);
     }
 
     private void saveWineRegistryKeys(View view) {
@@ -1166,7 +1226,7 @@ public class ContainerDetailFragment extends Fragment {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 update.run();
-                if (!initializing[0] && "wrapper-v2".equals(
+                if (!initializing[0] && "wrapper-cmod-v2".equals(
                         StringUtils.parseIdentifier(sGraphicsDriver.getSelectedItem()))) {
                     showWrapperV2Comparison(context);
                 }
@@ -1184,8 +1244,8 @@ public class ContainerDetailFragment extends Fragment {
 
     public static void showWrapperV2Comparison(Context context) {
         new androidx.appcompat.app.AlertDialog.Builder(context)
-                .setTitle("Compare Wrapper and Wrapper-v2")
-                .setMessage("Wrapper-v2 is an alternative rendering path. Test the same scene with the standard Wrapper and Wrapper-v2, then keep the one with better stability, frame pacing and FPS for this game. Results can differ by GPU and driver.")
+                .setTitle("Compare CMOD v1 and v2")
+                .setMessage("CMOD v1 is the original WinXclipse path. CMOD v2 uses an alternative rendering path. Test the same scene with both and keep the one with better stability and frame pacing for that game. Wrapper-Default is the recommended starting point.")
                 .setPositiveButton(android.R.string.ok, null)
                 .show();
     }

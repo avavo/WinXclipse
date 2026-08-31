@@ -119,6 +119,93 @@
                 android:layout_width="170dp"
                 android:layout_height="44dp" />
         </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <CheckBox
+                android:id="@+id/CBVideoFrameGeneration"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/experimental_frame_generation" />
+
+            <ImageView
+                android:id="@+id/BTVideoFrameGenerationHelp"
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:layout_marginLeft="8dp"
+                android:src="@drawable/icon_help"
+                app:tint="?colorAccent" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/LLVideoFrameGenerationSettings"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/frame_generation_profile" />
+                <Spinner
+                    android:id="@+id/SVideoFrameGenerationProfile"
+                    style="@style/ComboBox"
+                    android:layout_width="170dp"
+                    android:layout_height="44dp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/frame_generation_multiplier" />
+                <Spinner
+                    android:id="@+id/SVideoFrameGenerationMultiplier"
+                    style="@style/ComboBox"
+                    android:layout_width="170dp"
+                    android:layout_height="44dp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/LLVideoFrameGenerationAutoFPS"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/frame_generation_target_fps" />
+                <EditText
+                    android:id="@+id/ETVideoFrameGenerationAutoFPS"
+                    android:layout_width="170dp"
+                    android:layout_height="44dp"
+                    android:gravity="center"
+                    android:inputType="number"
+                    android:maxLength="3"
+                    android:text="60" />
+            </LinearLayout>
+        </LinearLayout>
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="44dp"

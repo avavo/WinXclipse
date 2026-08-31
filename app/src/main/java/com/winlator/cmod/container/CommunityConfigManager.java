@@ -13,6 +13,7 @@ import com.winlator.cmod.box86_64.Box86_64Preset;
 import com.winlator.cmod.box86_64.Box86_64PresetManager;
 import com.winlator.cmod.contents.ContentProfile;
 import com.winlator.cmod.contents.ContentsManager;
+import com.winlator.cmod.contents.CustomWrapperManager;
 import com.winlator.cmod.contents.Downloader;
 import com.winlator.cmod.contents.ExternalDownloadCatalog;
 import com.winlator.cmod.contents.XclipseDriverManager;
@@ -114,6 +115,10 @@ public final class CommunityConfigManager {
             new DeviceProfile("Galaxy A55 5G", "SM-A556", "Exynos 1480", "Xclipse 530"),
             new DeviceProfile("Galaxy A37 5G", "SM-A376", "Exynos 1480", "Xclipse 530"),
             new DeviceProfile("Galaxy A56 5G", "SM-A566", "Exynos 1580", "Xclipse 540"),
+            new DeviceProfile("Galaxy Tab S10 FE (Wi-Fi)", "SM-X520", "Exynos 1580", "Xclipse 540"),
+            new DeviceProfile("Galaxy Tab S10 FE (5G)", "SM-X526B", "Exynos 1580", "Xclipse 540"),
+            new DeviceProfile("Galaxy Tab S10 FE+ (Wi-Fi)", "SM-X620", "Exynos 1580", "Xclipse 540"),
+            new DeviceProfile("Galaxy Tab S10 FE+ (5G)", "SM-X626B", "Exynos 1580", "Xclipse 540"),
             new DeviceProfile("Galaxy A57 5G", "SM-A576", "Exynos 1680", "Xclipse 550")
     };
 
@@ -300,6 +305,7 @@ public final class CommunityConfigManager {
         // reference for it. Recover that existing information before the new
         // container is created, so old published ZIPs do not need re-exporting.
         ensureGraphicsDriver(context, manifest);
+        ensureWrapper(context, manifest);
         ContentsManager manager = new ContentsManager(context);
         try {
             manager.syncContents();
@@ -445,6 +451,73 @@ public final class CommunityConfigManager {
         else {
             Log.w("CommunityConfig", "Could not automatically recover Xclipse driver "
                     + requested);
+        }
+    }
+
+    /**
+     * Restores a downloadable wrapper referenced by old community configs.
+     * The wrapper selection already lives in the container JSON, so installing
+     * its archive under the same stable id is enough; configs never need to be
+     * exported again just because a wrapper moved out of the APK selector.
+     */
+    private static void ensureWrapper(Context context, JSONObject manifest) {
+        JSONObject data = manifest.optJSONObject("container");
+        if (data == null) return;
+        String requested = Container.normalizeGraphicsDriver(
+                data.optString("graphicsDriver", Container.DEFAULT_GRAPHICS_DRIVER));
+        if (!requested.startsWith("wrapper-") || isBundledWrapper(requested)) return;
+
+        CustomWrapperManager manager = new CustomWrapperManager(context);
+        String requestedId = CustomWrapperManager.toIdentifier(requested);
+        if (manager.getInstalledIds().contains(requestedId)) return;
+
+        File downloads = Environment.getExternalStoragePublicDirectory(
+                Environment.DIRECTORY_DOWNLOADS);
+        List<File> archives = new ArrayList<>();
+        collectDriverPackages(downloads, 0, new int[]{0}, archives);
+        for (File archive : archives) {
+            String lower = archive.getName().toLowerCase(Locale.ENGLISH);
+            if (!lower.endsWith(".tzst")) continue;
+            String candidate = CustomWrapperManager.toIdentifier(
+                    ExternalDownloadCatalog.stripPackageSuffix(archive.getName()));
+            if (!requestedId.equals(candidate)) continue;
+            if (manager.install(Uri.fromFile(archive), requested) != null) return;
+        }
+
+        ExternalDownloadCatalog catalog = new ExternalDownloadCatalog(context);
+        ExternalDownloadCatalog.Item match = null;
+        for (ExternalDownloadCatalog.Item item : catalog.refreshWrappers()) {
+            if (requestedId.equals(CustomWrapperManager.toIdentifier(item.name))) {
+                match = item;
+                break;
+            }
+        }
+        if (match == null || match.url == null || match.url.isEmpty()) {
+            Log.w("CommunityConfig", "Wrapper not available in catalog: " + requested);
+            return;
+        }
+
+        File downloaded = new File(context.getCacheDir(),
+                "community-wrapper-" + Integer.toHexString(match.url.hashCode()) + ".tzst");
+        try {
+            if ((downloaded.isFile() || Downloader.downloadFile(match.url, downloaded))
+                    && manager.install(Uri.fromFile(downloaded), requested) != null) {
+                Log.i("CommunityConfig", "Recovered wrapper " + requestedId);
+            }
+        }
+        finally {
+            FileUtils.delete(downloaded);
+        }
+    }
+
+    private static boolean isBundledWrapper(String wrapper) {
+        switch (wrapper.toLowerCase(Locale.ENGLISH)) {
+            case "wrapper-default":
+            case "wrapper-cmod-v1":
+            case "wrapper-kirimu":
+                return true;
+            default:
+                return false;
         }
     }
 

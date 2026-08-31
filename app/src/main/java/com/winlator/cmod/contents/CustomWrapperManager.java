@@ -145,6 +145,10 @@ public final class CustomWrapperManager {
         for (String part : suffix.split("-")) {
             if (part.isEmpty()) continue;
             if (part.equals("gamenative")) name.append("GameNative");
+            else if (part.equals("cmod")) name.append("CMOD");
+            else if (part.equals("bcn")) name.append("BCN");
+            else if (part.equals("xclipse")) name.append("Xclipse");
+            else if (part.equals("ref4ik")) name.append("Ref4ik");
             else name.append(Character.toUpperCase(part.charAt(0))).append(part.substring(1));
             name.append('-');
         }

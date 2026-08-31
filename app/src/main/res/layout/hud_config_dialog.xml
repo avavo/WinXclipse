@@ -32,7 +32,8 @@
                 <LinearLayout style="@style/FieldSet">
                     <CheckBox android:id="@+id/CBHudFPS" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Show FPS" />
                     <CheckBox android:id="@+id/CBHudGraph" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Show FPS Graph" />
-                    <CheckBox android:id="@+id/CBHudRenderer" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Show Renderer" />
+                    <CheckBox android:id="@+id/CBHudRenderer" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Show Container API" />
+                    <CheckBox android:id="@+id/CBHudPhoneGPU" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Show Phone GPU" />
                     <CheckBox android:id="@+id/CBHudWrapper" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Show Wrapper Name" />
                     <CheckBox android:id="@+id/CBHudVertical" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Vertical Layout" />
                     <CheckBox android:id="@+id/CBHudLocked" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Lock HUD Position" />

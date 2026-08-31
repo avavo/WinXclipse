@@ -7,6 +7,7 @@ import android.view.View;
 import android.view.WindowManager;
 import android.widget.AdapterView;
 import android.widget.CheckBox;
+import android.widget.EditText;
 import android.widget.SeekBar;
 import android.widget.Spinner;
 import android.widget.TextView;
@@ -54,11 +55,18 @@ public class VideoConfigDialog extends ContentDialog {
         String getSharpnessEffect();
         String getSharpnessLevel();
         String getSharpnessDenoise();
+        boolean isFrameGenerationCompatible();
+        String getFrameGenerationEnabled();
+        String getFrameGenerationProfile();
+        String getFrameGenerationMultiplier();
+        String getFrameGenerationTargetFPS();
         void apply(String gpuName, String presentMode, int textureFilterMode,
                    boolean swapRedBlue, String fsrUpscale,
                    String fsrQuality, String vsyncMode, boolean unlimitedImages,
                    String refreshRate, String sharpnessEffect,
-                   String sharpnessLevel, String sharpnessDenoise);
+                   String sharpnessLevel, String sharpnessDenoise,
+                   boolean frameGenerationEnabled, String frameGenerationProfile,
+                   String frameGenerationMultiplier, String frameGenerationTargetFPS);
     }
 
     public VideoConfigDialog(Context context, Config config) {
@@ -177,6 +185,50 @@ public class VideoConfigDialog extends ContentDialog {
         vsyncLimit.setSelection("off".equals(currentVsync) ? 2 : "50".equals(currentVsync) ? 1 : 0);
         unlimitedImages.setChecked(config.isUnlimitedImages());
 
+        CheckBox frameGeneration = findViewById(R.id.CBVideoFrameGeneration);
+        View frameGenerationSettings = findViewById(R.id.LLVideoFrameGenerationSettings);
+        Spinner frameGenerationProfile = findViewById(R.id.SVideoFrameGenerationProfile);
+        Spinner frameGenerationMultiplier = findViewById(R.id.SVideoFrameGenerationMultiplier);
+        View frameGenerationAutoFps = findViewById(R.id.LLVideoFrameGenerationAutoFPS);
+        EditText frameGenerationTargetFps = findViewById(R.id.ETVideoFrameGenerationAutoFPS);
+        frameGenerationProfile.setAdapter(new ThemedSpinnerAdapter<>(context, Arrays.asList(
+                context.getResources().getStringArray(R.array.frame_generation_profile_entries))));
+        frameGenerationMultiplier.setAdapter(new ThemedSpinnerAdapter<>(context, Arrays.asList(
+                context.getResources().getStringArray(R.array.frame_generation_multiplier_entries))));
+        frameGenerationProfile.setSelection(frameGenerationProfileIndex(
+                config.getFrameGenerationProfile()));
+        frameGenerationMultiplier.setSelection(frameGenerationMultiplierIndex(
+                config.getFrameGenerationMultiplier()));
+        frameGenerationTargetFps.setText(String.valueOf(frameGenerationTarget(
+                config.getFrameGenerationTargetFPS())));
+        boolean frameGenerationCompatible = config.isFrameGenerationCompatible();
+        frameGeneration.setChecked(frameGenerationCompatible
+                && "1".equals(config.getFrameGenerationEnabled()));
+        frameGeneration.setEnabled(frameGenerationCompatible);
+        frameGeneration.setAlpha(frameGenerationCompatible ? 1.0f : 0.55f);
+        findViewById(R.id.BTVideoFrameGenerationHelp).setOnClickListener(v ->
+                AppUtils.showHelpBox(context, v, frameGenerationCompatible
+                        ? R.string.frame_generation_help : R.string.frame_generation_vulkan_only));
+        Runnable updateFrameGeneration = () -> {
+            boolean enabled = frameGenerationCompatible && frameGeneration.isChecked();
+            frameGenerationSettings.setVisibility(enabled ? View.VISIBLE : View.GONE);
+            frameGenerationProfile.setEnabled(enabled);
+            frameGenerationMultiplier.setEnabled(enabled);
+            frameGenerationTargetFps.setEnabled(enabled);
+            frameGenerationAutoFps.setVisibility(enabled
+                    && frameGenerationMultiplier.getSelectedItemPosition() == 0
+                    ? View.VISIBLE : View.GONE);
+        };
+        frameGeneration.setOnCheckedChangeListener((button, checked) ->
+                updateFrameGeneration.run());
+        frameGenerationMultiplier.setOnItemSelectedListener(
+                new AdapterView.OnItemSelectedListener() {
+                    @Override public void onItemSelected(AdapterView<?> parent, View view,
+                            int position, long id) { updateFrameGeneration.run(); }
+                    @Override public void onNothingSelected(AdapterView<?> parent) {}
+                });
+        updateFrameGeneration.run();
+
         // vkBasalt (CAS/DLS) - now in Video tab for both Container and Shortcut
         Spinner vkBasaltEffect = findViewById(R.id.SVideoVkBasaltEffect);
         SeekBar sbSharpnessLevel = findViewById(R.id.SBVideoSharpnessLevel);
@@ -210,7 +262,8 @@ public class VideoConfigDialog extends ContentDialog {
         });
 
         applyTheme(context, gpuName, presentMode, textureFilter, fsrUpscale, fsrQuality,
-                refreshRate, vsyncLimit, vkBasaltEffect);
+                refreshRate, vsyncLimit, vkBasaltEffect, frameGenerationProfile,
+                frameGenerationMultiplier);
 
         setOnConfirmCallback(() -> {
             String upscaleValue = "On".equals(selectedValue(fsrUpscale)) ? "1" : "0";
@@ -228,8 +281,54 @@ public class VideoConfigDialog extends ContentDialog {
                             refreshValues.size() - 1))),
                     selectedValue(vkBasaltEffect),
                     String.valueOf(sbSharpnessLevel.getProgress()),
-                    String.valueOf(sbSharpnessDenoise.getProgress()));
+                    String.valueOf(sbSharpnessDenoise.getProgress()),
+                    frameGenerationCompatible && frameGeneration.isChecked(),
+                    frameGenerationProfileValue(frameGenerationProfile.getSelectedItemPosition()),
+                    frameGenerationMultiplierValue(frameGenerationMultiplier.getSelectedItemPosition()),
+                    String.valueOf(frameGenerationTarget(
+                            frameGenerationTargetFps.getText().toString().trim())));
         });
+    }
+
+    private static int frameGenerationProfileIndex(String value) {
+        if (value == null) return 1;
+        switch (value.trim().toLowerCase(java.util.Locale.US)) {
+            case "fast": return 0;
+            case "quality":
+            case "stable": return 2;
+            case "balanced": return 1;
+            default:
+                try {
+                    int legacy = Integer.parseInt(value);
+                    return legacy <= 1 ? 0 : legacy <= 3 ? 1 : 2;
+                }
+                catch (Exception ignored) { return 1; }
+        }
+    }
+
+    private static String frameGenerationProfileValue(int index) {
+        return index <= 0 ? "fast" : index >= 2 ? "quality" : "balanced";
+    }
+
+    private static int frameGenerationMultiplierIndex(String value) {
+        if (value == null || "auto".equalsIgnoreCase(value)) return 0;
+        try {
+            return Math.max(1, Math.min(10,
+                    Math.round((Float.parseFloat(value) - 1.0f) * 2.0f)));
+        }
+        catch (Exception ignored) { return 0; }
+    }
+
+    private static String frameGenerationMultiplierValue(int index) {
+        if (index <= 0) return "auto";
+        float value = 1.0f + Math.max(1, Math.min(10, index)) * 0.5f;
+        return value == Math.round(value) ? String.valueOf(Math.round(value))
+                : String.format(java.util.Locale.US, "%.1f", value);
+    }
+
+    private static int frameGenerationTarget(String value) {
+        try { return Math.max(15, Math.min(240, Integer.parseInt(value))); }
+        catch (Exception ignored) { return 60; }
     }
 
     private static int indexOfFsrMode(String token) {

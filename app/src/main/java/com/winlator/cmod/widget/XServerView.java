@@ -31,6 +31,13 @@ public class XServerView extends GLSurfaceView {
         return renderer;
     }
 
+    public void setApexMode(boolean enabled) {
+        post(() -> {
+            setRenderMode(enabled ? RENDERMODE_CONTINUOUSLY : RENDERMODE_WHEN_DIRTY);
+            if (!enabled) requestRender();
+        });
+    }
+
     @Override
     public void requestRender() {
         // Submit at most one compositor frame per Android display pulse. Guest

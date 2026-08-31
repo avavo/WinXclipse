@@ -31,7 +31,7 @@ public class Container {
     }
     public static final String DEFAULT_ENV_VARS = "ZINK_DESCRIPTORS=lazy ZINK_DEBUG=compact MESA_SHADER_CACHE_DISABLE=false MESA_SHADER_CACHE_MAX_SIZE=512MB mesa_glthread=true WINEESYNC=1 DXVK_HUD=0 MANGOHUD=0 MANGOHUD_CONFIG=engine_version,gpu_stats=0";
     public static final String DEFAULT_SCREEN_SIZE = "1280x720";
-    public static final String DEFAULT_GRAPHICS_DRIVER = "wrapper";
+    public static final String DEFAULT_GRAPHICS_DRIVER = "wrapper-default";
     public static final String DEFAULT_AUDIO_DRIVER = "pulseaudio";
     public static final String DEFAULT_EMULATOR = "FEXCore";
     public static final String DEFAULT_DXWRAPPER = "dxvk";
@@ -152,8 +152,17 @@ public class Container {
         if (graphicsDriver == null || graphicsDriver.trim().isEmpty()) {
             return DEFAULT_GRAPHICS_DRIVER;
         }
+        // Preserve the binary selected by containers created before the
+        // Xclipse wrapper became the default.  The old labels now have clear,
+        // stable identities instead of silently changing their implementation.
+        if ("wrapper".equalsIgnoreCase(graphicsDriver)) return "wrapper-cmod-v1";
+        if ("wrapper-v2".equalsIgnoreCase(graphicsDriver)) return "wrapper-cmod-v2";
+        if ("wrapper-bcn".equalsIgnoreCase(graphicsDriver)
+                || "wrapper-xclipse".equalsIgnoreCase(graphicsDriver)) {
+            return DEFAULT_GRAPHICS_DRIVER;
+        }
         // Preserve updates from the legacy 2.4 identifier without exposing the old label.
-        if ("wrapper-ludashi-2-4".equalsIgnoreCase(graphicsDriver)) return "wrapper-ld24";
+        if ("wrapper-ld24".equalsIgnoreCase(graphicsDriver)) return "wrapper-ludashi-2-4";
         return graphicsDriver;
     }
 
@@ -702,7 +711,7 @@ data.put("desktopTheme", desktopTheme);
             if (data.has("graphicsDriver")) {
                 String graphicsDriver = data.getString("graphicsDriver");
                 if (graphicsDriver.equals("llvmpipe")) {
-                    data.put("graphicsDriver", "wrapper");
+                    data.put("graphicsDriver", DEFAULT_GRAPHICS_DRIVER);
                 }
             }
 

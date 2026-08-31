@@ -75,6 +75,7 @@ public class ContentsFragment extends Fragment {
     private CustomWrapperManager wrapperManager;
     private ExternalDownloadCatalog externalCatalog;
     private volatile List<ExternalDownloadCatalog.Item> remoteDrivers = new ArrayList<>();
+    private volatile List<ExternalDownloadCatalog.Item> remoteWrappers = new ArrayList<>();
     private final ConcurrentHashMap<String, ContentProfile> pendingRemoteProfiles =
             new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> pendingRemoteTransferKeys =
@@ -109,6 +110,7 @@ public class ContentsFragment extends Fragment {
         wrapperManager = new CustomWrapperManager(requireContext());
         externalCatalog = new ExternalDownloadCatalog(requireContext());
         remoteDrivers = externalCatalog.getCachedDrivers();
+        remoteWrappers = externalCatalog.getCachedWrappers();
 
         // Initialize isDarkMode based on shared preferences or theme
         isDarkMode = AppUtils.isDarkMode(requireContext());
@@ -156,11 +158,15 @@ public class ContentsFragment extends Fragment {
         new Thread(() -> {
             List<ExternalDownloadCatalog.Item> refreshed = externalCatalog
                     .refreshDriversIfStale(REMOTE_REFRESH_INTERVAL_MS);
+            List<ExternalDownloadCatalog.Item> refreshedWrappers = externalCatalog
+                    .refreshWrappersIfStale(REMOTE_REFRESH_INTERVAL_MS);
             Activity activity = getActivity();
             if (activity == null) return;
             remoteDrivers = refreshed;
+            remoteWrappers = refreshedWrappers;
             activity.runOnUiThread(() -> {
-                if (isAdded() && selectedCategory == CATEGORY_XCLIPSE_DRIVERS) loadContentList();
+                if (isAdded() && (selectedCategory == CATEGORY_XCLIPSE_DRIVERS
+                        || selectedCategory == CATEGORY_WRAPPERS)) loadContentList();
             });
         }, "DriverCatalogRefresh").start();
     }
@@ -482,10 +488,17 @@ public class ContentsFragment extends Fragment {
     }
 
     private void promptAndInstallWrapper(Uri source, @Nullable File temporaryFile) {
+        promptAndInstallWrapper(source, temporaryFile, null);
+    }
+
+    private void promptAndInstallWrapper(Uri source, @Nullable File temporaryFile,
+                                         @Nullable String suggestedName) {
         String sourceName = source.getLastPathSegment();
         if (sourceName == null) sourceName = "Wrapper";
-        String initialName = ExternalDownloadCatalog.stripPackageSuffix(new File(sourceName).getName())
-                .replaceFirst("(?i)^wrapper[-_ ]*", "");
+        String initialName = suggestedName != null && !suggestedName.trim().isEmpty()
+                ? suggestedName.trim().replaceFirst("(?i)^wrapper[-_ ]*", "")
+                : ExternalDownloadCatalog.stripPackageSuffix(new File(sourceName).getName())
+                        .replaceFirst("(?i)^wrapper[-_ ]*", "");
         EditText input = new EditText(requireContext());
         input.setHint(R.string.wrapper_name);
         input.setSingleLine(true);
@@ -594,8 +607,9 @@ public class ContentsFragment extends Fragment {
                 ? profile.remoteUrl : ContentsManager.getEntryName(profile));
     }
 
-    private String driverTransferKey(ExternalDownloadCatalog.Item item) {
-        return "driver:" + (item.url != null ? item.url : item.detail);
+    private String externalTransferKey(ExternalDownloadCatalog.Item item) {
+        String prefix = selectedCategory == CATEGORY_WRAPPERS ? "wrapper:" : "driver:";
+        return prefix + (item.url != null ? item.url : item.detail);
     }
 
     private void updateTransfer(@Nullable String key, int stage, int progress) {
@@ -655,9 +669,18 @@ public class ContentsFragment extends Fragment {
         }
         if (selectedCategory == CATEGORY_WRAPPERS) {
             List<ExternalDownloadCatalog.Item> installed = new ArrayList<>();
+            java.util.HashSet<String> installedIds = new java.util.HashSet<>();
             for (String id : wrapperManager.getInstalledIds()) {
+                installedIds.add(CustomWrapperManager.toIdentifier(id));
                 installed.add(new ExternalDownloadCatalog.Item(
                         CustomWrapperManager.toDisplayName(id), id, null));
+            }
+            if (remoteWrappers != null) {
+                for (ExternalDownloadCatalog.Item item : remoteWrappers) {
+                    if (!installedIds.contains(CustomWrapperManager.toIdentifier(item.name))) {
+                        installed.add(item);
+                    }
+                }
             }
             showExternalItems(installed);
             return;
@@ -732,7 +755,7 @@ public class ContentsFragment extends Fragment {
             holder.title.setText(item.name);
             holder.detail.setText(item.detail);
             holder.detail.setVisibility(item.detail == null || item.detail.isEmpty() ? View.GONE : View.VISIBLE);
-            String transferKey = driverTransferKey(item);
+            String transferKey = externalTransferKey(item);
             TransferUiState transfer = ACTIVE_TRANSFERS.get(transferKey);
             bindTransfer(holder.transferProgress, holder.progress, holder.progressStatus, transfer);
             holder.menu.setVisibility(installed && transfer == null ? View.VISIBLE : View.GONE);
@@ -744,14 +767,21 @@ public class ContentsFragment extends Fragment {
                         loadContentList();
                     }));
             holder.download.setOnClickListener(v -> {
+                final boolean wrapperDownload = selectedCategory == CATEGORY_WRAPPERS;
                 updateTransfer(transferKey, TRANSFER_DOWNLOADING, 0);
                 android.app.Activity hostActivity = getActivity();
                 android.content.Context hostContext = requireContext().getApplicationContext();
                 ContentOperationRegistry.Token downloadOperation =
                         ContentOperationRegistry.begin(ContentOperationRegistry.Kind.DOWNLOAD);
                 new Thread(() -> {
+                    String remoteName = Uri.parse(item.url).getLastPathSegment();
+                    if (remoteName == null || remoteName.isEmpty()) {
+                        remoteName = wrapperDownload ? "wrapper.tzst" : "driver.zip";
+                    }
                     File output = new File(hostContext.getCacheDir(),
-                            "xclipse-driver-" + System.currentTimeMillis() + ".zip");
+                            (wrapperDownload ? "remote-wrapper-" : "xclipse-driver-")
+                                    + System.currentTimeMillis() + "-"
+                                    + remoteName.replaceAll("[^A-Za-z0-9._-]", "_"));
                     boolean downloaded = Downloader.downloadFile(item.url, output, progress -> {
                         updateTransfer(transferKey, TRANSFER_DOWNLOADING, progress);
                     });
@@ -768,7 +798,11 @@ public class ContentsFragment extends Fragment {
                             downloadOperation.close();
                             return;
                         }
-                        if (downloaded) installDriver(Uri.fromFile(output), output, transferKey);
+                        if (downloaded && wrapperDownload) {
+                            finishTransfer(transferKey);
+                            promptAndInstallWrapper(Uri.fromFile(output), output, item.name);
+                        }
+                        else if (downloaded) installDriver(Uri.fromFile(output), output, transferKey);
                         else {
                             FileUtils.delete(output);
                             finishTransfer(transferKey);

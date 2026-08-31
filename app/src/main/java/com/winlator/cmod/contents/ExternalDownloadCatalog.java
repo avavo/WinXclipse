@@ -19,15 +19,20 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-/** Dynamic catalog for Xclipse driver downloads that can change without an APK update. */
+/** Dynamic catalog for Xclipse driver and wrapper downloads. */
 public final class ExternalDownloadCatalog {
     private static final String TAG = "ExternalDownloadCatalog";
-    private static final String CACHE_KEY = "xclipse_driver_release_cache_v2";
-    private static final String REFRESH_TIME_KEY = "xclipse_driver_release_refresh_time";
+    private static final String DRIVER_CACHE_KEY = "xclipse_driver_release_cache_v2";
+    private static final String DRIVER_REFRESH_TIME_KEY = "xclipse_driver_release_refresh_time";
+    private static final String WRAPPER_CACHE_KEY = "xclipse_wrapper_release_cache_v2";
+    private static final String WRAPPER_REFRESH_TIME_KEY = "xclipse_wrapper_release_refresh_time_v2";
     /** "owner/name" lists every release; "owner/name@tag" pins one release. */
     private static final String[] DRIVER_REPOSITORIES = {
             "WearyConcern1165/ExynosTools",
             "avavo/WinXclipse@drivers_0.9"
+    };
+    private static final String[] WRAPPER_REPOSITORIES = {
+            "avavo/WinXclipse@wrappers-9.5"
     };
 
     public static final class Item {
@@ -49,9 +54,20 @@ public final class ExternalDownloadCatalog {
     }
 
     public List<Item> refreshDrivers() {
+        return refresh(DRIVER_REPOSITORIES, DRIVER_CACHE_KEY,
+                DRIVER_REFRESH_TIME_KEY, false);
+    }
+
+    public List<Item> refreshWrappers() {
+        return refresh(WRAPPER_REPOSITORIES, WRAPPER_CACHE_KEY,
+                WRAPPER_REFRESH_TIME_KEY, true);
+    }
+
+    private List<Item> refresh(String[] repositories, String cacheKey,
+                               String refreshTimeKey, boolean wrappers) {
         JSONArray combined = new JSONArray();
         boolean refreshed = false;
-        for (String repository : DRIVER_REPOSITORIES) {
+        for (String repository : repositories) {
             JSONArray releases = fetchReleases(repository);
             if (releases == null) continue;
             String repositoryName = repository.substring(repository.indexOf('/') + 1)
@@ -68,12 +84,18 @@ public final class ExternalDownloadCatalog {
                     if (asset == null) continue;
                     String fileName = asset.optString("name", "");
                     String lower = fileName.toLowerCase(Locale.ENGLISH);
-                    if (!(lower.endsWith(".zip") || lower.endsWith(".tzst"))) continue;
+                    if (wrappers) {
+                        if (!(lower.endsWith(".tzst") || lower.endsWith(".so"))) continue;
+                    }
+                    else if (!(lower.endsWith(".zip") || lower.endsWith(".tzst"))) continue;
                     String url = asset.optString("browser_download_url", "");
                     if (url.isEmpty()) continue;
                     JSONObject item = new JSONObject();
                     try {
-                        item.put("name", stripPackageSuffix(fileName));
+                        String packageName = stripPackageSuffix(fileName);
+                        item.put("name", wrappers
+                                ? CustomWrapperManager.toDisplayName(packageName)
+                                : packageName);
                         item.put("detail", repositoryName + " • " + tag);
                         item.put("url", url);
                         combined.put(item);
@@ -84,13 +106,13 @@ public final class ExternalDownloadCatalog {
         }
         if (refreshed && combined.length() > 0) {
             preferences.edit()
-                    .putString(CACHE_KEY, combined.toString())
-                    .putLong(REFRESH_TIME_KEY, System.currentTimeMillis())
+                    .putString(cacheKey, combined.toString())
+                    .putLong(refreshTimeKey, System.currentTimeMillis())
                     .apply();
         }
         else {
             try {
-                combined = new JSONArray(preferences.getString(CACHE_KEY, "[]"));
+                combined = new JSONArray(preferences.getString(cacheKey, "[]"));
             }
             catch (Exception ignored) {
                 combined = new JSONArray();
@@ -100,16 +122,33 @@ public final class ExternalDownloadCatalog {
     }
 
     public List<Item> refreshDriversIfStale(long maximumAgeMs) {
-        long refreshedAt = preferences.getLong(REFRESH_TIME_KEY, 0L);
+        long refreshedAt = preferences.getLong(DRIVER_REFRESH_TIME_KEY, 0L);
         if (refreshedAt > 0L && System.currentTimeMillis() - refreshedAt < maximumAgeMs) {
             return getCachedDrivers();
         }
         return refreshDrivers();
     }
 
+    public List<Item> refreshWrappersIfStale(long maximumAgeMs) {
+        long refreshedAt = preferences.getLong(WRAPPER_REFRESH_TIME_KEY, 0L);
+        if (refreshedAt > 0L && System.currentTimeMillis() - refreshedAt < maximumAgeMs) {
+            return getCachedWrappers();
+        }
+        return refreshWrappers();
+    }
+
     public List<Item> getCachedDrivers() {
         try {
-            return parseItems(new JSONArray(preferences.getString(CACHE_KEY, "[]")));
+            return parseItems(new JSONArray(preferences.getString(DRIVER_CACHE_KEY, "[]")));
+        }
+        catch (Exception e) {
+            return new ArrayList<>();
+        }
+    }
+
+    public List<Item> getCachedWrappers() {
+        try {
+            return parseItems(new JSONArray(preferences.getString(WRAPPER_CACHE_KEY, "[]")));
         }
         catch (Exception e) {
             return new ArrayList<>();
