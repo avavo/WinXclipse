@@ -35,7 +35,7 @@ All notable changes between WinXclipse releases, newest first.
 - Existing Wrapper-BCN and Wrapper-Xclipse containers migrate to Wrapper-Default and refresh the matched July 13 wrapper/layer pair once after updating.
 - Community entries are grouped by normalized game identity. Matching configs share the first embedded cover found before browser artwork is requested, support a user-selected cover, and expose device choices plus on-demand container details in an English AMOLED interface.
 - Bundled Box64 is `0.4.3-260519-024717c`; old `0.4.4` selections migrate to the bundled version and installed-content detection uses the exact content identity.
-- New-container input defaults are opt-in, the WoW64 CPU-list fallback uses all available cores, and lower-memory devices select stronger RAM-reclamation baselines.
+- New containers default to the Intermediate FEXCore preset; XInput, DInput, and Exclusive XInput remain opt-in; the WoW64 CPU-list fallback uses all available cores; and lower-memory devices select stronger RAM-reclamation baselines.
 - MangoHUD mode uses the stable Android-native HUD path adapted from Bannerlator instead of injecting an unavailable guest Vulkan layer.
 - Runtime/content names are deduplicated and existing containers migrate automatically when an installed profile's old identifier is normalized.
 - Touchscreen haptics are restored after the earlier integration accidentally forced them off; physical-controller game rumble and per-player vibration remain independently configurable.
@@ -46,6 +46,10 @@ All notable changes between WinXclipse releases, newest first.
 - The sidebar FPS Limiter tile toggles its last configured limit, while the three-dot menu offers 24, 30, 45, 60, 75, 90, and 120 FPS plus a Custom 15-240 FPS value; the obsolete Unlimited item is removed.
 - The native HUD shows the physical GPU above the SoC and removes a redundant leading `Samsung` from the GPU name.
 - The update prompt uses the WinXclipse AMOLED dialog and the app version is displayed as `0.9.5`.
+- FSR strength and upscale quality are configured in Video Configuration for containers and shortcuts; the live Display sidebar presents the active state without silently replacing the saved quality preset, while texture filtering remains available as a live control.
+- The Display sidebar exposes FXAA, CRT, Toon, and NTSC effects directly, while brightness, contrast, and gamma remain grouped under Color Custom.
+- vkBasalt CAS/DLS sharpening, strength, and denoise are available in Video Configuration for containers and shortcuts and can also be adjusted from the live Display sidebar.
+- The native HUD starts in monochrome mode with wrapper, GPU, CPU, RAM, battery, border, and SoC information selected; renderer/API display remains independently configurable.
 
 ### Performance
 
@@ -83,6 +87,12 @@ All notable changes between WinXclipse releases, newest first.
 - Live/sidebar VSync values no longer remain as stale overrides after editing a container or shortcut, and `Off` keeps guest FPS uncapped without allowing partial Android compositor frames.
 - Mailbox, FIFO, and Relaxed keep required presentation waits even if an old advanced config requested they be bypassed; only Immediate can opt into that tearing-prone fast path.
 - VKD3D-Proton receives the selected Vulkan present mode explicitly, including the correct `FIFO_RELAXED` spelling, so DX12 follows the same Mailbox/FIFO/Immediate/Relaxed choice as DXVK and the wrapper.
+- FSR 1.1 now lowers the guest desktop resolution before EASU instead of upscaling an already rendered full-size image, so GPU-bound games receive the intended shading reduction. Live quality changes resize the X desktop, root window, and active game window and rebuild their render targets.
+- Live FSR changes no longer leave fullscreen games clipped, zoomed, or surrounded by unintended black bars.
+- Auto refresh rate requests the panel's highest supported display mode, while explicit 60/90/120/144 Hz choices resolve to the corresponding mode when available.
+- The HUD RAM blink and warning thresholds are consistent across memory tiers at 90% and 93% respectively.
+- Wine registry self-healing validates the real `WINE REGISTRY Version N` header and recreates invalid win64 headers for every supported prefix source, preventing the recurring invalid-registry/32-bit-wineserver startup failure.
+- Synthesized Wine/Proton profiles skip unusable non-archive `prefixPack` files instead of failing during container creation.
 
 ## 0.9
 
@@ -91,9 +101,9 @@ All notable changes between WinXclipse releases, newest first.
 - **AMD FSR 1.1 support**: full FSR1 pipeline (EASU upscaling + RCAS sharpening) ported from the official AMD shader (`ffx_fsr1.h` v1.20210629). Configurable per container in the Display section and live-applied from the in-session sidebar Display menu; EASU always runs first in the effect chain. Five quality presets from Fidelity to Ultra, each forcing a matching internal render scale (1.5x/1.7x/2.0x), with letterbox-aware EASU mapping of the scene content region.
 - Video configuration tab for containers and shortcuts: renderer selection (Vulkan/OpenGL/GDI) as the primary graphics backend switch, GPU name, present mode, texture filtering (now hosting the FSR entry), and a red/blue channel swap option.
 - Audio driver configuration dialog with volume control; MIDI soundfont selection moved inside it. PulseAudio becomes the default driver.
-- Shortcut artwork system with three configurable sources ÔÇö **Browser** (SteamGridDB search with EXE-icon fallback, default on first boot), **EXE icon**, and **Custom** ÔÇö settable globally or overridden per shortcut.
+- Shortcut artwork system with three configurable sources — **Browser** (SteamGridDB search with EXE-icon fallback, default on first boot), **EXE icon**, and **Custom** — settable globally or overridden per shortcut.
 - New dark glassy touchscreen control style: gradient button bodies with thin light borders, four-petal D-pad with outward chevron arrows and per-direction press highlighting, tick-marked analog sticks, and a matching trackpad.
-- Complete gamepad skin set for the touchscreen controls as image assets ÔÇö face buttons (A/B/X/Y), shoulders (L1/R1), triggers (L2/R2), stick clicks (L3/R3), Start/Select, a four-way D-pad, an analog stick base ring with tick marks, and a trackpad ÔÇö selectable per element in the controls editor (D-pad, stick, and trackpad elements accept skins) and pre-applied to both bundled Virtual Gamepad profiles.
+- Complete gamepad skin set for the touchscreen controls as image assets — face buttons (A/B/X/Y), shoulders (L1/R1), triggers (L2/R2), stick clicks (L3/R3), Start/Select, a four-way D-pad, an analog stick base ring with tick marks, and a trackpad — selectable per element in the controls editor (D-pad, stick, and trackpad elements accept skins) and pre-applied to both bundled Virtual Gamepad profiles.
 - **Refresh rate** option (Auto/60/90/120/144 Hz) in the video configuration dialog for containers and shortcuts; requested from the display when the game session starts.
 - Update checks run on every launch, prompting at most once every 4 days when a newer GitHub release is available.
 - Exclusive XInput mode for containers and shortcuts; when off, XInput and DInput can be enabled together with the simultaneous-use warning.
@@ -112,7 +122,7 @@ All notable changes between WinXclipse releases, newest first.
 - Aggressive startup selection protects winebus/winehid/MountMgr/PlugPlay while disabling non-critical Wine services; corrected the Wine `Ndis` registry key.
 - Separate WoW64 CPU list restored so 32-bit processes can be pinned to different cores than 64-bit processes.
 - FEXCore presets match the bionic base: Intermediate sets `FEX_X87REDUCEDPRECISION=1`; Performance adds `FEX_DYNAMICL1CACHE=1` + `FEX_DISABLEL2CACHE=1`.
-- BCn emulation controls match the Winlator-Mali reference exactly (none/partial/full/auto ÔåÆ `WRAPPER_EMULATE_BCN` 0/1/2/3); wrappers with native BCN handling (GameNative, Kirimu, Ref4ik-v6) no longer load the shared Leegao layer on top of their own implementation, and stale layer files are removed when switching; Kirimu locks its software-only profile.
+- BCn emulation controls match the Winlator-Mali reference exactly (none/partial/full/auto → `WRAPPER_EMULATE_BCN` 0/1/2/3); wrappers with native BCN handling (GameNative, Kirimu, Ref4ik-v6) no longer load the shared Leegao layer on top of their own implementation, and stale layer files are removed when switching; Kirimu locks its software-only profile.
 - Per-model Exynos/Xclipse tuning: Experimental Performance VRAM cap follows WGP count (2048 MB fixed on 530/540/550/920, RAM-following on 940/950, full 4092 MB on 960); BCn backend defaults to software on RDNA2 and compute on RDNA3/RDNA4; low-WGP RDNA2 defaults to BCn-to-ASTC transcoding; CPU cluster detection reads cpufreq data so WoW64 pinning lands on performance cores, with the LITTLE-less Exynos 2600 allowed to use all ten cores.
 - Vendored internals rebranded (`rox_`/`wxp_` prefixes, file renames) with wire-format env keys preserved.
 - First boot installs base files immediately; storage permissions are requested after installation completes.
@@ -125,7 +135,7 @@ All notable changes between WinXclipse releases, newest first.
 ### Performance
 
 - Control overlay shaders are cached instead of allocated per frame; rumble/turbo poller reduced from ~200 to ~60 wakeups/s; playtime persisted every 30 s; cover art decoded downsampled; failed artwork lookups remembered per session; debug logging removed from controller motion-event and stylus hover hot paths.
-- Native X11 blits (`copyAreaOp`, `fillRect`, `drawLine`) process whole 32-bit pixels instead of byte loops ÔÇö NEON-friendly and lighter on the shared LPDDR bus.
+- Native X11 blits (`copyAreaOp`, `fillRect`, `drawLine`) process whole 32-bit pixels instead of byte loops — NEON-friendly and lighter on the shared LPDDR bus.
 - The evshim input shim caches its `/proc/self/fd/N` procfs verdict per file descriptor instead of resolving it on every read/ioctl.
 - ALSA pacer thread no longer requests maximum SCHED_FIFO; EGL display resolved once across EGLImage calls; JNI method lookups run once.
 - Unified-memory-aware VRAM cap under Experimental Performance when Max Device Memory is unset (2048 MB on 8 GB-class devices, 4092 MB on 12 GB-class), backed by known per-SoC RAM tiers.
@@ -141,20 +151,20 @@ All notable changes between WinXclipse releases, newest first.
 - Startup Selection inverted condition (Essential vs Aggressive behaved identically); playtime autosave double-scheduling after onResume.
 - Video tab renderer choice persists (startup no longer forces GL back); GPU Name no longer leaks from the Wine-tab spoof spinner; VKD3D extraction matches "-0"-suffixed bundled archives; dead DXVK 1.7.2 duplicate entries cleaned up automatically.
 - NPE confirming container creation and opening Video Config in create-container mode; missing/corrupted JSON assets and local files surface as handled errors instead of NullPointerExceptions; downloads no longer crash when the Contents screen closes mid-transfer.
-- ? help popups measure wrapped text correctly and use themed backgrounds on dark/light; HUD ┬░C mojibake; follow-system-theme checkbox default mismatch between UI and runtime.
+- ? help popups measure wrapped text correctly and use themed backgrounds on dark/light; HUD °C mojibake; follow-system-theme checkbox default mismatch between UI and runtime.
 - Container failing to start on Android 10+ with `error=13, Permission denied` when launching the Wine/PulseAudio binaries: `targetSdkVersion` lowered to 28, keeping exec() of binaries inside the app data directory allowed under the Android W^X policy.
 - Downloads screen offered removal of the APK-embedded bundles (Box64/DXVK/FEXCore/VKD3D installed on first boot), which containers depend on: removal is no longer offered for embedded content (Info stays), and every bundled install is recorded so future bundles are protected automatically.
 - Proton catalog entries showing blank names (the proton-11.0-2 sdk35 packages) or raw file names: bundled catalog metadata is now authoritative, giving clean names to 11.0-2 (arm64ec/x86_64) and 9.0-x86_64.
 - Wine/Proton `.tzst` archives saved straight into Downloads (no embedded content profile) install normally now: a profile is synthesized from the archive's bin/lib layout, and the import picker accepts every common zstd MIME type.
 - Xclipse driver download catalog sources releases from ExynosTools and the WinXclipse `drivers_0.9` release (the retired MdiEx repository and its cached entries are dropped).
-- First-boot progress moves continuously through imagefs extraction (78%), Wine runtime install (93%) and finalization (96ÔÇô100%) instead of appearing stalled.
+- First-boot progress moves continuously through imagefs extraction (78%), Wine runtime install (93%) and finalization (96–100%) instead of appearing stalled.
 - X server hardening: DestroySubWindows no longer falls through to ReparentWindow (protocol desync); SYNC AwaitFence blocks without deadlocking the whole server; GrabPointer reads its event-mask from the correct offset so grabs keep delivering button/motion events; malformed client requests (bad enum values, out-of-range indices, oversized properties) return protocol errors instead of killing every connection; large replies survive partial socket writes.
-- Imported containers keep their original configuration ÔÇö the copied `.container` file is loaded instead of being overwritten with defaults; the DDraw wrapper selection no longer clobbers the DXVK/VKD3D config when loading; content application copies via temp+rename so a failed install never deletes working DLLs; pinned-tag driver catalogs list correctly.
+- Imported containers keep their original configuration — the copied `.container` file is loaded instead of being overwritten with defaults; the DDraw wrapper selection no longer clobbers the DXVK/VKD3D config when loading; content application copies via temp+rename so a failed install never deletes working DLLs; pinned-tag driver catalogs list correctly.
 - Wine registry editor performs complete reads before writing and only replaces system.reg/user.reg with a fully valid clone.
 - Input fixes: multi-binding elements no longer lose their last binding on load; range-button bindings are restored on touch up instead of being wiped into the saved profile; controller axes are clamped after a sensitivity boost (sticks no longer invert at the extreme); disconnected controllers no longer crash the bindings screen.
 - A game exiting normally now tears down the X/audio/handler components and saves playtime exactly like the Exit action does; shortcut extras (execDelay, inputType, sharpness, rcfileId, controlsProfile) parse defensively instead of crashing at launch; several background-thread guards across Saves/Containers/Contents/Settings screens prevent crashes when leaving mid-operation.
 - Containers created from raw Wine/Proton `.tzst` downloads boot correctly: the prefix is now built from the bundled Proton pattern (a full win64 prefix with valid registry headers) instead of the shared imagefs overlay, which left system.reg/user.reg invalid and made wine fail with "64-bit installation ... 32-bit wineserver".
-- An out-of-spec PutImage no longer sends BadMatch to the client ÔÇö Wine treats that as fatal and tore down every session ~2s after start; inconsistent payloads are logged and skipped instead, and depth-1 cursor/mask blits use the packed planar size.
+- An out-of-spec PutImage no longer sends BadMatch to the client — Wine treats that as fatal and tore down every session ~2s after start; inconsistent payloads are logged and skipped instead, and depth-1 cursor/mask blits use the packed planar size.
 - Guest stdout/stderr and the process exit code are always mirrored to logcat under the `WineProc` tag (previously they only appeared with the wine-debug setting enabled), making startup failures diagnosable without changing any setting.
 - The fakeinput bridge library copy is size-verified on every launch with one retry; a truncated copy used to be LD_PRELOAD'd into wineserver and killed it with SIGBUS.
 
