@@ -12,8 +12,6 @@ import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Shader;
 
-import androidx.core.graphics.ColorUtils;
-
 import com.winlator.cmod.core.CubicBezierInterpolator;
 import com.winlator.cmod.math.Mathf;
 import com.winlator.cmod.widget.InputControlsView;
@@ -392,8 +390,6 @@ public class ControlElement {
         Paint paint = inputControlsView.getPaint();
         int primaryColor = inputControlsView.getPrimaryColor();
 
-        int fillColor = ColorUtils.setAlphaComponent(primaryColor, 70);
-
         paint.setColor(selected ? inputControlsView.getSecondaryColor() : primaryColor);
         paint.setStyle(Paint.Style.STROKE);
         float strokeWidth = snappingSize * 0.10f;
@@ -531,15 +527,29 @@ public class ControlElement {
                 Range range = getRange();
                 int oldColor = paint.getColor();
                 float radius = snappingSize * 0.75f * scale;
+                float halfStroke = strokeWidth * 0.5f;
+                boolean pressed = isEngaged();
 
-                if (isEngaged()) {
-                    paint.setStyle(Paint.Style.FILL);
-                    paint.setColor(fillColor);
-                    canvas.drawRoundRect(boundingBox.left, boundingBox.top, boundingBox.right, boundingBox.bottom, radius, radius, paint);
-                }
+                // Range buttons are the keyboard rows used by the RTS profile.
+                // Give them the same glass body and hardware-safe glow as the
+                // regular buttons instead of leaving them as plain outlines.
+                paint.setStyle(Paint.Style.FILL);
+                applyBodyShader(paint, SHADER_SLOT_BODY,
+                        boundingBox.centerX(), boundingBox.centerY(),
+                        Math.max(boundingBox.width(), boundingBox.height()) * 0.7f,
+                        pressed);
+                canvas.drawRoundRect(boundingBox.left + halfStroke,
+                        boundingBox.top + halfStroke,
+                        boundingBox.right - halfStroke,
+                        boundingBox.bottom - halfStroke, radius, radius, paint);
+                paint.setShader(null);
+
+                drawRoundRectGlow(canvas, paint, boundingBox, radius, strokeWidth);
 
                 paint.setStyle(Paint.Style.STROKE);
-                paint.setColor(oldColor);
+                paint.setStrokeWidth(strokeWidth);
+                paint.setColor(selected ? inputControlsView.getSecondaryColor()
+                        : inputControlsView.getControlBorderColor(pressed));
                 canvas.drawRoundRect(boundingBox.left, boundingBox.top, boundingBox.right, boundingBox.bottom, radius, radius, paint);
 
                 float elementSize = scroller.getElementSize();
@@ -678,7 +688,10 @@ public class ControlElement {
                         boundingBox.right - halfStroke, boundingBox.bottom - halfStroke, radius, radius, paint);
                 paint.setShader(null);
 
+                drawRoundRectGlow(canvas, paint, boundingBox, radius, strokeWidth);
+
                 paint.setStyle(Paint.Style.STROKE);
+                paint.setStrokeWidth(strokeWidth);
                 paint.setColor(selected ? inputControlsView.getSecondaryColor()
                         : inputControlsView.getControlBorderColor(pressed));
                 canvas.drawRoundRect(boundingBox.left, boundingBox.top, boundingBox.right, boundingBox.bottom, radius, radius, paint);
@@ -746,6 +759,21 @@ public class ControlElement {
         paint.setStrokeWidth(strokeWidth);
     }
 
+    private static void drawRoundRectGlow(Canvas canvas, Paint paint, Rect bounds,
+                                          float radius, float strokeWidth) {
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeWidth(strokeWidth * 4.0f);
+        paint.setColor(Color.argb(36, 255, 255, 255));
+        canvas.drawRoundRect(bounds.left, bounds.top, bounds.right, bounds.bottom,
+                radius, radius, paint);
+        paint.setStrokeWidth(strokeWidth * 2.2f);
+        paint.setColor(Color.argb(62, 255, 255, 255));
+        canvas.drawRoundRect(bounds.left, bounds.top, bounds.right, bounds.bottom,
+                radius, radius, paint);
+        paint.setAlpha(255);
+        paint.setStrokeWidth(strokeWidth);
+    }
+
     /** One rounded d-pad petal with an outward chevron arrow (directions: 0 up, 1 right, 2 down, 3 left). */
     private void drawDPadPetal(Canvas canvas, Paint paint, int snappingSize, RectF petal,
                                float cornerRadius, boolean pressed, boolean selected,
@@ -757,9 +785,19 @@ public class ControlElement {
         canvas.drawRoundRect(petal, cornerRadius, cornerRadius, paint);
         paint.setShader(null);
 
-        /* Match the same thin outline used by buttons and sticks. */
+        // Keep the D-pad halo from Souza Final. Besides the glow, this gives
+        // the petals the same apparent line weight as the other controls.
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setColor(Color.WHITE);
+        paint.setAlpha(130);
+        paint.setShadowLayer(60, 0, 0, Color.WHITE);
+        canvas.drawRoundRect(petal, cornerRadius, cornerRadius, paint);
+        paint.clearShadowLayer();
+
+        /* Souza's original D-pad border. */
         paint.setStyle(Paint.Style.STROKE);
         paint.setStrokeWidth(snappingSize * 0.10f);
+        paint.setAlpha(255);
         paint.setColor(selected ? inputControlsView.getSecondaryColor()
                 : inputControlsView.getControlBorderColor(pressed));
         canvas.drawRoundRect(petal, cornerRadius, cornerRadius, paint);

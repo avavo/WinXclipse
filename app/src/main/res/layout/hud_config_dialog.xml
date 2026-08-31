@@ -33,7 +33,6 @@
                     <CheckBox android:id="@+id/CBHudFPS" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Show FPS" />
                     <CheckBox android:id="@+id/CBHudGraph" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Show FPS Graph" />
                     <CheckBox android:id="@+id/CBHudRenderer" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Show Container API" />
-                    <CheckBox android:id="@+id/CBHudPhoneGPU" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Show Phone GPU" />
                     <CheckBox android:id="@+id/CBHudWrapper" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Show Wrapper Name" />
                     <CheckBox android:id="@+id/CBHudVertical" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Vertical Layout" />
                     <CheckBox android:id="@+id/CBHudLocked" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Lock HUD Position" />
@@ -52,6 +51,7 @@
                     <CheckBox android:id="@+id/CBHudCPU" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Show CPU Load" />
                     <CheckBox android:id="@+id/CBHudCPUTemp" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Show CPU Temperature" />
                     <CheckBox android:id="@+id/CBHudGPUTemp" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Show GPU Temperature" />
+                    <CheckBox android:id="@+id/CBHudPhoneGPU" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Show Phone GPU" />
                     <CheckBox android:id="@+id/CBHudSOC" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Show SoC Model" />
                     <CheckBox android:id="@+id/CBHudRAM" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Show RAM Usage" />
                     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal">

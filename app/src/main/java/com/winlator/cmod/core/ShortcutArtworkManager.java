@@ -20,9 +20,12 @@ import com.winlator.cmod.container.Shortcut;
 
 import java.io.File;
 import java.io.InputStream;
+import java.text.Normalizer;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -189,18 +192,33 @@ public final class ShortcutArtworkManager {
         }
 
         SteamGridDBApi api = getSteamGridApi();
+        String query = cleanSearchName(gameName);
         retrofit2.Response<SteamGridSearchResponse> search =
-                api.searchGame("Bearer " + key, cleanSearchName(gameName)).execute();
+                api.searchGame("Bearer " + key, query).execute();
         if (!search.isSuccessful() || search.body() == null || search.body().data == null
                 || search.body().data.isEmpty()) return null;
 
-        retrofit2.Response<SteamGridGridsResponse> grids = api.getGridsByGameId(
-                "Bearer " + key, search.body().data.get(0).id,
-                "alternate,blurred,material", "600x900", "static").execute();
-        if (!grids.isSuccessful() || grids.body() == null || grids.body().data == null
-                || grids.body().data.isEmpty()) return null;
+        // SteamGridDB autocomplete is not relevance-sorted for every executable
+        // name. Rank normalized exact/token matches locally, then try several
+        // candidates because the first game may not have a portrait grid.
+        List<SteamGridSearchResponse.GameData> candidates =
+                new ArrayList<>(search.body().data);
+        candidates.sort((left, right) -> Integer.compare(
+                searchMatchScore(query, right != null ? right.name : null),
+                searchMatchScore(query, left != null ? left.name : null)));
 
-        String imageUrl = firstImageUrl(grids.body().data);
+        String imageUrl = null;
+        int attempts = Math.min(5, candidates.size());
+        for (int index = 0; index < attempts && imageUrl == null; index++) {
+            SteamGridSearchResponse.GameData candidate = candidates.get(index);
+            if (candidate == null) continue;
+            retrofit2.Response<SteamGridGridsResponse> grids = api.getGridsByGameId(
+                    "Bearer " + key, candidate.id,
+                    "alternate,blurred,material", "600x900", "static").execute();
+            if (grids.isSuccessful() && grids.body() != null && grids.body().data != null) {
+                imageUrl = firstImageUrl(grids.body().data);
+            }
+        }
         if (imageUrl == null) return null;
         try (Response response = HTTP_CLIENT.newCall(
                 new Request.Builder().url(imageUrl).build()).execute()) {
@@ -220,9 +238,46 @@ public final class ShortcutArtworkManager {
 
     private static String cleanSearchName(String name) {
         if (name == null) return "game";
-        return name.replace('_', ' ').replace('-', ' ')
+        String clean = name.replace('_', ' ').replace('-', ' ')
                 .replaceAll("(?i)\\.exe$", "")
+                .replaceAll("(?i)\\b(?:launcher|shipping|win64|win32|x64|x86|dx11|dx12|vulkan|opengl)\\b", " ")
+                .replaceAll("(?i)\\s+(?:demo|benchmark)$", "")
                 .replaceAll("\\s+", " ").trim();
+        return clean.isEmpty() ? "game" : clean;
+    }
+
+    private static int searchMatchScore(String query, String candidate) {
+        String wanted = normalizeSearchText(query);
+        String found = normalizeSearchText(candidate);
+        if (found.isEmpty()) return Integer.MIN_VALUE;
+        if (wanted.equals(found)) return 10_000;
+
+        int score = 0;
+        if (found.startsWith(wanted) || wanted.startsWith(found)) score += 2_000;
+        if (found.contains(wanted) || wanted.contains(found)) score += 1_000;
+        String[] wantedTokens = wanted.split(" ");
+        String[] foundTokens = found.split(" ");
+        for (String token : wantedTokens) {
+            if (token.isEmpty()) continue;
+            for (String resultToken : foundTokens) {
+                if (token.equals(resultToken)) {
+                    score += 200;
+                    break;
+                }
+            }
+        }
+        score -= Math.abs(found.length() - wanted.length());
+        return score;
+    }
+
+    private static String normalizeSearchText(String value) {
+        if (value == null) return "";
+        return Normalizer.normalize(value, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "")
+                .toLowerCase(Locale.US)
+                .replaceAll("[^a-z0-9]+", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
     }
 
     private static void post(Callback callback, boolean success) {

@@ -454,13 +454,6 @@ public class WinlatorHUD extends View {
             x += pRend.measureText(strRend);
             first = false;
         }
-        if ((showMask & SHOW_PHONE_GPU) != 0) {
-            if (!first) x += drawSep(c, x, 0);
-            float baseline = getBaseline(pRend, 0, rowH);
-            c.drawText(strPhoneGpu, x, baseline, pRend);
-            x += pRend.measureText(strPhoneGpu);
-            first = false;
-        }
         if ((showMask & SHOW_WRAPPER) != 0) {
             if (!first) x += drawSep(c, x, 0);
             float baseline = getBaseline(pRend, 0, rowH);
@@ -548,6 +541,13 @@ public class WinlatorHUD extends View {
             }
             first = false;
         }
+        if ((showMask & SHOW_PHONE_GPU) != 0) {
+            if (!first) x += drawSep(c, x, 0);
+            float baseline = getBaseline(pRend, 0, rowH);
+            c.drawText(strPhoneGpu, x, baseline, pRend);
+            x += pRend.measureText(strPhoneGpu);
+            first = false;
+        }
         if ((showMask & SHOW_SOC) != 0) {
             if (!first) x += drawSep(c, x, 0);
             float baseline = getBaseline(pRend, 0, rowH);
@@ -583,10 +583,6 @@ public class WinlatorHUD extends View {
         float y     = 0;
         if ((showMask & SHOW_RENDERER) != 0) {
             c.drawText(strRend, PAD, getBaseline(pRend, y, lineH), pRend);
-            y += lineH;
-        }
-        if ((showMask & SHOW_PHONE_GPU) != 0) {
-            c.drawText(strPhoneGpu, PAD, getBaseline(pRend, y, lineH), pRend);
             y += lineH;
         }
         if ((showMask & SHOW_WRAPPER) != 0) {
@@ -649,6 +645,10 @@ public class WinlatorHUD extends View {
                 c.drawText(shown, PAD + (compact ? 0 : wLabelGTmp), bl, compact ? pTmp : pVal);
                 y += lineH;
             }
+        }
+        if ((showMask & SHOW_PHONE_GPU) != 0) {
+            c.drawText(strPhoneGpu, PAD, getBaseline(pRend, y, lineH), pRend);
+            y += lineH;
         }
         if ((showMask & SHOW_SOC) != 0) {
             c.drawText(strSoc, PAD, getBaseline(pRend, y, lineH), pRend);
@@ -1024,7 +1024,7 @@ public class WinlatorHUD extends View {
 
     public void setApexStats(float multiplier, boolean active) {
         uiHandler.post(() -> {
-            this.apexMultiplier = Math.max(1.0f, Math.min(6.0f, multiplier));
+            this.apexMultiplier = Math.max(1.0f, Math.min(10.0f, multiplier));
             if (this.apexActive != active) {
                 this.apexActive = active;
                 layoutDirty = true;

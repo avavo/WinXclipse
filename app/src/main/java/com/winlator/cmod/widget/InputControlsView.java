@@ -16,6 +16,8 @@ import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.graphics.Rect;
 import android.os.Handler;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
@@ -100,6 +102,7 @@ public class InputControlsView extends View {
         setPointerIcon(PointerIcon.load(getResources(), R.drawable.hidden_pointer_arrow));
         setLayoutParams(new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         preferences = PreferenceManager.getDefaultSharedPreferences(this.getContext());
+        restoreTouchscreenHapticsAfterBrokenMigration();
     }
 
     @SuppressLint("ResourceType")
@@ -115,6 +118,7 @@ public class InputControlsView extends View {
         setPointerIcon(PointerIcon.load(getResources(), R.drawable.hidden_pointer_arrow));
         setLayoutParams(new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         preferences = PreferenceManager.getDefaultSharedPreferences(this.getContext());
+        restoreTouchscreenHapticsAfterBrokenMigration();
     }
 
     public InputControlsView(Context context, boolean focusOnStick) {
@@ -134,6 +138,7 @@ public class InputControlsView extends View {
         }
 
         preferences = PreferenceManager.getDefaultSharedPreferences(this.getContext());
+        restoreTouchscreenHapticsAfterBrokenMigration();
     }
 
 
@@ -622,6 +627,9 @@ public class InputControlsView extends View {
 
                         }
                     }
+                    if (handled && preferences.getBoolean("touchscreen_haptics_enabled", true)) {
+                        performTouchscreenHaptic();
+                    }
                     // A MOUSE_LEFT_BUTTON element consumes touches that land on
                     // that control. It must not disable tap-to-click across the
                     // rest of the touchpad/screen.
@@ -650,6 +658,30 @@ public class InputControlsView extends View {
             }
         }
         return true;
+    }
+
+    /** Restores the setting once for installs affected by the 0.9.x merge that
+     * silently forced touchscreen haptics off on every container start. */
+    private void restoreTouchscreenHapticsAfterBrokenMigration() {
+        if (preferences == null
+                || preferences.getBoolean("touchscreen_haptics_restored_095", false)) return;
+        preferences.edit()
+                .putBoolean("touchscreen_haptics_enabled", true)
+                .putBoolean("touchscreen_haptics_restored_095", true)
+                .apply();
+    }
+
+    private void performTouchscreenHaptic() {
+        Vibrator vibrator = (Vibrator)getContext().getSystemService(Context.VIBRATOR_SERVICE);
+        if (vibrator == null || !vibrator.hasVibrator()) return;
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                vibrator.vibrate(VibrationEffect.createOneShot(50,
+                        VibrationEffect.DEFAULT_AMPLITUDE));
+            }
+            else vibrator.vibrate(50);
+        }
+        catch (Exception ignored) {}
     }
 
 

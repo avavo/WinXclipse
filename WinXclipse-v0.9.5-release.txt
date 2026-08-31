@@ -12,7 +12,7 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
   - Fast has the lowest GPU cost and latency, but may deform edges more often.
   - Balanced uses a larger motion search for a middle ground.
   - Quality reduces warped edges with more conservative blending, but costs more GPU time and may introduce blur, double images or additional latency.
-- Added fixed 1.5x, 2x, 2.5x, 3x, 3.5x, 4x, 4.5x, 5x, 5.5x and 6x modes.
+- Added fixed 1.5x through 10x modes in 0.5x steps.
 - Automatic mode targets a user-entered output FPS.
 - Long explanations now live behind the `?` help button instead of occupying the main screen.
 - The in-session sidebar tile remains locked until Frame Generation is enabled in Video Configuration and the renderer is Vulkan.
@@ -38,20 +38,23 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
 ### Controls
 
 - Ported the Souza Final control refinements while preserving WinXclipse touch, mouse and vibration behavior.
-- Kept the current spaced D-pad layout and made its outline as thin as the other buttons and sticks.
-- Added outward D-pad arrows, rounded glass controls, larger high-contrast labels and lightweight button/stick glow.
+- Kept the current spaced D-pad layout and restored the stronger original Souza halo requested for its petals.
+- Added outward D-pad arrows, rounded glass controls, larger high-contrast labels and matching glow for buttons, sticks, trackpads and the RTS keyboard rows.
 - Updated the analog response to Souza Final's 0.25 dead zone and 2.70 sensitivity, with the 1.6 touchpad base retained where no user preference overrides it.
+- Moved the left stick of Virtual Gamepad 1 and 2 only slightly to the right, away from the display edge.
+- Restored touchscreen haptic feedback and its switch; the prior merge, not Souza, had forced it off. Physical-controller game rumble remains enabled through the existing master/per-player controls.
 - Fixed the editable-template crash after changing a button icon: the icon cache now covers the complete Souza icon set and validates missing or invalid icons before drawing.
 
 ### Display Sidebar and HUD
 
 - The FPS Limiter tile now toggles the saved limit on and off.
-- Its three-dot button accepts a custom value from 15 to 240 FPS.
+- Its three-dot menu offers fixed 24, 30, 45, 60, 75, 90 and 120 FPS values plus Custom from 15 to 240 FPS.
 - Removed the obsolete Unlimited choice; disabled state is shown as Off.
 - Shortcut limiter changes stay on the shortcut instead of silently modifying its base container.
 - The live Display panel can configure Frame Generation with the same profiles, multiplier and automatic target used by the container or shortcut.
 - The HUD can show the container graphics API, DX wrapper, effective BCN transcode path and physical phone GPU.
 - Phone GPU is shown above the SoC in the vertical HUD, and the redundant `Samsung` prefix is removed from the GPU name.
+- Browser cover search for shortcuts now cleans executable suffixes, ranks the closest normalized game title, and skips matching entries that have no portrait artwork.
 
 ### Devices, Rotation and Interface
 

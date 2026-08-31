@@ -313,7 +313,7 @@ public class VideoConfigDialog extends ContentDialog {
     private static int frameGenerationMultiplierIndex(String value) {
         if (value == null || "auto".equalsIgnoreCase(value)) return 0;
         try {
-            return Math.max(1, Math.min(10,
+            return Math.max(1, Math.min(18,
                     Math.round((Float.parseFloat(value) - 1.0f) * 2.0f)));
         }
         catch (Exception ignored) { return 0; }
@@ -321,7 +321,7 @@ public class VideoConfigDialog extends ContentDialog {
 
     private static String frameGenerationMultiplierValue(int index) {
         if (index <= 0) return "auto";
-        float value = 1.0f + Math.max(1, Math.min(10, index)) * 0.5f;
+        float value = 1.0f + Math.max(1, Math.min(18, index)) * 0.5f;
         return value == Math.round(value) ? String.valueOf(Math.round(value))
                 : String.format(java.util.Locale.US, "%.1f", value);
     }

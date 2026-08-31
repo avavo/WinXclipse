@@ -3297,7 +3297,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         if (value == null || "auto".equalsIgnoreCase(value)) return 0.0f;
         try {
             float parsed = Float.parseFloat(value);
-            if (parsed < 1.5f || parsed > 6.0f) return 0.0f;
+            if (parsed < 1.5f || parsed > 10.0f) return 0.0f;
             return Math.round(parsed * 2.0f) / 2.0f;
         }
         catch (Exception ignored) {
@@ -3319,12 +3319,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     private static int frameGenerationMultiplierIndex(float multiplier) {
         if (multiplier < 1.5f) return 0;
-        return Math.max(1, Math.min(10, Math.round((multiplier - 1.0f) * 2.0f)));
+        return Math.max(1, Math.min(18, Math.round((multiplier - 1.0f) * 2.0f)));
     }
 
     private static float frameGenerationMultiplierValue(int index) {
         if (index <= 0) return 0.0f;
-        return 1.0f + Math.max(1, Math.min(10, index)) * 0.5f;
+        return 1.0f + Math.max(1, Math.min(18, index)) * 0.5f;
     }
 
     private static String frameGenerationMultiplierStorageValue(float multiplier) {
@@ -3407,6 +3407,35 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     }
 
     private void showSidebarFpsLimiter(GLRenderer renderer) {
+        final int[] values = {24, 30, 45, 60, 75, 90, 120};
+        final String[] labels = {
+                "24 FPS", "30 FPS", "45 FPS", "60 FPS",
+                "75 FPS", "90 FPS", "120 FPS", "Custom…"
+        };
+        int configured = getConfiguredFpsLimit();
+        int checked = labels.length - 1;
+        for (int index = 0; index < values.length; index++) {
+            if (values[index] == configured) {
+                checked = index;
+                break;
+            }
+        }
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("FPS Limiter")
+                .setSingleChoiceItems(labels, checked, (dialog, which) -> {
+                    dialog.dismiss();
+                    if (which < values.length) {
+                        applySidebarFpsLimitChoice(renderer, values[which]);
+                    }
+                    else {
+                        showCustomSidebarFpsLimiter(renderer);
+                    }
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    private void showCustomSidebarFpsLimiter(GLRenderer renderer) {
         EditText input = new EditText(this);
         input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
         input.setSelectAllOnFocus(true);
@@ -3429,9 +3458,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             try {
                 int configured = Math.max(15, Math.min(240,
                         Integer.parseInt(input.getText().toString().trim())));
-                persistRuntimeVideoOption("fpsLimitValue", String.valueOf(configured));
-                if (renderer.getFpsLimit() > 0) setFpsLimit(renderer, configured, true);
-                updateSidebarFpsLabel(renderer.getFpsLimit());
+                applySidebarFpsLimitChoice(renderer, configured);
                 dialog.dismiss();
             }
             catch (Exception invalid) {
@@ -3439,6 +3466,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             }
         }));
         dialog.show();
+    }
+
+    private void applySidebarFpsLimitChoice(GLRenderer renderer, int configured) {
+        persistRuntimeVideoOption("fpsLimitValue", String.valueOf(configured));
+        if (renderer.getFpsLimit() > 0) setFpsLimit(renderer, configured, true);
+        updateSidebarFpsLabel(renderer.getFpsLimit());
     }
 
     private void toggleSidebarFpsLimiter(GLRenderer renderer) {
@@ -3611,6 +3644,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         final CheckBox cbEnableTimeout = dialog.findViewById(R.id.CBEnableTimeout);
         cbEnableTimeout.setChecked(preferences.getBoolean("touchscreen_timeout_enabled", false));
 
+        final CheckBox cbEnableHaptics = dialog.findViewById(R.id.CBEnableHaptics);
+        cbEnableHaptics.setChecked(preferences.getBoolean("touchscreen_haptics_enabled", true));
+
         final ControllerManager controllerManager = ControllerManager.getInstance();
         final CheckBox cbAutoGrabController = dialog.findViewById(R.id.CBAutoGrabController);
         cbAutoGrabController.setChecked(controllerManager.isAutoGrabEnabled());
@@ -3658,10 +3694,11 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         dialog.setOnConfirmCallback(() -> {
             inputControlsView.setShowTouchscreenControls(cbShowTouchscreenControls.isChecked());
             boolean isTimeoutEnabled = cbEnableTimeout.isChecked();
+            boolean isHapticsEnabled = cbEnableHaptics.isChecked();
             boolean isMouseDisabled = cbDisableTouchscreenMouse.isChecked();
             SharedPreferences.Editor editor = preferences.edit();
             editor.putBoolean("touchscreen_timeout_enabled", isTimeoutEnabled);
-            editor.putBoolean("touchscreen_haptics_enabled", false);
+            editor.putBoolean("touchscreen_haptics_enabled", isHapticsEnabled);
             editor.putBoolean("touchscreen_mouse_disabled", isMouseDisabled);
             editor.apply();
             controllerManager.setAutoGrabEnabled(cbAutoGrabController.isChecked());
@@ -3873,10 +3910,11 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         inputControlsView.setShowTouchscreenControls(isShowTouchscreenControls);
 
         boolean isTimeoutEnabled = preferences.getBoolean("touchscreen_timeout_enabled", false);
+        boolean isHapticsEnabled = preferences.getBoolean("touchscreen_haptics_enabled", true);
         // Apply these settings as if the user confirmed the dialog
         SharedPreferences.Editor editor = preferences.edit();
         editor.putBoolean("touchscreen_timeout_enabled", isTimeoutEnabled);
-        editor.putBoolean("touchscreen_haptics_enabled", false);
+        editor.putBoolean("touchscreen_haptics_enabled", isHapticsEnabled);
         editor.apply();
 
         // If no profile is selected, hide the controls

@@ -5,7 +5,7 @@ import com.winlator.cmod.renderer.GLRenderer;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 
-/** Chooses real/generated frames and derives a stable 2x-4x interpolation cadence. */
+/** Chooses real/generated frames and derives a stable interpolation cadence. */
 public final class LSFGManager {
     private static final float DEFAULT_DELTA_NANOS = 1_000_000_000.0f / 30.0f;
 
@@ -17,7 +17,7 @@ public final class LSFGManager {
 
     private volatile boolean active;
     private volatile boolean pendingRealFrame;
-    /** 0 means automatic mode driven by targetFPS; otherwise fixed 1.5x-6x. */
+    /** 0 means automatic mode driven by targetFPS; otherwise fixed 1.5x-10x. */
     private float requestedMultiplier;
     private float effectiveMultiplier = 2.0f;
     private int targetFPS = 60;
@@ -68,7 +68,7 @@ public final class LSFGManager {
 
     public void setMultiplier(float multiplier) {
         requestedMultiplier = multiplier >= 1.5f
-                ? Math.min(6.0f, multiplier) : 0.0f;
+                ? Math.min(10.0f, multiplier) : 0.0f;
         effectiveMultiplier = requestedMultiplier > 0.0f
                 ? requestedMultiplier : Math.max(1.0f, effectiveMultiplier);
     }
@@ -144,7 +144,7 @@ public final class LSFGManager {
         }
         float targetDelta = 1_000_000_000.0f / Math.max(1, targetFPS);
         effectiveMultiplier = Math.max(1.0f,
-                Math.min(6.0f, typicalDeltaNanos / targetDelta));
+                Math.min(10.0f, typicalDeltaNanos / targetDelta));
     }
 
     public long getOutputFrameIntervalNanos() {
