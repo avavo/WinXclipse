@@ -414,7 +414,7 @@ public class ControlElement {
                         canvas.drawCircle(cx, cy, boundingBox.width() * 0.5f - halfStroke, paint);
                         break;
                     case RECT: {
-                         float r = snappingSize * 0.10f * scale;
+                         float r = snappingSize * 0.90f * scale;
                          canvas.drawRoundRect( boundingBox.left + halfStroke, boundingBox.top + halfStroke,
                            boundingBox.right - halfStroke, boundingBox.bottom - halfStroke, r, r, paint);
                          break;
