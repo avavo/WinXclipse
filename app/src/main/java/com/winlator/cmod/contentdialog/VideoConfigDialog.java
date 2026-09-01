@@ -195,7 +195,6 @@ public class VideoConfigDialog extends ContentDialog {
         CheckBox frameGeneration = findViewById(R.id.CBVideoFrameGeneration);
         View frameGenerationSettings = findViewById(R.id.LLVideoFrameGenerationSettings);
         Spinner frameGenerationProfile = findViewById(R.id.SVideoFrameGenerationProfile);
-        Spinner frameGenerationBackend = findViewById(R.id.SVideoFrameGenerationBackend);
         CheckBox frameGenerationLowLatency = findViewById(
                 R.id.CBVideoFrameGenerationLowLatency);
         Spinner frameGenerationMultiplier = findViewById(R.id.SVideoFrameGenerationMultiplier);
@@ -203,14 +202,10 @@ public class VideoConfigDialog extends ContentDialog {
         EditText frameGenerationTargetFps = findViewById(R.id.ETVideoFrameGenerationAutoFPS);
         frameGenerationProfile.setAdapter(new ThemedSpinnerAdapter<>(context, Arrays.asList(
                 context.getResources().getStringArray(R.array.frame_generation_profile_entries))));
-        frameGenerationBackend.setAdapter(new ThemedSpinnerAdapter<>(context, Arrays.asList(
-                context.getResources().getStringArray(R.array.frame_generation_backend_entries))));
         frameGenerationMultiplier.setAdapter(new ThemedSpinnerAdapter<>(context, Arrays.asList(
                 context.getResources().getStringArray(R.array.frame_generation_multiplier_entries))));
         frameGenerationProfile.setSelection(frameGenerationProfileIndex(
                 config.getFrameGenerationProfile()));
-        frameGenerationBackend.setSelection(frameGenerationBackendIndex(
-                config.getFrameGenerationBackend()));
         frameGenerationLowLatency.setChecked("1".equals(
                 config.getFrameGenerationLowLatency()));
         frameGenerationMultiplier.setSelection(frameGenerationMultiplierIndex(
@@ -227,15 +222,12 @@ public class VideoConfigDialog extends ContentDialog {
                         ? R.string.frame_generation_help : R.string.frame_generation_vulkan_only));
         findViewById(R.id.BTVideoFrameGenerationProfileHelp).setOnClickListener(v ->
                 AppUtils.showHelpBox(context, v, R.string.frame_generation_profile_help));
-        findViewById(R.id.BTVideoFrameGenerationBackendHelp).setOnClickListener(v ->
-                AppUtils.showHelpBox(context, v, R.string.frame_generation_backend_help));
         findViewById(R.id.BTVideoFrameGenerationLowLatencyHelp).setOnClickListener(v ->
                 AppUtils.showHelpBox(context, v, R.string.frame_generation_low_latency_help));
         Runnable updateFrameGeneration = () -> {
             boolean enabled = frameGenerationCompatible && frameGeneration.isChecked();
             frameGenerationSettings.setVisibility(enabled ? View.VISIBLE : View.GONE);
             frameGenerationProfile.setEnabled(enabled);
-            frameGenerationBackend.setEnabled(enabled);
             frameGenerationLowLatency.setEnabled(enabled);
             frameGenerationMultiplier.setEnabled(enabled);
             frameGenerationTargetFps.setEnabled(enabled);
@@ -287,7 +279,7 @@ public class VideoConfigDialog extends ContentDialog {
 
         applyTheme(context, gpuName, presentMode, textureFilter, fsrUpscale, fsrQuality,
                 refreshRate, vsyncLimit, vkBasaltEffect, frameGenerationProfile,
-                frameGenerationBackend, frameGenerationMultiplier);
+                frameGenerationMultiplier);
 
         setOnConfirmCallback(() -> {
             String upscaleValue = "On".equals(selectedValue(fsrUpscale)) ? "1" : "0";
@@ -311,7 +303,7 @@ public class VideoConfigDialog extends ContentDialog {
                     frameGenerationMultiplierValue(frameGenerationMultiplier.getSelectedItemPosition()),
                     String.valueOf(frameGenerationTarget(
                             frameGenerationTargetFps.getText().toString().trim())),
-                    frameGenerationBackendValue(frameGenerationBackend.getSelectedItemPosition()),
+                    "gles",
                     frameGenerationLowLatency.isChecked());
         });
     }
@@ -322,6 +314,8 @@ public class VideoConfigDialog extends ContentDialog {
             case "fast": return 0;
             case "quality":
             case "stable": return 2;
+            case "ultra":
+            case "ultra_quality": return 3;
             case "balanced": return 1;
             default:
                 try {
@@ -333,13 +327,14 @@ public class VideoConfigDialog extends ContentDialog {
     }
 
     private static String frameGenerationProfileValue(int index) {
-        return index <= 0 ? "fast" : index >= 2 ? "quality" : "balanced";
+        return index <= 0 ? "fast" : index == 1 ? "balanced"
+                : index == 2 ? "quality" : "ultra";
     }
 
     private static int frameGenerationMultiplierIndex(String value) {
         if (value == null || "auto".equalsIgnoreCase(value)) return 0;
         try {
-            return Math.max(1, Math.min(18,
+            return Math.max(1, Math.min(6,
                     Math.round((Float.parseFloat(value) - 1.0f) * 2.0f)));
         }
         catch (Exception ignored) { return 0; }
@@ -347,23 +342,9 @@ public class VideoConfigDialog extends ContentDialog {
 
     private static String frameGenerationMultiplierValue(int index) {
         if (index <= 0) return "auto";
-        float value = 1.0f + Math.max(1, Math.min(18, index)) * 0.5f;
+        float value = 1.0f + Math.max(1, Math.min(6, index)) * 0.5f;
         return value == Math.round(value) ? String.valueOf(Math.round(value))
                 : String.format(java.util.Locale.US, "%.1f", value);
-    }
-
-    private static int frameGenerationBackendIndex(String value) {
-        if (value == null) return 0;
-        switch (value.trim().toLowerCase(java.util.Locale.US)) {
-            case "native":
-            case "libapex": return 1;
-            case "auto": return 2;
-            default: return 0;
-        }
-    }
-
-    private static String frameGenerationBackendValue(int index) {
-        return index == 1 ? "libapex" : index == 2 ? "auto" : "gles";
     }
 
     private static int frameGenerationTarget(String value) {

@@ -295,6 +295,7 @@
     <string name="logs">Logs</string>
     <string name="enable_wine_debug">Enable Wine debug</string>
     <string name="enable_box86_64_logs">Enable Box86/Box64 logs</string>
+    <string name="enable_wine_lifecycle_logs">Log automatic Wine closing and non-standard processes</string>
     <string name="export">Export</string>
     <string name="logs_exported_to">Logs exported to</string>
     <string name="general">General</string>
@@ -797,7 +798,9 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="vkbasalt">vkBasalt</string>
     <string name="vkbasalt_sharpness_effects">Sharpness Effect</string>
     <string name="vkbasalt_sharpness_level">Sharpness Level</string>
-    <string name="vkbasalt_sharpness_denoise">Sharpeness Denoise</string>
+    <string name="vkbasalt_sharpness_denoise">Sharpness Denoise</string>
+    <string name="configurable_sharpness_filter">Configurable Sharpness Filter</string>
+    <string name="configurable_sharpness_filter_hint">CAS is lighter; DLS adds denoise. Saved for this shortcut/container and applied on its next launch.</string>
     <string name="enable_peb_logs">Log Windows PEB Data</string>
     <string name="enable_gstreamer_workaround">Enable GStreamer Video Decoder Workaround</string>
     <string name="enable_gstreamer_workaround_alert">Enabling this option will add environmental variables to this container\'s configuration that could impact your ability to launch games. Do not enable this unless you are certain the issue is specific to in-game video playback.</string>
@@ -883,12 +886,11 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="experimental_frame_generation">Experimental Frame Generation (Apex)</string>
     <string name="experimental_frame_generation_warning">Apex/GLES 3.1 experimental mode. Vulkan is required. It may add latency or visual artifacts; disable it if a game becomes unstable.</string>
     <string name="frame_generation_profile">Profile</string>
-    <string name="frame_generation_profile_help">Fast uses 1/8-resolution motion search: lowest GPU cost and least added render time, but more warped edges. Balanced uses 1/4 resolution. Quality uses 1/2-resolution search and more conservative blending: fewer deformed edges, but higher GPU cost and possible blur/double images. All profiles use the same two-frame history; Quality only adds noticeable latency if its extra GPU work misses the frame deadline.</string>
-    <string name="frame_generation_help">Experimental GLES 3.1 frame interpolation for Vulkan containers. GLES Compute is the safe backend. Native libapex can improve motion estimation but may crash inside some vendor drivers; Automatic tries libapex and falls back to GLES only when the failure is recoverable. Low Latency presents real frames immediately and extrapolates generated frames, reducing the normal one-frame delay at the cost of more artifacts. Fixed multipliers generate up to 10x output; the visible rate is still limited by the display.</string>
+    <string name="frame_generation_profile_help">Fast uses 1/8-resolution motion search: lowest GPU cost, but more warped edges. Balanced uses 1/4 resolution. Quality uses 1/3 resolution and conservative blending. Ultra Quality uses 1/2-resolution motion search, the widest refinement pass and the safest blending: it produces the fewest deformed edges, but costs the most GPU time and may blur uncertain motion. Generated frames are dropped whenever they would delay a real game frame.</string>
+    <string name="frame_generation_help">Experimental GLES 3.1 frame interpolation for Vulkan containers, using the stable GLES Compute path. Low Latency presents real frames immediately and extrapolates generated frames, reducing the normal one-frame delay at the cost of more artifacts. Fixed multipliers are limited to 4x because larger temporal gaps produce severe artifacts. The display refresh rate still limits what is physically visible.</string>
     <string name="frame_generation_multiplier">Multiplier</string>
-    <string name="frame_generation_backend">Backend</string>
-    <string name="frame_generation_backend_help">GLES Compute is the safer built-in backend. Native libapex may improve motion estimation, but some vendor drivers can terminate the app with SIGSEGV. Automatic tries libapex and falls back to GLES only after a recoverable initialization failure.</string>
     <string name="frame_generation_low_latency">Low Latency (more artifacts)</string>
+    <string name="frame_generation_runtime_off">FG Off</string>
     <string name="frame_generation_low_latency_help">Normal mode keeps a real frame of history for cleaner interpolation. Low Latency presents the newest real frame immediately and extrapolates generated frames: less delay, but more warping, judder and image errors during sudden motion.</string>
     <string name="frame_generation_target_fps">Automatic target FPS</string>
     <string name="frame_generation_unavailable">Frame Generation requires OpenGL ES 3.1 and could not be enabled on this device.</string>

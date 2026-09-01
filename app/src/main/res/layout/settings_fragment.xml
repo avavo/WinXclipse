@@ -611,6 +611,15 @@
                         android:layout_marginTop="8.0dip"
                         android:text="@string/enable_peb_logs" />
 
+                    <View style="@style/FieldSeparator" />
+
+                    <CheckBox
+                        android:id="@+id/CBEnableWineLifecycleLogs"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/enable_wine_lifecycle_logs" />
+
                 </LinearLayout>
 
                 <TextView

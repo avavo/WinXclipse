@@ -8,22 +8,26 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
 
 - Added experimental GLES 3.1 frame generation for Vulkan containers.
 - Frame Generation is configured inside Video Configuration for both containers and shortcuts; shortcut values can override the container without changing it.
-- Added Fast, Balanced and Quality profiles with clear trade-offs:
+- Added Fast, Balanced, Quality and Ultra Quality profiles with clear trade-offs:
   - Fast has the lowest GPU cost and latency, but may deform edges more often.
   - Balanced uses a larger motion search for a middle ground.
-  - Quality reduces warped edges with more conservative blending, but costs more GPU time and may introduce blur, double images or additional latency.
-- Added fixed 1.5x through 10x modes in 0.5x steps.
+  - Quality reduces warped edges with more conservative blending, but costs more GPU time and may introduce blur or double images.
+  - Ultra Quality uses the finest motion field, widest refinement and safest blending. It has the fewest warps and the highest GPU cost.
+- Added fixed 1.5x through 4x modes in 0.5x steps. Higher factors were removed because their large temporal gaps produced severe artifacts.
 - Automatic mode targets a user-entered output FPS.
-- Long explanations now live behind dedicated `?` buttons for Frame Generation, Profile, Backend and Low Latency instead of occupying the main screen.
+- Long explanations now live behind dedicated `?` buttons for Frame Generation, Profile and Low Latency instead of occupying the main screen.
 - The in-session sidebar tile remains locked until Frame Generation is enabled in Video Configuration and the renderer is Vulkan.
 - Persisted Frame Generation starts only after the Android EGL surface is stable, avoiding the shortcut crash loop seen when enabling it, exiting and reopening the game.
 - Fixed Frame Generation incorrectly reporting that GLES 3.1 was unavailable on capable Samsung devices: the compositor now requests an explicit EGL 3.1 context, logs the returned version, and does not cache a capability check made before a current surface exists.
 - Fixed the Xclipse compute compiler rejecting Apex with `image2D: No precision specified` after confirming the live Display dialog. Sampler/image precision is now explicit and unused uniforms no longer generate misleading warnings.
-- Runtime backend failures disable the active state instead of leaving a false enabled indicator.
-- Added selectable GLES Compute, native `libapex`, and Automatic backends to container and shortcut Video Configuration. GLES remains the safe default; the native option is explicitly experimental because a vendor-driver `SIGSEGV` cannot be recovered by Java.
+- Runtime Apex/shader failures disable the active state instead of leaving a false enabled indicator.
+- Restored the stable fixed GLES Compute path from the older APK. Backend selection and native/automatic `libapex` activation were removed to avoid the vendor-driver `SIGSEGV` route.
 - Added a Low Latency mode which presents real frames immediately and extrapolates generated frames. It removes the normal one-real-frame interpolation delay at the cost of more edge warping and unstable motion.
-- The Apex HUD now separates source Presents received from the game (`real`) from real/generated draws completed by the compositor. Source FPS is no longer replaced by the panel refresh rate when several game Presents are coalesced before one display refresh, and output FPS is not fabricated through `source FPS × multiplier`.
-- Optional HUD rows expose the measured Frame Generation latency estimate, selected backend, fallback state, and backend/shader failures.
+- Low Latency now lives inside the in-session Display panel and persists with the active shortcut/container. The sidebar places FPS Limiter beside Frame Gen and HUD beside Display.
+- The compact HUD counter is again shown only as `Apex <source FPS × effective multiplier> (<multiplier>x)`. It is not capped by display Hz and no longer adds the confusing second `real` value; measured real/generated compositor counters remain available to diagnostics.
+- Optional HUD rows expose the measured Frame Generation latency estimate, Apex/shader failure state and actual `GEN FPS`. `GEN 0 FPS (no headroom)` clearly reports when synthetic work is skipped to protect the game; `ApexTelemetry` exposes the same counters in logcat.
+- Generated draws now consume a finite budget earned by actual game Presents, including the correct fractional cadence for 1.5x. Apex stops scheduling when the budget is empty instead of redrawing a stale texture indefinitely and starving the game/BCN pipeline. GLES errors are sampled instead of synchronously queried after every game frame, avoiding an unnecessary GPU-queue stall.
+- Real game Presents are never delayed by Apex pacing. Synthetic frames are deadline-aware and are dropped automatically when the measured generation cost would reduce the game's base FPS.
 
 ### Wrappers, ASTC and ETC2
 
@@ -58,6 +62,7 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
 - Removed the obsolete Unlimited choice; disabled state is shown as Off.
 - Shortcut limiter changes stay on the shortcut instead of silently modifying its base container.
 - The live Display panel can configure Frame Generation with the same profiles, multiplier and automatic target used by the container or shortcut.
+- The main sidebar uses two compact rows: FPS Limiter beside Frame Gen, then HUD beside Display. Frame Gen follows the active Vulkan/Apex state, while Low Latency is configured inside Display.
 - The HUD can show the container graphics API, DX wrapper, effective BCN transcode path and physical phone GPU.
 - Phone GPU is shown above the SoC in the vertical HUD, and the redundant `Samsung` prefix is removed from the GPU name.
 - Browser cover search for shortcuts now cleans executable suffixes, ranks the closest normalized game title, and skips matching entries that have no portrait artwork.
@@ -68,7 +73,7 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
 - Live FSR quality changes resize the Wine desktop and active game window and recreate render targets, preventing clipping, zoom, and unintended black bars.
 - FSR quality is saved through Video Configuration for containers and shortcuts; the sidebar shows the active state without silently replacing the saved preset, while texture filtering remains available live.
 - FXAA, CRT, Toon, and NTSC effects are directly available in the Display sidebar. Brightness, contrast, and gamma remain grouped under Color Custom.
-- vkBasalt CAS/DLS sharpening, strength, and denoise can be configured per container or shortcut and adjusted from the live Display sidebar.
+- vkBasalt CAS/DLS sharpening, strength, and denoise can be configured per container or shortcut and from Display; changes made during a session are saved and applied on the next launch.
 - Added concise `?` help beside FSR Upscale and vkBasalt, explaining actual resolution, image-quality and GPU-cost trade-offs.
 - Auto refresh rate requests the panel's highest supported mode; explicit 60, 90, 120, and 144 Hz choices select the matching mode when the panel exposes it.
 - The HUD defaults to a monochrome layout with Show FPS, wrapper, GPU, CPU, RAM, battery, border, and SoC information selected. A one-time upgrade migration also turns Show FPS on for older saved layouts; later manual changes are preserved. Renderer/API visibility remains independently configurable.
@@ -106,8 +111,8 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
 - FSR, color effects and the Frame Generation compositor share validated render targets and fall back safely when a GPU rejects an intermediate format.
 - Wine registry repair now validates the correct registry header and can recover every supported prefix source from invalid-registry and mismatched-wineserver startup failures.
 - Raw Wine/Proton profiles skip unusable non-archive prefix packs instead of aborting container creation.
-- Normal and Essential startup disable the optional PlugPlay, RpcSs and tablet-input services. Aggressive keeps controller-critical PlugPlay available while disabling RpcSs and tablet input, removing `rpcss.exe` and `tabtip.exe` from its idle baseline and reducing ten non-game processes to roughly seven or eight.
-- Shortcut sessions wait for all non-base guest processes to disappear and then close after three continuous idle seconds; Wine services and crash-defender/reporting processes cannot keep an exited game session open.
+- Normal and Essential startup disable the optional PlugPlay, RpcSs and tablet-input services. Aggressive keeps controller-critical PlugPlay available while disabling RpcSs and tablet input; Proton prefixes without a tablet-input registry key also receive a short bounded `tabtip.exe` cleanup, reducing the active idle baseline to roughly seven or eight without touching controller discovery or rumble.
+- Shortcut sessions wait for all non-base guest processes to disappear and then close after five continuous idle seconds; Wine services and crash-defender/reporting processes cannot keep an exited or failed game session open. An optional Wine lifecycle diagnostic records the reason, process snapshot, non-standard processes and recent guest output in `Downloads/WinXclipse/logs`.
 - Out-of-spec X11 PutImage requests no longer terminate Wine sessions through a fatal BadMatch path; packed cursor and mask uploads use their correct size.
 - First-boot progress now advances through imagefs extraction, runtime installation, and finalization instead of appearing frozen.
 - Native X11 2D operations process full 32-bit pixels, reducing byte-loop overhead on shared LPDDR memory.

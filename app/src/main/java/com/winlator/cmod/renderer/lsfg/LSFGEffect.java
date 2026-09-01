@@ -13,6 +13,9 @@ import com.winlator.cmod.renderer.material.ShaderMaterial;
 /** Final compositor pass for the experimental Apex frame generator. */
 public final class LSFGEffect extends Effect {
     private static final String TAG = "LSFGEffect";
+    // Matches the stable 0.9.5 APK: libapex ships for compatibility/reference,
+    // but the runtime always uses the GLES compute path.
+    private static final boolean ENABLE_NATIVE_APEX = false;
 
     private final LSFGManager manager;
     private final GLRenderer renderer;
@@ -30,6 +33,12 @@ public final class LSFGEffect extends Effect {
     private boolean nativeBackendFailed;
     private boolean motionVectorOwnedByNative;
     private boolean usingFallbackAfterNativeFailure;
+    /**
+     * glGetError after a compute dispatch may serialize the mobile GPU queue.
+     * Validate the first dispatch and then sample periodically instead of
+     * forcing that synchronization on every real game frame.
+     */
+    private int fallbackValidationCountdown;
 
     public LSFGEffect(GLRenderer renderer, LSFGManager manager) {
         this.renderer = renderer;
@@ -50,7 +59,7 @@ public final class LSFGEffect extends Effect {
     }
 
     public void setQuality(int quality) {
-        this.quality = Math.max(0, Math.min(2, quality));
+        this.quality = Math.max(0, Math.min(3, quality));
         applyNativeSettings();
     }
 
@@ -73,11 +82,12 @@ public final class LSFGEffect extends Effect {
     }
 
     public void setBackend(int backend) {
-        if (manager.getBackendMode() == backend) return;
+        if (manager.getBackendMode() == LSFGManager.BACKEND_GLES) return;
         destroyNativeEngine();
         nativeBackendFailed = false;
         usingFallbackAfterNativeFailure = false;
-        manager.setBackendMode(backend);
+        fallbackValidationCountdown = 0;
+        manager.setBackendMode(LSFGManager.BACKEND_GLES);
     }
 
     public void setLowLatencyMode(boolean enabled) {
@@ -146,8 +156,8 @@ public final class LSFGEffect extends Effect {
     private void runMotionEstimation(int current, int previous, int width, int height) {
         boolean processed = false;
         int backend = manager.getBackendMode();
-        boolean nativeRequested = backend == LSFGManager.BACKEND_NATIVE
-                || backend == LSFGManager.BACKEND_AUTO;
+        boolean nativeRequested = ENABLE_NATIVE_APEX && (backend == LSFGManager.BACKEND_NATIVE
+                || backend == LSFGManager.BACKEND_AUTO);
         if (nativeRequested && !nativeBackendFailed && ApexNative.isAvailable()) {
             try {
                 if (nativeEngine == 0) {
@@ -217,10 +227,10 @@ public final class LSFGEffect extends Effect {
             motionVectorHeight = 0;
             motionVectorOwnedByNative = false;
         }
-        // Three deliberately distinct profiles: Fast estimates motion at 1/8
-        // size, Balanced at 1/4, and Quality at 1/2.  The former six labels
-        // shared these same quality tiers and therefore felt nearly identical.
-        int scale = quality == 0 ? 8 : quality == 1 ? 4 : 2;
+        // Four deliberately distinct profiles. Ultra keeps half-resolution
+        // vectors and adds the widest refinement pass; it is intentionally the
+        // expensive option for users who prefer fewer warps over throughput.
+        int scale = quality == 0 ? 8 : quality == 1 ? 4 : quality == 2 ? 3 : 2;
         int mvWidth = Math.max(1, width / scale);
         int mvHeight = Math.max(1, height / scale);
         ensureMotionVectorTextures(mvWidth, mvHeight);
@@ -229,8 +239,11 @@ public final class LSFGEffect extends Effect {
         motionVectorHistoryTexture = motionVectorTexture;
         motionVectorTexture = oldHistory;
 
-        while (GLES20.glGetError() != GLES20.GL_NO_ERROR) {
-            // Discard stale errors so failures below describe this dispatch.
+        boolean validateDispatch = fallbackValidationCountdown <= 0;
+        if (validateDispatch) {
+            while (GLES20.glGetError() != GLES20.GL_NO_ERROR) {
+                // Discard stale errors so a sampled failure describes this dispatch.
+            }
         }
         if (!computeMaterial.use(quality)) {
             String reason = computeMaterial.getLastError();
@@ -251,12 +264,16 @@ public final class LSFGEffect extends Effect {
                 GLES31.GL_WRITE_ONLY, GLES31.GL_RGBA16F);
         GLES31.glDispatchCompute((mvWidth + 15) / 16, (mvHeight + 7) / 8, 1);
         GLES31.glMemoryBarrier(GLES31.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-        int error = GLES20.glGetError();
-        if (error != GLES20.GL_NO_ERROR) {
-            String reason = "GLES motion dispatch failed: 0x" + Integer.toHexString(error);
-            manager.reportBackendFailure(reason);
-            throw new IllegalStateException(reason);
+        if (validateDispatch) {
+            int error = GLES20.glGetError();
+            if (error != GLES20.GL_NO_ERROR) {
+                String reason = "GLES motion dispatch failed: 0x" + Integer.toHexString(error);
+                manager.reportBackendFailure(reason);
+                throw new IllegalStateException(reason);
+            }
+            fallbackValidationCountdown = 120;
         }
+        else fallbackValidationCountdown--;
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
         if (usingFallbackAfterNativeFailure)
             manager.reportBackendFallback("libapex failed; GLES is active");
@@ -315,6 +332,7 @@ public final class LSFGEffect extends Effect {
         releaseGLResources();
         nativeBackendFailed = false;
         usingFallbackAfterNativeFailure = false;
+        fallbackValidationCountdown = 0;
         manager.resetTimingState();
         super.destroy();
     }
@@ -343,6 +361,7 @@ public final class LSFGEffect extends Effect {
         motionVectorHeight = 0;
         motionVectorOwnedByNative = false;
         currentFrameIndex = 0;
+        fallbackValidationCountdown = 0;
     }
 
     private static String shortError(Throwable error) {

@@ -359,11 +359,7 @@
         <item>Fast (low GPU)</item>
         <item>Balanced (recommended)</item>
         <item>Quality (fewer warps)</item>
-    </string-array>
-    <string-array name="frame_generation_backend_entries">
-        <item>GLES Compute (safe)</item>
-        <item>libapex Native (experimental)</item>
-        <item>Automatic (libapex → GLES)</item>
+        <item>Ultra Quality (cleanest)</item>
     </string-array>
     <string-array name="frame_generation_multiplier_entries">
         <item>Automatic (target FPS)</item>
@@ -373,17 +369,5 @@
         <item>3x</item>
         <item>3.5x</item>
         <item>4x</item>
-        <item>4.5x</item>
-        <item>5x</item>
-        <item>5.5x</item>
-        <item>6x</item>
-        <item>6.5x</item>
-        <item>7x</item>
-        <item>7.5x</item>
-        <item>8x</item>
-        <item>8.5x</item>
-        <item>9x</item>
-        <item>9.5x</item>
-        <item>10x</item>
     </string-array>
 </resources>

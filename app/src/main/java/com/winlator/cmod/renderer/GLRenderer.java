@@ -177,19 +177,9 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
 
     @Override
     public void onDrawFrame(GL10 gl) {
-        if (lsfgManager.isActive()) {
-            long interval = lsfgManager.getOutputFrameIntervalNanos();
-            long elapsed = System.nanoTime() - lastApexFrameNanos;
-            if (lastApexFrameNanos != 0 && elapsed < interval) {
-                long remaining = interval - elapsed;
-                try {
-                    Thread.sleep(remaining / 1_000_000L, (int)(remaining % 1_000_000L));
-                }
-                catch (InterruptedException ignored) {
-                    Thread.currentThread().interrupt();
-                }
-            }
-        }
+        // Choreographer already supplies display-paced callbacks. Never sleep
+        // on the GL compositor thread: a real Present can arrive while it is
+        // blocked and lose the very frame time Apex is meant to preserve.
         lastApexFrameNanos = System.nanoTime();
         lsfgManager.prepareFrame();
 
@@ -699,9 +689,9 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
     public void setApex(boolean enabled, int quality, float multiplier,
             int targetFPS, float stability, int backend, boolean lowLatencyMode) {
         requestedApexEnabled = enabled;
-        requestedApexQuality = Math.max(0, Math.min(2, quality));
+        requestedApexQuality = Math.max(0, Math.min(3, quality));
         requestedApexMultiplier = multiplier >= 1.5f
-                ? Math.min(10.0f, multiplier) : 0.0f;
+                ? Math.min(4.0f, multiplier) : 0.0f;
         requestedApexTargetFPS = Math.max(15, Math.min(240, targetFPS));
         requestedApexStability = Math.max(0.0f, Math.min(1.0f, stability));
         requestedApexBackend = Math.max(LSFGManager.BACKEND_GLES,
@@ -718,7 +708,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
             WinlatorHUD hud = winlatorHUD;
             if (hud != null) {
                 boolean active = requestedApexEnabled && lsfgManager.isActive();
-                hud.setFrameGenerationStats(active, 0, 0,
+                hud.setFrameGenerationStats(active, 0, 0, lsfgManager.getMultiplier(),
                         lsfgManager.getEstimatedLatencyMs(), lsfgManager.getBackendName(),
                         lsfgManager.getBackendState(), lsfgManager.getBackendFailure(),
                         requestedApexLowLatency);
@@ -790,7 +780,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
     @Override
     public void doFrame(long frameTimeNanos) {
         if (!apexChoreographerRunning) return;
-        if (lsfgManager.isActive()) xServerView.requestRender();
+        if (lsfgManager.shouldScheduleGeneratedFrame()) xServerView.requestRender();
         Choreographer.getInstance().postFrameCallback(this);
     }
 
@@ -812,7 +802,14 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
         float realFps = seconds > 0 ? sourceFrames / seconds : 0;
         float outputFps = seconds > 0
                 ? (presentedRealFrames + generatedFrames) / seconds : 0;
-        hud.setFrameGenerationStats(lsfgManager.isActive(), realFps, outputFps,
+        float generatedFps = seconds > 0 ? generatedFrames / seconds : 0;
+        Log.d("ApexTelemetry", "source=" + Math.round(realFps)
+                + " presented=" + Math.round(outputFps)
+                + " generated=" + Math.round(generatedFps)
+                + " multiplier=" + lsfgManager.getMultiplier()
+                + " latencyMs=" + lsfgManager.getEstimatedLatencyMs());
+        hud.setFrameGenerationStats(lsfgManager.isActive(), realFps, generatedFps,
+                lsfgManager.getMultiplier(),
                 lsfgManager.getEstimatedLatencyMs(), lsfgManager.getBackendName(),
                 lsfgManager.getBackendState(), lsfgManager.getBackendFailure(),
                 lsfgManager.isLowLatencyMode());
@@ -828,6 +825,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
             lsfgManager.reportBackendFailure("Frame-generation compositor failed");
         WinlatorHUD hud = winlatorHUD;
         if (hud != null) hud.setFrameGenerationStats(false, 0, 0,
+                lsfgManager.getMultiplier(),
                 lsfgManager.getEstimatedLatencyMs(), lsfgManager.getBackendName(),
                 lsfgManager.getBackendState(), lsfgManager.getBackendFailure(),
                 requestedApexLowLatency);

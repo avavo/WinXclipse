@@ -15,11 +15,13 @@ Development is focused on the Exynos/Xclipse platform. Every supported GPU pairi
 
 ## Current 0.9.5 behavior
 
-- Apex Frame Generation is an experimental Vulkan-only compositor option. It requests an explicit OpenGL ES 3.1 context and offers GLES Compute, native `libapex`, and Automatic backends. Fast, Balanced, and Quality profiles, Low Latency, and 1.5x-10x/Automatic output modes are documented through the adjacent `?` buttons in Video Configuration.
-- The HUD separates source game Presents from completed real/generated Apex compositor draws, can report Apex latency/backend/failures, and starts with Show FPS enabled. GPU, SoC, API/wrapper, and effective ASTC/ETC2 state can be shown independently.
+- Apex Frame Generation is an experimental Vulkan-only compositor option. It requests an explicit OpenGL ES 3.1 context and always uses the stable GLES Compute path, matching the older 0.9.5 APK; `libapex` is not activated. Fast, Balanced, Quality and Ultra Quality profiles, Low Latency, and 1.5x-4x/Automatic output modes are documented through adjacent `?` buttons. Synthetic work is deadline-aware and is discarded before it can delay a real game frame.
+- The HUD headline shows `Apex <source FPS × effective multiplier> (<multiplier>x)` without being capped by panel Hz. The optional diagnostics report latency, shader failure and actual synthetic `GEN FPS`; `no headroom` means generation was safely skipped to preserve the game FPS. Show FPS starts enabled, while GPU, SoC, API/wrapper, and effective ASTC/ETC2 state can be shown independently.
+- The in-session sidebar places FPS Limiter beside Frame Gen and HUD beside Display. Frame Gen is locked until configured for a Vulkan session; Low Latency is configured inside Display and is saved for the active shortcut/container.
 - Wrapper-Default uses the WinXclipse hybrid stack normally. When its opt-in ASTC or ETC2 transcode is selected, WinXclipse switches the wrapper and Leegao layer together to the exact compatibility pair from the tested Winlator Mali APK; disabling transcode restores the hybrid pair.
 - Touchscreen buttons do not vibrate. Physical-controller rumble remains available through the master/per-player vibration controls and test action.
-- FSR Upscale reduces the guest render resolution before EASU; vkBasalt adds a Vulkan sharpening pass. Their image-quality and performance trade-offs are described by the `?` buttons in Video Configuration.
+- FSR Upscale reduces the guest render resolution before EASU; the configurable CAS/DLS sharpness filter is saved per shortcut/container and applied on its next launch. Their image-quality and performance trade-offs are described by the `?` buttons in Video Configuration.
+- Shortcut Wine sessions close after five continuous seconds with no game process and only base/crash-defender processes remaining. Optional lifecycle diagnostics record the reason, process snapshot, non-standard processes and recent guest output under `Downloads/WinXclipse/logs`.
   
 See [CHANGELOG.md](CHANGELOG.md) for what changed between releases.  
   

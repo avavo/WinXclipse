@@ -20,17 +20,22 @@ public final class LSFGManager {
 
     private volatile boolean active;
     private volatile boolean pendingRealFrame;
-    /** 0 means automatic mode driven by targetFPS; otherwise fixed 1.5x-10x. */
+    private volatile boolean pendingGameFrame;
+    /** 0 means automatic mode driven by targetFPS; otherwise fixed 1.5x-4x. */
     private float requestedMultiplier;
-    private float effectiveMultiplier = 2.0f;
+    private volatile float effectiveMultiplier = 2.0f;
     private int targetFPS = 60;
-    private int realFramesCaptured;
+    private volatile int realFramesCaptured;
     private int framesSinceReal;
+    /** Fractional number of generated draws still owed to captured game frames. */
+    private volatile float generatedFrameBudget;
     private int historyIndex;
     private float typicalDeltaNanos = DEFAULT_DELTA_NANOS;
     private long lastRealFrameTimeNanos;
     private long pendingRealFrameTimeNanos;
     private long presentedRealFrameTimeNanos;
+    private long generatedDrawStartedNanos;
+    private float generatedDrawCostNanos = 2_000_000.0f;
     private boolean renderingGeneratedFrame;
     private boolean presentedRealFrame;
     private boolean lowLatencyMode;
@@ -63,15 +68,19 @@ public final class LSFGManager {
         resetFrameCounts();
         realFramesCaptured = 0;
         framesSinceReal = 0;
+        generatedFrameBudget = 0;
         typicalDeltaNanos = DEFAULT_DELTA_NANOS;
         lastRealFrameTimeNanos = 0;
         pendingRealFrameTimeNanos = 0;
         presentedRealFrameTimeNanos = 0;
+        generatedDrawStartedNanos = 0;
+        generatedDrawCostNanos = 2_000_000.0f;
         presentedRealFrame = false;
         estimatedLatencyNanos = 0;
         effectiveMultiplier = requestedMultiplier > 0.0f ? requestedMultiplier : 2.0f;
         historyIndex = 0;
         pendingRealFrame = false;
+        pendingGameFrame = false;
         renderingGeneratedFrame = false;
         Arrays.fill(deltaHistory, DEFAULT_DELTA_NANOS);
     }
@@ -90,7 +99,7 @@ public final class LSFGManager {
 
     public void setMultiplier(float multiplier) {
         requestedMultiplier = multiplier >= 1.5f
-                ? Math.min(10.0f, multiplier) : 0.0f;
+                ? Math.min(4.0f, multiplier) : 0.0f;
         effectiveMultiplier = requestedMultiplier > 0.0f
                 ? requestedMultiplier : Math.max(1.0f, effectiveMultiplier);
     }
@@ -128,8 +137,37 @@ public final class LSFGManager {
         if (!active) return;
         pendingRealFrame = true;
         pendingRealFrameTimeNanos = System.nanoTime();
-        if (gamePresent) gameFrameCount.incrementAndGet();
+        if (gamePresent) {
+            pendingGameFrame = true;
+            gameFrameCount.incrementAndGet();
+        }
         renderer.xServerView.requestRender();
+    }
+
+    /**
+     * Returns true only when a synthetic draw is due and still fits before the
+     * next expected game Present. Real frames always win: spending the GL
+     * thread's remaining deadline on interpolation makes the source FPS fall,
+     * which defeats frame generation.
+     */
+    public boolean shouldScheduleGeneratedFrame() {
+        if (!active || realFramesCaptured < 2 || pendingRealFrame
+                || effectiveMultiplier <= 1.0f || generatedFrameBudget < 1.0f)
+            return false;
+        if (lastRealFrameTimeNanos <= 0 || typicalDeltaNanos <= 0) return true;
+
+        long now = System.nanoTime();
+        float elapsed = now - lastRealFrameTimeNanos;
+        float outputInterval = typicalDeltaNanos / Math.max(1.0f, effectiveMultiplier);
+        float dueAt = outputInterval * (framesSinceReal + 1.0f);
+        if (elapsed < dueAt) return false;
+
+        // Preserve a measured render-cost margin plus 1 ms for the incoming
+        // game Present. Under GPU pressure Apex drops a generated frame instead
+        // of delaying the game.
+        float remaining = typicalDeltaNanos - elapsed;
+        float safetyMargin = Math.max(2_000_000.0f, generatedDrawCostNanos * 1.35f + 1_000_000.0f);
+        return remaining > safetyMargin;
     }
 
     public boolean prepareFrame() {
@@ -137,7 +175,8 @@ public final class LSFGManager {
             renderingGeneratedFrame = false;
             return false;
         }
-        renderingGeneratedFrame = effectiveMultiplier > 1.0f && !pendingRealFrame;
+        renderingGeneratedFrame = shouldScheduleGeneratedFrame();
+        generatedDrawStartedNanos = renderingGeneratedFrame ? System.nanoTime() : 0;
         return renderingGeneratedFrame;
     }
 
@@ -156,12 +195,26 @@ public final class LSFGManager {
     }
 
     public void onFrameCaptured() {
-        boolean submittedByGame = pendingRealFrame;
+        boolean submittedByGame = pendingGameFrame;
+        pendingRealFrame = false;
+        pendingGameFrame = false;
         if (submittedByGame) {
             actualRealFrameCount.incrementAndGet();
-            pendingRealFrame = false;
             presentedRealFrame = true;
             presentedRealFrameTimeNanos = pendingRealFrameTimeNanos;
+            // A multiplier of 1.5x earns one generated frame every two
+            // captured game frames. Fixed factors up to 4x accumulate at
+            // most one frame's worth of work, preventing an idle/stalled game
+            // from making Apex redraw the same texture forever.
+            if (realFramesCaptured >= 1) {
+                float earned = Math.max(0.0f, effectiveMultiplier - 1.0f);
+                // Whole multipliers replace stale work at every real frame.
+                // Fractional 1.5x keeps only its half-frame carry so one
+                // generated frame is produced every two source frames.
+                generatedFrameBudget = earned < 1.0f
+                        ? Math.min(1.0f, generatedFrameBudget + earned)
+                        : Math.min(3.0f, earned);
+            }
         }
         else presentedRealFrame = false;
         realFramesCaptured++;
@@ -188,7 +241,7 @@ public final class LSFGManager {
         }
         float targetDelta = 1_000_000_000.0f / Math.max(1, targetFPS);
         effectiveMultiplier = Math.max(1.0f,
-                Math.min(10.0f, typicalDeltaNanos / targetDelta));
+                Math.min(4.0f, typicalDeltaNanos / targetDelta));
     }
 
     public long getOutputFrameIntervalNanos() {
@@ -200,8 +253,14 @@ public final class LSFGManager {
 
     public void onPostDraw() {
         if (active && renderingGeneratedFrame) {
+            if (generatedDrawStartedNanos > 0) {
+                float sample = Math.max(0, System.nanoTime() - generatedDrawStartedNanos);
+                generatedDrawCostNanos = generatedDrawCostNanos * 0.85f + sample * 0.15f;
+            }
+            generatedDrawStartedNanos = 0;
             generatedFrameCount.incrementAndGet();
             framesSinceReal++;
+            generatedFrameBudget = Math.max(0.0f, generatedFrameBudget - 1.0f);
         }
         else if (active && presentedRealFrame) {
             long now = System.nanoTime();
@@ -275,15 +334,20 @@ public final class LSFGManager {
     }
 
     public void reportBackendReady(String name) {
+        if (name != null && name.equals(backendName)
+                && "Active".equals(backendState) && backendFailure.isEmpty()) return;
         backendName = name;
         backendState = "Active";
         backendFailure = "";
     }
 
     public void reportBackendFallback(String reason) {
+        String safeReason = reason == null ? "" : reason;
+        if ("GLES".equals(backendName) && "Fallback".equals(backendState)
+                && safeReason.equals(backendFailure)) return;
         backendName = "GLES";
         backendState = "Fallback";
-        backendFailure = reason == null ? "" : reason;
+        backendFailure = safeReason;
     }
 
     public void reportBackendFailure(String reason) {

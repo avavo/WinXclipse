@@ -307,20 +307,51 @@ public abstract class ProcessHelper {
     public static ArrayList<String> listRunningWineProcessNames() {
         ArrayList<String> names = new ArrayList<>();
         for (String pid : listRunningWineProcesses()) {
-            File stat = new File("/proc/" + pid + "/stat");
-            try (FileInputStream input = new FileInputStream(stat);
-                 BufferedReader reader = new BufferedReader(new InputStreamReader(input))) {
-                String line = reader.readLine();
-                if (line == null) continue;
-                int open = line.indexOf('(');
-                int close = line.lastIndexOf(')');
-                if (open >= 0 && close > open + 1) {
-                    String name = line.substring(open + 1, close).trim();
-                    if (!name.isEmpty()) names.add(name);
-                }
-            }
-            catch (IOException ignored) {}
+            String name = readProcessName(pid);
+            if (!name.isEmpty()) names.add(name);
         }
         return names;
+    }
+
+    /** Snapshot used by lifecycle diagnostics. Each entry is formatted as pid:name. */
+    public static ArrayList<String> listRunningWineProcessDetails() {
+        ArrayList<String> details = new ArrayList<>();
+        for (String pid : listRunningWineProcesses()) {
+            String name = readProcessName(pid);
+            if (!name.isEmpty()) details.add(pid + ":" + name);
+        }
+        return details;
+    }
+
+    /** Terminates matching Wine guest images owned by this app process. */
+    public static int terminateWineProcessesByName(String processName) {
+        if (processName == null || processName.trim().isEmpty()) return 0;
+        int terminated = 0;
+        String target = processName.trim();
+        for (String pid : listRunningWineProcesses()) {
+            if (!target.equalsIgnoreCase(readProcessName(pid))) continue;
+            try {
+                terminateProcess(Integer.parseInt(pid));
+                terminated++;
+            }
+            catch (NumberFormatException ignored) {}
+        }
+        return terminated;
+    }
+
+    private static String readProcessName(String pid) {
+        File stat = new File("/proc/" + pid + "/stat");
+        try (FileInputStream input = new FileInputStream(stat);
+             BufferedReader reader = new BufferedReader(new InputStreamReader(input))) {
+            String line = reader.readLine();
+            if (line == null) return "";
+            int open = line.indexOf('(');
+            int close = line.lastIndexOf(')');
+            return open >= 0 && close > open + 1
+                    ? line.substring(open + 1, close).trim() : "";
+        }
+        catch (IOException ignored) {
+            return "";
+        }
     }
 }

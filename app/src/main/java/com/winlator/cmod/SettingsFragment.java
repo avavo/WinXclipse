@@ -440,6 +440,11 @@ public class SettingsFragment extends Fragment {
         final CheckBox CBEnablePebLogs = view.findViewById(R.id.CBEnablePebLogs);
         CBEnablePebLogs.setChecked(preferences.getBoolean("enable_peb_logs", false));
 
+        final CheckBox cbEnableWineLifecycleLogs = view.findViewById(
+                R.id.CBEnableWineLifecycleLogs);
+        cbEnableWineLifecycleLogs.setChecked(
+                preferences.getBoolean("enable_wine_lifecycle_logs", false));
+
         MainActivity mainActivity = (MainActivity) requireActivity();
         view.findViewById(R.id.BTOpenSaves).setOnClickListener(v -> mainActivity.openSaves());
         view.findViewById(R.id.BTOpenBox64RCFile).setOnClickListener(v -> mainActivity.openBox64RCFile());
@@ -489,6 +494,8 @@ public class SettingsFragment extends Fragment {
             editor.putBoolean("lock_landscape", cbLockLandscape.isChecked());
             editor.putBoolean("share_android_clipboard", cbShareClipboard.isChecked());
             editor.putBoolean("enable_peb_logs", CBEnablePebLogs.isChecked());
+            editor.putBoolean("enable_wine_lifecycle_logs",
+                    cbEnableWineLifecycleLogs.isChecked());
 
 
             // Save gyro settings

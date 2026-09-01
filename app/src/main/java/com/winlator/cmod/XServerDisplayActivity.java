@@ -30,6 +30,7 @@ import android.os.BatteryManager;
 import android.os.FileObserver;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.Environment;
 import android.util.Log;
 import android.view.InputDevice;
 import android.view.KeyEvent;
@@ -248,7 +249,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     private volatile String bcnTelemetryState = "";
     private volatile boolean bcnTelemetryRequested;
     private volatile boolean sawShortcutProcess;
+    private volatile boolean observedShortcutApplication;
     private long shortcutIdleSinceMs;
+    private static final long SHORTCUT_IDLE_CLOSE_DELAY_MS = 5000L;
+    private volatile boolean automaticLifecycleClose;
+    private volatile String lifecycleCloseReason = "";
+    private volatile boolean lifecycleLogWritten;
     private final java.util.concurrent.atomic.AtomicBoolean sessionStopped = new java.util.concurrent.atomic.AtomicBoolean(false);
     PreloaderDialog preloaderDialog = null;
     private Runnable configChangedCallback = null;
@@ -272,17 +278,39 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             long now = android.os.SystemClock.elapsedRealtime();
             if (hasApplication) {
                 sawShortcutProcess = true;
+                observedShortcutApplication = true;
                 shortcutIdleSinceMs = 0L;
             }
             else if (sawShortcutProcess) {
                 if (shortcutIdleSinceMs == 0L) shortcutIdleSinceMs = now;
-                else if (now - shortcutIdleSinceMs >= 3000L) {
-                    Log.i("WineLifecycle", "Only Wine base/crash-defender processes remain; closing shortcut session");
+                else if (now - shortcutIdleSinceMs >= SHORTCUT_IDLE_CLOSE_DELAY_MS) {
+                    automaticLifecycleClose = true;
+                    lifecycleCloseReason = observedShortcutApplication
+                            ? "The game exited or crashed; only Wine base/crash-defender processes remained for 5 seconds."
+                            : "The game did not start; only Wine base/crash-defender processes remained for 5 seconds.";
+                    Log.i("WineLifecycle", lifecycleCloseReason);
                     finishSession();
                     return;
                 }
             }
             sidebarHandler.postDelayed(this, 500L);
+        }
+    };
+    private int aggressiveWineTrimAttempts;
+    private final Runnable aggressiveWineTrimProbe = new Runnable() {
+        @Override public void run() {
+            if (!String.valueOf(Container.STARTUP_SELECTION_AGGRESSIVE).equals(startupSelection)
+                    || sessionStopped.get() || isFinishing() || isDestroyed()) return;
+            int terminated = ProcessHelper.terminateWineProcessesByName("tabtip.exe");
+            if (terminated > 0) {
+                Log.i("WineStartup", "Aggressive policy removed " + terminated
+                        + " idle tabtip.exe process(es)");
+            }
+            // Some Proton builds register tablet input after explorer starts.
+            // Probe only during startup so a later user-launched process is not
+            // policed continuously throughout the game session.
+            if (++aggressiveWineTrimAttempts < 4)
+                sidebarHandler.postDelayed(this, 2500L);
         }
     };
     private TextView sidebarTimeView;
@@ -291,6 +319,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     private TextView sidebarFpsLimitView;
     private TextView sidebarFrameGenerationView;
     private View sidebarFrameGenerationButton;
+    /** Runtime copy of the Display option, kept in sync with container/shortcut data. */
+    private Boolean sessionFrameGenerationLowLatency;
     private ImageButton sidebarPauseButton;
     private final Runnable sidebarStatusRunnable = new Runnable() {
         @Override public void run() {
@@ -1223,6 +1253,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         sidebarHandler.removeCallbacks(sidebarStatusRunnable);
         sidebarHandler.removeCallbacks(bcnLayerMapProbe);
         sidebarHandler.removeCallbacks(shortcutExitProbe);
+        sidebarHandler.removeCallbacks(aggressiveWineTrimProbe);
         ProcessHelper.removeDebugCallback(bcnTelemetryCallback);
         if (xServerView != null) xServerView.getRenderer().stopApexChoreographer();
         if (launchBlockedByContentOperation) {
@@ -1266,6 +1297,11 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     private void stopSessionServices() {
         if (!sessionStopped.compareAndSet(false, true)) return;
+
+        sidebarHandler.removeCallbacks(aggressiveWineTrimProbe);
+        // Snapshot processes and recent output before stopping the Wine
+        // environment; after teardown the information is no longer available.
+        writeWineLifecycleLogIfNeeded();
 
         if (audioManager != null && audioDeviceCallback != null) {
             audioManager.unregisterAudioDeviceCallback(audioDeviceCallback);
@@ -2268,13 +2304,23 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         // Start all environment components (XServer, Audio, etc.)
         environment.startEnvironmentComponents();
 
+        if (String.valueOf(Container.STARTUP_SELECTION_AGGRESSIVE).equals(startupSelection)) {
+            aggressiveWineTrimAttempts = 0;
+            sidebarHandler.removeCallbacks(aggressiveWineTrimProbe);
+            sidebarHandler.postDelayed(aggressiveWineTrimProbe, 3500L);
+        }
+
         // A Wine desktop is intentionally persistent. A shortcut, however,
         // should leave as soon as its application (and any launcher children)
-        // has been gone for three continuous seconds. Base Wine services and
+        // has been gone for five continuous seconds. Base Wine services and
         // crash reporters do not keep the session alive.
         if (shortcut != null) {
             sawShortcutProcess = false;
+            observedShortcutApplication = false;
             shortcutIdleSinceMs = 0L;
+            automaticLifecycleClose = false;
+            lifecycleCloseReason = "";
+            lifecycleLogWritten = false;
             sidebarHandler.removeCallbacks(shortcutExitProbe);
             sidebarHandler.postDelayed(shortcutExitProbe, 1000L);
         }
@@ -2441,8 +2487,11 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 getRuntimeVideoOption("frameGenerationMultiplier", "auto"));
         int frameGenerationBackend = parseFrameGenerationBackend(
                 getRuntimeVideoOption("frameGenerationBackend", "gles"));
-        boolean frameGenerationLowLatency = "1".equals(
+        boolean configuredFrameGenerationLowLatency = "1".equals(
                 getRuntimeVideoOption("frameGenerationLowLatency", "0"));
+        if (sessionFrameGenerationLowLatency == null)
+            sessionFrameGenerationLowLatency = configuredFrameGenerationLowLatency;
+        boolean frameGenerationLowLatency = sessionFrameGenerationLowLatency;
         boolean frameGenerationEnabled = "1".equals(
                 getRuntimeVideoOption("frameGenerationEnabled", "0"))
                 && isFrameGenerationCompatible();
@@ -2457,6 +2506,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                         frameGenerationMultiplier, frameGenerationTarget,
                         frameGenerationStability(frameGenerationProfile),
                         frameGenerationBackend, frameGenerationLowLatency);
+                updateSidebarFrameGenerationState(renderer);
             }, 1200L);
         }
         else {
@@ -2782,6 +2832,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         });
 
         CheckBox cbFrameGeneration = dialog.findViewById(R.id.CBDisplayFrameGeneration);
+        CheckBox cbFrameGenerationLowLatency = dialog.findViewById(
+                R.id.CBDisplayFrameGenerationLowLatency);
         Spinner sFrameGenerationProfile = dialog.findViewById(
                 R.id.SDisplayFrameGenerationProfile);
         Spinner sFrameGenerationMultiplier = dialog.findViewById(
@@ -2812,15 +2864,29 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         boolean frameGenerationConfigured = "1".equals(
                 getRuntimeVideoOption("frameGenerationEnabled", "0"));
         cbFrameGeneration.setChecked(frameGenerationConfigured && frameGenerationCompatible);
+        if (sessionFrameGenerationLowLatency == null) {
+            sessionFrameGenerationLowLatency = "1".equals(
+                    getRuntimeVideoOption("frameGenerationLowLatency", "0"));
+        }
+        cbFrameGenerationLowLatency.setChecked(sessionFrameGenerationLowLatency);
         cbFrameGeneration.setEnabled(frameGenerationCompatible);
         cbFrameGeneration.setAlpha(frameGenerationCompatible ? 1.0f : 0.55f);
         dialog.findViewById(R.id.BTDisplayFrameGenerationHelp).setOnClickListener(v ->
                 AppUtils.showHelpBox(this, v, frameGenerationCompatible
                         ? R.string.frame_generation_help : R.string.frame_generation_vulkan_only));
+        dialog.findViewById(R.id.BTDisplayFrameGenerationProfileHelp).setOnClickListener(v ->
+                AppUtils.showHelpBox(this, v, R.string.frame_generation_profile_help));
+        dialog.findViewById(R.id.BTDisplayFrameGenerationLowLatencyHelp).setOnClickListener(v ->
+                AppUtils.showHelpBox(this, v, R.string.frame_generation_low_latency_help));
         llFrameGenerationSettings.setVisibility(
                 cbFrameGeneration.isChecked() ? View.VISIBLE : View.GONE);
-        cbFrameGeneration.setOnCheckedChangeListener((button, checked) ->
-                llFrameGenerationSettings.setVisibility(checked ? View.VISIBLE : View.GONE));
+        cbFrameGeneration.setOnCheckedChangeListener((button, checked) -> {
+            llFrameGenerationSettings.setVisibility(checked ? View.VISIBLE : View.GONE);
+            cbFrameGenerationLowLatency.setEnabled(checked);
+            cbFrameGenerationLowLatency.setAlpha(checked ? 1.0f : 0.55f);
+        });
+        cbFrameGenerationLowLatency.setEnabled(cbFrameGeneration.isChecked());
+        cbFrameGenerationLowLatency.setAlpha(cbFrameGeneration.isChecked() ? 1.0f : 0.55f);
         llFrameGenerationAutoFps.setVisibility(
                 sFrameGenerationMultiplier.getSelectedItemPosition() == 0
                         ? View.VISIBLE : View.GONE);
@@ -2902,8 +2968,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         dialog.setOnConfirmCallback(() -> {
             setFakeHdrEnabled(renderer, cbHdr.isChecked(), true);
+            sessionFrameGenerationLowLatency = cbFrameGenerationLowLatency.isChecked();
             int frameGenerationProfile = Math.max(0,
-                    Math.min(2, sFrameGenerationProfile.getSelectedItemPosition()));
+                    Math.min(3, sFrameGenerationProfile.getSelectedItemPosition()));
             float frameGenerationMultiplier = frameGenerationMultiplierValue(
                     sFrameGenerationMultiplier.getSelectedItemPosition());
             int frameGenerationTarget = parseFrameGenerationTarget(
@@ -3334,6 +3401,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             case "balanced": return 1;
             case "quality":
             case "stable": return 2;
+            case "ultra":
+            case "ultra_quality": return 3;
         }
         try {
             // Migration from the former six-profile list:
@@ -3350,9 +3419,10 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     }
 
     private static String frameGenerationProfileStorageValue(int profile) {
-        switch (Math.max(0, Math.min(2, profile))) {
+        switch (Math.max(0, Math.min(3, profile))) {
             case 0: return "fast";
             case 2: return "quality";
+            case 3: return "ultra";
             default: return "balanced";
         }
     }
@@ -3370,8 +3440,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         if (value == null || "auto".equalsIgnoreCase(value)) return 0.0f;
         try {
             float parsed = Float.parseFloat(value);
-            if (parsed < 1.5f || parsed > 10.0f) return 0.0f;
-            return Math.round(parsed * 2.0f) / 2.0f;
+            if (parsed < 1.5f) return 0.0f;
+            return Math.min(4.0f, Math.round(parsed * 2.0f) / 2.0f);
         }
         catch (Exception ignored) {
             return 0.0f;
@@ -3379,38 +3449,30 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     }
 
     private static int parseFrameGenerationBackend(String value) {
-        if (value == null) return com.winlator.cmod.renderer.lsfg.LSFGManager.BACKEND_GLES;
-        switch (value.trim().toLowerCase(Locale.US)) {
-            case "libapex":
-            case "native":
-                return com.winlator.cmod.renderer.lsfg.LSFGManager.BACKEND_NATIVE;
-            case "auto":
-                return com.winlator.cmod.renderer.lsfg.LSFGManager.BACKEND_AUTO;
-            default:
-                return com.winlator.cmod.renderer.lsfg.LSFGManager.BACKEND_GLES;
-        }
+        return com.winlator.cmod.renderer.lsfg.LSFGManager.BACKEND_GLES;
     }
 
     private static int frameGenerationQuality(int profile) {
-        return Math.max(0, Math.min(2, profile));
+        return Math.max(0, Math.min(3, profile));
     }
 
     private static float frameGenerationStability(int profile) {
         switch (profile) {
             case 0: return 0.15f; // Fast: aggressive warp, minimal fallback.
             case 2: return 0.90f; // Quality: conservative fallback, less deformation.
+            case 3: return 0.98f; // Ultra: safest fallback and finest search.
             default: return 0.55f; // Balanced.
         }
     }
 
     private static int frameGenerationMultiplierIndex(float multiplier) {
         if (multiplier < 1.5f) return 0;
-        return Math.max(1, Math.min(18, Math.round((multiplier - 1.0f) * 2.0f)));
+        return Math.max(1, Math.min(6, Math.round((multiplier - 1.0f) * 2.0f)));
     }
 
     private static float frameGenerationMultiplierValue(int index) {
         if (index <= 0) return 0.0f;
-        return 1.0f + Math.max(1, Math.min(18, index)) * 0.5f;
+        return 1.0f + Math.max(1, Math.min(6, index)) * 0.5f;
     }
 
     private static String frameGenerationMultiplierStorageValue(float multiplier) {
@@ -3422,15 +3484,18 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     private void applyFrameGenerationSetting(GLRenderer renderer, boolean enabled,
             int profile, float multiplier, int targetFPS, boolean persist) {
-        profile = Math.max(0, Math.min(2, profile));
+        profile = Math.max(0, Math.min(3, profile));
         multiplier = parseFrameGenerationMultiplier(
                 frameGenerationMultiplierStorageValue(multiplier));
         targetFPS = parseFrameGenerationTarget(String.valueOf(targetFPS));
         boolean safeEnabled = enabled && isFrameGenerationCompatible();
         int backend = parseFrameGenerationBackend(
                 getRuntimeVideoOption("frameGenerationBackend", "gles"));
-        boolean lowLatency = "1".equals(
-                getRuntimeVideoOption("frameGenerationLowLatency", "0"));
+        if (sessionFrameGenerationLowLatency == null) {
+            sessionFrameGenerationLowLatency = "1".equals(
+                    getRuntimeVideoOption("frameGenerationLowLatency", "0"));
+        }
+        boolean lowLatency = sessionFrameGenerationLowLatency;
         renderer.setApex(safeEnabled, frameGenerationQuality(profile), multiplier, targetFPS,
                 frameGenerationStability(profile), backend, lowLatency);
         if (persist) {
@@ -3440,6 +3505,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             persistRuntimeVideoOption("frameGenerationMultiplier",
                     frameGenerationMultiplierStorageValue(multiplier));
             persistRuntimeVideoOption("frameGenerationTargetFPS", String.valueOf(targetFPS));
+            persistRuntimeVideoOption("frameGenerationLowLatency", lowLatency ? "1" : "0");
         }
         updateSidebarFrameGenerationState(renderer);
 
@@ -5312,6 +5378,14 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     }
 
     private static boolean isBaseWineProcess(String name) {
+        if (isStrictBaseWineProcess(name)) return true;
+        // Crash Defender/reporters may deliberately survive the game and must
+        // not keep a completed shortcut session open forever.
+        return name.contains("crash") || name.contains("defender")
+                || name.contains("werfault");
+    }
+
+    private static boolean isStrictBaseWineProcess(String name) {
         switch (name) {
             case "wine":
             case "wine64":
@@ -5332,10 +5406,62 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             case "winemenubuilder.exe":
                 return true;
             default:
-                // Crash Defender/reporters may deliberately survive the game.
-                return name.contains("crash") || name.contains("defender")
-                        || name.contains("werfault");
+                return false;
         }
+    }
+
+    private void writeWineLifecycleLogIfNeeded() {
+        if (lifecycleLogWritten || preferences == null
+                || !preferences.getBoolean("enable_wine_lifecycle_logs", false)) return;
+
+        ArrayList<String> processes = ProcessHelper.listRunningWineProcessDetails();
+        ArrayList<String> nonStandard = new ArrayList<>();
+        for (String detail : processes) {
+            int separator = detail.indexOf(':');
+            String name = (separator >= 0 ? detail.substring(separator + 1) : detail)
+                    .toLowerCase(Locale.US).trim();
+            if (!isStrictBaseWineProcess(name)) nonStandard.add(detail);
+        }
+        if (!automaticLifecycleClose && nonStandard.isEmpty()) return;
+
+        File directory = new File(Environment.getExternalStoragePublicDirectory(
+                Environment.DIRECTORY_DOWNLOADS), "WinXclipse/logs");
+        if (!directory.exists() && !directory.mkdirs()) {
+            Log.w("WineLifecycle", "Could not create lifecycle log directory: " + directory);
+            return;
+        }
+        String stamp = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US)
+                .format(new Date());
+        File logFile = new File(directory, "wine_lifecycle_" + stamp + ".txt");
+        StringBuilder report = new StringBuilder(4096);
+        report.append("WinXclipse Wine lifecycle diagnostic\n")
+                .append("Time: ").append(stamp).append('\n')
+                .append("Shortcut: ").append(shortcutName == null ? "(container)" : shortcutName)
+                .append('\n')
+                .append("Automatic close: ").append(automaticLifecycleClose).append('\n')
+                .append("Reason: ").append(lifecycleCloseReason.isEmpty()
+                        ? "Session stopped while non-standard guest processes were active."
+                        : lifecycleCloseReason).append('\n')
+                .append("Observed game/application process: ")
+                .append(observedShortcutApplication).append("\n\n")
+                .append("Processes that were about to be closed:\n");
+        if (processes.isEmpty()) report.append("(none)\n");
+        else for (String process : processes) report.append("- ").append(process).append('\n');
+        report.append("\nNon-standard processes:\n");
+        if (nonStandard.isEmpty()) report.append("(none; only base/crash-defender processes remained)\n");
+        else for (String process : nonStandard) report.append("- ").append(process).append('\n');
+
+        List<String> recentLines = ProcessHelper.getRecentDebugLines();
+        int first = Math.max(0, recentLines.size() - 200);
+        report.append("\nLast guest output lines:\n");
+        if (first == recentLines.size()) report.append("(none)\n");
+        else for (int index = first; index < recentLines.size(); index++)
+            report.append(recentLines.get(index)).append('\n');
+
+        lifecycleLogWritten = FileUtils.writeString(logFile, report.toString());
+        if (lifecycleLogWritten)
+            Log.i("WineLifecycle", "Diagnostic saved to " + logFile.getAbsolutePath());
+        else Log.w("WineLifecycle", "Failed to save diagnostic to " + logFile);
     }
 
     private String normalizeHudApi(String value) {
