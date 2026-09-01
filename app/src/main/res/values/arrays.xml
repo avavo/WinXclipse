@@ -360,6 +360,11 @@
         <item>Balanced (recommended)</item>
         <item>Quality (fewer warps)</item>
     </string-array>
+    <string-array name="frame_generation_backend_entries">
+        <item>GLES Compute (safe)</item>
+        <item>libapex Native (experimental)</item>
+        <item>Automatic (libapex → GLES)</item>
+    </string-array>
     <string-array name="frame_generation_multiplier_entries">
         <item>Automatic (target FPS)</item>
         <item>1.5x</item>

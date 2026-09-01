@@ -13,10 +13,6 @@ import com.winlator.cmod.renderer.material.ShaderMaterial;
 /** Final compositor pass for the experimental Apex frame generator. */
 public final class LSFGEffect extends Effect {
     private static final String TAG = "LSFGEffect";
-    // The imported native engine can terminate the entire process inside the
-    // vendor GL driver (SIGSEGV cannot be caught in Java). Keep the portable
-    // GLES 3.1 compute backend as the safe default on Xclipse.
-    private static final boolean ENABLE_NATIVE_APEX = false;
 
     private final LSFGManager manager;
     private final GLRenderer renderer;
@@ -33,6 +29,7 @@ public final class LSFGEffect extends Effect {
     private long nativeEngine;
     private boolean nativeBackendFailed;
     private boolean motionVectorOwnedByNative;
+    private boolean usingFallbackAfterNativeFailure;
 
     public LSFGEffect(GLRenderer renderer, LSFGManager manager) {
         this.renderer = renderer;
@@ -73,6 +70,18 @@ public final class LSFGEffect extends Effect {
 
     public void setMultiplier(float multiplier) {
         manager.setMultiplier(multiplier);
+    }
+
+    public void setBackend(int backend) {
+        if (manager.getBackendMode() == backend) return;
+        destroyNativeEngine();
+        nativeBackendFailed = false;
+        usingFallbackAfterNativeFailure = false;
+        manager.setBackendMode(backend);
+    }
+
+    public void setLowLatencyMode(boolean enabled) {
+        manager.setLowLatencyMode(enabled);
     }
 
     public int getMotionVectorTexture() {
@@ -136,10 +145,15 @@ public final class LSFGEffect extends Effect {
 
     private void runMotionEstimation(int current, int previous, int width, int height) {
         boolean processed = false;
-        if (ENABLE_NATIVE_APEX && !nativeBackendFailed && ApexNative.isAvailable()) {
+        int backend = manager.getBackendMode();
+        boolean nativeRequested = backend == LSFGManager.BACKEND_NATIVE
+                || backend == LSFGManager.BACKEND_AUTO;
+        if (nativeRequested && !nativeBackendFailed && ApexNative.isAvailable()) {
             try {
                 if (nativeEngine == 0) {
                     nativeEngine = ApexNative.nativeCreateEngineGLES(width, height);
+                    if (nativeEngine == 0)
+                        throw new IllegalStateException("libapex could not create its GLES engine");
                     applyNativeSettings();
                 }
                 if (nativeEngine != 0) {
@@ -149,14 +163,33 @@ public final class LSFGEffect extends Effect {
                     if (processed && outputTexture[0] != 0) {
                         motionVectorTexture = outputTexture[0];
                         motionVectorOwnedByNative = true;
+                        usingFallbackAfterNativeFailure = false;
+                        manager.reportBackendReady("libapex");
                     }
+                    else throw new IllegalStateException("libapex rejected the frame");
                 }
             }
             catch (Throwable error) {
                 nativeBackendFailed = true;
                 destroyNativeEngine();
+                String reason = shortError(error);
+                if (backend == LSFGManager.BACKEND_NATIVE) {
+                    manager.reportBackendFailure(reason);
+                    throw new IllegalStateException(reason, error);
+                }
+                usingFallbackAfterNativeFailure = true;
+                manager.reportBackendFallback(reason);
                 Log.w(TAG, "Apex native processing failed; switching to GLES compute", error);
             }
+        }
+        else if (backend == LSFGManager.BACKEND_NATIVE && !ApexNative.isAvailable()) {
+            String reason = "libapex is not available in this APK/ABI";
+            manager.reportBackendFailure(reason);
+            throw new IllegalStateException(reason);
+        }
+        else if (backend == LSFGManager.BACKEND_AUTO && !ApexNative.isAvailable()) {
+            usingFallbackAfterNativeFailure = true;
+            manager.reportBackendFallback("libapex unavailable");
         }
         if (!processed) runComputeFallback(current, previous, width, height);
     }
@@ -171,6 +204,7 @@ public final class LSFGEffect extends Effect {
         }
         catch (Throwable error) {
             nativeBackendFailed = true;
+            manager.reportBackendFailure(shortError(error));
             Log.w(TAG, "Unable to configure Apex native engine", error);
         }
     }
@@ -195,8 +229,14 @@ public final class LSFGEffect extends Effect {
         motionVectorHistoryTexture = motionVectorTexture;
         motionVectorTexture = oldHistory;
 
-        computeMaterial.use(quality);
-        if (computeMaterial.programId == 0) return;
+        while (GLES20.glGetError() != GLES20.GL_NO_ERROR) {
+            // Discard stale errors so failures below describe this dispatch.
+        }
+        if (!computeMaterial.use(quality)) {
+            String reason = computeMaterial.getLastError();
+            manager.reportBackendFailure(reason);
+            throw new IllegalStateException(reason);
+        }
         GLES20.glActiveTexture(GLES20.GL_TEXTURE4);
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, current);
         GLES31.glUniform1i(GLES31.glGetUniformLocation(computeMaterial.programId, "currFrame"), 4);
@@ -211,7 +251,16 @@ public final class LSFGEffect extends Effect {
                 GLES31.GL_WRITE_ONLY, GLES31.GL_RGBA16F);
         GLES31.glDispatchCompute((mvWidth + 15) / 16, (mvHeight + 7) / 8, 1);
         GLES31.glMemoryBarrier(GLES31.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+        int error = GLES20.glGetError();
+        if (error != GLES20.GL_NO_ERROR) {
+            String reason = "GLES motion dispatch failed: 0x" + Integer.toHexString(error);
+            manager.reportBackendFailure(reason);
+            throw new IllegalStateException(reason);
+        }
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+        if (usingFallbackAfterNativeFailure)
+            manager.reportBackendFallback("libapex failed; GLES is active");
+        else manager.reportBackendReady("GLES");
     }
 
     private void ensureMotionVectorTextures(int width, int height) {
@@ -252,11 +301,20 @@ public final class LSFGEffect extends Effect {
         motionVectorHistoryTexture = textures[1];
         motionVectorWidth = width;
         motionVectorHeight = height;
+        int error = GLES20.glGetError();
+        if (motionVectorTexture == 0 || motionVectorHistoryTexture == 0
+                || error != GLES20.GL_NO_ERROR) {
+            String reason = "Motion-vector texture allocation failed"
+                    + (error == GLES20.GL_NO_ERROR ? "" : ": 0x" + Integer.toHexString(error));
+            manager.reportBackendFailure(reason);
+            throw new IllegalStateException(reason);
+        }
     }
 
     public void resetGLResources() {
         releaseGLResources();
         nativeBackendFailed = false;
+        usingFallbackAfterNativeFailure = false;
         manager.resetTimingState();
         super.destroy();
     }
@@ -285,6 +343,14 @@ public final class LSFGEffect extends Effect {
         motionVectorHeight = 0;
         motionVectorOwnedByNative = false;
         currentFrameIndex = 0;
+    }
+
+    private static String shortError(Throwable error) {
+        String message = error == null ? null : error.getMessage();
+        if (message == null || message.trim().isEmpty())
+            message = error == null ? "Unknown native backend failure"
+                    : error.getClass().getSimpleName();
+        return message.length() > 96 ? message.substring(0, 96) : message;
     }
 
     @Override

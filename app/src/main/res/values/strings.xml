@@ -332,7 +332,7 @@
     <string name="video_help_unlimited_images">Allows the swapchain to use unlimited images instead of capping them. Lower latency, uses more memory.</string>
     <string name="video_help_present_modes">Mailbox: tear-free and keeps the newest frame, best default for high FPS. FIFO: tear-free queue synchronized to the display, most compatible but may cap FPS. Immediate: lowest wait and can tear. Relaxed: FIFO normally, but may tear after a missed refresh deadline.</string>
     <string name="gdc_help_bcn_software">Uses the software BCn compression path. Lighter for small WGPs (workgroup sizes) and helps when hardware BCn emulation misbehaves.</string>
-    <string name="gdc_help_etc2">Transcodes ETC2 compressed textures to BCn. Mutually exclusive with ASTC Transcode.</string>
+    <string name="gdc_help_etc2">Transcodes BCn compressed textures to ETC2. Mutually exclusive with ASTC Transcode.</string>
     <string name="video_vsync_off">VSync limit</string>
     <string name="video_unlimited_images">Unlimited swapchain images</string>
     <string name="dxvk_no_timeline">Disable timeline semaphores</string>
@@ -883,8 +883,10 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="experimental_frame_generation_warning">Apex/GLES 3.1 experimental mode. Vulkan is required. It may add latency or visual artifacts; disable it if a game becomes unstable.</string>
     <string name="frame_generation_profile">Profile</string>
     <string name="frame_generation_profile_help">Fast uses 1/8-resolution motion search: lowest GPU cost and least added render time, but more warped edges. Balanced uses 1/4 resolution. Quality uses 1/2-resolution search and more conservative blending: fewer deformed edges, but higher GPU cost and possible blur/double images. All profiles use the same two-frame history; Quality only adds noticeable latency if its extra GPU work misses the frame deadline.</string>
-    <string name="frame_generation_help">Experimental GLES 3.1 frame interpolation for Vulkan containers. It can increase perceived smoothness, but generated frames may add artifacts and GPU load. Fast uses 1/8-resolution motion search for the lowest cost and more warped edges. Balanced uses 1/4 resolution. Quality uses 1/2 resolution and conservative blending for fewer deformed edges, at higher GPU cost and possible blur or double images. Fixed multipliers generate up to 10x output; Automatic targets the FPS entered below.</string>
+    <string name="frame_generation_help">Experimental GLES 3.1 frame interpolation for Vulkan containers. GLES Compute is the safe backend. Native libapex can improve motion estimation but may crash inside some vendor drivers; Automatic tries libapex and falls back to GLES only when the failure is recoverable. Low Latency presents real frames immediately and extrapolates generated frames, reducing the normal one-frame delay at the cost of more artifacts. Fixed multipliers generate up to 10x output; the visible rate is still limited by the display.</string>
     <string name="frame_generation_multiplier">Multiplier</string>
+    <string name="frame_generation_backend">Backend</string>
+    <string name="frame_generation_low_latency">Low Latency (more artifacts)</string>
     <string name="frame_generation_target_fps">Automatic target FPS</string>
     <string name="frame_generation_unavailable">Frame Generation requires OpenGL ES 3.1 and could not be enabled on this device.</string>
     <string name="frame_generation_vulkan_only">Frame Generation is available only when the container Display renderer is set to Vulkan.</string>

@@ -75,6 +75,8 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
     private volatile float requestedApexMultiplier;
     private volatile int requestedApexTargetFPS = 60;
     private volatile float requestedApexStability = 0.6f;
+    private volatile int requestedApexBackend = LSFGManager.BACKEND_GLES;
+    private volatile boolean requestedApexLowLatency;
     private WinlatorHUD winlatorHUD;
     private long apexStatsStartNanos;
     private volatile boolean apexChoreographerRunning;
@@ -690,23 +692,36 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
 
     public void setApex(boolean enabled, int quality, float multiplier,
             int targetFPS, float stability) {
+        setApex(enabled, quality, multiplier, targetFPS, stability,
+                requestedApexBackend, requestedApexLowLatency);
+    }
+
+    public void setApex(boolean enabled, int quality, float multiplier,
+            int targetFPS, float stability, int backend, boolean lowLatencyMode) {
         requestedApexEnabled = enabled;
         requestedApexQuality = Math.max(0, Math.min(2, quality));
         requestedApexMultiplier = multiplier >= 1.5f
                 ? Math.min(10.0f, multiplier) : 0.0f;
         requestedApexTargetFPS = Math.max(15, Math.min(240, targetFPS));
         requestedApexStability = Math.max(0.0f, Math.min(1.0f, stability));
+        requestedApexBackend = Math.max(LSFGManager.BACKEND_GLES,
+                Math.min(LSFGManager.BACKEND_AUTO, backend));
+        requestedApexLowLatency = lowLatencyMode;
         xServerView.queueEvent(() -> {
             boolean applied = effectComposer.setLSFGEnabled(requestedApexEnabled,
                     requestedApexQuality, requestedApexMultiplier,
-                    requestedApexTargetFPS, requestedApexStability);
+                    requestedApexTargetFPS, requestedApexStability,
+                    requestedApexBackend, requestedApexLowLatency);
             if (!applied) requestedApexEnabled = false;
             lastApexFrameNanos = 0;
             apexStatsStartNanos = 0;
             WinlatorHUD hud = winlatorHUD;
             if (hud != null) {
                 boolean active = requestedApexEnabled && lsfgManager.isActive();
-                hud.setApexStats(active ? lsfgManager.getMultiplier() : 1.0f, active);
+                hud.setFrameGenerationStats(active, 0, 0,
+                        lsfgManager.getEstimatedLatencyMs(), lsfgManager.getBackendName(),
+                        lsfgManager.getBackendState(), lsfgManager.getBackendFailure(),
+                        requestedApexLowLatency);
             }
             xServerView.requestRender();
         });
@@ -740,6 +755,14 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
 
     public float getApexStability() {
         return requestedApexStability;
+    }
+
+    public int getApexBackend() {
+        return requestedApexBackend;
+    }
+
+    public boolean isApexLowLatency() {
+        return requestedApexLowLatency;
     }
 
     public void setWinlatorHUD(WinlatorHUD hud) {
@@ -778,12 +801,15 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
         if (apexStatsStartNanos == 0) apexStatsStartNanos = now;
         long elapsed = now - apexStatsStartNanos;
         if (elapsed < 500_000_000L) return;
-        // WinlatorHUD owns the real game-present counter.  Passing compositor
-        // frame counts here made the displayed value equal to the panel refresh
-        // rate whenever Choreographer was driving Apex.  Only pass the effective
-        // multiplier; the HUD applies it to the real game FPS.
-        hud.setApexStats(lsfgManager.getMultiplier(), lsfgManager.isActive());
-        lsfgManager.resetFrameCounts();
+        float seconds = elapsed / 1_000_000_000.0f;
+        int realFrames = lsfgManager.consumeActualRealFrameCount();
+        int generatedFrames = lsfgManager.consumeGeneratedFrameCount();
+        float realFps = seconds > 0 ? realFrames / seconds : 0;
+        float outputFps = seconds > 0 ? (realFrames + generatedFrames) / seconds : 0;
+        hud.setFrameGenerationStats(lsfgManager.isActive(), realFps, outputFps,
+                lsfgManager.getEstimatedLatencyMs(), lsfgManager.getBackendName(),
+                lsfgManager.getBackendState(), lsfgManager.getBackendFailure(),
+                lsfgManager.isLowLatencyMode());
         apexStatsStartNanos = now;
     }
 
@@ -792,8 +818,13 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
         requestedApexEnabled = false;
         lastApexFrameNanos = 0;
         apexStatsStartNanos = 0;
+        if (lsfgManager.getBackendFailure().isEmpty())
+            lsfgManager.reportBackendFailure("Frame-generation compositor failed");
         WinlatorHUD hud = winlatorHUD;
-        if (hud != null) hud.setApexStats(1.0f, false);
+        if (hud != null) hud.setFrameGenerationStats(false, 0, 0,
+                lsfgManager.getEstimatedLatencyMs(), lsfgManager.getBackendName(),
+                lsfgManager.getBackendState(), lsfgManager.getBackendFailure(),
+                requestedApexLowLatency);
     }
 
 

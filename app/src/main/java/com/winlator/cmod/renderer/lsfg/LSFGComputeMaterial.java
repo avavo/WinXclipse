@@ -8,15 +8,23 @@ final class LSFGComputeMaterial {
     private static final String TAG = "LSFGCompute";
     int programId;
     private int qualityLocation = -1;
+    private String lastError = "";
 
-    void use(int quality) {
+    boolean use(int quality) {
         if (programId == 0) {
             programId = compileComputeShader();
-            if (programId == 0) return;
+            if (programId == 0) return false;
             qualityLocation = GLES31.glGetUniformLocation(programId, "quality");
         }
         GLES31.glUseProgram(programId);
         if (qualityLocation != -1) GLES31.glUniform1i(qualityLocation, quality);
+        int error = GLES31.glGetError();
+        if (error != GLES31.GL_NO_ERROR) {
+            lastError = "GLES compute setup error 0x" + Integer.toHexString(error);
+            Log.e(TAG, lastError);
+            return false;
+        }
+        return true;
     }
 
     private int compileComputeShader() {
@@ -53,7 +61,8 @@ final class LSFGComputeMaterial {
         int[] status = new int[1];
         GLES31.glGetShaderiv(shader, GLES31.GL_COMPILE_STATUS, status, 0);
         if (status[0] == 0) {
-            Log.e(TAG, "Shader compile error: " + GLES31.glGetShaderInfoLog(shader));
+            lastError = "Compute shader compile error: " + GLES31.glGetShaderInfoLog(shader);
+            Log.e(TAG, lastError);
             GLES31.glDeleteShader(shader);
             return 0;
         }
@@ -63,11 +72,17 @@ final class LSFGComputeMaterial {
         GLES31.glGetProgramiv(program, GLES31.GL_LINK_STATUS, status, 0);
         GLES31.glDeleteShader(shader);
         if (status[0] == 0) {
-            Log.e(TAG, "Program link error: " + GLES31.glGetProgramInfoLog(program));
+            lastError = "Compute program link error: " + GLES31.glGetProgramInfoLog(program);
+            Log.e(TAG, lastError);
             GLES31.glDeleteProgram(program);
             return 0;
         }
+        lastError = "";
         return program;
+    }
+
+    String getLastError() {
+        return lastError.isEmpty() ? "GLES compute backend unavailable" : lastError;
     }
 
     void destroy() {
@@ -75,5 +90,7 @@ final class LSFGComputeMaterial {
             GLES31.glDeleteProgram(programId);
             programId = 0;
         }
+        qualityLocation = -1;
+        lastError = "";
     }
 }

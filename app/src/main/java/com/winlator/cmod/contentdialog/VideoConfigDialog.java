@@ -60,13 +60,16 @@ public class VideoConfigDialog extends ContentDialog {
         String getFrameGenerationProfile();
         String getFrameGenerationMultiplier();
         String getFrameGenerationTargetFPS();
+        String getFrameGenerationBackend();
+        String getFrameGenerationLowLatency();
         void apply(String gpuName, String presentMode, int textureFilterMode,
                    boolean swapRedBlue, String fsrUpscale,
                    String fsrQuality, String vsyncMode, boolean unlimitedImages,
                    String refreshRate, String sharpnessEffect,
                    String sharpnessLevel, String sharpnessDenoise,
                    boolean frameGenerationEnabled, String frameGenerationProfile,
-                   String frameGenerationMultiplier, String frameGenerationTargetFPS);
+                   String frameGenerationMultiplier, String frameGenerationTargetFPS,
+                   String frameGenerationBackend, boolean frameGenerationLowLatency);
     }
 
     public VideoConfigDialog(Context context, Config config) {
@@ -188,15 +191,24 @@ public class VideoConfigDialog extends ContentDialog {
         CheckBox frameGeneration = findViewById(R.id.CBVideoFrameGeneration);
         View frameGenerationSettings = findViewById(R.id.LLVideoFrameGenerationSettings);
         Spinner frameGenerationProfile = findViewById(R.id.SVideoFrameGenerationProfile);
+        Spinner frameGenerationBackend = findViewById(R.id.SVideoFrameGenerationBackend);
+        CheckBox frameGenerationLowLatency = findViewById(
+                R.id.CBVideoFrameGenerationLowLatency);
         Spinner frameGenerationMultiplier = findViewById(R.id.SVideoFrameGenerationMultiplier);
         View frameGenerationAutoFps = findViewById(R.id.LLVideoFrameGenerationAutoFPS);
         EditText frameGenerationTargetFps = findViewById(R.id.ETVideoFrameGenerationAutoFPS);
         frameGenerationProfile.setAdapter(new ThemedSpinnerAdapter<>(context, Arrays.asList(
                 context.getResources().getStringArray(R.array.frame_generation_profile_entries))));
+        frameGenerationBackend.setAdapter(new ThemedSpinnerAdapter<>(context, Arrays.asList(
+                context.getResources().getStringArray(R.array.frame_generation_backend_entries))));
         frameGenerationMultiplier.setAdapter(new ThemedSpinnerAdapter<>(context, Arrays.asList(
                 context.getResources().getStringArray(R.array.frame_generation_multiplier_entries))));
         frameGenerationProfile.setSelection(frameGenerationProfileIndex(
                 config.getFrameGenerationProfile()));
+        frameGenerationBackend.setSelection(frameGenerationBackendIndex(
+                config.getFrameGenerationBackend()));
+        frameGenerationLowLatency.setChecked("1".equals(
+                config.getFrameGenerationLowLatency()));
         frameGenerationMultiplier.setSelection(frameGenerationMultiplierIndex(
                 config.getFrameGenerationMultiplier()));
         frameGenerationTargetFps.setText(String.valueOf(frameGenerationTarget(
@@ -213,6 +225,8 @@ public class VideoConfigDialog extends ContentDialog {
             boolean enabled = frameGenerationCompatible && frameGeneration.isChecked();
             frameGenerationSettings.setVisibility(enabled ? View.VISIBLE : View.GONE);
             frameGenerationProfile.setEnabled(enabled);
+            frameGenerationBackend.setEnabled(enabled);
+            frameGenerationLowLatency.setEnabled(enabled);
             frameGenerationMultiplier.setEnabled(enabled);
             frameGenerationTargetFps.setEnabled(enabled);
             frameGenerationAutoFps.setVisibility(enabled
@@ -263,7 +277,7 @@ public class VideoConfigDialog extends ContentDialog {
 
         applyTheme(context, gpuName, presentMode, textureFilter, fsrUpscale, fsrQuality,
                 refreshRate, vsyncLimit, vkBasaltEffect, frameGenerationProfile,
-                frameGenerationMultiplier);
+                frameGenerationBackend, frameGenerationMultiplier);
 
         setOnConfirmCallback(() -> {
             String upscaleValue = "On".equals(selectedValue(fsrUpscale)) ? "1" : "0";
@@ -286,7 +300,9 @@ public class VideoConfigDialog extends ContentDialog {
                     frameGenerationProfileValue(frameGenerationProfile.getSelectedItemPosition()),
                     frameGenerationMultiplierValue(frameGenerationMultiplier.getSelectedItemPosition()),
                     String.valueOf(frameGenerationTarget(
-                            frameGenerationTargetFps.getText().toString().trim())));
+                            frameGenerationTargetFps.getText().toString().trim())),
+                    frameGenerationBackendValue(frameGenerationBackend.getSelectedItemPosition()),
+                    frameGenerationLowLatency.isChecked());
         });
     }
 
@@ -324,6 +340,20 @@ public class VideoConfigDialog extends ContentDialog {
         float value = 1.0f + Math.max(1, Math.min(18, index)) * 0.5f;
         return value == Math.round(value) ? String.valueOf(Math.round(value))
                 : String.format(java.util.Locale.US, "%.1f", value);
+    }
+
+    private static int frameGenerationBackendIndex(String value) {
+        if (value == null) return 0;
+        switch (value.trim().toLowerCase(java.util.Locale.US)) {
+            case "native":
+            case "libapex": return 1;
+            case "auto": return 2;
+            default: return 0;
+        }
+    }
+
+    private static String frameGenerationBackendValue(int index) {
+        return index == 1 ? "libapex" : index == 2 ? "auto" : "gles";
     }
 
     private static int frameGenerationTarget(String value) {

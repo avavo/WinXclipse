@@ -402,6 +402,10 @@ public class ContainerDetailFragment extends Fragment {
                 ? container.getExtra("frameGenerationMultiplier", "auto") : "auto"};
         final String[] pendingFrameGenerationTargetFPS = {isEditMode() && container != null
                 ? container.getExtra("frameGenerationTargetFPS", "60") : "60"};
+        final String[] pendingFrameGenerationBackend = {isEditMode() && container != null
+                ? container.getExtra("frameGenerationBackend", "gles") : "gles"};
+        final String[] pendingFrameGenerationLowLatency = {isEditMode() && container != null
+                ? container.getExtra("frameGenerationLowLatency", "0") : "0"};
 
         setupDXWrapperSpinner(sDXWrapper, vDXWrapperConfig, sWineVersion, contentsManager);
         setupDDrawSpinner(sDDrawrapper, isEditMode() ? container.getDDrawWrapper() : Container.DEFAULT_DDRAWRAPPER);
@@ -718,6 +722,12 @@ public class ContainerDetailFragment extends Fragment {
                     @Override public String getFrameGenerationTargetFPS() {
                         return pendingFrameGenerationTargetFPS[0];
                     }
+                    @Override public String getFrameGenerationBackend() {
+                        return pendingFrameGenerationBackend[0];
+                    }
+                    @Override public String getFrameGenerationLowLatency() {
+                        return pendingFrameGenerationLowLatency[0];
+                    }
 
                     @Override
                     public void apply(String gpuName, String presentMode,
@@ -728,9 +738,11 @@ public class ContainerDetailFragment extends Fragment {
                                       String sharpnessEffect, String sharpnessLevel,
                                       String sharpnessDenoise,
                                       boolean frameGenerationEnabled,
-                                      String frameGenerationProfile,
-                                      String frameGenerationMultiplier,
-                                      String frameGenerationTargetFPS) {
+                                       String frameGenerationProfile,
+                                       String frameGenerationMultiplier,
+                                       String frameGenerationTargetFPS,
+                                       String frameGenerationBackend,
+                                       boolean frameGenerationLowLatency) {
                         HashMap<String, String> config = GraphicsDriverConfigDialog
                                 .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()));
                         config.put("gpuName", gpuName);
@@ -754,6 +766,8 @@ public class ContainerDetailFragment extends Fragment {
                         pendingFrameGenerationProfile[0] = frameGenerationProfile;
                         pendingFrameGenerationMultiplier[0] = frameGenerationMultiplier;
                         pendingFrameGenerationTargetFPS[0] = frameGenerationTargetFPS;
+                        pendingFrameGenerationBackend[0] = frameGenerationBackend;
+                        pendingFrameGenerationLowLatency[0] = frameGenerationLowLatency ? "1" : "0";
                         if (container != null) {
                             container.putExtra("sharpnessEffect", sharpnessEffect);
                             container.putExtra("sharpnessLevel", sharpnessLevel);
@@ -899,7 +913,9 @@ public class ContainerDetailFragment extends Fragment {
                     saveFrameGenerationExtras(container, wineRenderer,
                             pendingFrameGenerationEnabled[0], pendingFrameGenerationProfile[0],
                             pendingFrameGenerationMultiplier[0],
-                            pendingFrameGenerationTargetFPS[0]);
+                            pendingFrameGenerationTargetFPS[0],
+                            pendingFrameGenerationBackend[0],
+                            pendingFrameGenerationLowLatency[0]);
                     container.saveData();
                     saveWineRegistryKeys(view);
                     getActivity().onBackPressed();
@@ -960,7 +976,9 @@ public class ContainerDetailFragment extends Fragment {
                     saveFrameGenerationExtras(extraData, wineRenderer,
                             pendingFrameGenerationEnabled[0], pendingFrameGenerationProfile[0],
                             pendingFrameGenerationMultiplier[0],
-                            pendingFrameGenerationTargetFPS[0]);
+                            pendingFrameGenerationTargetFPS[0],
+                            pendingFrameGenerationBackend[0],
+                            pendingFrameGenerationLowLatency[0]);
                     data.put("extraData", extraData);
 
                     preloaderDialog.show(R.string.creating_container);
@@ -987,16 +1005,20 @@ public class ContainerDetailFragment extends Fragment {
     }
 
     private static void saveFrameGenerationExtras(Container target, String renderer,
-            String enabled, String profile, String multiplier, String targetFps) {
+            String enabled, String profile, String multiplier, String targetFps,
+            String backend, String lowLatency) {
         boolean active = "vulkan".equals(renderer) && "1".equals(enabled);
         target.putExtra("frameGenerationEnabled", active ? "1" : null);
         target.putExtra("frameGenerationProfile", profile);
         target.putExtra("frameGenerationMultiplier", multiplier);
         target.putExtra("frameGenerationTargetFPS", targetFps);
+        target.putExtra("frameGenerationBackend", backend);
+        target.putExtra("frameGenerationLowLatency", "1".equals(lowLatency) ? "1" : null);
     }
 
     private static void saveFrameGenerationExtras(JSONObject target, String renderer,
-            String enabled, String profile, String multiplier, String targetFps)
+            String enabled, String profile, String multiplier, String targetFps,
+            String backend, String lowLatency)
             throws JSONException {
         if ("vulkan".equals(renderer) && "1".equals(enabled)) {
             target.put("frameGenerationEnabled", "1");
@@ -1004,6 +1026,8 @@ public class ContainerDetailFragment extends Fragment {
         target.put("frameGenerationProfile", profile);
         target.put("frameGenerationMultiplier", multiplier);
         target.put("frameGenerationTargetFPS", targetFps);
+        target.put("frameGenerationBackend", backend);
+        if ("1".equals(lowLatency)) target.put("frameGenerationLowLatency", "1");
     }
 
     private void saveWineRegistryKeys(View view) {

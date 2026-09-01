@@ -9,6 +9,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="@drawable/shortcut_tile_background"
+        android:clipToOutline="true"
         android:gravity="center"
         android:orientation="vertical">
 
@@ -51,5 +52,19 @@
                 android:textSize="12sp" />
         </LinearLayout>
     </LinearLayout>
+
+    <TextView
+        android:id="@+id/TVConfigCount"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|start"
+        android:layout_marginStart="8dp"
+        android:layout_marginBottom="62dp"
+        android:background="@drawable/community_config_count_background"
+        android:paddingHorizontal="7dp"
+        android:paddingVertical="3dp"
+        android:textColor="@android:color/white"
+        android:textSize="10sp"
+        android:textStyle="bold" />
 
 </FrameLayout>

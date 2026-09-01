@@ -12,7 +12,7 @@ final class LSFGMaterial extends ScreenMaterial {
         this.effect = effect;
         setUniformNames("resolution", "screenTexture", "previousCapturedTexture",
                 "currentCapturedTexture", "motionVectorTexture", "interpolationFactor",
-                "qualityMode", "stability");
+                "qualityMode", "stability", "lowLatencyMode");
     }
 
     @Override
@@ -27,12 +27,19 @@ final class LSFGMaterial extends ScreenMaterial {
         return "#version 300 es\n"
                 + "precision mediump float;\n"
                 + "uniform sampler2D previousCapturedTexture,currentCapturedTexture,motionVectorTexture;\n"
-                + "uniform float interpolationFactor,qualityMode,stability;\n"
+                + "uniform float interpolationFactor,qualityMode,stability,lowLatencyMode;\n"
                 + "in vec2 vUV; out vec4 outColor;\n"
                 + "void main(){\n"
                 + " vec3 prev=texture(previousCapturedTexture,vUV).rgb;\n"
-                + " if(interpolationFactor<0.01){outColor=vec4(prev,1);return;}\n"
                 + " vec3 curr=texture(currentCapturedTexture,vUV).rgb;\n"
+                + " if(lowLatencyMode>0.5){\n"
+                + "  if(interpolationFactor<1.01){outColor=vec4(curr,1);return;}\n"
+                + "  vec4 md=texture(motionVectorTexture,vUV); vec2 mv=md.rg; float confidence=md.b;\n"
+                + "  float ahead=clamp(interpolationFactor-1.0,0.0,0.99);\n"
+                + "  vec3 projected=texture(currentCapturedTexture,vUV+mv*ahead).rgb;\n"
+                + "  float uncertain=clamp((mix(0.04,0.16,stability)-confidence)*4.0,0.0,1.0);\n"
+                + "  outColor=vec4(mix(projected,curr,uncertain),1);return;}\n"
+                + " if(interpolationFactor<0.01){outColor=vec4(prev,1);return;}\n"
                 + " if(interpolationFactor>0.99){outColor=vec4(curr,1);return;}\n"
                 + " vec4 md=texture(motionVectorTexture,vUV); vec2 mv=md.rg; float confidence=md.b;\n"
                 + " vec3 wp=texture(previousCapturedTexture,vUV+mv*interpolationFactor).rgb;\n"
@@ -62,5 +69,6 @@ final class LSFGMaterial extends ScreenMaterial {
         setUniformFloat("interpolationFactor", effect.getManager().getInterpolationFactor());
         setUniformFloat("qualityMode", effect.getQuality());
         setUniformFloat("stability", effect.getStability());
+        setUniformFloat("lowLatencyMode", effect.getManager().isLowLatencyMode() ? 1.0f : 0.0f);
     }
 }

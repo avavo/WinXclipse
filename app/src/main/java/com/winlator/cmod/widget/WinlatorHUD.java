@@ -56,6 +56,8 @@ public class WinlatorHUD extends View {
     public static final int SHOW_SOC      = 1<<14;
     public static final int SHOW_GPU_TEMP = 1<<15;
     public static final int SHOW_PHONE_GPU = 1<<16;
+    public static final int SHOW_FG_LATENCY = 1<<17;
+    public static final int SHOW_FG_STATUS = 1<<18;
     private static final int SHOW_DEFAULT = SHOW_FPS | SHOW_MONO | SHOW_WRAPPER | SHOW_GPU | SHOW_CPU | SHOW_RAM | SHOW_BATT | SHOW_BORDER | SHOW_SOC;
     /**
      * A conservative one-line MangoHUD layout which stays readable at 720p.
@@ -106,6 +108,7 @@ public class WinlatorHUD extends View {
     private String strGpu = "N/A", strCpu = "N/A", strRam = "N/A";
     private String strPwr = "N/A", strTmp = "", strCTmp = "", strGTmp = "", strFps = "0", strPct = "";
     private String strRend = "OpenGL", strWrapper = "WineD3D", strPhoneGpu = "Unknown GPU";
+    private String strFgLatency = "N/A", strFgStatus = "FG Off";
     private final String strSoc;
     private boolean snapCharging = false;
     private final int ramBlinkThreshold;
@@ -124,7 +127,9 @@ public class WinlatorHUD extends View {
     private long lastFpsNs = 0;
     private float snapFps = 0;
     private boolean apexActive = false;
-    private float apexMultiplier = 2.0f;
+    private float apexRealFps;
+    private float apexOutputFps;
+    private boolean apexFailure;
 
     private int snapGpu=-1, snapCpu=-1, snapMw=-1, snapTmp=-1, snapCTmp=-1, snapGTmp=-1, snapPct=-1, snapRam=-1;
     private String rendererLabel = "OpenGL";
@@ -310,11 +315,10 @@ public class WinlatorHUD extends View {
             snapFps = f * 1_000_000_000f / dt;
             lastFpsNs = now;
 
-            // frameAccum is fed by the guest renderer window, so snapFps is
-            // the real game-present rate.  Apex output is that rate multiplied
-            // by its effective fixed/automatic multiplier; compositor ticks are
-            // deliberately excluded because they merely mirror panel Hz.
-            float displayFps = apexActive ? snapFps * apexMultiplier : snapFps;
+            // With frame generation enabled the renderer supplies completed
+            // real/generated draws. This is the measured compositor output,
+            // not source FPS multiplied by a requested factor.
+            float displayFps = apexActive ? apexOutputFps : snapFps;
             graph[gHead % GBUF] = displayFps;
             gHead++;
             cachedPath = null;
@@ -322,10 +326,8 @@ public class WinlatorHUD extends View {
             gMax = gMax + (targetMax - gMax) * 0.15f;
             
             if (apexActive) {
-                String multiplier = Math.abs(apexMultiplier - Math.round(apexMultiplier)) < 0.01f
-                        ? String.format(Locale.US, "%.0f", apexMultiplier)
-                        : String.format(Locale.US, "%.1f", apexMultiplier);
-                strFps = String.format(Locale.US, "%.0f (%sx)", displayFps, multiplier);
+                strFps = String.format(Locale.US, "%.0f (%.0f real)",
+                        displayFps, apexRealFps);
             } else {
                 strFps = String.format(Locale.US, "%.0f", displayFps);
             }
@@ -424,7 +426,7 @@ public class WinlatorHUD extends View {
     }
 
     private void updatePaintColors(boolean mono) {
-        float fps = apexActive ? snapFps * apexMultiplier : snapFps;
+        float fps = apexActive ? apexOutputFps : snapFps;
         int fpsColor = mono ? C_WHITE : (fps >= 55 ? C_FPS : (fps >= 25 ? C_REND : C_TEMP));
         pFps.setColor(fpsColor);
         pGraph.setColor(fpsColor);
@@ -570,6 +572,19 @@ public class WinlatorHUD extends View {
             }
             first = false;
         }
+        if ((showMask & SHOW_FG_LATENCY) != 0) {
+            if (!first) x += drawSep(c, x, 0);
+            float baseline = getBaseline(pRend, 0, rowH);
+            c.drawText(strFgLatency, x, baseline, pRend);
+            x += pRend.measureText(strFgLatency);
+            first = false;
+        }
+        if ((showMask & SHOW_FG_STATUS) != 0) {
+            if (!first) x += drawSep(c, x, 0);
+            Paint statusPaint = apexFailure ? pTmp : pRend;
+            float baseline = getBaseline(statusPaint, 0, rowH);
+            c.drawText(strFgStatus, x, baseline, statusPaint);
+        }
     }
 
     private float getBaseline(Paint p, float y, float height) {
@@ -660,6 +675,15 @@ public class WinlatorHUD extends View {
             float labelW = apexActive ? wLabelApex : wLabelFps;
             if (!compact) c.drawText(label, PAD, bl, pFps);
             c.drawText(strFps, PAD + (compact ? 0 : labelW), bl, pFps);
+            y += lineH;
+        }
+        if ((showMask & SHOW_FG_LATENCY) != 0) {
+            c.drawText(strFgLatency, PAD, getBaseline(pRend, y, lineH), pRend);
+            y += lineH;
+        }
+        if ((showMask & SHOW_FG_STATUS) != 0) {
+            Paint statusPaint = apexFailure ? pTmp : pRend;
+            c.drawText(strFgStatus, PAD, getBaseline(statusPaint, y, lineH), statusPaint);
         }
     }
 
@@ -759,10 +783,19 @@ public class WinlatorHUD extends View {
         if ((showMask & SHOW_FPS) != 0) {
             if (!first) w += drawSep(null, 0, 0);
             float labelW = apexActive ? wLabelApex : wLabelFps;
-            float minValW = apexActive ? pFps.measureText("000 (0x)") : wValFps;
+            float minValW = apexActive ? pFps.measureText("000 (000 real)") : wValFps;
             w += (compact ? 0 : labelW) + Math.max(pFps.measureText(strFps), minValW);
             if ((showMask & SHOW_GRAPH) != 0) w += PAD + GRAW;
             first = false;
+        }
+        if ((showMask & SHOW_FG_LATENCY) != 0) {
+            if (!first) w += drawSep(null, 0, 0);
+            w += pRend.measureText(strFgLatency);
+            first = false;
+        }
+        if ((showMask & SHOW_FG_STATUS) != 0) {
+            if (!first) w += drawSep(null, 0, 0);
+            w += (apexFailure ? pTmp : pRend).measureText(strFgStatus);
         }
         return w + radius * 2;
     }
@@ -796,9 +829,13 @@ public class WinlatorHUD extends View {
         if ((showMask & SHOW_SOC)       != 0) w = Math.max(w, PAD * 2 + pRend.measureText(strSoc));
         if ((showMask & SHOW_FPS)      != 0) {
             float labelW = apexActive ? wLabelApex : wLabelFps;
-            float minValW = apexActive ? pFps.measureText("000 (0x)") : wValFps;
+            float minValW = apexActive ? pFps.measureText("000 (000 real)") : wValFps;
             w = Math.max(w, PAD * 2 + (compact ? 0 : labelW) + Math.max(pFps.measureText(strFps), minValW));
         }
+        if ((showMask & SHOW_FG_LATENCY) != 0)
+            w = Math.max(w, PAD * 2 + pRend.measureText(strFgLatency));
+        if ((showMask & SHOW_FG_STATUS) != 0)
+            w = Math.max(w, PAD * 2 + (apexFailure ? pTmp : pRend).measureText(strFgStatus));
         return w;
     }
 
@@ -823,6 +860,8 @@ public class WinlatorHUD extends View {
         if ((showMask & SHOW_GPU_TEMP) != 0) r++;
         if ((showMask & SHOW_SOC)      != 0) r++;
         if ((showMask & SHOW_FPS)      != 0) r++;
+        if ((showMask & SHOW_FG_LATENCY) != 0) r++;
+        if ((showMask & SHOW_FG_STATUS) != 0) r++;
         return Math.max(1, r);
     }
 
@@ -1022,11 +1061,35 @@ public class WinlatorHUD extends View {
         });
     }
 
-    public void setApexStats(float multiplier, boolean active) {
+    public void setFrameGenerationStats(boolean active, float realFps, float outputFps,
+            float latencyMs, String backend, String state, String failure,
+            boolean lowLatencyMode) {
         uiHandler.post(() -> {
-            this.apexMultiplier = Math.max(1.0f, Math.min(10.0f, multiplier));
+            apexRealFps = Math.max(0, realFps);
+            apexOutputFps = Math.max(0, outputFps);
+            String safeBackend = backend == null || backend.trim().isEmpty()
+                    ? "Unknown" : backend.trim();
+            String safeState = state == null || state.trim().isEmpty()
+                    ? (active ? "Starting" : "Off") : state.trim();
+            String safeFailure = failure == null ? "" : failure.trim();
+            apexFailure = !safeFailure.isEmpty()
+                    && ("Error".equalsIgnoreCase(safeState)
+                    || "Fallback".equalsIgnoreCase(safeState));
+            strFgLatency = active && latencyMs > 0
+                    ? String.format(Locale.US, "FG LAT ~%.1f ms%s", latencyMs,
+                            lowLatencyMode ? " (low)" : "")
+                    : "FG LAT N/A";
+            if (!safeFailure.isEmpty()) {
+                if (safeFailure.length() > 72) safeFailure = safeFailure.substring(0, 72);
+                strFgStatus = "FG " + safeState + ": " + safeFailure;
+            }
+            else strFgStatus = "FG " + safeBackend + " " + safeState;
             if (this.apexActive != active) {
                 this.apexActive = active;
+                layoutDirty = true;
+                requestLayout();
+            }
+            else {
                 layoutDirty = true;
                 requestLayout();
             }
@@ -1099,7 +1162,8 @@ public class WinlatorHUD extends View {
             android.widget.CheckBox cbCompact, android.widget.CheckBox cbWrapper,
             android.widget.CheckBox cbLocked, android.widget.CheckBox cbCpuTemp,
             android.widget.CheckBox cbSoc, android.widget.CheckBox cbGpuTemp,
-            android.widget.CheckBox cbPhoneGpu) {
+            android.widget.CheckBox cbPhoneGpu, android.widget.CheckBox cbFgLatency,
+            android.widget.CheckBox cbFgStatus) {
         if (cbFps      != null) cbFps.setChecked((showMask & SHOW_FPS)       != 0);
         if (cbGpu      != null) cbGpu.setChecked((showMask & SHOW_GPU)       != 0);
         if (cbCpu      != null) cbCpu.setChecked((showMask & SHOW_CPU)       != 0);
@@ -1117,6 +1181,8 @@ public class WinlatorHUD extends View {
         if (cbSoc      != null) cbSoc.setChecked((showMask & SHOW_SOC)         != 0);
         if (cbGpuTemp  != null) cbGpuTemp.setChecked((showMask & SHOW_GPU_TEMP) != 0);
         if (cbPhoneGpu != null) cbPhoneGpu.setChecked((showMask & SHOW_PHONE_GPU) != 0);
+        if (cbFgLatency != null) cbFgLatency.setChecked((showMask & SHOW_FG_LATENCY) != 0);
+        if (cbFgStatus != null) cbFgStatus.setChecked((showMask & SHOW_FG_STATUS) != 0);
     }
 
     public void setHudScale(float scale) {
@@ -1192,6 +1258,8 @@ public class WinlatorHUD extends View {
             case 15: return SHOW_SOC;
             case 16: return SHOW_GPU_TEMP;
             case 17: return SHOW_PHONE_GPU;
+            case 18: return SHOW_FG_LATENCY;
+            case 19: return SHOW_FG_STATUS;
             default: return 0;
         }
     }

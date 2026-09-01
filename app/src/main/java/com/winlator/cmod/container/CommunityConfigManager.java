@@ -18,6 +18,7 @@ import com.winlator.cmod.contents.Downloader;
 import com.winlator.cmod.contents.ExternalDownloadCatalog;
 import com.winlator.cmod.contents.XclipseDriverManager;
 import com.winlator.cmod.core.FileUtils;
+import com.winlator.cmod.core.GPUInformation;
 import com.winlator.cmod.core.DefaultVersion;
 import com.winlator.cmod.core.WineInfo;
 import com.winlator.cmod.fexcore.FEXCorePreset;
@@ -122,26 +123,80 @@ public final class CommunityConfigManager {
             new DeviceProfile("Galaxy A57 5G", "SM-A576", "Exynos 1680", "Xclipse 550")
     };
 
-    /** Matches Samsung model prefixes and deliberately discards regional suffixes (B, U, N, etc.). */
+    /** Matches Samsung model prefixes while preserving the exact regional model reported by Android. */
     public static DeviceProfile getCurrentDeviceProfile() {
-        String reported = ((Build.MANUFACTURER == null ? "" : Build.MANUFACTURER) + " "
-                + (Build.MODEL == null ? "" : Build.MODEL)).toUpperCase(Locale.ENGLISH);
+        String model = clean(Build.MODEL).toUpperCase(Locale.ENGLISH);
+        DeviceProfile matched = getDeviceProfileForModel(model);
+        if (matched != null) return new DeviceProfile(matched.device,
+                model.isEmpty() ? matched.model : model, matched.soc, matched.gpu);
+
+        String device = clean(Build.MANUFACTURER + " " + Build.MODEL);
+        String soc = "";
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) soc = clean(Build.SOC_MODEL);
+        if (soc.isEmpty()) soc = GPUInformation.getExynosModel();
+        if (soc.isEmpty()) soc = clean(Build.HARDWARE);
+        String gpu = "";
+        try {
+            String renderer = GPUInformation.getRendererName();
+            if (renderer != null && !"Unknown GPU".equalsIgnoreCase(renderer.trim()))
+                gpu = renderer.replaceFirst("(?i)^Samsung\\s+", "").trim();
+        }
+        catch (Throwable ignored) {}
+        return new DeviceProfile(device, model, soc, gpu);
+    }
+
+    /** Resolve a release/export model such as SM-X526B to its canonical device and SoC. */
+    public static DeviceProfile getDeviceProfileForModel(String reportedModel) {
+        String reported = clean(reportedModel).toUpperCase(Locale.ENGLISH);
+        if (reported.isEmpty()) return null;
+        String canonical = canonicalSamsungModel(reported);
         for (DeviceProfile profile : SUPPORTED_DEVICES) {
+            String candidate = canonicalSamsungModel(profile.model);
+            if (!canonical.isEmpty() && canonical.equals(candidate)) return profile;
             if (reported.contains(profile.model.toUpperCase(Locale.ENGLISH))) return profile;
         }
-        java.util.regex.Matcher matcher = java.util.regex.Pattern
-                .compile("SM-(?:[A-Z])?\\d{3}").matcher(reported);
-        String model = matcher.find() ? matcher.group() : clean(Build.MODEL).toUpperCase(Locale.ENGLISH);
-        // Also tolerate vendor strings that omit the family letter, e.g.
-        // "Samsung SM-926B" for the otherwise canonical SM-S926B.
-        if (model.matches("SM-\\d{3}")) {
-            String digits = model.substring(3);
+        // Tolerate vendor strings that omit the family letter, for example
+        // "SM-926B" for the otherwise canonical SM-S926B.
+        java.util.regex.Matcher shortModel = java.util.regex.Pattern
+                .compile("SM-(\\d{3})").matcher(reported);
+        if (shortModel.find()) {
+            String digits = shortModel.group(1);
             for (DeviceProfile profile : SUPPORTED_DEVICES) {
-                if (profile.model.endsWith(digits)) return profile;
+                if (canonicalSamsungModel(profile.model).endsWith(digits)) return profile;
             }
         }
-        String device = clean(Build.MANUFACTURER + " " + Build.MODEL);
-        return new DeviceProfile(device, model, clean(Build.HARDWARE), "");
+        return null;
+    }
+
+    /** Correct stale release metadata without changing the actual container settings. */
+    public static void normalizeDeviceMetadata(JSONObject metadata) {
+        if (metadata == null) return;
+        String model = clean(metadata.optString("model"));
+        if (model.isEmpty()) model = clean(metadata.optString("device"));
+        DeviceProfile profile = getDeviceProfileForModel(model);
+        if (profile == null) return;
+        try {
+            metadata.put("device", profile.device);
+            metadata.put("soc", profile.soc);
+            metadata.put("gpu", profile.gpu);
+            String exactModel = exactSamsungModel(model);
+            if (!exactModel.isEmpty()) metadata.put("model", exactModel);
+        }
+        catch (JSONException ignored) {}
+    }
+
+    private static String canonicalSamsungModel(String value) {
+        java.util.regex.Matcher matcher = java.util.regex.Pattern
+                .compile("SM-[A-Z]\\d{3}", java.util.regex.Pattern.CASE_INSENSITIVE)
+                .matcher(clean(value));
+        return matcher.find() ? matcher.group().toUpperCase(Locale.ENGLISH) : "";
+    }
+
+    private static String exactSamsungModel(String value) {
+        java.util.regex.Matcher matcher = java.util.regex.Pattern
+                .compile("SM-[A-Z]\\d{3}[A-Z0-9]*", java.util.regex.Pattern.CASE_INSENSITIVE)
+                .matcher(clean(value));
+        return matcher.find() ? matcher.group().toUpperCase(Locale.ENGLISH) : "";
     }
 
     public static final class ContentResolution {

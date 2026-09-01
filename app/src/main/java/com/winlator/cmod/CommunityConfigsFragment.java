@@ -395,6 +395,7 @@ public class CommunityConfigsFragment extends Fragment {
                 option.manifest = CommunityConfigManager.readConfig(archive);
                 option.metadata = option.manifest.optJSONObject("metadata");
                 if (option.metadata == null) option.metadata = new JSONObject();
+                CommunityConfigManager.normalizeDeviceMetadata(option.metadata);
                 option.assetName = option.metadata.optString("gameName", archive.getName()) + ".zip";
                 option.url = "";
                 option.coverUrl = "";
@@ -448,6 +449,7 @@ public class CommunityConfigsFragment extends Fragment {
             option.manifest = CommunityConfigManager.readConfig(archive);
             option.metadata = option.manifest.optJSONObject("metadata");
             if (option.metadata == null) option.metadata = new JSONObject();
+            CommunityConfigManager.normalizeDeviceMetadata(option.metadata);
             option.coverUrl = covers.get(baseName(assetName));
             return option;
         } catch (Exception ignored) {
@@ -492,6 +494,8 @@ public class CommunityConfigsFragment extends Fragment {
             GameItem item = items.get(position);
             holder.title.setText(item.name);
             holder.detail.setText(latestPhoneLabel(item));
+            holder.count.setText(item.configs.size() == 1
+                    ? "1 CONFIG" : item.configs.size() + " CONFIGS");
             holder.icon.setTag(item.key);
             holder.icon.setImageResource(R.drawable.cover_art_placeholder);
             loadArtwork(item, holder);
@@ -505,12 +509,14 @@ public class CommunityConfigsFragment extends Fragment {
         final ImageView icon;
         final TextView title;
         final TextView detail;
+        final TextView count;
 
         Holder(View view) {
             super(view);
             icon = view.findViewById(R.id.IVIcon);
             title = view.findViewById(R.id.TVVersionName);
             detail = view.findViewById(R.id.TVVersionCode);
+            count = view.findViewById(R.id.TVConfigCount);
         }
     }
 

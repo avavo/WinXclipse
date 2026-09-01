@@ -11,6 +11,7 @@ import com.winlator.cmod.renderer.effects.FSREasuEffect;
 import com.winlator.cmod.renderer.effects.FSREffect;
 import com.winlator.cmod.renderer.effects.ToonEffect;
 import com.winlator.cmod.renderer.lsfg.LSFGEffect;
+import com.winlator.cmod.renderer.lsfg.LSFGManager;
 import com.winlator.cmod.renderer.material.ShaderMaterial;
 
 import java.util.ArrayList;
@@ -527,6 +528,13 @@ public class EffectComposer {
     /** Enables/disables Apex only on the GL thread. Unsupported devices stay off. */
     public synchronized boolean setLSFGEnabled(boolean enabled, int quality,
             float multiplier, int targetFPS, float stability) {
+        return setLSFGEnabled(enabled, quality, multiplier, targetFPS, stability,
+                LSFGManager.BACKEND_GLES, false);
+    }
+
+    public synchronized boolean setLSFGEnabled(boolean enabled, int quality,
+            float multiplier, int targetFPS, float stability, int backend,
+            boolean lowLatencyMode) {
         LSFGEffect effect = getEffect(LSFGEffect.class);
         if (!enabled) {
             if (effect != null) {
@@ -545,6 +553,8 @@ public class EffectComposer {
             effect = new LSFGEffect(renderer, renderer.getLSFGManager());
             addEffect(effect);
         }
+        effect.setBackend(backend);
+        effect.setLowLatencyMode(lowLatencyMode);
         effect.setQuality(quality);
         effect.setStability(stability);
         effect.setMultiplier(multiplier);

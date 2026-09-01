@@ -207,6 +207,10 @@ public class ShortcutSettingsDialog extends ContentDialog {
                 "frameGenerationMultiplier", "auto");
         final String containerFrameGenerationTargetFPS = shortcut.container.getExtra(
                 "frameGenerationTargetFPS", "60");
+        final String containerFrameGenerationBackend = shortcut.container.getExtra(
+                "frameGenerationBackend", "gles");
+        final String containerFrameGenerationLowLatency = shortcut.container.getExtra(
+                "frameGenerationLowLatency", "0");
         final String[] pendingFrameGenerationEnabled = {shortcut.getExtra(
                 "frameGenerationEnabled", containerFrameGenerationEnabled)};
         final String[] pendingFrameGenerationProfile = {shortcut.getExtra(
@@ -215,6 +219,10 @@ public class ShortcutSettingsDialog extends ContentDialog {
                 "frameGenerationMultiplier", containerFrameGenerationMultiplier)};
         final String[] pendingFrameGenerationTargetFPS = {shortcut.getExtra(
                 "frameGenerationTargetFPS", containerFrameGenerationTargetFPS)};
+        final String[] pendingFrameGenerationBackend = {shortcut.getExtra(
+                "frameGenerationBackend", containerFrameGenerationBackend)};
+        final String[] pendingFrameGenerationLowLatency = {shortcut.getExtra(
+                "frameGenerationLowLatency", containerFrameGenerationLowLatency)};
 
         findViewById(R.id.BTVideoConfig).setOnClickListener(button ->
                 new VideoConfigDialog(context, new VideoConfigDialog.Config() {
@@ -326,6 +334,12 @@ public class ShortcutSettingsDialog extends ContentDialog {
                     @Override public String getFrameGenerationTargetFPS() {
                         return pendingFrameGenerationTargetFPS[0];
                     }
+                    @Override public String getFrameGenerationBackend() {
+                        return pendingFrameGenerationBackend[0];
+                    }
+                    @Override public String getFrameGenerationLowLatency() {
+                        return pendingFrameGenerationLowLatency[0];
+                    }
 
                     @Override
                     public void apply(String gpuName, String presentMode,
@@ -336,9 +350,11 @@ public class ShortcutSettingsDialog extends ContentDialog {
                                       String sharpnessEffect, String sharpnessLevel,
                                       String sharpnessDenoise,
                                       boolean frameGenerationEnabled,
-                                      String frameGenerationProfile,
-                                      String frameGenerationMultiplier,
-                                      String frameGenerationTargetFPS) {
+                                       String frameGenerationProfile,
+                                       String frameGenerationMultiplier,
+                                       String frameGenerationTargetFPS,
+                                       String frameGenerationBackend,
+                                       boolean frameGenerationLowLatency) {
                         HashMap<String, String> config = GraphicsDriverConfigDialog
                                 .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()));
                         config.put("gpuName", gpuName);
@@ -365,6 +381,8 @@ public class ShortcutSettingsDialog extends ContentDialog {
                         pendingFrameGenerationProfile[0] = frameGenerationProfile;
                         pendingFrameGenerationMultiplier[0] = frameGenerationMultiplier;
                         pendingFrameGenerationTargetFPS[0] = frameGenerationTargetFPS;
+                        pendingFrameGenerationBackend[0] = frameGenerationBackend;
+                        pendingFrameGenerationLowLatency[0] = frameGenerationLowLatency ? "1" : "0";
                     }
                 }).show());
 
@@ -728,6 +746,12 @@ public class ShortcutSettingsDialog extends ContentDialog {
                 shortcut.putExtra("frameGenerationTargetFPS",
                         pendingFrameGenerationTargetFPS[0].equals(containerFrameGenerationTargetFPS)
                                 ? null : pendingFrameGenerationTargetFPS[0]);
+                shortcut.putExtra("frameGenerationBackend",
+                        pendingFrameGenerationBackend[0].equals(containerFrameGenerationBackend)
+                                ? null : pendingFrameGenerationBackend[0]);
+                shortcut.putExtra("frameGenerationLowLatency",
+                        pendingFrameGenerationLowLatency[0].equals(containerFrameGenerationLowLatency)
+                                ? null : pendingFrameGenerationLowLatency[0]);
                 shortcut.putExtra("dxwrapper", !dxwrapper.equals(shortcut.container.getDXWrapper()) ? dxwrapper : null);
                 shortcut.putExtra("ddrawrapper", !ddrawrapper.equals(shortcut.container.getDDrawWrapper()) ? ddrawrapper : null);
                 shortcut.putExtra("dxwrapperConfig", !dxwrapperConfig.equals(shortcut.container.getDXWrapperConfig()) ? dxwrapperConfig : null);

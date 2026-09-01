@@ -297,4 +297,30 @@ public abstract class ProcessHelper {
         }
         return filteredPids;
     }
+
+    /**
+     * Returns the guest process names visible in /proc. Wine sets the Linux
+     * comm field to the Windows image name (for example "re3.exe"), which is
+     * considerably more reliable than parsing the command line through a
+     * translator. Malformed or already-exited entries are simply skipped.
+     */
+    public static ArrayList<String> listRunningWineProcessNames() {
+        ArrayList<String> names = new ArrayList<>();
+        for (String pid : listRunningWineProcesses()) {
+            File stat = new File("/proc/" + pid + "/stat");
+            try (FileInputStream input = new FileInputStream(stat);
+                 BufferedReader reader = new BufferedReader(new InputStreamReader(input))) {
+                String line = reader.readLine();
+                if (line == null) continue;
+                int open = line.indexOf('(');
+                int close = line.lastIndexOf(')');
+                if (open >= 0 && close > open + 1) {
+                    String name = line.substring(open + 1, close).trim();
+                    if (!name.isEmpty()) names.add(name);
+                }
+            }
+            catch (IOException ignored) {}
+        }
+        return names;
+    }
 }

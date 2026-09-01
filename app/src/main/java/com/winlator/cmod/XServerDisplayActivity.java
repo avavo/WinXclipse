@@ -97,6 +97,7 @@ import com.winlator.cmod.core.KeyValueSet;
 import com.winlator.cmod.core.OnExtractFileListener;
 import com.winlator.cmod.core.PreloaderDialog;
 import com.winlator.cmod.core.ContentOperationRegistry;
+import com.winlator.cmod.core.Callback;
 import com.winlator.cmod.core.ProcessHelper;
 import com.winlator.cmod.core.StringUtils;
 import com.winlator.cmod.core.TarCompressorUtils;
@@ -243,12 +244,47 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     private String vkbasaltConfig = "";
     /** Effective BCN transcode path armed for this launch, shown with HUD API. */
     private volatile String bcnTranscodeHudMode = "";
+    private volatile String bcnTranscodeBaseMode = "";
+    private volatile String bcnTelemetryState = "";
+    private volatile boolean bcnTelemetryRequested;
+    private volatile boolean sawShortcutProcess;
+    private long shortcutIdleSinceMs;
+    private final java.util.concurrent.atomic.AtomicBoolean sessionStopped = new java.util.concurrent.atomic.AtomicBoolean(false);
     PreloaderDialog preloaderDialog = null;
     private Runnable configChangedCallback = null;
     private boolean isPaused = false;
     private boolean isRelativeMouseMovement;
     private InlineTaskManagerPanel inlineTaskManagerPanel;
     private final Handler sidebarHandler = new Handler(Looper.getMainLooper());
+    private final Callback<String> bcnTelemetryCallback = this::handleBcnTelemetryLine;
+    private final Runnable bcnLayerMapProbe = new Runnable() {
+        @Override public void run() {
+            if (!bcnTelemetryRequested || isFinishing() || isDestroyed()) return;
+            if (isBcnLayerMapped()) updateBcnTelemetryState("LOADED");
+            if (!"ACTIVE".equals(bcnTelemetryState) && !bcnTelemetryState.startsWith("ERROR"))
+                sidebarHandler.postDelayed(this, 1000L);
+        }
+    };
+    private final Runnable shortcutExitProbe = new Runnable() {
+        @Override public void run() {
+            if (shortcut == null || sessionStopped.get() || isFinishing() || isDestroyed()) return;
+            boolean hasApplication = hasNonBaseWineProcess();
+            long now = android.os.SystemClock.elapsedRealtime();
+            if (hasApplication) {
+                sawShortcutProcess = true;
+                shortcutIdleSinceMs = 0L;
+            }
+            else if (sawShortcutProcess) {
+                if (shortcutIdleSinceMs == 0L) shortcutIdleSinceMs = now;
+                else if (now - shortcutIdleSinceMs >= 3000L) {
+                    Log.i("WineLifecycle", "Only Wine base/crash-defender processes remain; closing shortcut session");
+                    finishSession();
+                    return;
+                }
+            }
+            sidebarHandler.postDelayed(this, 500L);
+        }
+    };
     private TextView sidebarTimeView;
     private TextView sidebarBatteryView;
     private TextView sidebarControllerProfileView;
@@ -285,7 +321,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     private Handler handler;
     private Runnable savePlaytimeRunnable;
     private static final long SAVE_INTERVAL_MS = 30000;
-    private final java.util.concurrent.atomic.AtomicBoolean sessionStopped = new java.util.concurrent.atomic.AtomicBoolean(false);
     private boolean launchBlockedByContentOperation;
 
     private Handler  timeoutHandler = new Handler(Looper.getMainLooper());
@@ -614,6 +649,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         ContainerManager.ensureValidPrefixRegistries(new File(imageFs.getRootDir(), ImageFs.WINEPREFIX), wineInfo.isWin64());
 
         ProcessHelper.removeAllDebugCallbacks();
+        ProcessHelper.addDebugCallback(bcnTelemetryCallback);
         if (enableLogs) {
             LogView.setFilename(getExecutable());
             ProcessHelper.addDebugCallback(debugDialog = new DebugDialog(this));
@@ -1185,6 +1221,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     @Override
     protected void onDestroy() {
         sidebarHandler.removeCallbacks(sidebarStatusRunnable);
+        sidebarHandler.removeCallbacks(bcnLayerMapProbe);
+        sidebarHandler.removeCallbacks(shortcutExitProbe);
+        ProcessHelper.removeDebugCallback(bcnTelemetryCallback);
         if (xServerView != null) xServerView.getRenderer().stopApexChoreographer();
         if (launchBlockedByContentOperation) {
             super.onDestroy();
@@ -1969,9 +2008,10 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         // Reapply only after a prefix/image update or when the selected policy
         // has not actually been written to this prefix yet.
         String appliedSelection = container.getExtra("startupSelectionApplied");
-        if (prefixMetadataChanged || !String.valueOf(selection).equals(appliedSelection)) {
+        String startupPolicyRevision = selection + ":lean-2";
+        if (prefixMetadataChanged || !startupPolicyRevision.equals(appliedSelection)) {
             WineUtils.changeServicesStatus(container, selection);
-            container.putExtra("startupSelectionApplied", String.valueOf(selection));
+            container.putExtra("startupSelectionApplied", startupPolicyRevision);
             containerDataChanged = true;
         }
         if (!startupSelection.equals(container.getExtra("startupSelection"))) {
@@ -2201,7 +2241,21 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         // Pass final envVars to the launcher
         guestProgramLauncherComponent.setEnvVars(envVars);
-        guestProgramLauncherComponent.setTerminationCallback((status) -> finishSession());
+        guestProgramLauncherComponent.setTerminationCallback((status) -> {
+            if (shortcut == null) {
+                finishSession();
+                return;
+            }
+            // start.exe may return before a launcher-created child game. Let
+            // the process probe decide when the shortcut has really become
+            // idle instead of tearing down a still-running child immediately.
+            sidebarHandler.post(() -> {
+                sawShortcutProcess = true;
+                shortcutIdleSinceMs = 0L;
+                sidebarHandler.removeCallbacks(shortcutExitProbe);
+                sidebarHandler.post(shortcutExitProbe);
+            });
+        });
 
         // Add the launcher to our environment
         environment.addComponent(guestProgramLauncherComponent);
@@ -2211,6 +2265,17 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         // Start all environment components (XServer, Audio, etc.)
         environment.startEnvironmentComponents();
+
+        // A Wine desktop is intentionally persistent. A shortcut, however,
+        // should leave as soon as its application (and any launcher children)
+        // has been gone for three continuous seconds. Base Wine services and
+        // crash reporters do not keep the session alive.
+        if (shortcut != null) {
+            sawShortcutProcess = false;
+            shortcutIdleSinceMs = 0L;
+            sidebarHandler.removeCallbacks(shortcutExitProbe);
+            sidebarHandler.postDelayed(shortcutExitProbe, 1000L);
+        }
 
         // (Optionally) run Winetricks after setup, if you wish
         // runWinetricksAfterSetup();
@@ -2372,6 +2437,10 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 getRuntimeVideoOption("frameGenerationTargetFPS", "60"));
         float frameGenerationMultiplier = parseFrameGenerationMultiplier(
                 getRuntimeVideoOption("frameGenerationMultiplier", "auto"));
+        int frameGenerationBackend = parseFrameGenerationBackend(
+                getRuntimeVideoOption("frameGenerationBackend", "gles"));
+        boolean frameGenerationLowLatency = "1".equals(
+                getRuntimeVideoOption("frameGenerationLowLatency", "0"));
         boolean frameGenerationEnabled = "1".equals(
                 getRuntimeVideoOption("frameGenerationEnabled", "0"))
                 && isFrameGenerationCompatible();
@@ -2384,13 +2453,15 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 if (isFinishing() || isDestroyed() || xServerView == null) return;
                 renderer.setApex(true, frameGenerationQuality(frameGenerationProfile),
                         frameGenerationMultiplier, frameGenerationTarget,
-                        frameGenerationStability(frameGenerationProfile));
+                        frameGenerationStability(frameGenerationProfile),
+                        frameGenerationBackend, frameGenerationLowLatency);
             }, 1200L);
         }
         else {
             renderer.setApex(false, frameGenerationQuality(frameGenerationProfile),
                     frameGenerationMultiplier, frameGenerationTarget,
-                    frameGenerationStability(frameGenerationProfile));
+                    frameGenerationStability(frameGenerationProfile),
+                    frameGenerationBackend, frameGenerationLowLatency);
         }
 
         globalCursorSpeed = preferences.getFloat("cursor_speed", 1.0f);
@@ -3305,6 +3376,19 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         }
     }
 
+    private static int parseFrameGenerationBackend(String value) {
+        if (value == null) return com.winlator.cmod.renderer.lsfg.LSFGManager.BACKEND_GLES;
+        switch (value.trim().toLowerCase(Locale.US)) {
+            case "libapex":
+            case "native":
+                return com.winlator.cmod.renderer.lsfg.LSFGManager.BACKEND_NATIVE;
+            case "auto":
+                return com.winlator.cmod.renderer.lsfg.LSFGManager.BACKEND_AUTO;
+            default:
+                return com.winlator.cmod.renderer.lsfg.LSFGManager.BACKEND_GLES;
+        }
+    }
+
     private static int frameGenerationQuality(int profile) {
         return Math.max(0, Math.min(2, profile));
     }
@@ -3341,8 +3425,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 frameGenerationMultiplierStorageValue(multiplier));
         targetFPS = parseFrameGenerationTarget(String.valueOf(targetFPS));
         boolean safeEnabled = enabled && isFrameGenerationCompatible();
+        int backend = parseFrameGenerationBackend(
+                getRuntimeVideoOption("frameGenerationBackend", "gles"));
+        boolean lowLatency = "1".equals(
+                getRuntimeVideoOption("frameGenerationLowLatency", "0"));
         renderer.setApex(safeEnabled, frameGenerationQuality(profile), multiplier, targetFPS,
-                frameGenerationStability(profile));
+                frameGenerationStability(profile), backend, lowLatency);
         if (persist) {
             persistRuntimeVideoOption("frameGenerationEnabled", safeEnabled ? "1" : "0");
             persistRuntimeVideoOption("frameGenerationProfile",
@@ -3818,6 +3906,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         CheckBox cbSoc = dialog.findViewById(R.id.CBHudSOC);
         CheckBox cbGpuTemp = dialog.findViewById(R.id.CBHudGPUTemp);
         CheckBox cbPhoneGpu = dialog.findViewById(R.id.CBHudPhoneGPU);
+        CheckBox cbFgLatency = dialog.findViewById(R.id.CBHudFGLatency);
+        CheckBox cbFgStatus = dialog.findViewById(R.id.CBHudFGStatus);
         CheckBox cbRamWarning = dialog.findViewById(R.id.CBHudRamWarning);
         SeekBar sbAlpha = dialog.findViewById(R.id.SBHudAlpha);
         SeekBar sbScale = dialog.findViewById(R.id.SBHudScale);
@@ -3827,7 +3917,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         frameRating.syncCheckboxes(cbFps, cbGpu, cbCpu, cbBatt, cbGraph, cbRend,
                 cbRam, cbBattPct, cbMono, cbBorder, cbCompact, cbWrapper, cbLocked,
-                cbCpuTemp, cbSoc, cbGpuTemp, cbPhoneGpu);
+                cbCpuTemp, cbSoc, cbGpuTemp, cbPhoneGpu, cbFgLatency, cbFgStatus);
         cbEnable.setChecked(frameRating.isUserEnabled());
         cbVert.setChecked(frameRating.isVertical());
 
@@ -3866,6 +3956,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         cbSoc.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(15, checked));
         cbGpuTemp.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(16, checked));
         cbPhoneGpu.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(17, checked));
+        cbFgLatency.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(18, checked));
+        cbFgStatus.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(19, checked));
         cbVert.setOnCheckedChangeListener((v, checked) -> frameRating.setVertical(checked));
         cbRamWarning.setChecked(!frameRating.isRamWarningEnabled());
         cbRamWarning.setOnCheckedChangeListener((v, checked) -> frameRating.setRamWarningEnabled(!checked));
@@ -4246,6 +4338,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         envVars.remove("BCN_DISABLE_DISK_CACHE");
         envVars.remove("BCN_TRANSCODE_TO_ASTC");
         envVars.remove("BCN_TRANSCODE_TO_ETC2");
+        envVars.remove("BCN_COMPUTE_IMAGE_VIEW");
+        envVars.remove("BCN_LAYER_LOG_LEVEL");
+        envVars.remove("BCN_PROFILE_TRANSFERS");
         String effectiveBcnTranscodeMode = "";
         if (experimentalBCN) {
             String bcnEmulation = graphicsDriverConfig.getOrDefault("bcnEmulation", "auto");
@@ -4292,7 +4387,17 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             if (computeLayerActive) {
                 envVars.put("ENABLE_BCN_COMPUTE", "1");
                 envVars.put("BCN_COMPUTE_AUTO",
-                        "auto".equalsIgnoreCase(bcnEmulation) ? "1" : "0");
+                        transcodeRequested ? "0"
+                                : "auto".equalsIgnoreCase(bcnEmulation) ? "1" : "0");
+                if (transcodeRequested) {
+                    // Explicit transcoding must never be skipped because the
+                    // wrapper reports a Qualcomm/Turnip-like driver ID. The
+                    // storage-image path also avoids white/black upload results
+                    // seen with staging copies in some RE Engine titles.
+                    envVars.put("BCN_COMPUTE_IMAGE_VIEW", "1");
+                    envVars.put("BCN_LAYER_LOG_LEVEL", "info,error");
+                    envVars.put("BCN_PROFILE_TRANSFERS", "1");
+                }
             }
             else {
                 envVars.put("DISABLE_BCN_COMPUTE", "1");
@@ -4316,7 +4421,13 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             envVars.put("BCN_DISABLE_DISK_CACHE",
                     "0".equals(bcnEmulationCache) ? "1" : "0");
         }
-        bcnTranscodeHudMode = effectiveBcnTranscodeMode;
+        bcnTranscodeBaseMode = effectiveBcnTranscodeMode;
+        bcnTelemetryRequested = effectiveBcnTranscodeMode.startsWith("BCN→");
+        bcnTelemetryState = bcnTelemetryRequested ? "ARMED" : "";
+        bcnTranscodeHudMode = bcnTelemetryRequested
+                ? effectiveBcnTranscodeMode + " [ARMED]" : effectiveBcnTranscodeMode;
+        sidebarHandler.removeCallbacks(bcnLayerMapProbe);
+        if (bcnTelemetryRequested) sidebarHandler.post(bcnLayerMapProbe);
         Log.i("GraphicsDriverExtraction", "Experimental BCN="
                 + experimentalBCN + ", layerReady=" + bcnLayerReady
                 + ", nativeWrapper=" + nativeBcnWrapper
@@ -5098,6 +5209,118 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     private String appendBcnHudMode(String api) {
         String mode = bcnTranscodeHudMode;
         return mode == null || mode.isEmpty() ? api : api + " · " + mode;
+    }
+
+    private void handleBcnTelemetryLine(String line) {
+        if (!bcnTelemetryRequested || line == null) return;
+        String lower = line.toLowerCase(Locale.US);
+        if (lower.contains("texturecompressionetc2 is not supported")) {
+            updateBcnTelemetryState("ERROR: ETC2 UNSUPPORTED");
+            return;
+        }
+        if (lower.contains("texturecompressionastc_ldr is not supported")) {
+            updateBcnTelemetryState("ERROR: ASTC UNSUPPORTED");
+            return;
+        }
+        if (bcnTranscodeBaseMode.contains("ASTC")
+                && (lower.contains("shaderint8 is not supported")
+                || lower.contains("shaderint16 is not supported"))) {
+            updateBcnTelemetryState("ERROR: ASTC SHADER FEATURE");
+            return;
+        }
+        if ((lower.contains("encode_etc2") || lower.contains("etc2"))
+                && (lower.contains("failed") || lower.contains("error"))) {
+            updateBcnTelemetryState("ERROR: ETC2 ENCODE");
+            return;
+        }
+        if ((lower.contains("encode_astc") || lower.contains("astc"))
+                && (lower.contains("failed") || lower.contains("error"))) {
+            updateBcnTelemetryState("ERROR: ASTC ENCODE");
+            return;
+        }
+        if ((lower.contains("failed to create image")
+                || lower.contains("failed to create image view")
+                || lower.contains("failed to allocate staging buffer"))
+                && (bcnTranscodeBaseMode.contains("ETC2")
+                || bcnTranscodeBaseMode.contains("ASTC"))) {
+            updateBcnTelemetryState("ERROR: TRANSCODE RESOURCE");
+            return;
+        }
+        boolean expectedEtc2 = bcnTranscodeBaseMode.contains("ETC2");
+        boolean expectedAstc = bcnTranscodeBaseMode.contains("ASTC");
+        boolean transcodeLine = lower.contains("transcode:")
+                || lower.contains("encode_etc2_compute")
+                || lower.contains("encode_astc_compute");
+        if (transcodeLine && (lower.contains("transcode:")
+                || (expectedEtc2 && lower.contains("etc2"))
+                || (expectedAstc && lower.contains("astc")))) {
+            updateBcnTelemetryState("ACTIVE");
+        }
+    }
+
+    private void updateBcnTelemetryState(String state) {
+        if (!bcnTelemetryRequested || state == null || state.isEmpty()) return;
+        String current = bcnTelemetryState;
+        if (("ACTIVE".equals(current) || current.startsWith("ERROR"))
+                && "LOADED".equals(state)) return;
+        if (state.equals(current)) return;
+        bcnTelemetryState = state;
+        bcnTranscodeHudMode = bcnTranscodeBaseMode + " [" + state + "]";
+        Log.i("BcnTelemetry", bcnTranscodeHudMode);
+        runOnUiThread(() -> {
+            if (frameRating != null) frameRating.onRendererDetected(getHudApiName());
+        });
+    }
+
+    private boolean isBcnLayerMapped() {
+        for (String pid : ProcessHelper.listRunningWineProcesses()) {
+            File maps = new File("/proc/" + pid + "/maps");
+            try (BufferedReader reader = new BufferedReader(new FileReader(maps))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (line.contains("libbcn_layer.so")) return true;
+                }
+            }
+            catch (IOException ignored) {
+            }
+        }
+        return false;
+    }
+
+    private boolean hasNonBaseWineProcess() {
+        for (String process : ProcessHelper.listRunningWineProcessNames()) {
+            String name = process == null ? "" : process.toLowerCase(Locale.US).trim();
+            if (name.isEmpty() || isBaseWineProcess(name)) continue;
+            return true;
+        }
+        return false;
+    }
+
+    private static boolean isBaseWineProcess(String name) {
+        switch (name) {
+            case "wine":
+            case "wine64":
+            case "wine-preloader":
+            case "wine64-preloader":
+            case "wineserver":
+            case "start.exe":
+            case "services.exe":
+            case "winedevice.exe":
+            case "wineboot.exe":
+            case "explorer.exe":
+            case "plugplay.exe":
+            case "svchost.exe":
+            case "rpcss.exe":
+            case "winhandler.exe":
+            case "wfm.exe":
+            case "tabtip.exe":
+            case "winemenubuilder.exe":
+                return true;
+            default:
+                // Crash Defender/reporters may deliberately survive the game.
+                return name.contains("crash") || name.contains("defender")
+                        || name.contains("werfault");
+        }
     }
 
     private String normalizeHudApi(String value) {

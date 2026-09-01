@@ -18,7 +18,10 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
 - The in-session sidebar tile remains locked until Frame Generation is enabled in Video Configuration and the renderer is Vulkan.
 - Persisted Frame Generation starts only after the Android EGL surface is stable, avoiding the shortcut crash loop seen when enabling it, exiting and reopening the game.
 - Runtime backend failures disable the active state instead of leaving a false enabled indicator.
-- The Apex HUD counter uses the real guest-present rate multiplied by the effective Frame Generation multiplier; it no longer reports the phone panel refresh rate as game FPS.
+- Added selectable GLES Compute, native `libapex`, and Automatic backends to container and shortcut Video Configuration. GLES remains the safe default; the native option is explicitly experimental because a vendor-driver `SIGSEGV` cannot be recovered by Java.
+- Added a Low Latency mode which presents real frames immediately and extrapolates generated frames. It removes the normal one-real-frame interpolation delay at the cost of more edge warping and unstable motion.
+- The Apex HUD counter now measures completed real and generated compositor draws separately; it no longer reports the phone panel refresh rate or a theoretical `source FPS × multiplier` value.
+- Optional HUD rows expose the measured Frame Generation latency estimate, selected backend, fallback state, and backend/shader failures.
 
 ### Wrappers, ASTC and ETC2
 
@@ -32,7 +35,8 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
 - The Downloads page reads the maintained wrapper release, downloads archives directly and installs them under stable identifiers.
 - Community configs automatically recognize bundled wrappers and recover missing downloadable wrappers from Downloads or the remote catalog without recreating the config.
 - Fixed ASTC/ETC2 transcoding activation so a requested transcode can enable the compute layer even when BCN emulation is set to None or Partial.
-- The HUD reports the effective BCN-to-ASTC or BCN-to-ETC2 path and exposes an error state when the required layer did not reach Vulkan.
+- Explicit ASTC/ETC2 requests force Leegao decode instead of allowing wrapper driver-ID auto-detection to skip it, and use the storage-image upload path to avoid the staging-copy white/black texture failure seen in some RE Engine games.
+- The HUD reports `ARMED`, `LOADED`, `ACTIVE`, or a specific error for the effective BCN-to-ASTC/ETC2 path. `ACTIVE` is shown only after the layer logs a real transcode operation; layer mapping alone is no longer treated as success.
 - Wrapper-Default uses the safer Mali shader-patch policy intended to avoid the wrapper-side pipeline crash observed in Red Dead Redemption.
 
 ### Controls
@@ -84,6 +88,8 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
 - Added Galaxy Tab S10 FE SM-X520 and SM-X526B detection.
 - Added Galaxy Tab S10 FE+ SM-X620 and SM-X626B detection.
 - All four models receive Exynos 1580 / Xclipse 540 handling even when early Android startup exposes only a generic GLES renderer.
+- Community exports preserve the exact regional model suffix reported by Android and normalize known Samsung catalog metadata to the correct commercial device, Exynos SoC and Xclipse GPU names. The Mortal Sin SM-X520 config is corrected to Galaxy Tab S10 FE / Exynos 1580 / Xclipse 540.
+- Shortcut and Community Config cover cards now clip the artwork into rounded top corners, join cleanly to the lower text panel, and show each game's config count at the lower-left above the label.
 - Wine sessions support normal and reverse landscape, allowing either long edge of the phone or tablet to face upward without enabling portrait rotation.
 - Replaced the old update alert with a WinXclipse-styled AMOLED dialog that clearly shows installed and available versions.
 - Corrected the application version display to `0.9.5`.
@@ -97,6 +103,8 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
 - FSR, color effects and the Frame Generation compositor share validated render targets and fall back safely when a GPU rejects an intermediate format.
 - Wine registry repair now validates the correct registry header and can recover every supported prefix source from invalid-registry and mismatched-wineserver startup failures.
 - Raw Wine/Proton profiles skip unusable non-archive prefix packs instead of aborting container creation.
+- Normal and Essential startup disable the optional PlugPlay, RpcSs and tablet-input services until a title requests them, matching Ludashi's eight-process idle baseline instead of starting ten processes unconditionally.
+- Shortcut sessions wait for all non-base guest processes to disappear and then close after three continuous idle seconds; Wine services and crash-defender/reporting processes cannot keep an exited game session open.
 - Out-of-spec X11 PutImage requests no longer terminate Wine sessions through a fatal BadMatch path; packed cursor and mask uploads use their correct size.
 - First-boot progress now advances through imagefs extraction, runtime installation, and finalization instead of appearing frozen.
 - Native X11 2D operations process full 32-bit pixels, reducing byte-loop overhead on shared LPDDR memory.

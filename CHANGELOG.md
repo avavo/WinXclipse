@@ -30,10 +30,13 @@ All notable changes between WinXclipse releases, newest first.
 - Frame Generation now lives in Video Configuration for both containers and shortcuts, with shortcut-specific overrides. It exposes three genuinely distinct profiles instead of six overlapping labels: Fast (1/8-resolution motion search), Balanced (1/4), and Quality (1/2 plus conservative fallback). Existing six-profile values migrate to the nearest tier, and the `?` help explains GPU cost, blur, artifacts, and latency without filling the main screen.
 - Fixed multipliers now extend in 0.5x steps through 10x; Automatic mode uses the entered target FPS.
 - The in-session Frame Gen tile is locked until Frame Generation is enabled in Display, and it then acts only as a temporary runtime toggle without overwriting the saved container configuration.
-- Winlator HUD can show the container graphics API and the phone's physical GPU; Apex FPS now multiplies the guest's real present rate instead of reporting Android display ticks, and the API label exposes the effective ASTC/ETC2 BCN transcode path or a launch error.
+- Winlator HUD can show the container graphics API and the phone's physical GPU; Apex FPS now measures completed real/generated compositor draws instead of Android display ticks or a theoretical multiplier, and optional rows expose Frame Generation latency, backend/fallback state and failures.
+- Frame Generation backend selection is saved per container or shortcut: safe GLES Compute, experimental native `libapex`, or Automatic native-to-GLES fallback. Low Latency mode presents real frames immediately and extrapolates generated frames, trading cleaner interpolation for less delay.
 - The Frame Gen sidebar toggle now follows its synchronous requested state, so disabling it cannot be inverted by a still-queued startup activation; runtime backend failures also clear the toggle.
 - Existing Wrapper-BCN and Wrapper-Xclipse containers migrate to Wrapper-Default and refresh the matched July 13 wrapper/layer pair once after updating.
 - Community entries are grouped by normalized game identity. Matching configs share the first embedded cover found before browser artwork is requested, support a user-selected cover, and expose device choices plus on-demand container details in an English AMOLED interface.
+- Shortcut and Community Config artwork is clipped to rounded top corners and joins the lower text surface cleanly; Community game cards show the number of available configs at the lower-left above the label.
+- Community metadata preserves Android's exact Samsung regional model suffix and normalizes known devices to their commercial name, Exynos SoC and Xclipse GPU. The Mortal Sin SM-X520 release config is corrected to Galaxy Tab S10 FE / Exynos 1580 / Xclipse 540.
 - Bundled Box64 is `0.4.3-260519-024717c`; old `0.4.4` selections migrate to the bundled version and installed-content detection uses the exact content identity.
 - New containers default to the Intermediate FEXCore preset; XInput, DInput, and Exclusive XInput remain opt-in; the WoW64 CPU-list fallback uses all available cores; and lower-memory devices select stronger RAM-reclamation baselines.
 - MangoHUD mode uses the stable Android-native HUD path adapted from Bannerlator instead of injecting an unavailable guest Vulkan layer.
@@ -57,6 +60,7 @@ All notable changes between WinXclipse releases, newest first.
 - Present notifications no longer hold the drawable render lock while sending X11 events, reducing input/render contention.
 - Opaque Wine/game windows and full-screen post-processing passes render with blending disabled, and content fully hidden below the highest opaque full-screen window is skipped while later menus and popups remain visible.
 - Repeated startup service rewrites and temporary diagnostic logging were removed from the normal launch path.
+- Normal and Essential Wine startup now leave PlugPlay, RpcSs and tablet input demand-started, matching Ludashi's lean eight-process idle baseline instead of creating ten processes before a game opens.
 - Container filesystem deletion runs off the UI thread.
 - The Wine/Proton catalog is populated immediately from its local cache and throttles network refreshes; verified DOS drive maps and the shared PulseAudio payload are reused between launches.
 - Storage-provider copies use buffered 64 KiB transfers instead of 1 KiB chunks, improving config/driver import and large-file I/O.
@@ -72,6 +76,8 @@ All notable changes between WinXclipse releases, newest first.
 - Browser artwork search for shortcuts cleans launcher/renderer suffixes, ranks normalized title matches instead of blindly choosing the first autocomplete result, and tries additional matching games when a result has no portrait cover.
 - OpenGL/WineD3D and GDI sessions extract their required system GL libraries independently from the experimental BCN path, fixing containers that closed before reaching the desktop.
 - ASTC and ETC2 transcode requests activate the BCN compute layer even when BCn emulation is set to None or Partial, and the disk-cache switch now reaches both the wrapper and Leegao layer.
+- Explicit ASTC/ETC2 requests force decode instead of allowing wrapper driver-ID auto-detection to skip it, use Leegao's storage-image path to avoid the RE Engine staging-copy white/black texture failure, and report `ARMED`, `LOADED`, `ACTIVE`, or a specific capability/encode/resource error in the HUD. `ACTIVE` requires a logged transcode operation.
+- Shortcut sessions no longer close merely because `start.exe` returns before a child launcher/game. They close after three continuous seconds with no non-base guest process, while Wine services and crash-defender/reporting processes are ignored for the idle decision.
 - Community configs no longer disappear between catalog selection and import when another screen clears its own cache. GitHub API rate limits fall back to the public assets page, saved index, or verified cached ZIPs.
 - Imported community containers no longer reuse transient install state that could make them open and immediately close; default/bundled content IDs no longer produce false missing-content prompts.
 - Wine-created `.lnk` shortcuts resolve quoted, relative, environment, Unix, and Wine paths correctly and refresh their names, executable targets, and artwork.
