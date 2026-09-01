@@ -18,10 +18,11 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
 - The in-session sidebar tile remains locked until Frame Generation is enabled in Video Configuration and the renderer is Vulkan.
 - Persisted Frame Generation starts only after the Android EGL surface is stable, avoiding the shortcut crash loop seen when enabling it, exiting and reopening the game.
 - Fixed Frame Generation incorrectly reporting that GLES 3.1 was unavailable on capable Samsung devices: the compositor now requests an explicit EGL 3.1 context, logs the returned version, and does not cache a capability check made before a current surface exists.
+- Fixed the Xclipse compute compiler rejecting Apex with `image2D: No precision specified` after confirming the live Display dialog. Sampler/image precision is now explicit and unused uniforms no longer generate misleading warnings.
 - Runtime backend failures disable the active state instead of leaving a false enabled indicator.
 - Added selectable GLES Compute, native `libapex`, and Automatic backends to container and shortcut Video Configuration. GLES remains the safe default; the native option is explicitly experimental because a vendor-driver `SIGSEGV` cannot be recovered by Java.
 - Added a Low Latency mode which presents real frames immediately and extrapolates generated frames. It removes the normal one-real-frame interpolation delay at the cost of more edge warping and unstable motion.
-- The Apex HUD counter now measures completed real and generated compositor draws separately; it no longer reports the phone panel refresh rate or a theoretical `source FPS × multiplier` value.
+- The Apex HUD now separates source Presents received from the game (`real`) from real/generated draws completed by the compositor. Source FPS is no longer replaced by the panel refresh rate when several game Presents are coalesced before one display refresh, and output FPS is not fabricated through `source FPS × multiplier`.
 - Optional HUD rows expose the measured Frame Generation latency estimate, selected backend, fallback state, and backend/shader failures.
 
 ### Wrappers, ASTC and ETC2
@@ -105,7 +106,7 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
 - FSR, color effects and the Frame Generation compositor share validated render targets and fall back safely when a GPU rejects an intermediate format.
 - Wine registry repair now validates the correct registry header and can recover every supported prefix source from invalid-registry and mismatched-wineserver startup failures.
 - Raw Wine/Proton profiles skip unusable non-archive prefix packs instead of aborting container creation.
-- Normal and Essential startup disable the optional PlugPlay, RpcSs and tablet-input services until a title requests them, matching Ludashi's eight-process idle baseline instead of starting ten processes unconditionally.
+- Normal and Essential startup disable the optional PlugPlay, RpcSs and tablet-input services. Aggressive keeps controller-critical PlugPlay available while disabling RpcSs and tablet input, removing `rpcss.exe` and `tabtip.exe` from its idle baseline and reducing ten non-game processes to roughly seven or eight.
 - Shortcut sessions wait for all non-base guest processes to disappear and then close after three continuous idle seconds; Wine services and crash-defender/reporting processes cannot keep an exited game session open.
 - Out-of-spec X11 PutImage requests no longer terminate Wine sessions through a fatal BadMatch path; packed cursor and mask uploads use their correct size.
 - First-boot progress now advances through imagefs extraction, runtime installation, and finalization instead of appearing frozen.

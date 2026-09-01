@@ -10,9 +10,9 @@ final class LSFGMaterial extends ScreenMaterial {
 
     LSFGMaterial(LSFGEffect effect) {
         this.effect = effect;
-        setUniformNames("resolution", "screenTexture", "previousCapturedTexture",
+        setUniformNames("previousCapturedTexture",
                 "currentCapturedTexture", "motionVectorTexture", "interpolationFactor",
-                "qualityMode", "stability", "lowLatencyMode");
+                "stability", "lowLatencyMode");
     }
 
     @Override
@@ -67,7 +67,6 @@ final class LSFGMaterial extends ScreenMaterial {
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, effect.getMotionVectorTexture());
         setUniformInt("motionVectorTexture", 3);
         setUniformFloat("interpolationFactor", effect.getManager().getInterpolationFactor());
-        setUniformFloat("qualityMode", effect.getQuality());
         setUniformFloat("stability", effect.getStability());
         setUniformFloat("lowLatencyMode", effect.getManager().isLowLatencyMode() ? 1.0f : 0.0f);
     }

@@ -2008,7 +2008,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         // Reapply only after a prefix/image update or when the selected policy
         // has not actually been written to this prefix yet.
         String appliedSelection = container.getExtra("startupSelectionApplied");
-        String startupPolicyRevision = selection + ":lean-2";
+        // Bump the revision so existing prefixes also receive the corrected
+        // Aggressive idle-service policy instead of keeping stale registry data.
+        String startupPolicyRevision = selection + ":lean-3";
         if (prefixMetadataChanged || !startupPolicyRevision.equals(appliedSelection)) {
             WineUtils.changeServicesStatus(container, selection);
             container.putExtra("startupSelectionApplied", startupPolicyRevision);

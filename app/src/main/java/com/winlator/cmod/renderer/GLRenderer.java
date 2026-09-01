@@ -300,21 +300,21 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
 
     @Override
     public void onMapWindow(Window window) {
-        lsfgManager.notifyRealFramePending();
+        lsfgManager.notifySceneChangePending();
         xServerView.queueEvent(this::updateScene);
         xServerView.requestRender();
     }
 
     @Override
     public void onUnmapWindow(Window window) {
-        lsfgManager.notifyRealFramePending();
+        lsfgManager.notifySceneChangePending();
         xServerView.queueEvent(this::updateScene);
         xServerView.requestRender();
     }
 
     @Override
     public void onChangeWindowZOrder(Window window) {
-        lsfgManager.notifyRealFramePending();
+        lsfgManager.notifySceneChangePending();
         xServerView.queueEvent(this::updateScene);
         xServerView.requestRender();
     }
@@ -327,7 +327,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
 
     @Override
     public void onUpdateWindowGeometry(final Window window, boolean resized) {
-        lsfgManager.notifyRealFramePending();
+        lsfgManager.notifySceneChangePending();
         if (resized) {
             xServerView.queueEvent(this::updateScene);
         }
@@ -802,10 +802,16 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
         long elapsed = now - apexStatsStartNanos;
         if (elapsed < 500_000_000L) return;
         float seconds = elapsed / 1_000_000_000.0f;
-        int realFrames = lsfgManager.consumeActualRealFrameCount();
+        int sourceFrames = lsfgManager.consumeGameFrameCount();
+        int presentedRealFrames = lsfgManager.consumeActualRealFrameCount();
         int generatedFrames = lsfgManager.consumeGeneratedFrameCount();
-        float realFps = seconds > 0 ? realFrames / seconds : 0;
-        float outputFps = seconds > 0 ? (realFrames + generatedFrames) / seconds : 0;
+        // Source FPS measures actual X11 content Presents from the game.  The
+        // output counter measures draws completed by the Apex compositor and
+        // therefore remains honest when several game Presents are coalesced
+        // before the next physical display refresh.
+        float realFps = seconds > 0 ? sourceFrames / seconds : 0;
+        float outputFps = seconds > 0
+                ? (presentedRealFrames + generatedFrames) / seconds : 0;
         hud.setFrameGenerationStats(lsfgManager.isActive(), realFps, outputFps,
                 lsfgManager.getEstimatedLatencyMs(), lsfgManager.getBackendName(),
                 lsfgManager.getBackendState(), lsfgManager.getBackendFailure(),

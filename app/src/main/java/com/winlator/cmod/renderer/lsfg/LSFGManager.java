@@ -112,10 +112,23 @@ public final class LSFGManager {
     }
 
     public void notifyRealFramePending() {
+        markFramePending(true);
+    }
+
+    /**
+     * Invalidates the captured scene after a structural X11 change without
+     * counting that change as a game Present.  Window map/resize/z-order
+     * notifications otherwise inflate the source FPS shown by telemetry.
+     */
+    public void notifySceneChangePending() {
+        markFramePending(false);
+    }
+
+    private void markFramePending(boolean gamePresent) {
         if (!active) return;
         pendingRealFrame = true;
         pendingRealFrameTimeNanos = System.nanoTime();
-        gameFrameCount.incrementAndGet();
+        if (gamePresent) gameFrameCount.incrementAndGet();
         renderer.xServerView.requestRender();
     }
 
@@ -233,6 +246,10 @@ public final class LSFGManager {
 
     public int consumeGeneratedFrameCount() {
         return generatedFrameCount.getAndSet(0);
+    }
+
+    public int consumeGameFrameCount() {
+        return gameFrameCount.getAndSet(0);
     }
 
     public float getEstimatedLatencyMs() {

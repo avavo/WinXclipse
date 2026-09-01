@@ -242,9 +242,9 @@ public abstract class WineUtils {
         final String[] services = {
                 "BITS:3", "Eventlog:2", "FontCache:3", "FontCache3.0.0.0:3", "HTTP:3",
                 "LanmanServer:3", "MountMgr:2", "MSIServer:3", "NDIS:2", "nsiproxy:3",
-                // Normal/Essential override PlugPlay and RpcSs below to match
-                // Ludashi's lean eight-process baseline. Their original values
-                // remain available to the compatibility-oriented profile.
+                // RpcSs and TabletInput stay disabled in every optimized
+                // policy. Together they account for rpcss.exe and tabtip.exe,
+                // the two avoidable idle processes above Ludashi's baseline.
                 "PlugPlay:2", "RpcSs:3", "TabletInputService:4", "scardsvr:3",
                 "Schedule:3", "SharedGpuResources:2",
                 "Spooler:3", "StiSvc:3", "TermService:3", "TrkWks:3", "W32Time:3",
@@ -274,8 +274,7 @@ public abstract class WineUtils {
                         && !containsService(essentialServices, name)) {
                     value = protectedService ? defaultValue : 4;
                 }
-                if (startupSelection != Container.STARTUP_SELECTION_AGGRESSIVE
-                        && (name.equals("PlugPlay") || name.equals("RpcSs"))) value = 4;
+                if (name.equals("RpcSs") || name.equals("TabletInputService")) value = 4;
 
                 // Wine registers the NIC service as "Ndis"; writing "NDIS" would
                 // silently do nothing because keys are not created here.

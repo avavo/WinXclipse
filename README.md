@@ -16,7 +16,7 @@ Development is focused on the Exynos/Xclipse platform. Every supported GPU pairi
 ## Current 0.9.5 behavior
 
 - Apex Frame Generation is an experimental Vulkan-only compositor option. It requests an explicit OpenGL ES 3.1 context and offers GLES Compute, native `libapex`, and Automatic backends. Fast, Balanced, and Quality profiles, Low Latency, and 1.5x-10x/Automatic output modes are documented through the adjacent `?` buttons in Video Configuration.
-- The HUD measures completed real/generated compositor draws, can report Apex latency/backend/failures, and starts with Show FPS enabled. GPU, SoC, API/wrapper, and effective ASTC/ETC2 state can be shown independently.
+- The HUD separates source game Presents from completed real/generated Apex compositor draws, can report Apex latency/backend/failures, and starts with Show FPS enabled. GPU, SoC, API/wrapper, and effective ASTC/ETC2 state can be shown independently.
 - Wrapper-Default uses the WinXclipse hybrid stack normally. When its opt-in ASTC or ETC2 transcode is selected, WinXclipse switches the wrapper and Leegao layer together to the exact compatibility pair from the tested Winlator Mali APK; disabling transcode restores the hybrid pair.
 - Touchscreen buttons do not vibrate. Physical-controller rumble remains available through the master/per-player vibration controls and test action.
 - FSR Upscale reduces the guest render resolution before EASU; vkBasalt adds a Vulkan sharpening pass. Their image-quality and performance trade-offs are described by the `?` buttons in Video Configuration.
