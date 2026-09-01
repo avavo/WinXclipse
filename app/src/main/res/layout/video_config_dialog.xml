@@ -98,8 +98,15 @@
             <Spinner
                 android:id="@+id/SVideoFsrUpscale"
                 style="@style/ComboBox"
-                android:layout_width="170dp"
+                android:layout_width="140dp"
                 android:layout_height="44dp" />
+            <ImageView
+                android:id="@+id/BTVideoFsrUpscaleHelp"
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:layout_marginLeft="8dp"
+                android:src="@drawable/icon_help"
+                app:tint="?colorAccent" />
         </LinearLayout>
         <LinearLayout
             android:id="@+id/LLVideoFsrMode"
@@ -163,8 +170,15 @@
                 <Spinner
                     android:id="@+id/SVideoFrameGenerationProfile"
                     style="@style/ComboBox"
-                    android:layout_width="170dp"
+                    android:layout_width="140dp"
                     android:layout_height="44dp" />
+                <ImageView
+                    android:id="@+id/BTVideoFrameGenerationProfileHelp"
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:layout_marginLeft="8dp"
+                    android:src="@drawable/icon_help"
+                    app:tint="?colorAccent" />
             </LinearLayout>
 
             <LinearLayout
@@ -180,15 +194,36 @@
                 <Spinner
                     android:id="@+id/SVideoFrameGenerationBackend"
                     style="@style/ComboBox"
-                    android:layout_width="170dp"
+                    android:layout_width="140dp"
                     android:layout_height="44dp" />
+                <ImageView
+                    android:id="@+id/BTVideoFrameGenerationBackendHelp"
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:layout_marginLeft="8dp"
+                    android:src="@drawable/icon_help"
+                    app:tint="?colorAccent" />
             </LinearLayout>
 
-            <CheckBox
-                android:id="@+id/CBVideoFrameGenerationLowLatency"
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/frame_generation_low_latency" />
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+                <CheckBox
+                    android:id="@+id/CBVideoFrameGenerationLowLatency"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/frame_generation_low_latency" />
+                <ImageView
+                    android:id="@+id/BTVideoFrameGenerationLowLatencyHelp"
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:layout_marginLeft="8dp"
+                    android:src="@drawable/icon_help"
+                    app:tint="?colorAccent" />
+            </LinearLayout>
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -284,12 +319,26 @@
             android:layout_marginTop="8dp"
             android:text="@string/swap_red_blue_channels" />
 
-        <TextView
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            android:text="@string/vkbasalt"
-            android:textAppearance="?android:attr/textAppearanceMedium" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/vkbasalt"
+                android:textAppearance="?android:attr/textAppearanceMedium" />
+            <ImageView
+                android:id="@+id/BTVideoVkBasaltHelp"
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:layout_marginLeft="8dp"
+                android:src="@drawable/icon_help"
+                app:tint="?colorAccent" />
+        </LinearLayout>
 
         <Spinner
             android:id="@+id/SVideoVkBasaltEffect"

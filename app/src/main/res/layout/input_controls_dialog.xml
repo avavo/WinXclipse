@@ -48,13 +48,6 @@
             android:checked="false" />
 
         <CheckBox
-            android:id="@+id/CBEnableHaptics"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/enable_touchscreen_haptics"
-            android:checked="true" />
-
-        <CheckBox
             android:id="@+id/CBAutoGrabController"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

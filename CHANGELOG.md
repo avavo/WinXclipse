@@ -11,12 +11,12 @@ All notable changes between WinXclipse releases, newest first.
 - Community exports carry the required game name, Discord handle, expected FPS, fixed detected phone model, hardware metadata, notes, content requirements, and an optional embedded cover in a version-free ZIP filename.
 - VSync modes (`100%`, `50%`, and `Off`) are available for containers, shortcuts, and the live Display sidebar.
 - External Android storage and configured Wine drive roots are available from File Manager.
-- Input Controls now includes controller auto-grab (plug and play), master vibration, vibration testing, and a restored touchscreen-haptics switch.
+- Input Controls now includes controller auto-grab (plug and play), master vibration, and vibration testing. Touchscreen-button haptics and their switch are removed; physical-controller game rumble remains available.
 - The Winlator HUD includes an independent battery-percentage option.
 - The first visit to Community Configs explains how to export a tested config and links directly to the project Discord for submission.
 - The About dialog now exposes the project Discord beside the GitHub link.
 - Experimental Performance adds a per-game Translation Turbo switch and a manual 6144 MB unified-memory VRAM cap.
-- `Wrapper-Default` uses the matched July 13 Winlator-Mali wrapper and Leegao layer for opt-in ASTC/ETC2 testing.
+- `Wrapper-Default` keeps the new hybrid stack for normal use and switches both binaries to the exact tested Winlator-Mali wrapper/Leegao pair only while ASTC or ETC2 transcode is enabled.
 - Experimental Apex/GLES 3.1 frame generation adds three distinct profiles,
   Automatic target-FPS mode, fixed 1.5x-10x multipliers, and a compute fallback.
   It is disabled by default, can be configured per container, and runs after
@@ -27,13 +27,13 @@ All notable changes between WinXclipse releases, newest first.
 - Touch controls incorporate Souza's Final refinements: lighter borders, larger high-contrast labels, button/stick glow, the original Souza D-pad halo, a 0.25 analog dead zone, and 2.70 stick response. Trackpads and RTS keyboard rows now use the matching border/glow weight, while the two virtual-gamepad left sticks move slightly away from the screen edge.
 - The former BCN stack is now the clearly named `Wrapper-Default`. CMOD v1 and Kirimu are built in; CMOD v2 is release-only alongside GameNative and Ref4ik-v6.
 - Galaxy Tab S10 FE/FE+ Wi-Fi and 5G models (SM-X520, SM-X526B, SM-X620, and SM-X626B) are recognized as Exynos 1580 / Xclipse 540, including early-start fallback detection when Android reports a generic GLES renderer.
-- Frame Generation now lives in Video Configuration for both containers and shortcuts, with shortcut-specific overrides. It exposes three genuinely distinct profiles instead of six overlapping labels: Fast (1/8-resolution motion search), Balanced (1/4), and Quality (1/2 plus conservative fallback). Existing six-profile values migrate to the nearest tier, and the `?` help explains GPU cost, blur, artifacts, and latency without filling the main screen.
+- Frame Generation now lives in Video Configuration for both containers and shortcuts, with shortcut-specific overrides. It exposes three genuinely distinct profiles instead of six overlapping labels: Fast (1/8-resolution motion search), Balanced (1/4), and Quality (1/2 plus conservative fallback). Existing six-profile values migrate to the nearest tier; separate `?` help is available for the feature, profile, backend and Low Latency mode, plus FSR Upscale and vkBasalt.
 - Fixed multipliers now extend in 0.5x steps through 10x; Automatic mode uses the entered target FPS.
 - The in-session Frame Gen tile is locked until Frame Generation is enabled in Display, and it then acts only as a temporary runtime toggle without overwriting the saved container configuration.
 - Winlator HUD can show the container graphics API and the phone's physical GPU; Apex FPS now measures completed real/generated compositor draws instead of Android display ticks or a theoretical multiplier, and optional rows expose Frame Generation latency, backend/fallback state and failures.
 - Frame Generation backend selection is saved per container or shortcut: safe GLES Compute, experimental native `libapex`, or Automatic native-to-GLES fallback. Low Latency mode presents real frames immediately and extrapolates generated frames, trading cleaner interpolation for less delay.
 - The Frame Gen sidebar toggle now follows its synchronous requested state, so disabling it cannot be inverted by a still-queued startup activation; runtime backend failures also clear the toggle.
-- Existing Wrapper-BCN and Wrapper-Xclipse containers migrate to Wrapper-Default and refresh the matched July 13 wrapper/layer pair once after updating.
+- Existing Wrapper-BCN and Wrapper-Xclipse containers migrate to Wrapper-Default and refresh the selected coherent wrapper/layer pair once after updating.
 - Community entries are grouped by normalized game identity. Matching configs share the first embedded cover found before browser artwork is requested, support a user-selected cover, and expose device choices plus on-demand container details in an English AMOLED interface.
 - Shortcut and Community Config artwork is clipped to rounded top corners and joins the lower text surface cleanly; Community game cards show the number of available configs at the lower-left above the label.
 - Community metadata preserves Android's exact Samsung regional model suffix and normalizes known devices to their commercial name, Exynos SoC and Xclipse GPU. The Mortal Sin SM-X520 release config is corrected to Galaxy Tab S10 FE / Exynos 1580 / Xclipse 540.
@@ -41,7 +41,6 @@ All notable changes between WinXclipse releases, newest first.
 - New containers default to the Intermediate FEXCore preset; XInput, DInput, and Exclusive XInput remain opt-in; the WoW64 CPU-list fallback uses all available cores; and lower-memory devices select stronger RAM-reclamation baselines.
 - MangoHUD mode uses the stable Android-native HUD path adapted from Bannerlator instead of injecting an unavailable guest Vulkan layer.
 - Runtime/content names are deduplicated and existing containers migrate automatically when an installed profile's old identifier is normalized.
-- Touchscreen haptics are restored after the earlier integration accidentally forced them off; physical-controller game rumble and per-player vibration remain independently configurable.
 - Existing Community Config ZIPs recover their selected external Xclipse driver automatically: installed packages are checked first, then Downloads, then the maintained driver catalog. Older exports such as Xclipse 920 Old do not need to be recreated.
 - Existing Community Config ZIPs recover downloadable wrappers by stable id from Downloads or the Wrappers release catalog, so CMOD v2, GameNative, and Ref4ik-v6 do not require configs to be recreated. CMOD v1 remains a bundled component.
 - Wine sessions rotate between normal and reverse landscape, allowing either phone edge to face up while portrait remains blocked.
@@ -52,7 +51,7 @@ All notable changes between WinXclipse releases, newest first.
 - FSR strength and upscale quality are configured in Video Configuration for containers and shortcuts; the live Display sidebar presents the active state without silently replacing the saved quality preset, while texture filtering remains available as a live control.
 - The Display sidebar exposes FXAA, CRT, Toon, and NTSC effects directly, while brightness, contrast, and gamma remain grouped under Color Custom.
 - vkBasalt CAS/DLS sharpening, strength, and denoise are available in Video Configuration for containers and shortcuts and can also be adjusted from the live Display sidebar.
-- The native HUD starts in monochrome mode with wrapper, GPU, CPU, RAM, battery, border, and SoC information selected; renderer/API display remains independently configurable.
+- The native HUD starts in monochrome mode with Show FPS, wrapper, GPU, CPU, RAM, battery, border, and SoC information selected; a one-time 0.9.5 migration also enables Show FPS for an older saved HUD mask, after which the user's choice is preserved.
 
 ### Performance
 
@@ -70,13 +69,13 @@ All notable changes between WinXclipse releases, newest first.
 
 ### Fixed
 
-- Frame Generation is forced off for OpenGL/GDI Wine renderers, uses the Android display clock to schedule generated frames, and falls back to direct rendering if its GLES resources fail, preventing the experimental path from closing incompatible containers.
+- Frame Generation is forced off for OpenGL/GDI Wine renderers, uses the Android display clock to schedule generated frames, and falls back to direct rendering if its GLES resources fail, preventing the experimental path from closing incompatible containers. The compositor now explicitly requests an EGL 3.1 context on Samsung drivers instead of receiving ES 3.0 from an ambiguous major-only request, and transient pre-surface capability failures are no longer cached.
 - Persisted Frame Generation is armed after the EGL surface stabilizes, preventing shortcuts from entering a reopen crash loop after Frame Generation was enabled and the game exited.
 - The editable Input Controls template no longer crashes after selecting a newer Souza button icon; the complete icon range is cached and invalid icons are ignored safely.
 - Browser artwork search for shortcuts cleans launcher/renderer suffixes, ranks normalized title matches instead of blindly choosing the first autocomplete result, and tries additional matching games when a result has no portrait cover.
 - OpenGL/WineD3D and GDI sessions extract their required system GL libraries independently from the experimental BCN path, fixing containers that closed before reaching the desktop.
 - ASTC and ETC2 transcode requests activate the BCN compute layer even when BCn emulation is set to None or Partial, and the disk-cache switch now reaches both the wrapper and Leegao layer.
-- Explicit ASTC/ETC2 requests force decode instead of allowing wrapper driver-ID auto-detection to skip it, use Leegao's storage-image path to avoid the RE Engine staging-copy white/black texture failure, and report `ARMED`, `LOADED`, `ACTIVE`, or a specific capability/encode/resource error in the HUD. `ACTIVE` requires a logged transcode operation.
+- Explicit ASTC/ETC2 requests force decode instead of allowing wrapper driver-ID auto-detection to skip it and report `ARMED`, `LOADED`, `ACTIVE`, or a specific capability/encode/resource error in the HUD. `ACTIVE` requires a logged transcode operation. The RE3 white ETC2/black ASTC regression was traced to a wrapper/layer binary-pair mismatch: transcode now installs the exact pair from the working Mali APK and restores the hybrid pair when transcode is turned off.
 - Shortcut sessions no longer close merely because `start.exe` returns before a child launcher/game. They close after three continuous seconds with no non-base guest process, while Wine services and crash-defender/reporting processes are ignored for the idle decision.
 - Community configs no longer disappear between catalog selection and import when another screen clears its own cache. GitHub API rate limits fall back to the public assets page, saved index, or verified cached ZIPs.
 - Imported community containers no longer reuse transient install state that could make them open and immediately close; default/bundled content IDs no longer produce false missing-content prompts.

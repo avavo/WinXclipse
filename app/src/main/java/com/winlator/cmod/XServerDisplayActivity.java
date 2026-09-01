@@ -3732,9 +3732,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         final CheckBox cbEnableTimeout = dialog.findViewById(R.id.CBEnableTimeout);
         cbEnableTimeout.setChecked(preferences.getBoolean("touchscreen_timeout_enabled", false));
 
-        final CheckBox cbEnableHaptics = dialog.findViewById(R.id.CBEnableHaptics);
-        cbEnableHaptics.setChecked(preferences.getBoolean("touchscreen_haptics_enabled", true));
-
         final ControllerManager controllerManager = ControllerManager.getInstance();
         final CheckBox cbAutoGrabController = dialog.findViewById(R.id.CBAutoGrabController);
         cbAutoGrabController.setChecked(controllerManager.isAutoGrabEnabled());
@@ -3782,11 +3779,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         dialog.setOnConfirmCallback(() -> {
             inputControlsView.setShowTouchscreenControls(cbShowTouchscreenControls.isChecked());
             boolean isTimeoutEnabled = cbEnableTimeout.isChecked();
-            boolean isHapticsEnabled = cbEnableHaptics.isChecked();
             boolean isMouseDisabled = cbDisableTouchscreenMouse.isChecked();
             SharedPreferences.Editor editor = preferences.edit();
             editor.putBoolean("touchscreen_timeout_enabled", isTimeoutEnabled);
-            editor.putBoolean("touchscreen_haptics_enabled", isHapticsEnabled);
             editor.putBoolean("touchscreen_mouse_disabled", isMouseDisabled);
             editor.apply();
             controllerManager.setAutoGrabEnabled(cbAutoGrabController.isChecked());
@@ -4002,11 +3997,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         inputControlsView.setShowTouchscreenControls(isShowTouchscreenControls);
 
         boolean isTimeoutEnabled = preferences.getBoolean("touchscreen_timeout_enabled", false);
-        boolean isHapticsEnabled = preferences.getBoolean("touchscreen_haptics_enabled", true);
         // Apply these settings as if the user confirmed the dialog
         SharedPreferences.Editor editor = preferences.edit();
         editor.putBoolean("touchscreen_timeout_enabled", isTimeoutEnabled);
-        editor.putBoolean("touchscreen_haptics_enabled", isHapticsEnabled);
         editor.apply();
 
         // If no profile is selected, hide the controls
@@ -4172,6 +4165,34 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         envVars.put("LIBGL_KOPPER_DISABLE", "true");
 
         String mainWrapperSelection = this.graphicsDriver;
+        boolean experimentalBCN = container != null
+                && "1".equals(container.getExtra("experimentalBCN", "0"));
+        if (shortcut != null && shortcut.hasExtra("experimentalBCN")) {
+            experimentalBCN = "1".equals(shortcut.getExtra("experimentalBCN", "0"));
+        }
+        boolean requestedAstcTranscode = "1".equals(
+                graphicsDriverConfig.getOrDefault("astcTranscode", "0"));
+        boolean requestedEtc2Transcode = "1".equals(
+                graphicsDriverConfig.getOrDefault("etc2Transcode", "0"));
+        boolean computeBcnMode = !"software".equalsIgnoreCase(
+                graphicsDriverConfig.getOrDefault("bcnEmulationType",
+                        "1".equals(graphicsDriverConfig.getOrDefault("bcnSoftwareSwitch", "0"))
+                                ? "software" : GPUInformation.defaultBcnEmulationType()));
+        if ("1".equals(graphicsDriverConfig.getOrDefault("astcAutoDefault", "0"))
+                && computeBcnMode && !requestedAstcTranscode && !requestedEtc2Transcode) {
+            requestedAstcTranscode = true;
+            Log.i("GraphicsDriverExtraction",
+                    "ASTC transcode auto-default via tuning dialog");
+        }
+        // RE Engine exercises BC upload paths that are not covered by RE2.
+        // The hybrid default wrapper and July-13 layer have different ABIs
+        // from the exact pair shipped in the tested Winlator Mali APK, which
+        // produced white ETC2 and black ASTC surfaces in RE3. Keep the hybrid
+        // wrapper for normal use, but switch the complete pair together while
+        // explicit transcoding is enabled.
+        boolean transcodeCompatibilityPair = experimentalBCN
+                && "wrapper-default".equalsIgnoreCase(mainWrapperSelection)
+                && (requestedAstcTranscode || requestedEtc2Transcode);
         String lastInstalledMainWrapper = container.getExtra("lastInstalledMainWrapper");
         CustomWrapperManager customWrapperManager = new CustomWrapperManager(this);
         String wrapperRevision = BuildConfig.VERSION_CODE + ":"
@@ -4180,14 +4201,17 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             // Built-in assets do not have a downloadable-content revision.
             // Include the matched pair revision so an APK update refreshes an
             // already-created container instead of retaining an older wrapper.
-            wrapperRevision += ":july13-pair-2";
+            wrapperRevision += transcodeCompatibilityPair
+                    ? ":mali-re3-transcode-pair-1" : ":july13-pair-2";
         }
         String lastInstalledMainWrapperRevision =
                 container.getExtra("lastInstalledMainWrapperRevision", "");
         if (firstTimeBoot || !mainWrapperSelection.equals(lastInstalledMainWrapper)
                 || !wrapperRevision.equals(lastInstalledMainWrapperRevision)) {
             if (mainWrapperSelection.toLowerCase().startsWith("wrapper")) {
-                String assetPath = resolveBundledWrapperAsset(mainWrapperSelection);
+                String assetPath = transcodeCompatibilityPair
+                        ? "graphics_driver/wrapper-default-transcode.tzst"
+                        : resolveBundledWrapperAsset(mainWrapperSelection);
                 Log.d("GraphicsDriverExtraction", "WRAPPER selection changed or first boot. Extracting: " + assetPath);
                 boolean success = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, assetPath, rootDir);
                 if (!success) {
@@ -4203,26 +4227,22 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             }
         }
 
-        boolean experimentalBCN = container != null
-                && "1".equals(container.getExtra("experimentalBCN", "0"));
-        if (shortcut != null && shortcut.hasExtra("experimentalBCN")) {
-            experimentalBCN = "1".equals(shortcut.getExtra("experimentalBCN", "0"));
-        }
-
         boolean nativeBcnWrapper = isNativeBcnWrapper(mainWrapperSelection);
         boolean dedicatedBcnWrapper = "wrapper-default".equalsIgnoreCase(mainWrapperSelection);
 
         File bcnLayerLibrary = new File(rootDir, "usr/lib/libbcn_layer.so");
         File bcnLayerManifest = new File(rootDir,
                 "usr/share/vulkan/implicit_layer.d/libbcn_layer.json");
-        final String bcnLayerAsset = dedicatedBcnWrapper
-                ? "graphics_driver/leegao_bcn_july13.tzst"
-                : "graphics_driver/leegao_bcn.tzst";
+        final String bcnLayerAsset = transcodeCompatibilityPair
+                ? "graphics_driver/leegao_bcn_transcode_compat.tzst"
+                : dedicatedBcnWrapper ? "graphics_driver/leegao_bcn_july13.tzst"
+                        : "graphics_driver/leegao_bcn.tzst";
         // The version marker identifies the complete wrapper/layer pair. This
         // forces the matching layer to be restored when users switch stacks.
-        final String bcnLayerVersion = dedicatedBcnWrapper
-                ? "leegao-july13-wrapper-default-3"
-                : "leegao-winmali-2";
+        final String bcnLayerVersion = transcodeCompatibilityPair
+                ? "leegao-mali-re3-transcode-compat-1"
+                : dedicatedBcnWrapper ? "leegao-july13-wrapper-default-3"
+                        : "leegao-winmali-2";
         boolean bcnLayerReady = bcnLayerLibrary.isFile() && bcnLayerManifest.isFile();
 
         if (experimentalBCN && !nativeBcnWrapper && (!bcnLayerReady
@@ -4344,18 +4364,10 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         String effectiveBcnTranscodeMode = "";
         if (experimentalBCN) {
             String bcnEmulation = graphicsDriverConfig.getOrDefault("bcnEmulation", "auto");
-            boolean computeEmulation = !"software".equalsIgnoreCase(
-                    graphicsDriverConfig.getOrDefault("bcnEmulationType",
-                            "1".equals(graphicsDriverConfig.getOrDefault("bcnSoftwareSwitch", "0"))
-                                    ? "software" : GPUInformation.defaultBcnEmulationType()));
+            boolean computeEmulation = computeBcnMode;
             String bcnEmulationCache = graphicsDriverConfig.getOrDefault("bcnEmulationCache", "1");
-            boolean astcTranscode = "1".equals(graphicsDriverConfig.getOrDefault("astcTranscode", "0"));
-            boolean etc2Transcode = "1".equals(graphicsDriverConfig.getOrDefault("etc2Transcode", "0"));
-            if ("1".equals(graphicsDriverConfig.getOrDefault("astcAutoDefault", "0")) && computeEmulation
-                    && !astcTranscode && !etc2Transcode) {
-                astcTranscode = true;
-                Log.i("GraphicsDriverExtraction", "ASTC transcode auto-default via tuning dialog");
-            }
+            boolean astcTranscode = requestedAstcTranscode;
+            boolean etc2Transcode = requestedEtc2Transcode;
 
             // Winlator-Mali mapping: none->0, partial->1, full->2, auto->3.
             String emulateBcn;
@@ -4387,16 +4399,16 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             if (computeLayerActive) {
                 envVars.put("ENABLE_BCN_COMPUTE", "1");
                 envVars.put("BCN_COMPUTE_AUTO",
-                        transcodeRequested ? "0"
+                        transcodeCompatibilityPair
+                                ? ("auto".equalsIgnoreCase(bcnEmulation) ? "1" : "0")
+                                : transcodeRequested ? "0"
                                 : "auto".equalsIgnoreCase(bcnEmulation) ? "1" : "0");
                 if (transcodeRequested) {
-                    // Explicit transcoding must never be skipped because the
-                    // wrapper reports a Qualcomm/Turnip-like driver ID. The
-                    // storage-image path also avoids white/black upload results
-                    // seen with staging copies in some RE Engine titles.
-                    envVars.put("BCN_COMPUTE_IMAGE_VIEW", "1");
                     envVars.put("BCN_LAYER_LOG_LEVEL", "info,error");
-                    envVars.put("BCN_PROFILE_TRANSFERS", "1");
+                    if (!transcodeCompatibilityPair) {
+                        envVars.put("BCN_COMPUTE_IMAGE_VIEW", "1");
+                        envVars.put("BCN_PROFILE_TRANSFERS", "1");
+                    }
                 }
             }
             else {
@@ -4432,6 +4444,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 + experimentalBCN + ", layerReady=" + bcnLayerReady
                 + ", nativeWrapper=" + nativeBcnWrapper
                 + ", dedicatedWrapper=" + dedicatedBcnWrapper
+                + ", maliCompatibilityPair=" + transcodeCompatibilityPair
                 + ", transcode=" + (effectiveBcnTranscodeMode.isEmpty()
                         ? "off" : effectiveBcnTranscodeMode)
                 + ", astcEnv=" + envVars.get("BCN_TRANSCODE_TO_ASTC")

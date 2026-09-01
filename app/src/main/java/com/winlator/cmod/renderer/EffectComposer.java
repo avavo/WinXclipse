@@ -278,6 +278,9 @@ public class EffectComposer {
      */
     public synchronized void invalidateBuffers() {
         releaseBuffers();
+        // Capability belongs to the current EGL context. Never retain a false
+        // result obtained while the old context was absent or still ES 3.0.
+        supportsGLES31Cache = null;
     }
 
     // Renders all the effects in the composer
@@ -566,20 +569,36 @@ public class EffectComposer {
     private boolean supportsGLES31() {
         if (supportsGLES31Cache != null) return supportsGLES31Cache;
         boolean supported = false;
+        boolean contextWasQueryable = false;
         try {
             String version = GLES20.glGetString(GLES20.GL_VERSION);
-            supported = version != null && (version.contains("OpenGL ES 3.1")
-                    || version.contains("OpenGL ES 3.2"));
-            if (!supported) {
+            if (version != null && !version.trim().isEmpty()) {
+                contextWasQueryable = true;
+                java.util.regex.Matcher match = java.util.regex.Pattern
+                        .compile("(?i)OpenGL\\s+ES(?:-CM)?\\s+(\\d+)\\.(\\d+)")
+                        .matcher(version);
+                if (match.find()) {
+                    int major = Integer.parseInt(match.group(1));
+                    int minor = Integer.parseInt(match.group(2));
+                    supported = major > 3 || (major == 3 && minor >= 1);
+                }
+                Log.i(TAG, "Apex compositor context: " + version
+                        + ", GLES31=" + supported);
+            }
+            if (!contextWasQueryable) {
                 ActivityManager manager = (ActivityManager)renderer.xServerView.getContext()
                         .getSystemService(Context.ACTIVITY_SERVICE);
                 supported = manager != null
                         && manager.getDeviceConfigurationInfo().reqGlEsVersion >= 0x00030001;
             }
         }
-        catch (Throwable ignored) {
+        catch (Throwable error) {
+            Log.w(TAG, "Unable to query GLES version for Apex", error);
         }
-        supportsGLES31Cache = supported;
+        // A null glGetString means this check ran without a current context.
+        // Do not cache that transient answer; a queued retry after surface
+        // creation must be able to observe the real 3.1 context.
+        if (contextWasQueryable) supportsGLES31Cache = supported;
         return supported;
     }
 

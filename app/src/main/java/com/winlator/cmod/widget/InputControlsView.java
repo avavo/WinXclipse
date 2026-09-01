@@ -2,7 +2,6 @@ package com.winlator.cmod.widget;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
-import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
@@ -16,8 +15,6 @@ import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.graphics.Rect;
 import android.os.Handler;
-import android.os.VibrationEffect;
-import android.os.Vibrator;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
@@ -25,8 +22,6 @@ import android.view.PointerIcon;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
-
-import androidx.preference.PreferenceManager;
 
 import com.winlator.cmod.R;
 import com.winlator.cmod.inputcontrols.Binding;
@@ -74,8 +69,6 @@ public class InputControlsView extends View {
     private Handler timeoutHandler; // Reference to the activity's timeout handler
     private Runnable hideControlsRunnable; // Runnable to hide the controls
 
-    private SharedPreferences preferences;
-
     private ControlElement stickElement;
 
     private boolean focusOnStick = false; // A flag to determine if we are focusing on the stick
@@ -101,8 +94,6 @@ public class InputControlsView extends View {
         setBackgroundColor(0x00000000);
         setPointerIcon(PointerIcon.load(getResources(), R.drawable.hidden_pointer_arrow));
         setLayoutParams(new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-        preferences = PreferenceManager.getDefaultSharedPreferences(this.getContext());
-        restoreTouchscreenHapticsAfterBrokenMigration();
     }
 
     @SuppressLint("ResourceType")
@@ -117,8 +108,6 @@ public class InputControlsView extends View {
         setBackgroundColor(0x00000000);
         setPointerIcon(PointerIcon.load(getResources(), R.drawable.hidden_pointer_arrow));
         setLayoutParams(new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-        preferences = PreferenceManager.getDefaultSharedPreferences(this.getContext());
-        restoreTouchscreenHapticsAfterBrokenMigration();
     }
 
     public InputControlsView(Context context, boolean focusOnStick) {
@@ -137,8 +126,6 @@ public class InputControlsView extends View {
             setLayoutParams(new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         }
 
-        preferences = PreferenceManager.getDefaultSharedPreferences(this.getContext());
-        restoreTouchscreenHapticsAfterBrokenMigration();
     }
 
 
@@ -627,9 +614,6 @@ public class InputControlsView extends View {
 
                         }
                     }
-                    if (handled && preferences.getBoolean("touchscreen_haptics_enabled", true)) {
-                        performTouchscreenHaptic();
-                    }
                     // A MOUSE_LEFT_BUTTON element consumes touches that land on
                     // that control. It must not disable tap-to-click across the
                     // rest of the touchpad/screen.
@@ -659,34 +643,6 @@ public class InputControlsView extends View {
         }
         return true;
     }
-
-    /** Restores the setting once for installs affected by the 0.9.x merge that
-     * silently forced touchscreen haptics off on every container start. */
-    private void restoreTouchscreenHapticsAfterBrokenMigration() {
-        if (preferences == null
-                || preferences.getBoolean("touchscreen_haptics_restored_095", false)) return;
-        preferences.edit()
-                .putBoolean("touchscreen_haptics_enabled", true)
-                .putBoolean("touchscreen_haptics_restored_095", true)
-                .apply();
-    }
-
-    private void performTouchscreenHaptic() {
-        Vibrator vibrator = (Vibrator)getContext().getSystemService(Context.VIBRATOR_SERVICE);
-        if (vibrator == null || !vibrator.hasVibrator()) return;
-        try {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                vibrator.vibrate(VibrationEffect.createOneShot(50,
-                        VibrationEffect.DEFAULT_AMPLITUDE));
-            }
-            else vibrator.vibrate(50);
-        }
-        catch (Exception ignored) {}
-    }
-
-
-
-
 
     private void resetTouchscreenTimeout() {
 //        Log.d("InputControlsView", "Touch detected, resetting timeout.");

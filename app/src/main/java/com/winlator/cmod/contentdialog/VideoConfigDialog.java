@@ -94,6 +94,10 @@ public class VideoConfigDialog extends ContentDialog {
                 AppUtils.showHelpBox(context, v, R.string.video_help_vsync_off));
         findViewById(R.id.BTVideoUnlimitedImagesHelp).setOnClickListener(v ->
                 AppUtils.showHelpBox(context, v, R.string.video_help_unlimited_images));
+        findViewById(R.id.BTVideoFsrUpscaleHelp).setOnClickListener(v ->
+                AppUtils.showHelpBox(context, v, R.string.video_help_fsr_upscale));
+        findViewById(R.id.BTVideoVkBasaltHelp).setOnClickListener(v ->
+                AppUtils.showHelpBox(context, v, R.string.video_help_vkbasalt));
 
         gpuName.setAdapter(new ThemedSpinnerAdapter<>(context, loadGpuNames(context)));
         presentMode.setAdapter(new ThemedSpinnerAdapter<>(context,
@@ -221,6 +225,12 @@ public class VideoConfigDialog extends ContentDialog {
         findViewById(R.id.BTVideoFrameGenerationHelp).setOnClickListener(v ->
                 AppUtils.showHelpBox(context, v, frameGenerationCompatible
                         ? R.string.frame_generation_help : R.string.frame_generation_vulkan_only));
+        findViewById(R.id.BTVideoFrameGenerationProfileHelp).setOnClickListener(v ->
+                AppUtils.showHelpBox(context, v, R.string.frame_generation_profile_help));
+        findViewById(R.id.BTVideoFrameGenerationBackendHelp).setOnClickListener(v ->
+                AppUtils.showHelpBox(context, v, R.string.frame_generation_backend_help));
+        findViewById(R.id.BTVideoFrameGenerationLowLatencyHelp).setOnClickListener(v ->
+                AppUtils.showHelpBox(context, v, R.string.frame_generation_low_latency_help));
         Runnable updateFrameGeneration = () -> {
             boolean enabled = frameGenerationCompatible && frameGeneration.isChecked();
             frameGenerationSettings.setVisibility(enabled ? View.VISIBLE : View.GONE);

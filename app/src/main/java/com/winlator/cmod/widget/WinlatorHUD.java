@@ -38,6 +38,7 @@ public class WinlatorHUD extends View {
     private static final String KEY_ALPHA= "hud_alpha_int";
     private static final String KEY_VERT = "hud_vertical";
     private static final String KEY_RAM_WARNING = "hud_ram_warning";
+    private static final String KEY_FPS_DEFAULT_MIGRATED = "hud_fps_default_095_2";
 
     public static final int SHOW_FPS      = 1;
     public static final int SHOW_GPU      = 1<<1;
@@ -975,6 +976,17 @@ public class WinlatorHUD extends View {
 
     private void loadPrefs() {
         showMask = prefs.getInt(KEY_SHOW, SHOW_DEFAULT);
+        // 0.9.5 makes the FPS field part of the visible default for both new
+        // and upgraded installs. Run this once so an older saved HUD mask does
+        // not leave the checkbox off after updating; later user changes remain
+        // untouched.
+        if (!prefs.getBoolean(KEY_FPS_DEFAULT_MIGRATED, false)) {
+            showMask |= SHOW_FPS;
+            prefs.edit()
+                    .putInt(KEY_SHOW, showMask)
+                    .putBoolean(KEY_FPS_DEFAULT_MIGRATED, true)
+                    .apply();
+        }
         hudAlpha = prefs.getInt(KEY_ALPHA, 55) / 100f;
         setAlpha(hudAlpha);
         vertical = prefs.getBoolean(KEY_VERT, false);

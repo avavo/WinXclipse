@@ -331,6 +331,8 @@
     <string name="video_help_vsync_off">Disables guest frame pacing for maximum FPS. Android still presents complete compositor frames to prevent physical tearing.</string>
     <string name="video_help_unlimited_images">Allows the swapchain to use unlimited images instead of capping them. Lower latency, uses more memory.</string>
     <string name="video_help_present_modes">Mailbox: tear-free and keeps the newest frame, best default for high FPS. FIFO: tear-free queue synchronized to the display, most compatible but may cap FPS. Immediate: lowest wait and can tear. Relaxed: FIFO normally, but may tear after a missed refresh deadline.</string>
+    <string name="video_help_fsr_upscale">Renders the guest below the selected output resolution, then uses FSR EASU to upscale it. This can improve performance when the GPU is the limit, but may soften fine detail or add shimmer. It only takes effect with the FSR texture filter selected.</string>
+    <string name="video_help_vkbasalt">Adds a Vulkan post-process sharpening pass. CAS is the lighter default; DLS adds denoise control. It does not increase the rendered resolution and costs some GPU time, so disable it if performance drops or edges look over-sharpened.</string>
     <string name="gdc_help_bcn_software">Uses the software BCn compression path. Lighter for small WGPs (workgroup sizes) and helps when hardware BCn emulation misbehaves.</string>
     <string name="gdc_help_etc2">Transcodes BCn compressed textures to ETC2. Mutually exclusive with ASTC Transcode.</string>
     <string name="video_vsync_off">VSync limit</string>
@@ -557,7 +559,6 @@
     <string name="enable_legacy_input_mode">Enable 7.1.2 Legacy Input Mode</string>
     <string name="enable_sendinput_mode">Use Windows SendInput Mode</string>
     <string name="enable_touchscreen_timeout">Touchscreen Timeout (Requires Restart)</string>
-    <string name="enable_touchscreen_haptics">Enable Touchscreen Haptic Feedback</string>
     <string name="help_steamgrid">SteamGrid API Key</string>
     <string name="disable_xinput_for_shortcut">Disable Xinput (For Exclusive M/KB Control)</string>
     <string name="fullscreen_stretched">Ignore Aspect Ratio (Fullscreen Stretched)</string>
@@ -886,7 +887,9 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="frame_generation_help">Experimental GLES 3.1 frame interpolation for Vulkan containers. GLES Compute is the safe backend. Native libapex can improve motion estimation but may crash inside some vendor drivers; Automatic tries libapex and falls back to GLES only when the failure is recoverable. Low Latency presents real frames immediately and extrapolates generated frames, reducing the normal one-frame delay at the cost of more artifacts. Fixed multipliers generate up to 10x output; the visible rate is still limited by the display.</string>
     <string name="frame_generation_multiplier">Multiplier</string>
     <string name="frame_generation_backend">Backend</string>
+    <string name="frame_generation_backend_help">GLES Compute is the safer built-in backend. Native libapex may improve motion estimation, but some vendor drivers can terminate the app with SIGSEGV. Automatic tries libapex and falls back to GLES only after a recoverable initialization failure.</string>
     <string name="frame_generation_low_latency">Low Latency (more artifacts)</string>
+    <string name="frame_generation_low_latency_help">Normal mode keeps a real frame of history for cleaner interpolation. Low Latency presents the newest real frame immediately and extrapolates generated frames: less delay, but more warping, judder and image errors during sudden motion.</string>
     <string name="frame_generation_target_fps">Automatic target FPS</string>
     <string name="frame_generation_unavailable">Frame Generation requires OpenGL ES 3.1 and could not be enabled on this device.</string>
     <string name="frame_generation_vulkan_only">Frame Generation is available only when the container Display renderer is set to Vulkan.</string>
