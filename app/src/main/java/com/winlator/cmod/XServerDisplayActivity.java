@@ -2970,7 +2970,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             setFakeHdrEnabled(renderer, cbHdr.isChecked(), true);
             sessionFrameGenerationLowLatency = cbFrameGenerationLowLatency.isChecked();
             int frameGenerationProfile = Math.max(0,
-                    Math.min(3, sFrameGenerationProfile.getSelectedItemPosition()));
+                    Math.min(2, sFrameGenerationProfile.getSelectedItemPosition()));
             float frameGenerationMultiplier = frameGenerationMultiplierValue(
                     sFrameGenerationMultiplier.getSelectedItemPosition());
             int frameGenerationTarget = parseFrameGenerationTarget(
@@ -3402,7 +3402,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             case "quality":
             case "stable": return 2;
             case "ultra":
-            case "ultra_quality": return 3;
+            case "ultra_quality": return 2;
         }
         try {
             // Migration from the former six-profile list:
@@ -3419,10 +3419,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     }
 
     private static String frameGenerationProfileStorageValue(int profile) {
-        switch (Math.max(0, Math.min(3, profile))) {
+        switch (Math.max(0, Math.min(2, profile))) {
             case 0: return "fast";
             case 2: return "quality";
-            case 3: return "ultra";
             default: return "balanced";
         }
     }
@@ -3453,14 +3452,13 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     }
 
     private static int frameGenerationQuality(int profile) {
-        return Math.max(0, Math.min(3, profile));
+        return Math.max(0, Math.min(2, profile));
     }
 
     private static float frameGenerationStability(int profile) {
         switch (profile) {
             case 0: return 0.15f; // Fast: aggressive warp, minimal fallback.
             case 2: return 0.90f; // Quality: conservative fallback, less deformation.
-            case 3: return 0.98f; // Ultra: safest fallback and finest search.
             default: return 0.55f; // Balanced.
         }
     }
@@ -3484,7 +3482,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     private void applyFrameGenerationSetting(GLRenderer renderer, boolean enabled,
             int profile, float multiplier, int targetFPS, boolean persist) {
-        profile = Math.max(0, Math.min(3, profile));
+        profile = Math.max(0, Math.min(2, profile));
         multiplier = parseFrameGenerationMultiplier(
                 frameGenerationMultiplierStorageValue(multiplier));
         targetFPS = parseFrameGenerationTarget(String.valueOf(targetFPS));

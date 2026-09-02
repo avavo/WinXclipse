@@ -315,7 +315,7 @@ public class VideoConfigDialog extends ContentDialog {
             case "quality":
             case "stable": return 2;
             case "ultra":
-            case "ultra_quality": return 3;
+            case "ultra_quality": return 2;
             case "balanced": return 1;
             default:
                 try {
@@ -327,8 +327,7 @@ public class VideoConfigDialog extends ContentDialog {
     }
 
     private static String frameGenerationProfileValue(int index) {
-        return index <= 0 ? "fast" : index == 1 ? "balanced"
-                : index == 2 ? "quality" : "ultra";
+        return index <= 0 ? "fast" : index == 1 ? "balanced" : "quality";
     }
 
     private static int frameGenerationMultiplierIndex(String value) {

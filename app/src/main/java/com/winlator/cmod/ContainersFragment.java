@@ -29,6 +29,8 @@ import android.widget.LinearLayout;
 import android.widget.EditText;
 import android.widget.ScrollView;
 import android.widget.PopupMenu;
+import android.widget.RadioButton;
+import android.widget.RadioGroup;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -837,11 +839,24 @@ public class ContainersFragment extends Fragment {
                     "Notes: required fix, preset or variable (optional)", "");
             notes.setMinLines(2);
 
+            TextView compatibilityTitle = new TextView(context);
+            compatibilityTitle.setText("Compatibility status (required)");
+            compatibilityTitle.setTextSize(15);
+            compatibilityTitle.setPadding(0, dp(12), 0, dp(4));
+            fields.addView(compatibilityTitle);
+            RadioGroup compatibility = new RadioGroup(context);
+            compatibility.setOrientation(RadioGroup.VERTICAL);
+            addCompatibilityChoice(compatibility, "Boots but crashes");
+            addCompatibilityChoice(compatibility, "Menu only");
+            addCompatibilityChoice(compatibility, "Playable");
+            fields.addView(compatibility, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
             ScrollView scroll = new ScrollView(context);
             scroll.addView(fields);
             AlertDialog dialog = new AlertDialog.Builder(context)
                     .setTitle("Export Community Config")
-                    .setMessage("Fill in the game name, your Discord @ and the expected average FPS. "
+                    .setMessage("Fill in the game name, your Discord @, expected average FPS and compatibility status. "
                             + "The detected phone model cannot be changed. In Notes, mention any required fix, preset or variable; otherwise leave it blank.")
                     .setView(scroll)
                     .setNegativeButton(android.R.string.cancel, null)
@@ -861,6 +876,14 @@ public class ContainersFragment extends Fragment {
                         if (fps.getText().toString().trim().isEmpty()) {
                             fps.setError("Enter the expected average FPS"); return;
                         }
+                        RadioButton selectedCompatibility = compatibility.findViewById(
+                                compatibility.getCheckedRadioButtonId());
+                        if (selectedCompatibility == null) {
+                            Toast.makeText(context, "Select a compatibility status",
+                                    Toast.LENGTH_SHORT).show();
+                            compatibilityTitle.setTextColor(Color.rgb(255, 107, 107));
+                            return;
+                        }
                         dialog.dismiss();
                         CommunityConfigManager.Metadata metadata = new CommunityConfigManager.Metadata();
                         metadata.gameName = game.getText().toString();
@@ -874,6 +897,8 @@ public class ContainersFragment extends Fragment {
                         // field is unnecessary, but keep the legacy manifest key useful.
                         metadata.author = metadata.discord;
                         metadata.notes = notes.getText().toString();
+                        metadata.compatibility = String.valueOf(
+                                selectedCompatibility.getTag());
                         if (metadata.gpu.isEmpty()) metadata.gpu = GPUInformation.getRenderer();
                         ActivityManager.MemoryInfo memory = new ActivityManager.MemoryInfo();
                         ActivityManager activityManager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
@@ -882,6 +907,15 @@ public class ContainersFragment extends Fragment {
                         exportCommunityConfig(container, metadata);
                     }));
             dialog.show();
+        }
+
+        private void addCompatibilityChoice(RadioGroup group, String label) {
+            RadioButton button = new RadioButton(group.getContext());
+            button.setId(View.generateViewId());
+            button.setText(label);
+            button.setTag(label);
+            group.addView(button, new RadioGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         }
 
         private EditText configField(LinearLayout parent, String hint, String value) {

@@ -59,7 +59,7 @@ public final class LSFGEffect extends Effect {
     }
 
     public void setQuality(int quality) {
-        this.quality = Math.max(0, Math.min(3, quality));
+        this.quality = Math.max(0, Math.min(2, quality));
         applyNativeSettings();
     }
 
@@ -230,7 +230,7 @@ public final class LSFGEffect extends Effect {
         // Four deliberately distinct profiles. Ultra keeps half-resolution
         // vectors and adds the widest refinement pass; it is intentionally the
         // expensive option for users who prefer fewer warps over throughput.
-        int scale = quality == 0 ? 8 : quality == 1 ? 4 : quality == 2 ? 3 : 2;
+        int scale = quality == 0 ? 8 : quality == 1 ? 4 : 3;
         int mvWidth = Math.max(1, width / scale);
         int mvHeight = Math.max(1, height / scale);
         ensureMotionVectorTextures(mvWidth, mvHeight);

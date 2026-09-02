@@ -8,11 +8,11 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
 
 - Added experimental GLES 3.1 frame generation for Vulkan containers.
 - Frame Generation is configured inside Video Configuration for both containers and shortcuts; shortcut values can override the container without changing it.
-- Added Fast, Balanced, Quality and Ultra Quality profiles with clear trade-offs:
+- Added Fast, Balanced and Quality profiles with clear trade-offs:
   - Fast has the lowest GPU cost and latency, but may deform edges more often.
   - Balanced uses a larger motion search for a middle ground.
   - Quality reduces warped edges with more conservative blending, but costs more GPU time and may introduce blur or double images.
-  - Ultra Quality uses the finest motion field, widest refinement and safest blending. It has the fewest warps and the highest GPU cost.
+  - Existing Ultra Quality presets are migrated automatically to Quality.
 - Added fixed 1.5x through 4x modes in 0.5x steps. Higher factors were removed because their large temporal gaps produced severe artifacts.
 - Automatic mode targets a user-entered output FPS.
 - Long explanations now live behind dedicated `?` buttons for Frame Generation, Profile and Low Latency instead of occupying the main screen.
@@ -25,9 +25,9 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
 - Added a Low Latency mode which presents real frames immediately and extrapolates generated frames. It removes the normal one-real-frame interpolation delay at the cost of more edge warping and unstable motion.
 - Low Latency now lives inside the in-session Display panel and persists with the active shortcut/container. The sidebar places FPS Limiter beside Frame Gen and HUD beside Display.
 - The compact HUD counter is again shown only as `Apex <source FPS × effective multiplier> (<multiplier>x)`. It is not capped by display Hz and no longer adds the confusing second `real` value; measured real/generated compositor counters remain available to diagnostics.
-- Optional HUD rows expose the measured Frame Generation latency estimate, Apex/shader failure state and actual `GEN FPS`. `GEN 0 FPS (no headroom)` clearly reports when synthetic work is skipped to protect the game; `ApexTelemetry` exposes the same counters in logcat.
+- Optional HUD rows expose the measured Frame Generation latency estimate, Apex/shader failure state and actual `GEN FPS`. `GEN 0 FPS (no output)` clearly reports when Apex is enabled but is not producing synthetic frames; `ApexTelemetry` exposes the same counters in logcat.
 - Generated draws now consume a finite budget earned by actual game Presents, including the correct fractional cadence for 1.5x. Apex stops scheduling when the budget is empty instead of redrawing a stale texture indefinitely and starving the game/BCN pipeline. GLES errors are sampled instead of synchronously queried after every game frame, avoiding an unnecessary GPU-queue stall.
-- Real game Presents are never delayed by Apex pacing. Synthetic frames are deadline-aware and are dropped automatically when the measured generation cost would reduce the game's base FPS.
+- Apex keeps a finite synthetic-frame budget earned only from actual game Presents. Its display-clock scheduling follows the proven 0.9.5 path, avoiding the phase-sensitive headroom gate that could incorrectly reject every generated frame.
 
 ### Wrappers, ASTC and ETC2
 
@@ -96,8 +96,8 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
 - Added Galaxy Tab S10 FE SM-X520 and SM-X526B detection.
 - Added Galaxy Tab S10 FE+ SM-X620 and SM-X626B detection.
 - All four models receive Exynos 1580 / Xclipse 540 handling even when early Android startup exposes only a generic GLES renderer.
-- Community exports preserve the exact regional model suffix reported by Android and normalize known Samsung catalog metadata to the correct commercial device, Exynos SoC and Xclipse GPU names. The Mortal Sin SM-X520 config is corrected to Galaxy Tab S10 FE / Exynos 1580 / Xclipse 540.
-- Shortcut and Community Config cover cards now clip the artwork into rounded top corners, join cleanly to the lower text panel, and show each game's config count at the lower-left above the label.
+- Community exports preserve the exact regional model suffix reported by Android and normalize known Samsung catalog metadata to the correct commercial device, Exynos SoC and Xclipse GPU names. Export now requires exactly one English compatibility state: `Boots but crashes`, `Menu only`, or `Playable`. The Mortal Sin SM-X520 config is corrected to Galaxy Tab S10 FE / Exynos 1580 / Xclipse 540.
+- Shortcut and Community Config cover cards now clip the artwork into rounded top corners and join cleanly to the lower text panel. Community cards repeat the cover as a dark blurred label background, show compatibility instead of the phone model, and keep each game's config count at the lower-left above the label.
 - Wine sessions support normal and reverse landscape, allowing either long edge of the phone or tablet to face upward without enabling portrait rotation.
 - Replaced the old update alert with a WinXclipse-styled AMOLED dialog that clearly shows installed and available versions.
 - Corrected the application version display to `0.9.5`.

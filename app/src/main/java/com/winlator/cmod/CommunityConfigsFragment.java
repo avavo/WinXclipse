@@ -6,9 +6,12 @@ import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
+import android.graphics.RenderEffect;
+import android.graphics.Shader;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.StateListDrawable;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.LayoutInflater;
@@ -493,11 +496,17 @@ public class CommunityConfigsFragment extends Fragment {
         public void onBindViewHolder(@NonNull Holder holder, int position) {
             GameItem item = items.get(position);
             holder.title.setText(item.name);
-            holder.detail.setText(latestPhoneLabel(item));
+            String compatibility = latestCompatibilityLabel(item);
+            holder.detail.setText(compatibility);
+            holder.detail.setTextColor(compatibilityColor(compatibility));
             holder.count.setText(item.configs.size() == 1
                     ? "1 CONFIG" : item.configs.size() + " CONFIGS");
             holder.icon.setTag(item.key);
+            holder.labelBackground.setTag(item.key);
             holder.icon.setImageResource(R.drawable.cover_art_placeholder);
+            holder.labelBackground.setImageDrawable(null);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
+                holder.labelBackground.setRenderEffect(null);
             loadArtwork(item, holder);
             holder.itemView.setOnClickListener(v -> showConfigDialog(item));
         }
@@ -507,6 +516,7 @@ public class CommunityConfigsFragment extends Fragment {
 
     private static final class Holder extends RecyclerView.ViewHolder {
         final ImageView icon;
+        final ImageView labelBackground;
         final TextView title;
         final TextView detail;
         final TextView count;
@@ -514,6 +524,7 @@ public class CommunityConfigsFragment extends Fragment {
         Holder(View view) {
             super(view);
             icon = view.findViewById(R.id.IVIcon);
+            labelBackground = view.findViewById(R.id.IVLabelBackground);
             title = view.findViewById(R.id.TVVersionName);
             detail = view.findViewById(R.id.TVVersionCode);
             count = view.findViewById(R.id.TVConfigCount);
@@ -522,13 +533,14 @@ public class CommunityConfigsFragment extends Fragment {
 
     private void loadArtwork(GameItem item, Holder holder) {
         if (item.customCoverFile != null && item.customCoverFile.isFile()) {
-            if (item.key.equals(holder.icon.getTag())) holder.icon.setImageBitmap(
+            if (item.key.equals(holder.icon.getTag())) applyArtwork(holder, item,
                     BitmapFactory.decodeFile(item.customCoverFile.getAbsolutePath()));
             return;
         }
         if (item.coverFile.isFile()) {
             if (item.key.equals(holder.icon.getTag()))
-                holder.icon.setImageBitmap(BitmapFactory.decodeFile(item.coverFile.getAbsolutePath()));
+                applyArtwork(holder, item,
+                        BitmapFactory.decodeFile(item.coverFile.getAbsolutePath()));
             return;
         }
         if (item.coverUrl != null && !item.coverUrl.isEmpty()) {
@@ -537,7 +549,8 @@ public class CommunityConfigsFragment extends Fragment {
                 if (ok && getActivity() != null) requireActivity().runOnUiThread(() -> {
                     if (holder.getBindingAdapterPosition() != RecyclerView.NO_POSITION
                             && item.key.equals(holder.icon.getTag()))
-                        holder.icon.setImageBitmap(BitmapFactory.decodeFile(item.coverFile.getAbsolutePath()));
+                        applyArtwork(holder, item,
+                                BitmapFactory.decodeFile(item.coverFile.getAbsolutePath()));
                 });
             }, "CommunityConfigCover").start();
             return;
@@ -546,9 +559,29 @@ public class CommunityConfigsFragment extends Fragment {
                 item.name, item.coverFile, success -> {
                     if (success && holder.getBindingAdapterPosition() != RecyclerView.NO_POSITION
                             && item.key.equals(holder.icon.getTag())) {
-                        holder.icon.setImageBitmap(BitmapFactory.decodeFile(item.coverFile.getAbsolutePath()));
+                        applyArtwork(holder, item,
+                                BitmapFactory.decodeFile(item.coverFile.getAbsolutePath()));
                     }
                 });
+    }
+
+    private void applyArtwork(Holder holder, GameItem item, Bitmap artwork) {
+        if (artwork == null || !item.key.equals(holder.icon.getTag())
+                || !item.key.equals(holder.labelBackground.getTag())) return;
+        holder.icon.setImageBitmap(artwork);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            holder.labelBackground.setImageBitmap(artwork);
+            holder.labelBackground.setRenderEffect(RenderEffect.createBlurEffect(
+                    22.0f, 22.0f, Shader.TileMode.CLAMP));
+        }
+        else {
+            // A tiny bilinear preview provides a cheap blur fallback without
+            // RenderScript on Android 8-11.
+            int width = Math.max(8, Math.min(48, artwork.getWidth() / 12));
+            int height = Math.max(8, Math.min(64, artwork.getHeight() / 12));
+            holder.labelBackground.setImageBitmap(
+                    Bitmap.createScaledBitmap(artwork, width, height, true));
+        }
     }
 
     private void showConfigDialog(GameItem game) {
@@ -735,7 +768,8 @@ public class CommunityConfigsFragment extends Fragment {
 
     private String formatDetails(ConfigOption option) {
         JSONObject data = option.metadata;
-        return "Phone: " + valueOrUnknown(phoneLabel(option))
+        return "Compatibility: " + compatibilityLabel(option)
+                + "\nPhone: " + valueOrUnknown(phoneLabel(option))
                 + "\nRAM: " + valueOrUnknown(data.optString("ram"))
                 + "\nGPU: " + valueOrUnknown(data.optString("gpu"))
                 + "\nCPU: " + valueOrUnknown(data.optString("soc"))
@@ -773,8 +807,19 @@ public class CommunityConfigsFragment extends Fragment {
         if (!clean.isEmpty()) lines.add(label + ": " + clean);
     }
 
-    private static String latestPhoneLabel(GameItem game) {
-        return game.configs.isEmpty() ? "Unknown phone" : phoneLabel(game.configs.get(0));
+    private static String latestCompatibilityLabel(GameItem game) {
+        return game.configs.isEmpty() ? "Playable" : compatibilityLabel(game.configs.get(0));
+    }
+
+    private static String compatibilityLabel(ConfigOption option) {
+        return CommunityConfigManager.normalizeCompatibility(
+                option.metadata.optString("compatibility", "Playable"));
+    }
+
+    private static int compatibilityColor(String compatibility) {
+        if ("Boots but crashes".equals(compatibility)) return Color.rgb(255, 107, 107);
+        if ("Menu only".equals(compatibility)) return Color.rgb(255, 209, 102);
+        return Color.rgb(105, 240, 174);
     }
 
     private static String phoneLabel(ConfigOption option) {

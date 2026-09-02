@@ -1103,7 +1103,7 @@ public class WinlatorHUD extends View {
             else if (active && "Active".equalsIgnoreCase(safeState)) {
                 strFgStatus = "FG " + safeBackend + " Active · GEN "
                         + Math.round(apexGeneratedFps) + " FPS"
-                        + (apexGeneratedFps < 0.5f ? " (no headroom)" : "");
+                        + (apexGeneratedFps < 0.5f ? " (no output)" : "");
             }
             else strFgStatus = "FG " + safeBackend + " " + safeState;
             if (this.apexActive != active) {

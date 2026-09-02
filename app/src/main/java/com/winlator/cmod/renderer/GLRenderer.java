@@ -689,7 +689,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
     public void setApex(boolean enabled, int quality, float multiplier,
             int targetFPS, float stability, int backend, boolean lowLatencyMode) {
         requestedApexEnabled = enabled;
-        requestedApexQuality = Math.max(0, Math.min(3, quality));
+        requestedApexQuality = Math.max(0, Math.min(2, quality));
         requestedApexMultiplier = multiplier >= 1.5f
                 ? Math.min(4.0f, multiplier) : 0.0f;
         requestedApexTargetFPS = Math.max(15, Math.min(240, targetFPS));

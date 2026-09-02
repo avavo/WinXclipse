@@ -67,6 +67,7 @@ public final class CommunityConfigManager {
         public String author = "";
         public String discord = "";
         public String notes = "";
+        public String compatibility = "";
 
         public Metadata() {
             DeviceProfile profile = getCurrentDeviceProfile();
@@ -245,6 +246,7 @@ public final class CommunityConfigManager {
         info.put("discord", clean(metadata.discord));
         info.put("date", new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new Date()));
         info.put("notes", clean(metadata.notes));
+        info.put("compatibility", normalizeCompatibility(metadata.compatibility));
 
         JSONObject root = new JSONObject();
         root.put("format", FORMAT);
@@ -256,6 +258,26 @@ public final class CommunityConfigManager {
         if (presets.length() > 0) root.put("presets", presets);
         root.put("container", containerData);
         return root;
+    }
+
+    /** Stable English labels used by exports, release assets and catalog cards. */
+    public static String normalizeCompatibility(String value) {
+        String normalized = clean(value).toLowerCase(Locale.ENGLISH)
+                .replace('_', ' ').replace('-', ' ').replaceAll("\\s+", " ");
+        switch (normalized) {
+            case "boots but crashes":
+            case "boots then crashes":
+            case "crashes":
+                return "Boots but crashes";
+            case "menu only":
+            case "boots to menu":
+                return "Menu only";
+            case "playable":
+            default:
+                // Schema-v1 configs predate this field. They were published as
+                // working presets, so retain Playable as their compatibility label.
+                return "Playable";
+        }
     }
 
     public static File exportConfig(Context context, Container container, Metadata metadata)

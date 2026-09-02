@@ -34,8 +34,6 @@ public final class LSFGManager {
     private long lastRealFrameTimeNanos;
     private long pendingRealFrameTimeNanos;
     private long presentedRealFrameTimeNanos;
-    private long generatedDrawStartedNanos;
-    private float generatedDrawCostNanos = 2_000_000.0f;
     private boolean renderingGeneratedFrame;
     private boolean presentedRealFrame;
     private boolean lowLatencyMode;
@@ -73,8 +71,6 @@ public final class LSFGManager {
         lastRealFrameTimeNanos = 0;
         pendingRealFrameTimeNanos = 0;
         presentedRealFrameTimeNanos = 0;
-        generatedDrawStartedNanos = 0;
-        generatedDrawCostNanos = 2_000_000.0f;
         presentedRealFrame = false;
         estimatedLatencyNanos = 0;
         effectiveMultiplier = requestedMultiplier > 0.0f ? requestedMultiplier : 2.0f;
@@ -144,30 +140,15 @@ public final class LSFGManager {
         renderer.xServerView.requestRender();
     }
 
-    /**
-     * Returns true only when a synthetic draw is due and still fits before the
-     * next expected game Present. Real frames always win: spending the GL
-     * thread's remaining deadline on interpolation makes the source FPS fall,
-     * which defeats frame generation.
-     */
+    /** Returns true while the current real frame still owes a synthetic draw. */
     public boolean shouldScheduleGeneratedFrame() {
-        if (!active || realFramesCaptured < 2 || pendingRealFrame
-                || effectiveMultiplier <= 1.0f || generatedFrameBudget < 1.0f)
-            return false;
-        if (lastRealFrameTimeNanos <= 0 || typicalDeltaNanos <= 0) return true;
-
-        long now = System.nanoTime();
-        float elapsed = now - lastRealFrameTimeNanos;
-        float outputInterval = typicalDeltaNanos / Math.max(1.0f, effectiveMultiplier);
-        float dueAt = outputInterval * (framesSinceReal + 1.0f);
-        if (elapsed < dueAt) return false;
-
-        // Preserve a measured render-cost margin plus 1 ms for the incoming
-        // game Present. Under GPU pressure Apex drops a generated frame instead
-        // of delaying the game.
-        float remaining = typicalDeltaNanos - elapsed;
-        float safetyMargin = Math.max(2_000_000.0f, generatedDrawCostNanos * 1.35f + 1_000_000.0f);
-        return remaining > safetyMargin;
+        // The former deadline/headroom predictor could reject every generated
+        // frame when the game Present and Choreographer phases happened to be
+        // close together. Keep the finite per-Present budget, but let Android's
+        // display clock decide when the synthetic draw runs, as in the proven
+        // 0.9.5 reference APK.
+        return active && realFramesCaptured >= 2 && !pendingRealFrame
+                && effectiveMultiplier > 1.0f && generatedFrameBudget >= 1.0f;
     }
 
     public boolean prepareFrame() {
@@ -176,7 +157,6 @@ public final class LSFGManager {
             return false;
         }
         renderingGeneratedFrame = shouldScheduleGeneratedFrame();
-        generatedDrawStartedNanos = renderingGeneratedFrame ? System.nanoTime() : 0;
         return renderingGeneratedFrame;
     }
 
@@ -253,11 +233,6 @@ public final class LSFGManager {
 
     public void onPostDraw() {
         if (active && renderingGeneratedFrame) {
-            if (generatedDrawStartedNanos > 0) {
-                float sample = Math.max(0, System.nanoTime() - generatedDrawStartedNanos);
-                generatedDrawCostNanos = generatedDrawCostNanos * 0.85f + sample * 0.15f;
-            }
-            generatedDrawStartedNanos = 0;
             generatedFrameCount.incrementAndGet();
             framesSinceReal++;
             generatedFrameBudget = Math.max(0.0f, generatedFrameBudget - 1.0f);

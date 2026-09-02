@@ -359,7 +359,6 @@
         <item>Fast (low GPU)</item>
         <item>Balanced (recommended)</item>
         <item>Quality (fewer warps)</item>
-        <item>Ultra Quality (cleanest)</item>
     </string-array>
     <string-array name="frame_generation_multiplier_entries">
         <item>Automatic (target FPS)</item>
