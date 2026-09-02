@@ -10,7 +10,6 @@
         android:layout_height="match_parent"
         android:background="@drawable/shortcut_tile_background"
         android:clipToOutline="true"
-        android:foreground="@drawable/community_config_card_border"
         android:gravity="center"
         android:orientation="vertical">
 
@@ -28,7 +27,7 @@
             android:layout_height="64dp"
             android:background="@drawable/shortcut_label_background"
             android:clipToOutline="true"
-            android:padding="2dp">
+            android:foreground="@drawable/shortcut_label_border">
 
             <ImageView
                 android:id="@+id/IVLabelBackground"
