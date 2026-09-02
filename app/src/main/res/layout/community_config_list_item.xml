@@ -10,6 +10,7 @@
         android:layout_height="match_parent"
         android:background="@drawable/shortcut_tile_background"
         android:clipToOutline="true"
+        android:foreground="@drawable/community_config_card_border"
         android:gravity="center"
         android:orientation="vertical">
 
