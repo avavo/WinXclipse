@@ -27,13 +27,13 @@
             android:layout_height="64dp"
             android:background="@drawable/shortcut_label_background"
             android:clipToOutline="true"
-            android:padding="1dp">
+            android:padding="2dp">
 
             <ImageView
                 android:id="@+id/IVLabelBackground"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:alpha="0.72"
+                android:alpha="0.92"
                 android:contentDescription="@null"
                 android:scaleType="centerCrop"
                 android:scaleX="1.12"
@@ -42,7 +42,7 @@
             <View
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:background="#B8000000" />
+                android:background="#88000000" />
 
             <LinearLayout
                 android:layout_width="match_parent"
