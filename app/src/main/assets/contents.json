@@ -153,7 +153,43 @@
     "type": "DXVK",
     "verName": "1.7.2",
     "verCode": 0,
-    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/dxvk-and-vkd3d/dxvk-1.7.2.wcp"
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/dxvk-and-vkd3d/Dxvk-1.7.2.wcp"
+  },
+  {
+    "type": "DXVK",
+    "verName": "1.7.3-async",
+    "verCode": 0,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/dxvk-and-vkd3d/Dxvk-1.7.3-async.wcp"
+  },
+  {
+    "type": "DXVK",
+    "verName": "2.3.1-1-gplasync-arm64ec",
+    "verCode": 0,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/dxvk-and-vkd3d/Dxvk-2.3.1-arm64ec-gplasync.wcp"
+  },
+  {
+    "type": "DXVK",
+    "verName": "2.4",
+    "verCode": 0,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/dxvk-and-vkd3d/dxvk_2.4.wcp"
+  },
+  {
+    "type": "DXVK",
+    "verName": "2.4.1-arm64ec",
+    "verCode": 1,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/dxvk-and-vkd3d/dxvk-2.4.1-arm64ec.wcp"
+  },
+  {
+    "type": "DXVK",
+    "verName": "2.6.2-1-gplasync-arm64ec",
+    "verCode": 0,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/dxvk-and-vkd3d/Dxvk-2.6.2-arm64ec-gplasync.wcp"
+  },
+  {
+    "type": "DXVK",
+    "verName": "sarek-1.11.0",
+    "verCode": 0,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/dxvk-and-vkd3d/dxvk-sarek-v1.11.0.wcp"
   },
   {
     "type": "VKD3D",
@@ -163,9 +199,33 @@
   },
   {
     "type": "VKD3D",
+    "verName": "2.8",
+    "verCode": 0,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/dxvk-and-vkd3d/vkd3d-proton-2.8.wcp"
+  },
+  {
+    "type": "VKD3D",
     "verName": "2.9",
     "verCode": 0,
     "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/dxvk-and-vkd3d/vkd3d-proton-2.9.wcp"
+  },
+  {
+    "type": "VKD3D",
+    "verName": "2.12",
+    "verCode": 0,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/dxvk-and-vkd3d/vkd3d-proton-2.12.wcp"
+  },
+  {
+    "type": "VKD3D",
+    "verName": "2.13",
+    "verCode": 0,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/dxvk-and-vkd3d/vkd3d-proton-2.13.wcp"
+  },
+  {
+    "type": "VKD3D",
+    "verName": "2.14.1-arm64ec",
+    "verCode": 0,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/dxvk-and-vkd3d/Vkd3d-arm64ec-2.14.1.wcp"
   },
   {
     "type": "VKD3D",

@@ -404,10 +404,13 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
      */
     private static final Set<String> BUNDLED_CONTENT_SEED = new HashSet<>(Arrays.asList(
             "Box64:" + BUNDLED_BOX64_VERSION,
+            "FEXCore:2608"
+    ));
+
+    private static final Set<String> RELEASE_ONLY_CONTENT = new HashSet<>(Arrays.asList(
             "DXVK:1.7.2",
             "DXVK:1.7.3-async",
             "DXVK:2.6.2-1-gplasync-arm64ec",
-            "FEXCore:2608",
             "VKD3D:3.0.1"
     ));
 
@@ -453,6 +456,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     public static boolean isBundledContent(Context context, ContentProfile profile) {
         if (profile == null || profile.type == null || profile.verName == null) return false;
         String key = profile.type + ":" + profile.verName;
+        if (RELEASE_ONLY_CONTENT.contains(key)) return false;
         if (BUNDLED_CONTENT_SEED.contains(key)) return true;
         Set<String> recorded = PreferenceManager.getDefaultSharedPreferences(context)
                 .getStringSet(PREF_BUNDLED_CONTENT_ENTRIES, new HashSet<>());

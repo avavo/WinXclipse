@@ -23,6 +23,12 @@ tasks.register("prepareKotlinBuildScriptModel"){}
 android {
     namespace 'com.winlator.cmod'
 
+    // DXVK/VKD3D payloads replaced by the maintained dxvk-and-vkd3d GitHub
+    // release were moved out of src/main/assets into app/assets-removed/ —
+    // AGP 8.8 ignores sourceSets assets excludes, so the files must not sit
+    // in the assets source set at all. Everything else stays bundled for
+    // offline/default operation.
+
     compileSdk 34
 
     buildFeatures {

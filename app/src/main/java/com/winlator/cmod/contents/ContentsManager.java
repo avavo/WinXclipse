@@ -297,7 +297,7 @@ public class ContentsManager {
     private static JSONObject findProfileByUrl(JSONArray catalog, String remoteUrl) {
         for (int i = 0; i < catalog.length(); i++) {
             JSONObject profile = catalog.optJSONObject(i);
-            if (profile != null && remoteUrl.equals(profile.optString("remoteUrl", ""))) {
+            if (profile != null && remoteUrl.equalsIgnoreCase(profile.optString("remoteUrl", ""))) {
                 try {
                     return new JSONObject(profile.toString());
                 }
