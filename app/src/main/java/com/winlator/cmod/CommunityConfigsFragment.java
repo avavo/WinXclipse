@@ -593,6 +593,24 @@ public class CommunityConfigsFragment extends Fragment {
         int pad = dp(20);
         body.setPadding(pad, pad / 2, pad, 0);
 
+        // Cover banner on top, same language as the shortcut artwork
+        // dialog: game logo/name stay prominent, dialog keeps its shape.
+        File bannerFile = game.customCoverFile != null && game.customCoverFile.isFile()
+                ? game.customCoverFile
+                : (game.coverFile != null && game.coverFile.isFile() ? game.coverFile : null);
+        if (bannerFile != null) {
+            Bitmap banner = BitmapFactory.decodeFile(bannerFile.getAbsolutePath());
+            if (banner != null) {
+                ImageView coverBanner = new ImageView(requireContext());
+                coverBanner.setImageBitmap(banner);
+                coverBanner.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                LinearLayout.LayoutParams bannerParams = new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, dp(170));
+                bannerParams.bottomMargin = dp(12);
+                body.addView(coverBanner, bannerParams);
+            }
+        }
+
         TextView details = new TextView(requireContext());
         details.setTextSize(15);
         details.setTextIsSelectable(true);
@@ -698,9 +716,18 @@ public class CommunityConfigsFragment extends Fragment {
             });
         });
         dialog.show();
-        if (AppUtils.isDarkMode(requireContext()) && dialog.getWindow() != null) {
-            dialog.getWindow().setBackgroundDrawableResource(
-                    R.drawable.content_dialog_background_dark);
+        if (dialog.getWindow() != null) {
+            // Purple-bordered background + blur, matching the shortcut
+            // artwork dialog.
+            if (AppUtils.isDarkMode(requireContext())) {
+                dialog.getWindow().setBackgroundDrawableResource(
+                        R.drawable.artwork_dialog_background);
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                dialog.getWindow().setBackgroundBlurRadius(48);
+            }
+            dialog.getWindow().addFlags(
+                    android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND);
         }
     }
 
