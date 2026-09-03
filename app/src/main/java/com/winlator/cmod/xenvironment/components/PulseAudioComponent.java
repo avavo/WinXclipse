@@ -38,8 +38,29 @@ public class PulseAudioComponent extends EnvironmentComponent {
     public void start() {
         synchronized (lock) {
             stop();
+            unlinkStaleSocket();
             pid = execPulseAudio();
         }
+    }
+
+    /** Recreates the daemon so its AAudio sink binds to the current route.
+     * AAudio (mmap) streams die on audio-route changes (BT/headset/USB,
+     * recorder submix) and nothing recreates them otherwise. */
+    public void restart() {
+        synchronized (lock) {
+            stop();
+            unlinkStaleSocket();
+            pid = execPulseAudio();
+        }
+    }
+
+    private void unlinkStaleSocket() {
+        // SIGKILL leaves the unix socket file behind; the next server would
+        // fail to bind ("Address already in use") and stay silent forever.
+        try {
+            if (socketConfig != null && socketConfig.path != null) new File(socketConfig.path).delete();
+        }
+        catch (Exception ignored) {}
     }
 
     @Override

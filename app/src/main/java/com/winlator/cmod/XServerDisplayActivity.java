@@ -377,6 +377,16 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     private AudioDeviceCallback audioDeviceCallback;
     private AudioManager audioManager;
+    /** BT/USB/headset connects fire bursts of add/remove events; collapse
+     * them into a single PulseAudio restart. */
+    private static final long PULSE_RESTART_DEBOUNCE_MS = 2000L;
+    private final Runnable pulseAudioRestartRunnable = () -> {
+        if (environment == null || isFinishing() || isDestroyed()) return;
+        PulseAudioComponent pulse = environment.getComponent(PulseAudioComponent.class);
+        if (pulse == null) return;
+        Log.i("AudioDeviceCallback", "Recreating PulseAudio sink on new route.");
+        new Thread(pulse::restart, "PulseAudioRestart").start();
+    };
 
     private static final String APP_DATA_DIR = "/data/data/" + BuildConfig.APPLICATION_ID;
     private static final String[] MEDIACONV_ENV_VARS = {
@@ -5521,29 +5531,53 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         audioDeviceCallback = new AudioDeviceCallback() {
             @Override
             public void onAudioDevicesAdded(AudioDeviceInfo[] addedDevices) {
+                logAudioDevices("added", addedDevices);
                 if (environment != null) {
                     ALSAServerComponent alsaComponent = environment.getComponent(ALSAServerComponent.class);
                     if (alsaComponent != null) {
                         Log.d("AudioDeviceCallback", "Audio device added. Triggering rebuild.");
                         alsaComponent.notifyAudioDeviceChanged();
                     }
+                    schedulePulseAudioRestart();
                 }
             }
 
             @Override
             public void onAudioDevicesRemoved(AudioDeviceInfo[] removedDevices) {
+                logAudioDevices("removed", removedDevices);
                 if (environment != null) {
                     ALSAServerComponent alsaComponent = environment.getComponent(ALSAServerComponent.class);
                     if (alsaComponent != null) {
                         Log.d("AudioDeviceCallback", "Audio device removed. Triggering rebuild.");
                         alsaComponent.notifyAudioDeviceChanged();
                     }
+                    schedulePulseAudioRestart();
                 }
             }
         };
 
         // Register the callback with the system.
         audioManager.registerAudioDeviceCallback(audioDeviceCallback, new Handler(Looper.getMainLooper()));
+    }
+
+    private static void logAudioDevices(String action, AudioDeviceInfo[] devices) {
+        if (devices == null) return;
+        for (AudioDeviceInfo device : devices) {
+            if (device == null) continue;
+            CharSequence name = device.getProductName();
+            Log.i("AudioDeviceCallback", "Audio device " + action + ": type=" + device.getType()
+                    + " sink=" + device.isSink() + " source=" + device.isSource()
+                    + " name=" + (name != null ? name : "?"));
+        }
+    }
+
+    /** PulseAudio's AAudio sink goes stale on route changes (BT, headset,
+     * USB audio, recorder submix) and stays silent until recreated. */
+    private void schedulePulseAudioRestart() {
+        if (environment == null || isFinishing() || isDestroyed()) return;
+        if (environment.getComponent(PulseAudioComponent.class) == null) return;
+        handler.removeCallbacks(pulseAudioRestartRunnable);
+        handler.postDelayed(pulseAudioRestartRunnable, PULSE_RESTART_DEBOUNCE_MS);
     }
 }
 
