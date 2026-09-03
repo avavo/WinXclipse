@@ -716,7 +716,7 @@ public class CommunityConfigsFragment extends Fragment {
         AlertDialog dialog = new AlertDialog.Builder(requireContext())
                 .setTitle(game.name)
                 .setView(scroll)
-                .setNegativeButton(android.R.string.cancel, null)
+                .setNegativeButton("Cancel", null)
                 .setPositiveButton("Install", null)
                 .create();
         body.setTag(dialog);
