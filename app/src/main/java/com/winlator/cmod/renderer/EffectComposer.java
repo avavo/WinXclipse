@@ -557,7 +557,9 @@ public class EffectComposer {
             addEffect(effect);
         }
         effect.setBackend(backend);
-        effect.setLowLatencyMode(lowLatencyMode);
+        // APK 0.9.5 parity: low-latency extrapolation did not exist there.
+        // Force the interpolation-only path regardless of stored options.
+        effect.setLowLatencyMode(false);
         effect.setQuality(quality);
         effect.setStability(stability);
         effect.setMultiplier(multiplier);

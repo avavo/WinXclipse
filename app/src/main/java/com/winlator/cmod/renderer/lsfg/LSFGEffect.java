@@ -227,10 +227,10 @@ public final class LSFGEffect extends Effect {
             motionVectorHeight = 0;
             motionVectorOwnedByNative = false;
         }
-        // Four deliberately distinct profiles. Ultra keeps half-resolution
-        // vectors and adds the widest refinement pass; it is intentionally the
-        // expensive option for users who prefer fewer warps over throughput.
-        int scale = quality == 0 ? 8 : quality == 1 ? 4 : 3;
+        // Matches the 0.9.5 reference APK: Fast estimates motion at 1/8
+        // size, Balanced at 1/4, and Quality at 1/2. Quality was narrowed
+        // to 1/3 while Ultra existed; Ultra is gone, so restore half-res.
+        int scale = quality == 0 ? 8 : quality == 1 ? 4 : 2;
         int mvWidth = Math.max(1, width / scale);
         int mvHeight = Math.max(1, height / scale);
         ensureMotionVectorTextures(mvWidth, mvHeight);

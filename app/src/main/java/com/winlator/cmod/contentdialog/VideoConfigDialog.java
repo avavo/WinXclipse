@@ -195,8 +195,6 @@ public class VideoConfigDialog extends ContentDialog {
         CheckBox frameGeneration = findViewById(R.id.CBVideoFrameGeneration);
         View frameGenerationSettings = findViewById(R.id.LLVideoFrameGenerationSettings);
         Spinner frameGenerationProfile = findViewById(R.id.SVideoFrameGenerationProfile);
-        CheckBox frameGenerationLowLatency = findViewById(
-                R.id.CBVideoFrameGenerationLowLatency);
         Spinner frameGenerationMultiplier = findViewById(R.id.SVideoFrameGenerationMultiplier);
         View frameGenerationAutoFps = findViewById(R.id.LLVideoFrameGenerationAutoFPS);
         EditText frameGenerationTargetFps = findViewById(R.id.ETVideoFrameGenerationAutoFPS);
@@ -206,8 +204,6 @@ public class VideoConfigDialog extends ContentDialog {
                 context.getResources().getStringArray(R.array.frame_generation_multiplier_entries))));
         frameGenerationProfile.setSelection(frameGenerationProfileIndex(
                 config.getFrameGenerationProfile()));
-        frameGenerationLowLatency.setChecked("1".equals(
-                config.getFrameGenerationLowLatency()));
         frameGenerationMultiplier.setSelection(frameGenerationMultiplierIndex(
                 config.getFrameGenerationMultiplier()));
         frameGenerationTargetFps.setText(String.valueOf(frameGenerationTarget(
@@ -222,13 +218,10 @@ public class VideoConfigDialog extends ContentDialog {
                         ? R.string.frame_generation_help : R.string.frame_generation_vulkan_only));
         findViewById(R.id.BTVideoFrameGenerationProfileHelp).setOnClickListener(v ->
                 AppUtils.showHelpBox(context, v, R.string.frame_generation_profile_help));
-        findViewById(R.id.BTVideoFrameGenerationLowLatencyHelp).setOnClickListener(v ->
-                AppUtils.showHelpBox(context, v, R.string.frame_generation_low_latency_help));
         Runnable updateFrameGeneration = () -> {
             boolean enabled = frameGenerationCompatible && frameGeneration.isChecked();
             frameGenerationSettings.setVisibility(enabled ? View.VISIBLE : View.GONE);
             frameGenerationProfile.setEnabled(enabled);
-            frameGenerationLowLatency.setEnabled(enabled);
             frameGenerationMultiplier.setEnabled(enabled);
             frameGenerationTargetFps.setEnabled(enabled);
             frameGenerationAutoFps.setVisibility(enabled
@@ -304,7 +297,7 @@ public class VideoConfigDialog extends ContentDialog {
                     String.valueOf(frameGenerationTarget(
                             frameGenerationTargetFps.getText().toString().trim())),
                     "gles",
-                    frameGenerationLowLatency.isChecked());
+                    false);
         });
     }
 

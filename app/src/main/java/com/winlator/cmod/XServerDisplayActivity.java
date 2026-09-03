@@ -319,8 +319,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     private TextView sidebarFpsLimitView;
     private TextView sidebarFrameGenerationView;
     private View sidebarFrameGenerationButton;
-    /** Runtime copy of the Display option, kept in sync with container/shortcut data. */
-    private Boolean sessionFrameGenerationLowLatency;
     private ImageButton sidebarPauseButton;
     private final Runnable sidebarStatusRunnable = new Runnable() {
         @Override public void run() {
@@ -2497,11 +2495,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 getRuntimeVideoOption("frameGenerationMultiplier", "auto"));
         int frameGenerationBackend = parseFrameGenerationBackend(
                 getRuntimeVideoOption("frameGenerationBackend", "gles"));
-        boolean configuredFrameGenerationLowLatency = "1".equals(
-                getRuntimeVideoOption("frameGenerationLowLatency", "0"));
-        if (sessionFrameGenerationLowLatency == null)
-            sessionFrameGenerationLowLatency = configuredFrameGenerationLowLatency;
-        boolean frameGenerationLowLatency = sessionFrameGenerationLowLatency;
+        // APK 0.9.5 parity: no low-latency extrapolation mode; always interpolate.
+        boolean frameGenerationLowLatency = false;
         boolean frameGenerationEnabled = "1".equals(
                 getRuntimeVideoOption("frameGenerationEnabled", "0"))
                 && isFrameGenerationCompatible();
@@ -2842,8 +2837,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         });
 
         CheckBox cbFrameGeneration = dialog.findViewById(R.id.CBDisplayFrameGeneration);
-        CheckBox cbFrameGenerationLowLatency = dialog.findViewById(
-                R.id.CBDisplayFrameGenerationLowLatency);
         Spinner sFrameGenerationProfile = dialog.findViewById(
                 R.id.SDisplayFrameGenerationProfile);
         Spinner sFrameGenerationMultiplier = dialog.findViewById(
@@ -2874,11 +2867,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         boolean frameGenerationConfigured = "1".equals(
                 getRuntimeVideoOption("frameGenerationEnabled", "0"));
         cbFrameGeneration.setChecked(frameGenerationConfigured && frameGenerationCompatible);
-        if (sessionFrameGenerationLowLatency == null) {
-            sessionFrameGenerationLowLatency = "1".equals(
-                    getRuntimeVideoOption("frameGenerationLowLatency", "0"));
-        }
-        cbFrameGenerationLowLatency.setChecked(sessionFrameGenerationLowLatency);
         cbFrameGeneration.setEnabled(frameGenerationCompatible);
         cbFrameGeneration.setAlpha(frameGenerationCompatible ? 1.0f : 0.55f);
         dialog.findViewById(R.id.BTDisplayFrameGenerationHelp).setOnClickListener(v ->
@@ -2886,17 +2874,10 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                         ? R.string.frame_generation_help : R.string.frame_generation_vulkan_only));
         dialog.findViewById(R.id.BTDisplayFrameGenerationProfileHelp).setOnClickListener(v ->
                 AppUtils.showHelpBox(this, v, R.string.frame_generation_profile_help));
-        dialog.findViewById(R.id.BTDisplayFrameGenerationLowLatencyHelp).setOnClickListener(v ->
-                AppUtils.showHelpBox(this, v, R.string.frame_generation_low_latency_help));
         llFrameGenerationSettings.setVisibility(
                 cbFrameGeneration.isChecked() ? View.VISIBLE : View.GONE);
-        cbFrameGeneration.setOnCheckedChangeListener((button, checked) -> {
-            llFrameGenerationSettings.setVisibility(checked ? View.VISIBLE : View.GONE);
-            cbFrameGenerationLowLatency.setEnabled(checked);
-            cbFrameGenerationLowLatency.setAlpha(checked ? 1.0f : 0.55f);
-        });
-        cbFrameGenerationLowLatency.setEnabled(cbFrameGeneration.isChecked());
-        cbFrameGenerationLowLatency.setAlpha(cbFrameGeneration.isChecked() ? 1.0f : 0.55f);
+        cbFrameGeneration.setOnCheckedChangeListener((button, checked) ->
+            llFrameGenerationSettings.setVisibility(checked ? View.VISIBLE : View.GONE));
         llFrameGenerationAutoFps.setVisibility(
                 sFrameGenerationMultiplier.getSelectedItemPosition() == 0
                         ? View.VISIBLE : View.GONE);
@@ -2978,7 +2959,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         dialog.setOnConfirmCallback(() -> {
             setFakeHdrEnabled(renderer, cbHdr.isChecked(), true);
-            sessionFrameGenerationLowLatency = cbFrameGenerationLowLatency.isChecked();
             int frameGenerationProfile = Math.max(0,
                     Math.min(2, sFrameGenerationProfile.getSelectedItemPosition()));
             float frameGenerationMultiplier = frameGenerationMultiplierValue(
@@ -3499,11 +3479,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         boolean safeEnabled = enabled && isFrameGenerationCompatible();
         int backend = parseFrameGenerationBackend(
                 getRuntimeVideoOption("frameGenerationBackend", "gles"));
-        if (sessionFrameGenerationLowLatency == null) {
-            sessionFrameGenerationLowLatency = "1".equals(
-                    getRuntimeVideoOption("frameGenerationLowLatency", "0"));
-        }
-        boolean lowLatency = sessionFrameGenerationLowLatency;
+        boolean lowLatency = false;
         renderer.setApex(safeEnabled, frameGenerationQuality(profile), multiplier, targetFPS,
                 frameGenerationStability(profile), backend, lowLatency);
         if (persist) {
@@ -3513,7 +3489,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             persistRuntimeVideoOption("frameGenerationMultiplier",
                     frameGenerationMultiplierStorageValue(multiplier));
             persistRuntimeVideoOption("frameGenerationTargetFPS", String.valueOf(targetFPS));
-            persistRuntimeVideoOption("frameGenerationLowLatency", lowLatency ? "1" : "0");
         }
         updateSidebarFrameGenerationState(renderer);
 
