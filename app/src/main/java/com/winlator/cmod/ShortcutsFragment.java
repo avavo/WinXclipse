@@ -151,9 +151,16 @@ public class ShortcutsFragment extends Fragment {
             onArtworkModePicked(shortcut, (int) selected.getTag());
         });
         dialog.show();
-        if (AppUtils.isDarkMode(context) && dialog.getWindow() != null) {
-            dialog.getWindow().setBackgroundDrawableResource(
-                    R.drawable.content_dialog_background_dark);
+        if (dialog.getWindow() != null) {
+            if (AppUtils.isDarkMode(context)) dialog.getWindow().setBackgroundDrawableResource(
+                    R.drawable.artwork_dialog_background);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                // System blur of the shortcuts grid behind the dialog,
+                // matching the blurred community-config panels.
+                dialog.getWindow().setBackgroundBlurRadius(48);
+            }
+            dialog.getWindow().addFlags(
+                    android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND);
         }
     }
 
