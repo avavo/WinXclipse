@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
+import android.graphics.Outline;
 import android.graphics.RenderEffect;
 import android.graphics.Shader;
 import android.graphics.drawable.GradientDrawable;
@@ -20,6 +21,7 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewOutlineProvider;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -604,9 +606,21 @@ public class CommunityConfigsFragment extends Fragment {
                 ImageView coverBanner = new ImageView(requireContext());
                 coverBanner.setImageBitmap(banner);
                 coverBanner.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                // Same portrait proportion as the outer cards (2:3),
+                // centered like a mini banner instead of a wide bar.
                 LinearLayout.LayoutParams bannerParams = new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT, dp(170));
+                        dp(200), dp(300));
+                bannerParams.gravity = Gravity.CENTER_HORIZONTAL;
                 bannerParams.bottomMargin = dp(12);
+                final int bannerRadius = dp(12);
+                coverBanner.setClipToOutline(true);
+                coverBanner.setOutlineProvider(new ViewOutlineProvider() {
+                    @Override
+                    public void getOutline(View view, Outline outline) {
+                        outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(),
+                                bannerRadius);
+                    }
+                });
                 body.addView(coverBanner, bannerParams);
             }
         }
@@ -717,6 +731,10 @@ public class CommunityConfigsFragment extends Fragment {
         });
         dialog.show();
         if (dialog.getWindow() != null) {
+            // Slightly narrower popup than the default nearly-full-width one.
+            int displayWidth = requireContext().getResources().getDisplayMetrics().widthPixels;
+            dialog.getWindow().setLayout(Math.round(displayWidth * 0.85f),
+                    android.view.WindowManager.LayoutParams.WRAP_CONTENT);
             // Purple-bordered background + blur, matching the shortcut
             // artwork dialog.
             if (AppUtils.isDarkMode(requireContext())) {
