@@ -435,6 +435,7 @@ public class ShortcutsFragment extends Fragment {
             private final ImageView imageView;
             private final TextView title;
             private final TextView subtitle;
+            private final ImageView labelBackground;
             private final View innerArea;
 
             private ViewHolder(View view) {
@@ -443,6 +444,7 @@ public class ShortcutsFragment extends Fragment {
                 this.title = view.findViewById(R.id.TVTitle);
                 this.subtitle = view.findViewById(R.id.TVSubtitle);
                 this.menuButton = view.findViewById(R.id.BTMenu);
+                this.labelBackground = view.findViewById(R.id.IVLabelBackground);
                 this.innerArea = view.findViewById(R.id.LLInnerArea);
             }
         }
@@ -474,6 +476,27 @@ public class ShortcutsFragment extends Fragment {
                 holder.imageView.setImageBitmap(item.icon);
             } else {
                 holder.imageView.setImageResource(R.drawable.cover_art_placeholder);
+            }
+            // Blurred artwork label, same language as the community cards.
+            Bitmap labelArt = item.getCoverArt() != null ? item.getCoverArt() : item.icon;
+            if (labelArt != null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    holder.labelBackground.setImageBitmap(labelArt);
+                    holder.labelBackground.setRenderEffect(android.graphics.RenderEffect.createBlurEffect(
+                            22.0f, 22.0f, android.graphics.Shader.TileMode.CLAMP));
+                }
+                else {
+                    // Cheap blur fallback without RenderScript on Android 8-11.
+                    holder.labelBackground.setRenderEffect(null);
+                    int width = Math.max(8, Math.min(48, labelArt.getWidth() / 12));
+                    int height = Math.max(8, Math.min(64, labelArt.getHeight() / 12));
+                    holder.labelBackground.setImageBitmap(
+                            Bitmap.createScaledBitmap(labelArt, width, height, true));
+                }
+            }
+            else {
+                holder.labelBackground.setRenderEffect(null);
+                holder.labelBackground.setImageResource(R.drawable.cover_art_placeholder);
             }
             if (item.getCoverArt() == null) {
                 ShortcutArtworkManager.ensure(requireContext(), item, false, success -> {
