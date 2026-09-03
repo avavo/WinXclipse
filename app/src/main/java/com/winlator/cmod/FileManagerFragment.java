@@ -33,11 +33,13 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.winlator.cmod.container.Container;
 import com.winlator.cmod.container.ContainerManager;
+import com.winlator.cmod.container.Shortcut;
 import com.winlator.cmod.contentdialog.ContentDialog;
 import com.winlator.cmod.core.AppUtils;
 import com.winlator.cmod.core.TarCompressorUtils;
 import com.winlator.cmod.core.ExeIconExtractor;
 import com.winlator.cmod.core.FileUtils;
+import com.winlator.cmod.core.ShortcutArtworkManager;
 import com.winlator.cmod.widget.FileProgressDialog;
 
 import java.io.File;
@@ -668,6 +670,21 @@ public class FileManagerFragment extends Fragment {
                 File iconDest = new File(iconDir64, displayName + ".png");
                 ExeIconExtractor.extractAsync(file, iconDest, false, null);
             }
+
+            // New shortcuts always start in browser artwork mode and fetch
+            // the cover immediately (forced: bypasses the already-fetched
+            // checks), instead of waiting for a later list bind that may
+            // never run or hit the session negative cache.
+            try {
+                Shortcut artworkShortcut = new Shortcut(container, desktopFile);
+                ShortcutArtworkManager.setMode(artworkShortcut,
+                        ShortcutArtworkManager.MODE_BROWSER);
+                Context artworkContext = getContext();
+                if (artworkContext != null) {
+                    ShortcutArtworkManager.ensure(artworkContext, artworkShortcut, true, null);
+                }
+            }
+            catch (Exception ignored) {}
         } catch (IOException e) {
             Toast.makeText(getContext(), "Failed to create shortcut", Toast.LENGTH_SHORT).show();
         }
