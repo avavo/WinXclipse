@@ -85,6 +85,12 @@
   },
   {
     "type": "Proton",
+    "verName": "9.0-arm64ec",
+    "verCode": 0,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-wine-proton-v0.8/proton-9.0-arm64ec.wcp"
+  },
+  {
+    "type": "Proton",
     "verName": "10-arm64ec",
     "verCode": 1000,
     "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-wine-proton-v0.8/proton-10-arm64ec.wcp.xz"

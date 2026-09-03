@@ -907,6 +907,22 @@ public class ContentsFragment extends Fragment {
                                         return;
                                     }
                                 }
+                                // Wine and Proton share one runtime pool: removing
+                                // the last installed runtime would leave every
+                                // container without anything to launch.
+                                boolean hasReplacement = false;
+                                for (ContentProfile.ContentType runtimeType : new ContentProfile.ContentType[]{ContentProfile.ContentType.CONTENT_TYPE_WINE, ContentProfile.ContentType.CONTENT_TYPE_PROTON}) {
+                                    for (ContentProfile other : manager.getProfiles(runtimeType)) {
+                                        if (other == profile) continue;
+                                        if (ContentsManager.getEntryName(other).equals(ContentsManager.getEntryName(profile))) continue;
+                                        if (manager.isInstalledProfile(other)) { hasReplacement = true; break; }
+                                    }
+                                    if (hasReplacement) break;
+                                }
+                                if (!hasReplacement) {
+                                    ContentDialog.alert(getContext(), getString(R.string.unable_to_remove_last_runtime), null);
+                                    return;
+                                }
                             }
                             manager.removeContent(profile);
                             // Drop the bundled-asset success markers so an
