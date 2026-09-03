@@ -25,7 +25,10 @@ import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.PopupMenu;
+import android.widget.RadioButton;
+import android.widget.RadioGroup;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -48,6 +51,7 @@ import com.winlator.cmod.container.ContainerManager;
 import com.winlator.cmod.container.Shortcut;
 import com.winlator.cmod.contentdialog.ContentDialog;
 import com.winlator.cmod.contentdialog.ShortcutSettingsDialog;
+import com.winlator.cmod.core.AppUtils;
 import com.winlator.cmod.core.FileUtils;
 import com.winlator.cmod.core.MSLink;
 import com.winlator.cmod.core.PreloaderDialog;
@@ -100,27 +104,74 @@ public class ShortcutsFragment extends Fragment {
     }
 
     private void showArtworkSourceDialog(final Shortcut shortcut) {
+        Context context = requireContext();
         String[] entries = getResources().getStringArray(R.array.shortcut_artwork_mode_entries);
-        String current = ShortcutArtworkManager.getMode(requireContext(), shortcut);
+        String current = ShortcutArtworkManager.getMode(context, shortcut);
         int checked = ShortcutArtworkManager.MODE_EXE.equals(current) ? 1
                 : ShortcutArtworkManager.MODE_CUSTOM.equals(current) ? 2 : 0;
-        new AlertDialog.Builder(requireContext())
+
+        float density = getResources().getDisplayMetrics().density;
+        LinearLayout body = new LinearLayout(context);
+        body.setOrientation(LinearLayout.VERTICAL);
+        int pad = Math.round(20 * density);
+        body.setPadding(pad, Math.round(pad / 2f), pad, Math.round(pad / 2f));
+
+        ImageView preview = new ImageView(context);
+        Bitmap cover = shortcut.getCoverArt();
+        if (cover != null) preview.setImageBitmap(cover);
+        else if (shortcut.icon != null) preview.setImageBitmap(shortcut.icon);
+        else preview.setImageResource(R.drawable.cover_art_placeholder);
+        preview.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        LinearLayout.LayoutParams previewParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, Math.round(190 * density));
+        previewParams.bottomMargin = Math.round(12 * density);
+        body.addView(preview, previewParams);
+
+        RadioGroup group = new RadioGroup(context);
+        for (int i = 0; i < entries.length; i++) {
+            RadioButton option = new RadioButton(context);
+            option.setText(entries[i]);
+            option.setTextSize(16);
+            option.setTag(i);
+            option.setPadding(0, Math.round(6 * density), 0, Math.round(6 * density));
+            group.addView(option);
+        }
+        ((RadioButton) group.getChildAt(Math.max(0, Math.min(checked, entries.length - 1)))).setChecked(true);
+        body.addView(group);
+
+        AlertDialog dialog = new AlertDialog.Builder(context)
                 .setTitle(R.string.shortcut_artwork)
-                .setSingleChoiceItems(entries, checked, (dialog, which) -> {
-                    dialog.dismiss();
-                    if (which == 2) {
-                        ShortcutArtworkManager.setMode(shortcut, ShortcutArtworkManager.MODE_CUSTOM);
-                        openArtworkPicker(shortcut);
-                        return;
-                    }
-                    clearArtwork(shortcut);
-                    String mode = which == 1 ? ShortcutArtworkManager.MODE_EXE
-                            : ShortcutArtworkManager.MODE_BROWSER;
-                    ShortcutArtworkManager.setMode(shortcut, mode);
-                    ShortcutArtworkManager.ensure(requireContext(), shortcut, true,
-                            success -> loadShortcutsList());
-                })
-                .show();
+                .setView(body)
+                .setNegativeButton(android.R.string.cancel, null)
+                .create();
+        group.setOnCheckedChangeListener((g, checkedId) -> {
+            RadioButton selected = g.findViewById(checkedId);
+            if (selected == null || selected.getTag() == null) return;
+            dialog.dismiss();
+            onArtworkModePicked(shortcut, (int) selected.getTag());
+        });
+        dialog.show();
+        if (AppUtils.isDarkMode(context) && dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawableResource(
+                    R.drawable.content_dialog_background_dark);
+        }
+    }
+
+    private void onArtworkModePicked(Shortcut shortcut, int which) {
+        if (which == 2) {
+            ShortcutArtworkManager.setMode(shortcut, ShortcutArtworkManager.MODE_CUSTOM);
+            openArtworkPicker(shortcut);
+            return;
+        }
+        clearArtwork(shortcut);
+        String mode = which == 1 ? ShortcutArtworkManager.MODE_EXE
+                : ShortcutArtworkManager.MODE_BROWSER;
+        ShortcutArtworkManager.setMode(shortcut, mode);
+        ShortcutArtworkManager.ensure(requireContext(), shortcut, true, success -> {
+            loadShortcutsList();
+            if (!success && isAdded()) Toast.makeText(getContext(),
+                    R.string.shortcut_artwork_failed, Toast.LENGTH_SHORT).show();
+        });
     }
 
     private void handleSelectedArtwork(Uri uri) {

@@ -52,6 +52,12 @@ public final class ShortcutArtworkManager {
     private static final Set<String> PENDING = Collections.synchronizedSet(new HashSet<String>());
     /** Session negative cache: shortcuts whose online lookup already failed. */
     private static final Set<String> FAILED = Collections.synchronizedSet(new HashSet<String>());
+    /** Minimum local relevance for a SteamGridDB candidate. Below this the
+     * result counts as "not found" so an unrelated game never becomes the
+     * cover (e.g. a utility whose name only shares one token). */
+    private static final int MIN_BROWSER_MATCH_SCORE = 150;
+    /** Max per-game grid fetches per lookup. */
+    private static final int MAX_BROWSER_GRID_FETCHES = 5;
     private static final OkHttpClient HTTP_CLIENT = new OkHttpClient();
     private static volatile SteamGridDBApi steamGridApi;
 
@@ -208,10 +214,13 @@ public final class ShortcutArtworkManager {
                 searchMatchScore(query, left != null ? left.name : null)));
 
         String imageUrl = null;
-        int attempts = Math.min(5, candidates.size());
-        for (int index = 0; index < attempts && imageUrl == null; index++) {
+        int fetched = 0;
+        for (int index = 0; index < candidates.size()
+                && imageUrl == null && fetched < MAX_BROWSER_GRID_FETCHES; index++) {
             SteamGridSearchResponse.GameData candidate = candidates.get(index);
-            if (candidate == null) continue;
+            if (candidate == null
+                    || searchMatchScore(query, candidate.name) < MIN_BROWSER_MATCH_SCORE) continue;
+            fetched++;
             retrofit2.Response<SteamGridGridsResponse> grids = api.getGridsByGameId(
                     "Bearer " + key, candidate.id,
                     "alternate,blurred,material", "600x900", "static").execute();
@@ -239,10 +248,14 @@ public final class ShortcutArtworkManager {
     private static String cleanSearchName(String name) {
         if (name == null) return "game";
         String clean = name.replace('_', ' ').replace('-', ' ')
-                .replaceAll("(?i)\\.exe$", "")
-                .replaceAll("(?i)\\b(?:launcher|shipping|win64|win32|x64|x86|dx11|dx12|vulkan|opengl)\\b", " ")
+                .replaceAll("(?<=[a-z0-9])(?=[A-Z])", " ")
+                .replaceAll("(?i)\\.(exe|msi|lnk)$", "")
+                .replaceAll("\\([^)]*\\)", " ")
+                .replaceAll("\\[[^]]*\\]", " ")
+                .replaceAll("(?i)\\bv?\\d+(?:\\.\\d+)+[a-z]*\\b", " ")
+                .replaceAll("(?i)\\b(?:launcher|shipping|win64|win32|x64|x86|dx11|dx12|vulkan|opengl|portable|setup|installer|repack|offline|online)\\b", " ")
                 .replaceAll("(?i)\\s+(?:demo|benchmark)$", "")
-                .replaceAll("\\s+", " ").trim();
+                .replaceAll("[\\W_]+", " ").trim();
         return clean.isEmpty() ? "game" : clean;
     }
 
@@ -251,17 +264,25 @@ public final class ShortcutArtworkManager {
         String found = normalizeSearchText(candidate);
         if (found.isEmpty()) return Integer.MIN_VALUE;
         if (wanted.equals(found)) return 10_000;
+        // Spaceless comparison catches exe-style names ("eldenring" = "Elden Ring").
+        String wantedFlat = wanted.replace(" ", "");
+        String foundFlat = found.replace(" ", "");
+        if (!wantedFlat.isEmpty() && wantedFlat.equals(foundFlat)) return 5_000;
 
         int score = 0;
         if (found.startsWith(wanted) || wanted.startsWith(found)) score += 2_000;
         if (found.contains(wanted) || wanted.contains(found)) score += 1_000;
+        if (!wantedFlat.isEmpty() && !foundFlat.isEmpty()
+                && (foundFlat.contains(wantedFlat) || wantedFlat.contains(foundFlat))) score += 800;
         String[] wantedTokens = wanted.split(" ");
         String[] foundTokens = found.split(" ");
         for (String token : wantedTokens) {
             if (token.isEmpty()) continue;
             for (String resultToken : foundTokens) {
                 if (token.equals(resultToken)) {
-                    score += 200;
+                    // A bare number ("7", "24") matches dozens of unrelated
+                    // titles, so it barely counts on its own.
+                    score += token.matches("\\d+") ? 20 : 200;
                     break;
                 }
             }
