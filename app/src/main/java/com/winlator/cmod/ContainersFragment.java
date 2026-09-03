@@ -381,7 +381,7 @@ public class ContainersFragment extends Fragment {
                         choices.add(null);
                         resolveImportedContents(manifest, resolutions, choices, index + 1);
                     })
-                    .setNeutralButton(android.R.string.cancel, null)
+                    .setNeutralButton("Cancel", null)
                     .create();
             showCommunityDialog(dialog);
         } else if ("wineRuntime".equals(current.reference.optString("role", ""))
@@ -396,18 +396,19 @@ public class ContainersFragment extends Fragment {
                         choices.add(null);
                         resolveImportedContents(manifest, resolutions, choices, index + 1);
                     })
-                    .setNegativeButton(android.R.string.cancel, null)
+                    .setNegativeButton("Cancel", null)
                     .create();
             showCommunityDialog(dialog);
         } else {
             AlertDialog dialog = new AlertDialog.Builder(requireContext())
                     .setTitle("Content not found")
-                    .setMessage(message + "\n\nNo sufficiently similar installed content was found.")
+                    .setMessage(message + "\n\nNo sufficiently similar installed content was found."
+                            + "\n\nTip: install it from Downloads, then import the config again.")
                     .setPositiveButton("Continue without", (dialogInterface, which) -> {
                         choices.add(null);
                         resolveImportedContents(manifest, resolutions, choices, index + 1);
                     })
-                    .setNegativeButton(android.R.string.cancel, null)
+                    .setNegativeButton("Cancel", null)
                     .create();
             showCommunityDialog(dialog);
         }
@@ -415,9 +416,17 @@ public class ContainersFragment extends Fragment {
 
     private void showCommunityDialog(AlertDialog dialog) {
         dialog.show();
-        if (AppUtils.isDarkMode(requireContext()) && dialog.getWindow() != null) {
-            dialog.getWindow().setBackgroundDrawableResource(
-                    R.drawable.content_dialog_background_dark);
+        if (dialog.getWindow() != null) {
+            // Purple-bordered background + blur, matching the artwork dialogs.
+            if (AppUtils.isDarkMode(requireContext())) {
+                dialog.getWindow().setBackgroundDrawableResource(
+                        R.drawable.artwork_dialog_background);
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                dialog.getWindow().setBackgroundBlurRadius(48);
+            }
+            dialog.getWindow().addFlags(
+                    android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND);
         }
     }
 

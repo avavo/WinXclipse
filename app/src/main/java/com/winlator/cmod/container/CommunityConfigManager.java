@@ -417,6 +417,28 @@ public final class CommunityConfigManager {
                 Log.w("CommunityConfig", "Could not refresh installed content", syncError);
             }
         }
+        // Same recovery from the remote Downloads catalog: a config may ask
+        // for content (e.g. DXVK 1.7.3-async) that is listed for download but
+        // not installed yet. Fetch it now so import does not prompt for
+        // something one tap away. Runtimes are excluded: multi-GB downloads
+        // must remain an explicit user choice in Downloads.
+        boolean recoveredRemote = false;
+        if (refs != null) {
+            for (int i = 0; i < refs.length(); i++) {
+                JSONObject ref = refs.optJSONObject(i);
+                if (ref == null || "wineRuntime".equals(ref.optString("role", ""))) continue;
+                if (findExactInstalled(manager, ref) != null) continue;
+                if (recoverRemoteContent(context, manager, ref)) recoveredRemote = true;
+            }
+            if (recoveredRemote) {
+                try {
+                    manager.syncContents();
+                }
+                catch (RuntimeException syncError) {
+                    Log.w("CommunityConfig", "Could not refresh installed content", syncError);
+                }
+            }
+        }
         List<ContentProfile> installed = allInstalledProfiles(manager);
 
         for (int i = 0; i < refs.length(); i++) {
@@ -993,6 +1015,59 @@ public final class CommunityConfigManager {
                 ref.optString("versionName", "")));
         return requested.equals(contentIdentity(ContentsManager.getEntryName(profile)))
                 || requested.equals(contentIdentity(profile.verName));
+    }
+
+    /**
+     * Downloads and installs a remote catalog package matching the reference
+     * (same path as a Downloads WCP recovery). Remote profiles are already
+     * mixed into {@code getProfiles()} by ContentsManager; only entries with
+     * a download URL that are not installed yet are considered.
+     */
+    private static boolean recoverRemoteContent(Context context, ContentsManager manager,
+                                                JSONObject ref) {
+        for (ContentProfile.ContentType type : ContentProfile.ContentType.values()) {
+            List<ContentProfile> profiles;
+            try {
+                profiles = manager.getProfiles(type);
+            }
+            catch (RuntimeException error) {
+                continue;
+            }
+            if (profiles == null) continue;
+            for (ContentProfile candidate : profiles) {
+                if (candidate == null || candidate.type == null) continue;
+                if (candidate.remoteUrl == null || candidate.remoteUrl.isEmpty()) continue;
+                try {
+                    if (manager.isInstalledProfile(candidate)) continue;
+                }
+                catch (RuntimeException error) {
+                    continue;
+                }
+                if (!isCompatibleProfile(candidate, ref.optString("type", ""),
+                        ref.optString("role", ""))) continue;
+                if (!matchesReference(candidate, ref)) continue;
+                File downloaded = new File(context.getCacheDir(),
+                        "community-content-"
+                                + Integer.toHexString(candidate.remoteUrl.hashCode()) + ".wcp");
+                try {
+                    if ((downloaded.isFile()
+                            || Downloader.downloadFile(candidate.remoteUrl, downloaded))
+                            && installMatchingPackage(context, manager, ref, downloaded)) {
+                        Log.i("CommunityConfig", "Recovered remote content "
+                                + ContentsManager.getEntryName(candidate));
+                        return true;
+                    }
+                }
+                catch (RuntimeException error) {
+                    Log.w("CommunityConfig", "Could not recover remote content", error);
+                }
+                finally {
+                    FileUtils.delete(downloaded);
+                }
+                return false;
+            }
+        }
+        return false;
     }
 
     private static boolean installMatchingPackage(Context context, ContentsManager manager,
