@@ -72,6 +72,9 @@ public class ContentProfile {
     public String protonPrefixPack;
     public String remoteUrl;
     public String contentId;
+    /** True for the APK-baked runtime in imagefs/opt (not a contents/ install).
+     * Managed so it can be listed and removed, never reinstalled from assets. */
+    public boolean bakedInRuntime;
     /** Temporary extraction directory, populated only during installation. */
     File stagingDir;
 

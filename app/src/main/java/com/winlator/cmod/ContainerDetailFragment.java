@@ -1584,7 +1584,12 @@ public class ContainerDetailFragment extends Fragment {
         view.findViewById(R.id.LLWineVersion).setVisibility(View.VISIBLE);
         String[] versions = getResources().getStringArray(R.array.wine_entries);
         ArrayList<String> wineVersions = new ArrayList<>();
-        wineVersions.addAll(Arrays.asList(versions));
+        File imagefsOpt = new File(ImageFs.find(context).getRootDir(), "opt");
+        for (String version : versions) {
+            // Hide bundled identifiers whose tree the user removed; installed
+            // content profiles below (including the replacement) stay listed.
+            if (new File(new File(imagefsOpt, version), "bin/wine").isFile()) wineVersions.add(version);
+        }
         for (ContentProfile profile : contentsManager.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_WINE)) {
             if (contentsManager.isInstalledProfile(profile))
                 wineVersions.add(ContentsManager.getEntryName(profile));

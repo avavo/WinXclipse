@@ -438,6 +438,7 @@
     <string name="do_you_want_to_reinstall_imagefs">Do you want to reinstall imagefs? This operation will restore system files, your containers won\'t be changed.</string>
     <string name="unable_to_remove_content_since_container_using">Unable to remove this content, because a container is currently using this Wine.</string>
     <string name="unable_to_remove_last_runtime">Unable to remove this Proton/Wine, because it is the last runtime installed. Install another one first.</string>
+    <string name="containers_moved_to_runtime">Containers moved to %1$s.</string>
     <string name="get_more_contents_form_github">You can access https://github.com/longjunyu2/winlator/releases to get more contents.</string>
     <string name="setup_failed">Setup failed</string>
     <string name="graphics_driver_configuration">Graphics Driver Configuration</string>

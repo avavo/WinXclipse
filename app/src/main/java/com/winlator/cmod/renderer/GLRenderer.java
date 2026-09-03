@@ -691,7 +691,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
         requestedApexEnabled = enabled;
         requestedApexQuality = Math.max(0, Math.min(2, quality));
         requestedApexMultiplier = multiplier >= 1.5f
-                ? Math.min(4.0f, multiplier) : 0.0f;
+                ? Math.min(5.0f, multiplier) : 0.0f;
         requestedApexTargetFPS = Math.max(15, Math.min(240, targetFPS));
         requestedApexStability = Math.max(0.0f, Math.min(1.0f, stability));
         requestedApexBackend = Math.max(LSFGManager.BACKEND_GLES,

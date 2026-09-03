@@ -3440,7 +3440,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         try {
             float parsed = Float.parseFloat(value);
             if (parsed < 1.5f) return 0.0f;
-            return Math.min(4.0f, Math.round(parsed * 2.0f) / 2.0f);
+            return Math.min(5.0f, Math.round(parsed * 2.0f) / 2.0f);
         }
         catch (Exception ignored) {
             return 0.0f;
@@ -3465,12 +3465,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     private static int frameGenerationMultiplierIndex(float multiplier) {
         if (multiplier < 1.5f) return 0;
-        return Math.max(1, Math.min(6, Math.round((multiplier - 1.0f) * 2.0f)));
+        return Math.max(1, Math.min(8, Math.round((multiplier - 1.0f) * 2.0f)));
     }
 
     private static float frameGenerationMultiplierValue(int index) {
         if (index <= 0) return 0.0f;
-        return 1.0f + Math.max(1, Math.min(6, index)) * 0.5f;
+        return 1.0f + Math.max(1, Math.min(8, index)) * 0.5f;
     }
 
     private static String frameGenerationMultiplierStorageValue(float multiplier) {

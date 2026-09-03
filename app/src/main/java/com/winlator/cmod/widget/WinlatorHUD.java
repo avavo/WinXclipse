@@ -1083,7 +1083,7 @@ public class WinlatorHUD extends View {
         uiHandler.post(() -> {
             apexRealFps = Math.max(0, realFps);
             apexGeneratedFps = Math.max(0, generatedFps);
-            apexMultiplier = Math.max(1.0f, Math.min(4.0f, multiplier));
+            apexMultiplier = Math.max(1.0f, Math.min(5.0f, multiplier));
             String safeBackend = backend == null || backend.trim().isEmpty()
                     ? "Unknown" : backend.trim();
             String safeState = state == null || state.trim().isEmpty()

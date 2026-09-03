@@ -50,6 +50,14 @@ public class ContentsManager {
     public static final String[] BOX64_TRUST_FILES = {"${bindir}/box64"};
     public static final String[] WOWBOX64_TRUST_FILES = {"${system32}/wowbox64.dll"};
     public static final String[] FEXCORE_TRUST_FILES = {"${system32}/libwow64fex.dll", "${system32}/libarm64ecfex.dll"};
+    /** APK-baked default runtime (extracted from proton-9.0-arm64ec.txz into
+     * imagefs on first boot). Exposed as a managed Proton profile so it can be
+     * removed once a replacement runtime is installed. Identity intentionally
+     * matches the downloadable proton-9.0-arm64ec.wcp (same verName/verCode)
+     * so the catalog dedupes them and the remote appears after removal. */
+    public static final String BAKED_IN_PROTON_DIR = "imagefs/opt/proton-9.0-arm64ec";
+    public static final String BAKED_IN_PROTON_VERNAME = "9.0-arm64ec";
+    public static final int BAKED_IN_PROTON_VERCODE = 0;
     private Map<String, String> dirTemplateMap;
     private Map<ContentProfile.ContentType, List<String>> trustedFilesMap;
 
@@ -401,6 +409,50 @@ public class ContentsManager {
                 }
             }
         }
+
+        // The APK-baked Proton is not a contents/ install, but it is a real
+        // installed runtime. Expose it so Downloads can show and remove it
+        // (with a replacement). A downloaded copy with the same identity
+        // takes precedence and hides the synthetic entry.
+        List<ContentProfile> protons = profilesMap.get(ContentProfile.ContentType.CONTENT_TYPE_PROTON);
+        if (protons != null && hasBakedInProton(context)) {
+            boolean covered = false;
+            for (ContentProfile profile : protons) {
+                if (BAKED_IN_PROTON_VERNAME.equals(profile.verName)
+                        && profile.verCode == BAKED_IN_PROTON_VERCODE
+                        && isInstalledProfile(profile)) {
+                    covered = true;
+                    break;
+                }
+            }
+            if (!covered) {
+                ContentProfile bakedIn = new ContentProfile();
+                bakedIn.type = ContentProfile.ContentType.CONTENT_TYPE_PROTON;
+                bakedIn.verName = BAKED_IN_PROTON_VERNAME;
+                bakedIn.verCode = BAKED_IN_PROTON_VERCODE;
+                bakedIn.desc = "Built-in default runtime (APK)";
+                bakedIn.fileList = new ArrayList<>();
+                bakedIn.wineBinPath = "bin";
+                bakedIn.wineLibPath = "lib";
+                bakedIn.winePrefixPack = "prefixPack.txz";
+                bakedIn.protonLibPath = "lib";
+                bakedIn.protonBinPath = "bin";
+                bakedIn.protonPrefixPack = "prefixPack.txz";
+                bakedIn.bakedInRuntime = true;
+                protons.add(bakedIn);
+                Log.d("ContentsManager", "Baked-in Proton profile added");
+            }
+        }
+    }
+
+    /** True while the APK-baked Proton tree is present in imagefs. */
+    public static boolean hasBakedInProton(Context context) {
+        return new File(context.getFilesDir(), BAKED_IN_PROTON_DIR + "/bin/wine").isFile();
+    }
+
+    /** Root of the APK-baked Proton tree inside imagefs. */
+    public static File getBakedInProtonDir(Context context) {
+        return new File(context.getFilesDir(), BAKED_IN_PROTON_DIR);
     }
 
     public void extraContentFile(Uri uri, OnInstallFinishedCallback callback) {
@@ -797,12 +849,14 @@ public class ContentsManager {
      * present does not by itself mean the runtime can be launched. */
     public boolean isInstalledProfile(ContentProfile profile) {
         if (profile == null) return false;
+        if (profile.bakedInRuntime) return hasBakedInProton(context);
         File installDir = getInstallDir(context, profile);
         return installDir.isDirectory()
                 && new File(installDir, PROFILE_NAME).isFile();
     }
 
     public static File getInstallDir(Context context, ContentProfile profile) {
+        if (profile.bakedInRuntime) return getBakedInProtonDir(context);
         return new File(getContentTypeDir(context, profile.type), profile.verName + "-" + profile.verCode);
     }
 

@@ -95,7 +95,7 @@ public final class LSFGManager {
 
     public void setMultiplier(float multiplier) {
         requestedMultiplier = multiplier >= 1.5f
-                ? Math.min(4.0f, multiplier) : 0.0f;
+                ? Math.min(5.0f, multiplier) : 0.0f;
         effectiveMultiplier = requestedMultiplier > 0.0f
                 ? requestedMultiplier : Math.max(1.0f, effectiveMultiplier);
     }

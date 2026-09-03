@@ -49,6 +49,7 @@ import com.winlator.cmod.core.AppUtils;
 import com.winlator.cmod.core.ContentOperationRegistry;
 import com.winlator.cmod.core.FileUtils;
 import com.winlator.cmod.core.PreloaderDialog;
+import com.winlator.cmod.core.WineInfo;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -899,30 +900,73 @@ public class ContentsFragment extends Fragment {
                         new ContentInfoDialog(getContext(), profile).show();
                     } else if (itemId == R.id.remove_content) {
                         ContentDialog.confirm(getContext(), R.string.do_you_want_to_remove_this_content, () -> {
-                            if (profile.type == ContentProfile.ContentType.CONTENT_TYPE_WINE || profile.type == ContentProfile.ContentType.CONTENT_TYPE_PROTON) {
-                                ContainerManager containerManager = new ContainerManager(getContext());
-                                for (Container container : containerManager.getContainers()) {
-                                    if (container.getWineVersion().equals(ContentsManager.getEntryName(profile))) {
-                                        ContentDialog.alert(getContext(), String.format(getString(R.string.unable_to_remove_content_since_container_using), container.getName()), null);
-                                        return;
-                                    }
-                                }
+                            ContentProfile replacement = null;
+                            boolean isRuntime = profile.type == ContentProfile.ContentType.CONTENT_TYPE_WINE
+                                    || profile.type == ContentProfile.ContentType.CONTENT_TYPE_PROTON;
+                            if (isRuntime) {
                                 // Wine and Proton share one runtime pool: removing
                                 // the last installed runtime would leave every
                                 // container without anything to launch.
-                                boolean hasReplacement = false;
+                                outer:
                                 for (ContentProfile.ContentType runtimeType : new ContentProfile.ContentType[]{ContentProfile.ContentType.CONTENT_TYPE_WINE, ContentProfile.ContentType.CONTENT_TYPE_PROTON}) {
                                     for (ContentProfile other : manager.getProfiles(runtimeType)) {
-                                        if (other == profile) continue;
                                         if (ContentsManager.getEntryName(other).equals(ContentsManager.getEntryName(profile))) continue;
-                                        if (manager.isInstalledProfile(other)) { hasReplacement = true; break; }
+                                        if (manager.isInstalledProfile(other)) { replacement = other; break outer; }
                                     }
-                                    if (hasReplacement) break;
                                 }
-                                if (!hasReplacement) {
+                                if (replacement == null) {
                                     ContentDialog.alert(getContext(), getString(R.string.unable_to_remove_last_runtime), null);
                                     return;
                                 }
+                                if (!profile.bakedInRuntime) {
+                                    ContainerManager containerManager = new ContainerManager(getContext());
+                                    for (Container container : containerManager.getContainers()) {
+                                        if (container.getWineVersion().equals(ContentsManager.getEntryName(profile))) {
+                                            ContentDialog.alert(getContext(), String.format(getString(R.string.unable_to_remove_content_since_container_using), container.getName()), null);
+                                            return;
+                                        }
+                                    }
+                                }
+                            }
+                            if (profile.bakedInRuntime) {
+                                // Point every container on the built-in runtime
+                                // at the replacement, then delete the 2.4 GB
+                                // tree off the UI thread.
+                                ContainerManager containerManager = new ContainerManager(getContext());
+                                String replacementEntry = ContentsManager.getEntryName(replacement);
+                                int moved = 0;
+                                for (Container container : containerManager.getContainers()) {
+                                    String wineVersion = container.getWineVersion();
+                                    if (WineInfo.isMainWineVersion(wineVersion)                                            || wineVersion.equals(ContentsManager.getEntryName(profile))) {
+                                        container.setWineVersion(replacementEntry);
+                                        container.saveData();
+                                        moved++;
+                                    }
+                                }
+                                final int movedCount = moved;
+                                final ContentProfile finalReplacement = replacement;
+                                android.app.Activity hostActivity = getActivity();
+                                PreloaderDialog preloader = new PreloaderDialog(requireActivity());
+                                preloader.show(R.string.installing_content);
+                                preloader.setIndeterminate();
+                                preloader.allowBackground();
+                                new Thread(() -> {
+                                    manager.removeContent(profile);
+                                    if (hostActivity == null) return;
+                                    hostActivity.runOnUiThread(() -> {
+                                        if (!isAdded()) { preloader.close(); return; }
+                                        preloader.close();
+                                        PreferenceManager.getDefaultSharedPreferences(getContext())
+                                                .edit()
+                                                .remove(MainActivity.PREF_INSTALLED_ASSET_CONTENTS)
+                                                .apply();
+                                        loadContentList();
+                                        if (movedCount > 0) AppUtils.showToast(getContext(), String.format(
+                                                getString(R.string.containers_moved_to_runtime),
+                                                ContentsManager.getEntryName(finalReplacement)));
+                                    });
+                                }, "RemoveBakedInRuntime").start();
+                                return;
                             }
                             manager.removeContent(profile);
                             // Drop the bundled-asset success markers so an
