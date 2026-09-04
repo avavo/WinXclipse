@@ -5507,6 +5507,11 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             @Override
             public void onAudioDevicesAdded(AudioDeviceInfo[] addedDevices) {
                 logAudioDevices("added", addedDevices);
+                if (isRecorderSubmixOnly(addedDevices)) {
+                    Log.i("AudioDeviceCallback",
+                            "Recorder submix change only; keeping PulseAudio daemon alive.");
+                    return;
+                }
                 if (environment != null) {
                     ALSAServerComponent alsaComponent = environment.getComponent(ALSAServerComponent.class);
                     if (alsaComponent != null) {
@@ -5520,6 +5525,11 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             @Override
             public void onAudioDevicesRemoved(AudioDeviceInfo[] removedDevices) {
                 logAudioDevices("removed", removedDevices);
+                if (isRecorderSubmixOnly(removedDevices)) {
+                    Log.i("AudioDeviceCallback",
+                            "Recorder submix change only; keeping PulseAudio daemon alive.");
+                    return;
+                }
                 if (environment != null) {
                     ALSAServerComponent alsaComponent = environment.getComponent(ALSAServerComponent.class);
                     if (alsaComponent != null) {
@@ -5533,6 +5543,18 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         // Register the callback with the system.
         audioManager.registerAudioDeviceCallback(audioDeviceCallback, new Handler(Looper.getMainLooper()));
+    }
+
+    /** Screen recording announces a virtual capture device. Restarting the
+     * PulseAudio daemon for that alone is what mutes the game while
+     * recording, so submix-only changes are ignored. */
+    private static boolean isRecorderSubmixOnly(AudioDeviceInfo[] devices) {
+        if (devices == null || devices.length == 0) return false;
+        for (AudioDeviceInfo device : devices) {
+            if (device == null) continue;
+            if (device.getType() != AudioDeviceInfo.TYPE_REMOTE_SUBMIX) return false;
+        }
+        return true;
     }
 
     private static void logAudioDevices(String action, AudioDeviceInfo[] devices) {

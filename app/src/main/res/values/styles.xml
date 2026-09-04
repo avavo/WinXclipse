@@ -168,7 +168,7 @@
     <style name="ContentDialog.Dark" parent="@style/Theme.AppCompat.Dialog.Alert">
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowFullscreen">true</item>
-        <item name="android:windowBackground">@drawable/content_dialog_background_dark</item>
+        <item name="android:windowBackground">@drawable/artwork_dialog_background</item>
         <item name="colorAccent">@color/colorAccentDark</item>
         <item name="android:colorAccent">@color/colorAccentDark</item>
         <item name="colorPrimary">@color/colorPrimaryDarkMode</item>
