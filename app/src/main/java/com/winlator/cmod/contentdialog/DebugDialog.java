@@ -162,7 +162,7 @@ public class DebugDialog extends ContentDialog implements Callback<String> {
 
     private static int resolveAccentColor(Context context) {
         android.util.TypedValue typed = new android.util.TypedValue();
-        if (context.getTheme().resolveAttribute(R.attr.colorAccent, typed, true)) {
+        if (context.getTheme().resolveAttribute(android.R.attr.colorAccent, typed, true)) {
             return typed.data;
         }
         return 0xFF7C4DFF;
