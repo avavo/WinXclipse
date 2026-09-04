@@ -418,9 +418,12 @@ public class ContainersFragment extends Fragment {
         dialog.show();
         if (dialog.getWindow() != null) {
             // Purple-bordered background + blur, matching the artwork dialogs.
-            dialog.getWindow().setBackgroundDrawableResource(AppUtils.isDarkMode(requireContext())
+            // Light mode uses a lighter dim so the blur does not go too dark.
+            boolean darkMode = AppUtils.isDarkMode(requireContext());
+            dialog.getWindow().setBackgroundDrawableResource(darkMode
                     ? R.drawable.artwork_dialog_background
                     : R.drawable.artwork_dialog_background_light);
+            if (!darkMode) dialog.getWindow().setDimAmount(0.25f);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 dialog.getWindow().setBackgroundBlurRadius(48);
             }
@@ -917,9 +920,12 @@ public class ContainersFragment extends Fragment {
             dialog.show();
             if (dialog.getWindow() != null) {
                 // Purple-bordered background + blur, matching the artwork dialogs.
-                dialog.getWindow().setBackgroundDrawableResource(AppUtils.isDarkMode(context)
+                // Light mode uses a lighter dim so the blur does not go too dark.
+                boolean exportDarkMode = AppUtils.isDarkMode(context);
+                dialog.getWindow().setBackgroundDrawableResource(exportDarkMode
                         ? R.drawable.artwork_dialog_background
                         : R.drawable.artwork_dialog_background_light);
+                if (!exportDarkMode) dialog.getWindow().setDimAmount(0.25f);
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     dialog.getWindow().setBackgroundBlurRadius(48);
                 }

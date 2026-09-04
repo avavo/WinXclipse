@@ -13,7 +13,7 @@
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
-            android:background="@drawable/bordered_panel_dark"
+            android:background="?attr/winxPanelBackground"
             android:orientation="vertical"
             android:padding="8dp">
 
@@ -96,7 +96,7 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:background="#000000">
+        android:background="?attr/winxSurfaceColor">
 
         <ScrollView
             android:id="@+id/SVInlineProcessList"
@@ -120,7 +120,7 @@
             android:layout_height="match_parent"
             android:gravity="center"
             android:text="@string/no_items_to_display_taskmgr"
-            android:textColor="#F8FAFC"
+            android:textColor="?attr/winxOnSurfaceColor"
             android:visibility="gone" />
     </FrameLayout>
 

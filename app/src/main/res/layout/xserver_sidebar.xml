@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="380dp"
     android:layout_height="match_parent"
-    android:background="#000000"
+    android:background="?attr/winxSurfaceColor"
     android:orientation="vertical"
     android:padding="16dp">
 
@@ -20,7 +20,7 @@
             android:layout_weight="1"
             android:gravity="center_vertical"
             android:text="00:00"
-            android:textColor="#F8FAFC"
+            android:textColor="?attr/winxOnSurfaceColor"
             android:textSize="22sp"
             android:textStyle="bold" />
 
@@ -41,7 +41,7 @@
             android:layout_height="match_parent"
             android:gravity="center_vertical|end"
             android:text="--%"
-            android:textColor="#F8FAFC"
+            android:textColor="?attr/winxOnSurfaceColor"
             android:textSize="17sp"
             android:textStyle="bold" />
     </LinearLayout>
@@ -63,7 +63,7 @@
             android:id="@+id/BTSidebarInput"
             android:layout_width="match_parent"
             android:layout_height="62dp"
-            android:background="@drawable/bordered_panel_dark"
+            android:background="?attr/winxPanelBackground"
             android:clickable="true"
             android:focusable="true"
             android:gravity="center_vertical"
@@ -82,7 +82,7 @@
                 android:layout_weight="1"
                 android:gravity="center_vertical"
                 android:text="@string/menu_section_input"
-                android:textColor="#F8FAFC"
+                android:textColor="?attr/winxOnSurfaceColor"
                 android:textSize="18sp"
                 android:textStyle="bold" />
             <ImageButton
@@ -100,7 +100,7 @@
             android:layout_width="match_parent"
             android:layout_height="66dp"
             android:layout_marginTop="8dp"
-            android:background="@drawable/bordered_panel_dark"
+            android:background="?attr/winxPanelBackground"
             android:clickable="true"
             android:focusable="true"
             android:gravity="center_vertical"
@@ -122,7 +122,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="Controller"
-                    android:textColor="#F8FAFC"
+                    android:textColor="?attr/winxOnSurfaceColor"
                     android:textSize="18sp"
                     android:textStyle="bold" />
                 <TextView
@@ -132,7 +132,7 @@
                     android:ellipsize="end"
                     android:singleLine="true"
                     android:text="Virtual Gamepad"
-                    android:textColor="#A8A8B3"
+                    android:textColor="?android:textColorSecondary"
                     android:textSize="12sp" />
             </LinearLayout>
             <ImageButton
@@ -155,7 +155,7 @@
                 android:layout_height="match_parent"
                 android:layout_marginEnd="8dp"
                 android:layout_weight="1"
-                android:background="@drawable/bordered_panel_dark"
+                android:background="?attr/winxPanelBackground"
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
                 <LinearLayout
@@ -171,7 +171,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="FPS Limit"
-                        android:textColor="#F8FAFC"
+                        android:textColor="?attr/winxOnSurfaceColor"
                         android:textSize="13sp"
                         android:textStyle="bold" />
                     <TextView
@@ -196,7 +196,7 @@
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
                 android:layout_weight="1"
-                android:background="@drawable/bordered_panel_dark"
+                android:background="?attr/winxPanelBackground"
                 android:clickable="true"
                 android:focusable="true"
                 android:gravity="center"
@@ -205,7 +205,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Frame Gen"
-                    android:textColor="#F8FAFC"
+                    android:textColor="?attr/winxOnSurfaceColor"
                     android:textSize="13sp"
                     android:textStyle="bold" />
                 <TextView
@@ -229,7 +229,7 @@
                 android:layout_height="match_parent"
                 android:layout_marginEnd="8dp"
                 android:layout_weight="1"
-                android:background="@drawable/bordered_panel_dark"
+                android:background="?attr/winxPanelBackground"
                 android:clickable="true"
                 android:focusable="true"
                 android:gravity="center_vertical"
@@ -247,7 +247,7 @@
                     android:layout_weight="1"
                     android:gravity="center_vertical"
                     android:text="HUD"
-                    android:textColor="#F8FAFC"
+                    android:textColor="?attr/winxOnSurfaceColor"
                     android:textSize="16sp"
                     android:textStyle="bold" />
                 <ImageButton
@@ -264,7 +264,7 @@
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
                 android:layout_weight="1"
-                android:background="@drawable/bordered_panel_dark"
+                android:background="?attr/winxPanelBackground"
                 android:clickable="true"
                 android:focusable="true"
                 android:gravity="center_vertical"
@@ -281,7 +281,7 @@
                     android:layout_marginStart="8dp"
                     android:gravity="center_vertical"
                     android:text="@string/menu_section_display"
-                    android:textColor="#F8FAFC"
+                    android:textColor="?attr/winxOnSurfaceColor"
                     android:textSize="16sp"
                     android:textStyle="bold" />
             </LinearLayout>
@@ -292,7 +292,7 @@
             android:layout_width="match_parent"
             android:layout_height="62dp"
             android:layout_marginTop="8dp"
-            android:background="@drawable/bordered_panel_dark"
+            android:background="?attr/winxPanelBackground"
             android:clickable="true"
             android:focusable="true"
             android:gravity="center_vertical"
@@ -309,7 +309,7 @@
                 android:layout_marginStart="14dp"
                 android:gravity="center_vertical"
                 android:text="@string/task_manager"
-                android:textColor="#F8FAFC"
+                android:textColor="?attr/winxOnSurfaceColor"
                 android:textSize="18sp"
                 android:textStyle="bold" />
         </LinearLayout>
@@ -319,7 +319,7 @@
             android:layout_width="match_parent"
             android:layout_height="58dp"
             android:layout_marginTop="8dp"
-            android:background="@drawable/bordered_panel_dark"
+            android:background="?attr/winxPanelBackground"
             android:clickable="true"
             android:focusable="true"
             android:gravity="center_vertical"
@@ -336,7 +336,7 @@
                 android:layout_marginStart="14dp"
                 android:gravity="center_vertical"
                 android:text="@string/debug_terminal"
-                android:textColor="#F8FAFC"
+                android:textColor="?attr/winxOnSurfaceColor"
                 android:textSize="17sp"
                 android:textStyle="bold" />
         </LinearLayout>

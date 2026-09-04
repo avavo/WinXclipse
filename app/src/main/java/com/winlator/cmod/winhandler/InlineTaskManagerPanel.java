@@ -68,12 +68,21 @@ public class InlineTaskManagerPanel extends LinearLayout implements OnGetProcess
             activity.getWinHandler().setOnGetProcessInfoListener(null);
     }
 
+    private int resolveOnSurfaceColor() {
+        TypedValue typed = new TypedValue();
+        if (activity != null && activity.getTheme() != null
+                && activity.getTheme().resolveAttribute(R.attr.winxOnSurfaceColor, typed, true)) {
+            return typed.data;
+        }
+        return 0xFFF8FAFC;
+    }
+
     private void updateHardwareInfo() {
         short[] clocks = CPUStatus.getCurrentClockSpeeds();
         LinearLayout list = findViewById(R.id.LLInlineCPUInfo);
         while (list.getChildCount() < clocks.length) {
             TextView core = new TextView(activity);
-            core.setTextColor(0xFFF8FAFC);
+            core.setTextColor(resolveOnSurfaceColor());
             core.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
             core.setSingleLine(true);
             list.addView(core);
@@ -95,7 +104,6 @@ public class InlineTaskManagerPanel extends LinearLayout implements OnGetProcess
         int cpuUsage = totalMaximum > 0
                 ? Math.min(100, Math.round(totalCurrent * 100f / totalMaximum)) : 0;
         ((TextView) findViewById(R.id.TVInlineCPUTitle)).setText("CPU (" + cpuUsage + "%)");
-
         ActivityManager manager = (ActivityManager) activity.getSystemService(Context.ACTIVITY_SERVICE);
         ActivityManager.MemoryInfo info = new ActivityManager.MemoryInfo();
         manager.getMemoryInfo(info);

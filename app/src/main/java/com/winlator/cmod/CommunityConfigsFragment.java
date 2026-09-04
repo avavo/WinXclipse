@@ -178,9 +178,12 @@ public class CommunityConfigsFragment extends Fragment {
         dialog.show();
         if (dialog.getWindow() != null) {
             // Purple-bordered background + blur, matching the artwork dialogs.
-            dialog.getWindow().setBackgroundDrawableResource(AppUtils.isDarkMode(requireContext())
+            // Light mode uses a lighter dim so the blur does not go too dark.
+            boolean darkMode = AppUtils.isDarkMode(requireContext());
+            dialog.getWindow().setBackgroundDrawableResource(darkMode
                     ? R.drawable.artwork_dialog_background
                     : R.drawable.artwork_dialog_background_light);
+            if (!darkMode) dialog.getWindow().setDimAmount(0.25f);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 dialog.getWindow().setBackgroundBlurRadius(48);
             }
@@ -743,10 +746,12 @@ public class CommunityConfigsFragment extends Fragment {
             dialog.getWindow().setLayout(Math.round(displayWidth * 0.85f),
                     android.view.WindowManager.LayoutParams.WRAP_CONTENT);
             // Purple-bordered background + blur, matching the shortcut
-            // artwork dialog.
-            dialog.getWindow().setBackgroundDrawableResource(AppUtils.isDarkMode(requireContext())
+            // artwork dialog. Light mode uses a lighter dim.
+            boolean configDarkMode = AppUtils.isDarkMode(requireContext());
+            dialog.getWindow().setBackgroundDrawableResource(configDarkMode
                     ? R.drawable.artwork_dialog_background
                     : R.drawable.artwork_dialog_background_light);
+            if (!configDarkMode) dialog.getWindow().setDimAmount(0.25f);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 dialog.getWindow().setBackgroundBlurRadius(48);
             }
