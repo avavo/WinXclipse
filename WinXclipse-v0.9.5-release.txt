@@ -98,7 +98,9 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
 - Added Galaxy Tab S10 FE+ SM-X620 and SM-X626B detection.
 - All four models receive Exynos 1580 / Xclipse 540 handling even when early Android startup exposes only a generic GLES renderer.
 - Community exports preserve the exact regional model suffix reported by Android and normalize known Samsung catalog metadata to the correct commercial device, Exynos SoC and Xclipse GPU names. Export now requires exactly one English compatibility state: `Boots but crashes`, `Menu only`, or `Playable`. The Mortal Sin SM-X520 config is corrected to Galaxy Tab S10 FE / Exynos 1580 / Xclipse 540.
-- Shortcut and Community Config cover cards now clip the artwork into rounded top corners and join cleanly to the lower text panel. Community cards repeat the cover as a dark blurred label background, show compatibility instead of the phone model, and keep each game's config count at the lower-left above the label.
+- Shortcut and Community Config cover cards now clip the artwork into rounded top corners and join cleanly to the lower text panel. Community cards repeat the cover as a dark blurred label background, show compatibility instead of the phone model, and keep each game's config count at the lower-left above the label. Every dialog, popup, and dropdown shares the purple-bordered style in both themes.
+- The Community Config install dialog shows a rounded portrait cover banner in a slightly narrower popup, and missing DXVK/Box64/FEXCore/VKD3D content is downloaded and installed automatically during import.
+- Container pickers act directly when only one container exists; the About and backend Logs dialogs follow the same bordered style, and logs can be saved to Downloads besides being shared.
 - Wine sessions support normal and reverse landscape, allowing either long edge of the phone or tablet to face upward without enabling portrait rotation.
 - Replaced the old update alert with a WinXclipse-styled AMOLED dialog that clearly shows installed and available versions.
 - Corrected the application version display to `0.9.5`.
@@ -113,7 +115,7 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
 - Wine registry repair now validates the correct registry header and can recover every supported prefix source from invalid-registry and mismatched-wineserver startup failures.
 - Raw Wine/Proton profiles skip unusable non-archive prefix packs instead of aborting container creation.
 - Normal and Essential startup disable the optional PlugPlay, RpcSs and tablet-input services. Aggressive keeps controller-critical PlugPlay available while disabling RpcSs and tablet input; Proton prefixes without a tablet-input registry key also receive a short bounded `tabtip.exe` cleanup, reducing the active idle baseline to roughly seven or eight without touching controller discovery or rumble.
-- PulseAudio output is recreated when the audio route or device changes instead of going silent.
+- PulseAudio output is recreated when the audio route or device changes instead of going silent. Announcements from screen recording alone are ignored, so recording no longer mutes the game.
 - Shortcut sessions wait for all non-base guest processes to disappear and then close after five continuous idle seconds; Wine services and crash-defender/reporting processes cannot keep an exited or failed game session open. An optional Wine lifecycle diagnostic records the reason, process snapshot, non-standard processes and recent guest output in `Downloads/WinXclipse/logs`.
 - Out-of-spec X11 PutImage requests no longer terminate Wine sessions through a fatal BadMatch path; packed cursor and mask uploads use their correct size.
 - First-boot progress now advances through imagefs extraction, runtime installation, and finalization instead of appearing frozen.

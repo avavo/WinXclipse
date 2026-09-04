@@ -36,8 +36,14 @@ All notable changes between WinXclipse releases, newest first.
 - Existing Wrapper-BCN and Wrapper-Xclipse containers migrate to Wrapper-Default and refresh the selected coherent wrapper/layer pair once after updating.
 - Community entries are grouped by normalized game identity. Matching configs share the first embedded cover found before browser artwork is requested, support a user-selected cover, and expose device choices plus on-demand container details in an English AMOLED interface.
 - Shortcut and Community Config artwork is clipped to rounded top corners and joins the lower text surface cleanly. Community cards repeat the cover as a dark blurred label background, show compatibility instead of the phone model, and keep the config count at the lower-left above the label. Shortcut artwork, community cards, and the community install dialog share the purple-bordered blurred dialog style.
+- Every dialog, popup menu, and dropdown uses the purple-bordered style in both dark and light themes; light dialogs dim the background less so the blur never goes too dark.
 - Newly created shortcuts always start in Browser artwork mode with an immediate cover fetch instead of waiting for a later list bind.
 - The Community Config install dialog shows a rounded 2:3 cover banner, fits a slightly narrower popup, and uses consistent English action labels.
+- Missing DXVK, Box64, FEXCore, or VKD3D content required by a community config is downloaded from the remote catalog and installed automatically during import instead of prompting; runtimes stay manual because of their size. The remaining "Content not found" prompts share the purple-bordered style and point to Downloads.
+- Container pickers run or create directly when only one container exists instead of showing a single-choice dialog.
+- The About dialog uses the purple-bordered style with top-pinned scrollable content, and long shortcut names are truncated to one line in settings.
+- The backend Logs dialog uses the purple-bordered style, follows the app theme instead of the system one, tints its toolbar purple, and can save the log to Downloads/WinXclipse/logs besides sharing it.
+- The in-session sidebar, task manager, and CPU/RAM monitor follow the app theme instead of staying dark, and base dialog top padding is tighter.
 - Community metadata preserves Android's exact Samsung regional model suffix and normalizes known devices to their commercial name, Exynos SoC and Xclipse GPU. The Mortal Sin SM-X520 release config is corrected to Galaxy Tab S10 FE / Exynos 1580 / Xclipse 540.
 - Bundled Box64 is `0.4.3-260519-024717c`; old `0.4.4` selections migrate to the bundled version and installed-content detection uses the exact content identity.
 - New containers default to the Intermediate FEXCore preset; XInput, DInput, and Exclusive XInput remain opt-in; the WoW64 CPU-list fallback uses all available cores; and lower-memory devices select stronger RAM-reclamation baselines.
@@ -102,7 +108,7 @@ All notable changes between WinXclipse releases, newest first.
 - The HUD RAM blink and warning thresholds are consistent across memory tiers at 90% and 93% respectively.
 - Wine registry self-healing validates the real `WINE REGISTRY Version N` header and recreates invalid win64 headers for every supported prefix source, preventing the recurring invalid-registry/32-bit-wineserver startup failure.
 - Synthesized Wine/Proton profiles skip unusable non-archive `prefixPack` files instead of failing during container creation.
-- PulseAudio output is recreated on audio route/device changes instead of going silent.
+- PulseAudio output is recreated on audio route/device changes instead of going silent. Recorder-only (submix) device announcements are ignored, so starting a screen recording no longer mutes the game.
 
 ## 0.9
 
