@@ -409,6 +409,15 @@ public class Container {
         return new File(rootDir, ".container");
     }
 
+    public File getDxvkConfFile() {
+        return rootDir != null ? new File(rootDir, "dxvk.conf") : null;
+    }
+
+    public boolean hasCustomDxvkConf() {
+        File f = getDxvkConfFile();
+        return f != null && f.isFile() && f.length() > 0;
+    }
+
     public File getDesktopDir() {
         return new File(rootDir, ".wine/drive_c/users/"+ImageFs.USER+"/Desktop/");
     }

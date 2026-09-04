@@ -28,6 +28,14 @@ import java.util.List;
 
 public class DXVKConfigDialog extends ContentDialog {
     public static final String DEFAULT_CONFIG = "version="+DefaultVersion.DXVK+",framerate=0,async=1,asyncCache=0,vkd3dVersion="+DefaultVersion.VKD3D+",vkd3dLevel=12_1,ddrawrapper=,noTimeline=1,vk3d66=1";
+    public static final String CUSTOM_CONF_FILENAME = "dxvk.conf";
+    public static final long MAX_CUSTOM_CONF_BYTES = 64 * 1024;
+    // Neutraliza as chaves que quebram RE Engine/RAGE em GPU movel quando um
+    // dxvk.conf embarcado no repack (OpJuegos/ADM/Mali) vaza para a sessao.
+    // Sao os defaults do DXVK, entao so fazem efeito contra arquivo externo.
+    public static final String SAFE_FALLBACK_CONFIG =
+            "d3d11.relaxedBarriers = False; dxvk.useRawSsbo = Auto; " +
+            "dxgi.maxDeviceMemory = 0; dxgi.maxSharedMemory = 0; d3d9.maxAvailableMemory = 4096";
     public static final String[] VKD3D_FEATURE_LEVELS = {"12_0", "12_1", "12_2", "11_1", "11_0", "10_1", "10_0", "9_3", "9_2", "9_1"};
     public static final int DXVK_TYPE_NONE = 0;
     public static final int DXVK_TYPE_ASYNC = 1;
@@ -156,6 +164,20 @@ public class DXVKConfigDialog extends ContentDialog {
     }
 
     public static void setEnvVars(Context context, KeyValueSet config, EnvVars envVars) {
+        setEnvVars(context, config, envVars, null);
+    }
+
+    public static File getContainerDxvkConfFile(File containerRoot) {
+        return containerRoot != null ? new File(containerRoot, CUSTOM_CONF_FILENAME) : null;
+    }
+
+    public static boolean isValidCustomConfFile(File f) {
+        if (f == null || !f.isFile()) return false;
+        long len = f.length();
+        return len > 0 && len <= MAX_CUSTOM_CONF_BYTES;
+    }
+
+    public static void setEnvVars(Context context, KeyValueSet config, EnvVars envVars, File containerRoot) {
         // Keep every D3D shader cache on fast internal storage. DXVK 1.x uses
         // STATE_CACHE_PATH while modern DXVK and VKD3D-Proton use their shader
         // cache variables, so set all three for both ARM64EC and x86 runtimes.
@@ -174,11 +196,39 @@ public class DXVKConfigDialog extends ContentDialog {
         envVars.put("VKD3D_SHADER_DEBUG", "none");
         if ("1".equals(config.get("noTimeline")))
             envVars.put("DXVK_DISABLE_TIMELINE_SEMAPHORES", "1");
-        if ("1".equals(config.get("vk3d66")))
+        // SM 6.6 so faz sentido com VKD3D ativo; com "none" o jogo e D3D11 e a
+        // variavel so poluiria o ambiente de titulos D3D12 com VKD3D antigo.
+        if ("1".equals(config.get("vk3d66"))
+                && !"none".equalsIgnoreCase(config.get("vkd3dVersion")))
             envVars.put("VKD3D_SHADER_MODEL", "6_6");
 
         File rootDir = ImageFs.find(context).getRootDir();
-        File dxvkConfigFile = new File(rootDir, ImageFs.CONFIG_PATH+"/dxvk.conf");
+        File globalConf = new File(rootDir, ImageFs.CONFIG_PATH+"/dxvk.conf");
+        File containerConf = getContainerDxvkConfFile(containerRoot);
+        File activeConf = isValidCustomConfFile(containerConf) ? containerConf
+                : (isValidCustomConfFile(globalConf) ? globalConf : null);
+        if (activeConf != null) {
+            envVars.put("DXVK_CONFIG_FILE", activeConf.getAbsolutePath());
+            envVars.remove("DXVK_CONFIG");
+            Log.i("DXVKConfigDialog", "Using custom dxvk.conf: " + activeConf.getAbsolutePath());
+        } else {
+            // No managed conf: keep a manual DXVK_CONFIG_FILE override if it
+            // still points at a real file, otherwise drop stale state so an
+            // old import can't leak into a container that removed it.
+            String manual = envVars.get("DXVK_CONFIG_FILE");
+            boolean keepManual = manual != null && !manual.isEmpty() && new File(manual).isFile();
+            if (!keepManual) {
+                try { if (globalConf.isFile()) globalConf.delete(); } catch (Exception ignored) {}
+                envVars.remove("DXVK_CONFIG_FILE");
+                // Sem conf importado, fixa os defaults seguros por cima de um
+                // eventual dxvk.conf que o repack colocou ao lado do .exe
+                // (o DXVK le esse arquivo sozinho; o env tem precedencia).
+                // Respeita um DXVK_CONFIG manual da aba EnvVars, se houver.
+                if (!envVars.has("DXVK_CONFIG"))
+                    envVars.put("DXVK_CONFIG", SAFE_FALLBACK_CONFIG);
+                Log.i("DXVKConfigDialog", "No custom dxvk.conf, applying safe fallback overrides");
+            }
+        }
 
         String framerate = config.get("framerate");
         if (!framerate.isEmpty() && !framerate.equals("0")) {
@@ -193,11 +243,6 @@ public class DXVKConfigDialog extends ContentDialog {
         if (!asyncCache.isEmpty() && !asyncCache.equals("0"))
             envVars.put("DXVK_GPLASYNCCACHE", "1");
 
-        // dxvk.conf is no longer written by this path; any stale file from
-        // older builds must not leak into the current session.
-        try { if (dxvkConfigFile.isFile()) dxvkConfigFile.delete(); } catch (Exception ignored) {}
-        envVars.remove("DXVK_CONFIG_FILE");
-        envVars.remove("DXVK_CONFIG");
         if (!"none".equalsIgnoreCase(config.get("vkd3dVersion")))
             envVars.put("VKD3D_FEATURE_LEVEL", config.get("vkd3dLevel"));
     }

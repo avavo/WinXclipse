@@ -4194,7 +4194,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         }
 
         if (dxwrapper.equals("dxvk")) {
-            DXVKConfigDialog.setEnvVars(this, dxwrapperConfig, envVars);
+            java.io.File containerRoot = container != null ? container.getRootDir() : null;
+            DXVKConfigDialog.setEnvVars(this, dxwrapperConfig, envVars, containerRoot);
         }
 
         boolean showFps = container != null && container.isShowFPS();

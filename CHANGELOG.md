@@ -21,6 +21,8 @@ All notable changes between WinXclipse releases, newest first.
   Automatic target-FPS mode, fixed 1.5x-5x multipliers, and a compute fallback.
   It is disabled by default, can be configured per container, and runs after
   the existing FSR/HDR compositor passes.
+- Containers can import a custom `dxvk.conf` per container from the container settings, below the DX wrapper selector, with Import/Remove actions and live status. It is applied on save through `DXVK_CONFIG_FILE`, travels with duplicate/export, and is inherited by shortcuts.
+- Imported `dxvk.conf` files are checked against the known-bad Mali/OpJuegos template: `relaxedBarriers=True` (grey roads and map corruption in RE2/GTA V), `useRawSsbo=True`, sub-1024 MB memory caps, invalid keys, active HUD, and zeroed device IDs are flagged, with a one-tap sanitized import offered.
 
 ### Changed
 
@@ -109,6 +111,8 @@ All notable changes between WinXclipse releases, newest first.
 - Wine registry self-healing validates the real `WINE REGISTRY Version N` header and recreates invalid win64 headers for every supported prefix source, preventing the recurring invalid-registry/32-bit-wineserver startup failure.
 - Synthesized Wine/Proton profiles skip unusable non-archive `prefixPack` files instead of failing during container creation.
 - PulseAudio output is recreated on audio route/device changes instead of going silent. Recorder-only (submix) device announcements are ignored, so starting a screen recording no longer mutes the game.
+- Sessions without a custom `dxvk.conf` now pin safe DXVK defaults (`relaxedBarriers=False`, `useRawSsbo=Auto`, uncapped device/shared memory) through `DXVK_CONFIG`, so a `dxvk.conf` shipped next to a repack's `.exe` can no longer silently break RE2/GTA V regardless of container settings; a manual `DXVK_CONFIG` from Environment Variables is still respected.
+- `VKD3D_SHADER_MODEL=6_6` is only set when VKD3D is actually enabled, instead of leaking into D3D11 sessions and legacy VKD3D setups.
 
 ## 0.9
 

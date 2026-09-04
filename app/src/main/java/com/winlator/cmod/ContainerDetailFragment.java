@@ -43,6 +43,7 @@ import com.winlator.cmod.contentdialog.AddEnvVarDialog;
 import com.winlator.cmod.contentdialog.AudioConfigDialog;
 import com.winlator.cmod.contentdialog.ContentDialog;
 import com.winlator.cmod.contentdialog.DXVKConfigDialog;
+import com.winlator.cmod.contentdialog.DxvkConfSanitizer;
 import com.winlator.cmod.contentdialog.ExperimentalPerformanceDialog;
 import com.winlator.cmod.contentdialog.GraphicsDriverConfigDialog;
 import com.winlator.cmod.contentdialog.ShortcutSettingsDialog;
@@ -100,6 +101,9 @@ public class ContainerDetailFragment extends Fragment {
     private JSONArray gpuCards;
     private String xperfConfig = "";
     private Callback<String> openDirectoryCallback;
+    private static final int REQUEST_CODE_IMPORT_DXVK_CONF = 1101;
+    private String pendingDxvkConfContent = null;
+    private boolean pendingDxvkConfRemoved = false;
 
     private static boolean isDarkMode;
 
@@ -253,6 +257,52 @@ public class ContainerDetailFragment extends Fragment {
 
     @Override
     public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        if (requestCode == REQUEST_CODE_IMPORT_DXVK_CONF && resultCode == Activity.RESULT_OK) {
+            if (data == null || data.getData() == null) return;
+            try {
+                String content = readDxvkConfText(data.getData());
+                if (!isPlausibleDxvkConf(content)) throw new IllegalArgumentException("not a dxvk.conf");
+                DxvkConfSanitizer.Result res = DxvkConfSanitizer.sanitize(content);
+                if (!res.changed) {
+                    pendingDxvkConfContent = content;
+                    pendingDxvkConfRemoved = false;
+                    refreshDxvkConfStatus(getView());
+                    AppUtils.showToast(getContext(), R.string.dxvk_conf_imported);
+                    return;
+                }
+                Context sanitizeContext = getContext();
+                if (sanitizeContext == null) return;
+                StringBuilder issueList = new StringBuilder();
+                int shown = Math.min(res.issues.size(), 8);
+                for (int i = 0; i < shown; i++)
+                    issueList.append("• ").append(res.issues.get(i)).append('\n');
+                if (res.issues.size() > shown)
+                    issueList.append("• +").append(res.issues.size() - shown).append(" outros…\n");
+                new androidx.appcompat.app.AlertDialog.Builder(sanitizeContext)
+                        .setTitle(R.string.dxvk_conf_sanitize_title)
+                        .setMessage(sanitizeContext.getString(
+                                R.string.dxvk_conf_sanitize_msg, issueList.toString().trim()))
+                        .setPositiveButton(R.string.dxvk_conf_use_sanitized, (d, w) -> {
+                            pendingDxvkConfContent = res.sanitized;
+                            pendingDxvkConfRemoved = false;
+                            refreshDxvkConfStatus(getView());
+                            AppUtils.showToast(getContext(), R.string.dxvk_conf_imported);
+                        })
+                        .setNeutralButton(R.string.dxvk_conf_use_original, (d, w) -> {
+                            pendingDxvkConfContent = content;
+                            pendingDxvkConfRemoved = false;
+                            refreshDxvkConfStatus(getView());
+                            AppUtils.showToast(getContext(), R.string.dxvk_conf_imported);
+                        })
+                        .setNegativeButton(android.R.string.cancel, null)
+                        .show();
+            }
+            catch (Exception e) {
+                Log.e(TAG, "Unable to import dxvk.conf", e);
+                AppUtils.showToast(getContext(), R.string.dxvk_conf_import_failed);
+            }
+            return;
+        }
         if (requestCode == MainActivity.OPEN_DIRECTORY_REQUEST_CODE && resultCode == Activity.RESULT_OK) {
             if (data != null) {
                 Uri uri = data.getData();
@@ -420,6 +470,7 @@ public class ContainerDetailFragment extends Fragment {
 
         view.findViewById(R.id.BTHelpDXWrapper).setOnClickListener((v) -> AppUtils.showHelpBox(context, v, R.string.dxwrapper_help_content));
         view.findViewById(R.id.BTHelpGraphicsDriver).setOnClickListener((v) -> AppUtils.showHelpBox(context, v, R.string.graphics_driver_help_content));
+        setupDxvkConfImport(view);
 
 
 
@@ -917,6 +968,7 @@ public class ContainerDetailFragment extends Fragment {
                             pendingFrameGenerationBackend[0],
                             pendingFrameGenerationLowLatency[0]);
                     container.saveData();
+                    applyPendingDxvkConf(container);
                     saveWineRegistryKeys(view);
                     getActivity().onBackPressed();
                 } else {
@@ -991,6 +1043,7 @@ public class ContainerDetailFragment extends Fragment {
                     manager.createContainerAsync(data, contentsManager, (container) -> {
                         if (container != null) {
                             this.container = container;
+                            applyPendingDxvkConf(container);
                             saveWineRegistryKeys(view);
                         }
                         preloaderDialog.close();
@@ -1272,6 +1325,108 @@ public class ContainerDetailFragment extends Fragment {
                 .setMessage("CMOD v1 is the original WinXclipse path. CMOD v2 uses an alternative rendering path. Test the same scene with both and keep the one with better stability and frame pacing for that game. Wrapper-Default is the recommended starting point.")
                 .setPositiveButton(android.R.string.ok, null)
                 .show();
+    }
+
+    private void setupDxvkConfImport(final View view) {
+        View btImport = view.findViewById(R.id.BTImportDxvkConf);
+        View btRemove = view.findViewById(R.id.BTRemoveDxvkConf);
+        if (btImport != null) btImport.setOnClickListener(v -> openDxvkConfPicker());
+        if (btRemove != null) btRemove.setOnClickListener(v -> {
+            pendingDxvkConfContent = null;
+            pendingDxvkConfRemoved = true;
+            refreshDxvkConfStatus(view);
+            AppUtils.showToast(getContext(), R.string.dxvk_conf_removed);
+        });
+        refreshDxvkConfStatus(view);
+    }
+
+    private void openDxvkConfPicker() {
+        try {
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.setType("*/*");
+            intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"text/*", "application/octet-stream"});
+            getActivity().startActivityFromFragment(this, intent, REQUEST_CODE_IMPORT_DXVK_CONF);
+        }
+        catch (Exception e) {
+            Log.e(TAG, "Unable to open dxvk.conf picker", e);
+            AppUtils.showToast(getContext(), R.string.dxvk_conf_import_failed);
+        }
+    }
+
+    private String readDxvkConfText(Uri uri) throws Exception {
+        Context ctx = getContext();
+        if (ctx == null || uri == null) throw new IllegalArgumentException("no uri");
+        try (java.io.InputStream in = ctx.getContentResolver().openInputStream(uri);
+             java.io.BufferedReader reader = new java.io.BufferedReader(
+                     new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8))) {
+            StringBuilder sb = new StringBuilder();
+            char[] buf = new char[8192];
+            int n;
+            while ((n = reader.read(buf)) != -1) {
+                sb.append(buf, 0, n);
+                if (sb.length() > DXVKConfigDialog.MAX_CUSTOM_CONF_BYTES) break;
+            }
+            return sb.toString();
+        }
+    }
+
+    private static boolean isPlausibleDxvkConf(String content) {
+        if (content == null) return false;
+        String t = content.trim();
+        if (t.isEmpty() || t.length() > DXVKConfigDialog.MAX_CUSTOM_CONF_BYTES) return false;
+        if (t.indexOf('=') < 0) return false;
+        if (t.indexOf('\0') >= 0) return false;
+        return t.contains("dxgi.") || t.contains("dxvk.") || t.contains("d3d11.")
+                || t.contains("d3d9.") || t.contains("d3d8.");
+    }
+
+    private void refreshDxvkConfStatus(View view) {
+        if (view == null) view = getView();
+        if (view == null) return;
+        TextView tv = view.findViewById(R.id.TVDxvkConfStatus);
+        View btRemove = view.findViewById(R.id.BTRemoveDxvkConf);
+        if (tv == null) return;
+        Context ctx = getContext();
+        if (pendingDxvkConfRemoved) {
+            tv.setText(ctx != null ? ctx.getString(R.string.dxvk_custom_conf_none) : "No custom conf");
+            if (btRemove != null) btRemove.setEnabled(false);
+            return;
+        }
+        if (pendingDxvkConfContent != null) {
+            int bytes = pendingDxvkConfContent.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+            tv.setText(ctx != null ? ctx.getString(R.string.dxvk_custom_conf_pending, bytes) : "Pending (" + bytes + " B)");
+            if (btRemove != null) btRemove.setEnabled(true);
+            return;
+        }
+        File active = (isEditMode() && container != null) ? container.getDxvkConfFile() : null;
+        if (active != null && active.isFile() && active.length() > 0) {
+            tv.setText(ctx != null ? ctx.getString(R.string.dxvk_custom_conf_active, (int) active.length()) : "Active");
+            if (btRemove != null) btRemove.setEnabled(true);
+        } else {
+            tv.setText(ctx != null ? ctx.getString(R.string.dxvk_custom_conf_none) : "No custom conf");
+            if (btRemove != null) btRemove.setEnabled(false);
+        }
+    }
+
+    private void applyPendingDxvkConf(Container target) {
+        if (target == null) return;
+        try {
+            if (pendingDxvkConfRemoved) {
+                File f = target.getDxvkConfFile();
+                if (f != null && f.isFile()) f.delete();
+            } else if (pendingDxvkConfContent != null) {
+                File f = target.getDxvkConfFile();
+                if (f != null) FileUtils.writeString(f, pendingDxvkConfContent);
+            }
+        }
+        catch (Exception e) {
+            Log.e(TAG, "Unable to apply dxvk.conf", e);
+        }
+        finally {
+            pendingDxvkConfContent = null;
+            pendingDxvkConfRemoved = false;
+        }
     }
 
     public static void setupDXWrapperSpinner(final Spinner sDXWrapper,
