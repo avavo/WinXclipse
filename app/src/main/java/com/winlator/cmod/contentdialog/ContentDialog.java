@@ -273,10 +273,9 @@ public class ContentDialog extends AppCompatDialog {
         dialog.show();
         if (dialog.getWindow() != null) {
             // Purple-bordered background, matching the artwork dialogs.
-            if (AppUtils.isDarkMode(context)) {
-                dialog.getWindow().setBackgroundDrawableResource(
-                        com.winlator.cmod.R.drawable.artwork_dialog_background);
-            }
+            dialog.getWindow().setBackgroundDrawableResource(AppUtils.isDarkMode(context)
+                    ? com.winlator.cmod.R.drawable.artwork_dialog_background
+                    : com.winlator.cmod.R.drawable.artwork_dialog_background_light);
         }
     }
 

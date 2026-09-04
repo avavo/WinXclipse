@@ -26,7 +26,7 @@
         <item name="popupMenuStyle">@style/PopupMenu</item>
         <item name="winxFieldBackground">@drawable/combo_box</item>
         <item name="winxEditTextBackground">@drawable/edit_text</item>
-        <item name="winxPopupBackground">@drawable/content_dialog_background</item>
+        <item name="winxPopupBackground">@drawable/artwork_dialog_background_light</item>
         <item name="winxPanelBackground">@drawable/bordered_panel</item>
         <item name="winxSurfaceColor">@color/window_background_color</item>
         <item name="winxOnSurfaceColor">#000000</item>
@@ -57,7 +57,7 @@
         <item name="popupMenuStyle">@style/PopupMenu.Dark</item>
         <item name="winxFieldBackground">@drawable/combo_box_dark</item>
         <item name="winxEditTextBackground">@drawable/edit_text_dark</item>
-        <item name="winxPopupBackground">@drawable/content_dialog_background_dark</item>
+        <item name="winxPopupBackground">@drawable/artwork_dialog_background</item>
         <item name="winxPanelBackground">@drawable/bordered_panel_dark</item>
         <item name="winxSurfaceColor">@color/window_background_color_dark</item>
         <item name="winxOnSurfaceColor">#FFFFFF</item>
@@ -103,7 +103,7 @@
     <style name="ComboBox.Dark" parent="ComboBox">
         <item name="android:textColor">#ffffff</item>
         <item name="android:background">@drawable/combo_box_dark</item>
-        <item name="android:popupBackground">@drawable/content_dialog_background_dark</item>
+        <item name="android:popupBackground">@drawable/artwork_dialog_background</item>
     </style>
 
     <style name="MultiSelectionComboBox" parent="ComboBox"/>
@@ -111,26 +111,26 @@
 
     <!-- Popup Styles -->
     <style name="ListPopupWindow" parent="@android:style/Widget.ListPopupWindow">
-        <item name="android:popupBackground">@drawable/content_dialog_background</item>
+        <item name="android:popupBackground">@drawable/artwork_dialog_background_light</item>
         <item name="android:dropDownHorizontalOffset">-4dp</item>
     </style>
 
 
     <style name="ListPopupWindow.Dark" parent="ListPopupWindow">
-        <item name="android:popupBackground">@drawable/content_dialog_background_dark</item>
+        <item name="android:popupBackground">@drawable/artwork_dialog_background</item>
     </style>
 
     <style name="PopupWindow" parent="@android:style/Widget.PopupWindow">
-        <item name="android:popupBackground">@drawable/content_dialog_background</item>
+        <item name="android:popupBackground">@drawable/artwork_dialog_background_light</item>
         <item name="android:dropDownHorizontalOffset">-4dp</item>
     </style>
 
     <style name="PopupWindow.Dark" parent="PopupWindow">
-        <item name="android:popupBackground">@drawable/content_dialog_background_dark</item>
+        <item name="android:popupBackground">@drawable/artwork_dialog_background</item>
     </style>
 
     <style name="PopupMenu" parent="@android:style/Widget.PopupMenu">
-        <item name="android:popupBackground">@drawable/content_dialog_background</item>
+        <item name="android:popupBackground">@drawable/artwork_dialog_background_light</item>
     </style>
 
     <style name="PopupMenu.Dark" parent="PopupMenu">
@@ -140,7 +140,7 @@
     <style name="ContentDialog" parent="@style/Theme.AppCompat.Light.Dialog.Alert">
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowFullscreen">true</item>
-        <item name="android:windowBackground">@drawable/content_dialog_background</item>
+        <item name="android:windowBackground">@drawable/artwork_dialog_background_light</item>
         <item name="colorAccent">@color/colorAccent</item>
         <item name="android:colorAccent">@color/colorAccent</item>
         <item name="colorPrimary">@color/colorPrimary</item>
@@ -157,7 +157,7 @@
         <item name="switchStyle">@style/WinXSwitch</item>
         <item name="winxFieldBackground">@drawable/combo_box</item>
         <item name="winxEditTextBackground">@drawable/edit_text</item>
-        <item name="winxPopupBackground">@drawable/content_dialog_background</item>
+        <item name="winxPopupBackground">@drawable/artwork_dialog_background_light</item>
         <item name="winxPanelBackground">@drawable/bordered_panel</item>
         <item name="winxSurfaceColor">@color/window_background_color</item>
         <item name="winxOnSurfaceColor">#000000</item>
@@ -185,7 +185,7 @@
         <item name="switchStyle">@style/WinXSwitch.Dark</item>
         <item name="winxFieldBackground">@drawable/combo_box_dark</item>
         <item name="winxEditTextBackground">@drawable/edit_text_dark</item>
-        <item name="winxPopupBackground">@drawable/content_dialog_background_dark</item>
+        <item name="winxPopupBackground">@drawable/artwork_dialog_background</item>
         <item name="winxPanelBackground">@drawable/bordered_panel_dark</item>
         <item name="winxSurfaceColor">@color/window_background_color_dark</item>
         <item name="winxOnSurfaceColor">#FFFFFF</item>
@@ -844,7 +844,7 @@
             <item name="android:ellipsize">end</item>
             <item name="android:spinnerMode">dropdown</item>
             <item name="android:background">@drawable/combo_box</item>
-            <item name="android:popupBackground">@drawable/content_dialog_background</item>
+            <item name="android:popupBackground">@drawable/artwork_dialog_background_light</item>
         </style>
         <style name="MultiSelectionComboBox">
             <item name="android:layout_width">192dp</item>
@@ -861,20 +861,20 @@
             <item name="android:background">@drawable/combo_box</item>
         </style>
         <style name="ListPopupWindow" parent="@android:style/Widget.ListPopupWindow">
-            <item name="android:popupBackground">@drawable/content_dialog_background</item>
+            <item name="android:popupBackground">@drawable/artwork_dialog_background_light</item>
             <item name="android:dropDownHorizontalOffset">-4dp</item>
         </style>
         <style name="PopupWindow" parent="@android:style/Widget.PopupWindow">
-            <item name="android:popupBackground">@drawable/content_dialog_background</item>
+            <item name="android:popupBackground">@drawable/artwork_dialog_background_light</item>
             <item name="android:dropDownHorizontalOffset">-4dp</item>
         </style>
         <style name="PopupMenu" parent="@android:style/Widget.PopupMenu">
-            <item name="android:popupBackground">@drawable/content_dialog_background</item>
+            <item name="android:popupBackground">@drawable/artwork_dialog_background_light</item>
         </style>
         <style name="ContentDialog" parent="@android:style/Theme.Dialog">
             <item name="android:windowNoTitle">true</item>
             <item name="android:windowFullscreen">true</item>
-            <item name="android:windowBackground">@drawable/content_dialog_background</item>
+            <item name="android:windowBackground">@drawable/artwork_dialog_background_light</item>
         </style>
         <style name="EditText">
             <item name="android:layout_width">match_parent</item>

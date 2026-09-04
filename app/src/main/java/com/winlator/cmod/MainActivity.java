@@ -779,7 +779,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         if (isDarkMode) {
             dialog.getWindow().setBackgroundDrawableResource(R.drawable.artwork_dialog_background);
         } else {
-            dialog.getWindow().setBackgroundDrawableResource(R.drawable.content_dialog_background);
+            dialog.getWindow().setBackgroundDrawableResource(R.drawable.artwork_dialog_background_light);
         }
         // Pin the content to the top so no empty band sits above the header.
         View aboutContent = dialog.getInflatedLayout();

@@ -87,6 +87,8 @@ public class ShortcutSettingsDialog extends ContentDialog {
         setIcon(R.drawable.icon_settings);
         if (getWindow() != null && AppUtils.isDarkMode(getContext())) {
             getWindow().setBackgroundDrawableResource(R.drawable.artwork_dialog_background);
+        } else if (getWindow() != null) {
+            getWindow().setBackgroundDrawableResource(R.drawable.artwork_dialog_background_light);
         }
         TextView dialogTitle = findViewById(R.id.TVTitle);
         if (dialogTitle != null) {

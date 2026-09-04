@@ -48,6 +48,8 @@ public class DebugDialog extends ContentDialog implements Callback<String> {
         setTitle(context.getString(R.string.logs));
         if (getWindow() != null && AppUtils.isDarkMode(context)) {
             getWindow().setBackgroundDrawableResource(R.drawable.artwork_dialog_background);
+        } else if (getWindow() != null) {
+            getWindow().setBackgroundDrawableResource(R.drawable.artwork_dialog_background_light);
         }
         // Purple toolbar icons in both modes (dark icons vanish on black).
         int accent = resolveAccentColor(context);

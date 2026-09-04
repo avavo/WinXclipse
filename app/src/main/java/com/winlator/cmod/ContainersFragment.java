@@ -418,10 +418,9 @@ public class ContainersFragment extends Fragment {
         dialog.show();
         if (dialog.getWindow() != null) {
             // Purple-bordered background + blur, matching the artwork dialogs.
-            if (AppUtils.isDarkMode(requireContext())) {
-                dialog.getWindow().setBackgroundDrawableResource(
-                        R.drawable.artwork_dialog_background);
-            }
+            dialog.getWindow().setBackgroundDrawableResource(AppUtils.isDarkMode(requireContext())
+                    ? R.drawable.artwork_dialog_background
+                    : R.drawable.artwork_dialog_background_light);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 dialog.getWindow().setBackgroundBlurRadius(48);
             }
@@ -918,10 +917,9 @@ public class ContainersFragment extends Fragment {
             dialog.show();
             if (dialog.getWindow() != null) {
                 // Purple-bordered background + blur, matching the artwork dialogs.
-                if (AppUtils.isDarkMode(context)) {
-                    dialog.getWindow().setBackgroundDrawableResource(
-                            R.drawable.artwork_dialog_background);
-                }
+                dialog.getWindow().setBackgroundDrawableResource(AppUtils.isDarkMode(context)
+                        ? R.drawable.artwork_dialog_background
+                        : R.drawable.artwork_dialog_background_light);
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     dialog.getWindow().setBackgroundBlurRadius(48);
                 }
