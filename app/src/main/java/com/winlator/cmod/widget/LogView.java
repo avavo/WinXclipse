@@ -87,8 +87,7 @@ public class LogView extends View {
             float rowY = -scrollPosition.y;
             
             
-            boolean darkMode = (getResources().getConfiguration().uiMode
-                    & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+            boolean darkMode = com.winlator.cmod.core.AppUtils.isDarkMode(getContext());
             for (int i = 0, count = lines.size(); i < count; i++) {
                 if ((rowY + rowHeight) < 0 || rowY >= height) {
                     rowY += rowHeight;
@@ -116,8 +115,7 @@ public class LogView extends View {
         float scrollThumbWidth = getScrollThumbWidth();
         float scrollThumbHeight = getScrollThumbHeight();
 
-        boolean darkMode = (getResources().getConfiguration().uiMode
-                & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+        boolean darkMode = com.winlator.cmod.core.AppUtils.isDarkMode(getContext());
         paint.setColor(darkMode ? 0x66ffffff : 0x33000000);
         float radius = minScrollThumbSize * 0.5f;
 

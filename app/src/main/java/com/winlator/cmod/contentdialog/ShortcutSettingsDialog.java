@@ -19,6 +19,7 @@ import android.widget.PopupMenu;
 import android.widget.SeekBar;
 import android.widget.Spinner;
 import android.widget.TextView;
+import android.text.TextUtils;
 
 import androidx.preference.PreferenceManager;
 
@@ -84,6 +85,14 @@ public class ShortcutSettingsDialog extends ContentDialog {
         this.shortcut = shortcut;
         setTitle(shortcut.name);
         setIcon(R.drawable.icon_settings);
+        if (getWindow() != null && AppUtils.isDarkMode(getContext())) {
+            getWindow().setBackgroundDrawableResource(R.drawable.artwork_dialog_background);
+        }
+        TextView dialogTitle = findViewById(R.id.TVTitle);
+        if (dialogTitle != null) {
+            dialogTitle.setMaxLines(1);
+            dialogTitle.setEllipsize(TextUtils.TruncateAt.END);
+        }
 
         // Initialize the ContentsManager
         ContainerManager containerManager = shortcut.container.getManager();

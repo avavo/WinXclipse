@@ -612,6 +612,10 @@ public class FileManagerFragment extends Fragment {
             ContentDialog.alert(getContext(), "You need to create a container first to run .exe files.", null);
             return;
         }
+        if (containers.size() == 1) {
+            runFileDirectly(file, containers.get(0));
+            return;
+        }
 
         String[] containerNames = new String[containers.size()];
         for (int i = 0; i < containers.size(); i++) containerNames[i] = containers.get(i).getName();
@@ -626,6 +630,10 @@ public class FileManagerFragment extends Fragment {
         ArrayList<Container> containers = containerManager.getContainers();
         if (containers.isEmpty()) {
             ContentDialog.alert(getContext(), "You need to create a container first to create a shortcut.", null);
+            return;
+        }
+        if (containers.size() == 1) {
+            createShortcut(file, containers.get(0));
             return;
         }
 

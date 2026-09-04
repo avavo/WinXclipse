@@ -46,6 +46,11 @@ public class DebugDialog extends ContentDialog implements Callback<String> {
         super(context, R.layout.debug_dialog);
         setIcon(R.drawable.icon_debug);
         setTitle(context.getString(R.string.logs));
+        if (getWindow() != null && AppUtils.isDarkMode(context)) {
+            getWindow().setBackgroundDrawableResource(R.drawable.artwork_dialog_background);
+        }
+        // Purple toolbar icons in both modes (dark icons vanish on black).
+        int accent = resolveAccentColor(context);
 
         logView = findViewById(R.id.LogView);
         logView.getLayoutParams().width = (int) UnitUtils.dpToPx(
@@ -55,13 +60,23 @@ public class DebugDialog extends ContentDialog implements Callback<String> {
         LinearLayout bottomBar = findViewById(R.id.LLBottomBarPanel);
         bottomBar.setVisibility(View.VISIBLE);
         View toolbar = LayoutInflater.from(context).inflate(R.layout.debug_toolbar, bottomBar, false);
+        tintToolbarButton(toolbar, R.id.BTClear, accent);
+        tintToolbarButton(toolbar, R.id.BTPause, accent);
         toolbar.findViewById(R.id.BTClear).setOnClickListener(v -> logView.clear());
         toolbar.findViewById(R.id.BTPause).setOnClickListener(v -> {
             setPaused(!paused);
             ((ImageButton) v).setImageResource(paused ? R.drawable.icon_play : R.drawable.icon_pause);
         });
         View shareButton = toolbar.findViewById(R.id.BTShareLog);
-        if (shareButton != null) shareButton.setOnClickListener(v -> shareLogFile(context));
+        if (shareButton != null) {
+            ((ImageButton) shareButton).setColorFilter(accent);
+            shareButton.setOnClickListener(v -> shareLogFile(context));
+        }
+        View downloadButton = toolbar.findViewById(R.id.BTDownloadLog);
+        if (downloadButton != null) {
+            ((ImageButton) downloadButton).setColorFilter(accent);
+            downloadButton.setOnClickListener(v -> saveLogToDownloads(context));
+        }
         bottomBar.addView(toolbar);
 
         openLogWriter(false);
@@ -142,6 +157,56 @@ public class DebugDialog extends ContentDialog implements Callback<String> {
                 writer = null;
                 logView.post(() -> logView.append("Log file disabled: " + e.getMessage()));
             }
+        }
+    }
+
+    private static int resolveAccentColor(Context context) {
+        android.util.TypedValue typed = new android.util.TypedValue();
+        if (context.getTheme().resolveAttribute(R.attr.colorAccent, typed, true)) {
+            return typed.data;
+        }
+        return 0xFF7C4DFF;
+    }
+
+    private static void tintToolbarButton(View toolbar, int viewId, int color) {
+        View button = toolbar.findViewById(viewId);
+        if (button instanceof ImageButton) ((ImageButton) button).setColorFilter(color);
+    }
+
+    private void saveLogToDownloads(Context context) {
+        try {
+            synchronized (writerLock) {
+                if (writer != null) writer.flush();
+                pendingLines = 0;
+            }
+            if (logFile == null || !logFile.exists() || logFile.length() == 0) {
+                Toast.makeText(context, "No log file to save yet", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            File dir = new File(android.os.Environment.getExternalStoragePublicDirectory(
+                    android.os.Environment.DIRECTORY_DOWNLOADS), "WinXclipse/logs");
+            if (!dir.isDirectory() && !dir.mkdirs()) {
+                Toast.makeText(context, "Could not create Downloads folder", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            java.io.FileInputStream in = null;
+            java.io.FileOutputStream out = null;
+            try {
+                in = new java.io.FileInputStream(logFile);
+                out = new java.io.FileOutputStream(new File(dir, logFile.getName()));
+                byte[] buffer = new byte[65536];
+                int count;
+                while ((count = in.read(buffer)) > 0) out.write(buffer, 0, count);
+            }
+            finally {
+                if (in != null) try { in.close(); } catch (IOException ignored) {}
+                if (out != null) try { out.close(); } catch (IOException ignored) {}
+            }
+            Toast.makeText(context, "Log saved to Downloads/WinXclipse/logs", Toast.LENGTH_LONG).show();
+        }
+        catch (Exception e) {
+            call("Save failed: " + e.getMessage());
+            Toast.makeText(context, "Failed to save log: " + e.getMessage(), Toast.LENGTH_LONG).show();
         }
     }
 

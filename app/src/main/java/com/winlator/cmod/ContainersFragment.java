@@ -868,7 +868,7 @@ public class ContainersFragment extends Fragment {
                     .setMessage("Fill in the game name, your Discord @, expected average FPS and compatibility status. "
                             + "The detected phone model cannot be changed. In Notes, mention any required fix, preset or variable; otherwise leave it blank.")
                     .setView(scroll)
-                    .setNegativeButton(android.R.string.cancel, null)
+                    .setNegativeButton("Cancel", null)
                     .setPositiveButton("Export", null)
                     .create();
             dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE)
@@ -916,6 +916,18 @@ public class ContainersFragment extends Fragment {
                         exportCommunityConfig(container, metadata);
                     }));
             dialog.show();
+            if (dialog.getWindow() != null) {
+                // Purple-bordered background + blur, matching the artwork dialogs.
+                if (AppUtils.isDarkMode(context)) {
+                    dialog.getWindow().setBackgroundDrawableResource(
+                            R.drawable.artwork_dialog_background);
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    dialog.getWindow().setBackgroundBlurRadius(48);
+                }
+                dialog.getWindow().addFlags(
+                        android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND);
+            }
         }
 
         private void addCompatibilityChoice(RadioGroup group, String label) {

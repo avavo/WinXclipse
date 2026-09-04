@@ -393,6 +393,19 @@ public final class CommunityConfigManager {
             // locally installed profile is malformed.
             Log.w("CommunityConfig", "Could not read all installed content", error);
         }
+        // The fresh manager above only knows installed profiles. Load the
+        // cached remote catalog (same source as the Downloads screen) so
+        // missing content listed for download can be recovered below.
+        try {
+            String bundledJson = FileUtils.readString(context, ContentsManager.REMOTE_PROFILES);
+            if (bundledJson != null) {
+                manager.setRemoteProfiles(manager.getCachedRemoteProfiles(bundledJson));
+                manager.syncContents();
+            }
+        }
+        catch (RuntimeException error) {
+            Log.w("CommunityConfig", "Could not load remote content catalog", error);
+        }
         JSONArray refs = manifest.optJSONArray("contents");
         if (refs == null) refs = manifest.getJSONObject("container").optJSONArray("contentRefs");
         List<ContentResolution> result = new ArrayList<>();

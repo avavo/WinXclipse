@@ -134,7 +134,7 @@
     </style>
 
     <style name="PopupMenu.Dark" parent="PopupMenu">
-        <item name="android:popupBackground">@drawable/content_dialog_background_dark</item>
+        <item name="android:popupBackground">@drawable/artwork_dialog_background</item>
     </style>
 
     <style name="ContentDialog" parent="@style/Theme.AppCompat.Light.Dialog.Alert">

@@ -20,6 +20,8 @@ import android.text.style.ForegroundColorSpan;
 import android.util.Log;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.Gravity;
+import android.widget.FrameLayout;
 import android.widget.TextView;
 
 import androidx.annotation.IntRange;
@@ -775,9 +777,17 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         dialog.findViewById(R.id.LLBottomBar).setVisibility(View.GONE);
 
         if (isDarkMode) {
-            dialog.getWindow().setBackgroundDrawableResource(R.drawable.content_dialog_background_dark);
+            dialog.getWindow().setBackgroundDrawableResource(R.drawable.artwork_dialog_background);
         } else {
             dialog.getWindow().setBackgroundDrawableResource(R.drawable.content_dialog_background);
+        }
+        // Pin the content to the top so no empty band sits above the header.
+        View aboutContent = dialog.getInflatedLayout();
+        if (aboutContent != null) {
+            FrameLayout.LayoutParams aboutParams =
+                    (FrameLayout.LayoutParams) aboutContent.getLayoutParams();
+            aboutParams.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+            aboutContent.setLayoutParams(aboutParams);
         }
 
         try {
