@@ -4450,6 +4450,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         envVars.remove("BCN_COMPUTE_IMAGE_VIEW");
         envVars.remove("BCN_LAYER_LOG_LEVEL");
         envVars.remove("BCN_PROFILE_TRANSFERS");
+        envVars.remove("WRAPPER_DIAG");
         String effectiveBcnTranscodeMode = "";
         if (experimentalBCN) {
             String bcnEmulation = graphicsDriverConfig.getOrDefault("bcnEmulation", "auto");
@@ -4497,6 +4498,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                     envVars.put("BCN_LAYER_LOG_LEVEL", "info,error");
                     envVars.put("BCN_COMPUTE_IMAGE_VIEW", "1");
                     envVars.put("BCN_PROFILE_TRANSFERS", "1");
+                    // Diagnóstico do wrapper (1 bloco por vkCreateDevice no
+                    // logcat): mostra caps nativas e a linha "BCn: emulate=
+                    // ASTC= transcode= cache=", necessária para descobrir por
+                    // que o RE3 deixa umas texturas brancas com o layer em
+                    // LOADED mas sem nenhum transcode ativo.
+                    envVars.put("WRAPPER_DIAG", "1");
                 }
             }
             else {
