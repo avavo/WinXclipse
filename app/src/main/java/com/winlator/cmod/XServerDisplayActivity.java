@@ -4488,16 +4488,14 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             computeLayerActive = computeLayerActive && bcnLayerReady && !nativeBcnWrapper;
             if (computeLayerActive) {
                 envVars.put("ENABLE_BCN_COMPUTE", "1");
-                // Transcode explícito nunca pode cair no auto-detect do wrapper
-                // (driverID Qualcomm/Turnip-like pula o transcode) e o path
-                // storage-image evita o branco/preto do RE3 com staging copies.
-                envVars.put("BCN_COMPUTE_AUTO",
-                        transcodeRequested ? "0"
-                                : "auto".equalsIgnoreCase(bcnEmulation) ? "1" : "0");
+                // Sessão de referência funcionando (RE3 com ASTC ok no Mali):
+                // BCN_COMPUTE_AUTO=1, sem BCN_COMPUTE_IMAGE_VIEW e sem
+                // BCN_PROFILE_TRANSFERS. AUTO=0 forçado + storage-image
+                // deixava o layer em LOADED sem nenhum transcode ativo e com
+                // texturas brancas; o auto do layer escolhe por textura.
+                envVars.put("BCN_COMPUTE_AUTO", "1");
                 if (transcodeRequested) {
                     envVars.put("BCN_LAYER_LOG_LEVEL", "info,error");
-                    envVars.put("BCN_COMPUTE_IMAGE_VIEW", "1");
-                    envVars.put("BCN_PROFILE_TRANSFERS", "1");
                     // Diagnóstico do wrapper (1 bloco por vkCreateDevice no
                     // logcat): mostra caps nativas e a linha "BCn: emulate=
                     // ASTC= transcode= cache=", necessária para descobrir por
