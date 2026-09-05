@@ -32,7 +32,7 @@ public final class ExternalDownloadCatalog {
             "avavo/WinXclipse@drivers_0.9"
     };
     private static final String[] WRAPPER_REPOSITORIES = {
-            "avavo/WinXclipse@wrappers-9.5"
+            "avavo/WinXclipse@wrappers"
     };
 
     public static final class Item {
