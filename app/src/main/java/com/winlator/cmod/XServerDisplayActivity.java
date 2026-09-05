@@ -100,6 +100,7 @@ import com.winlator.cmod.core.PreloaderDialog;
 import com.winlator.cmod.core.ContentOperationRegistry;
 import com.winlator.cmod.core.Callback;
 import com.winlator.cmod.core.ProcessHelper;
+import com.winlator.cmod.core.RageLaunchArgs;
 import com.winlator.cmod.core.StringUtils;
 import com.winlator.cmod.core.TarCompressorUtils;
 import com.winlator.cmod.core.Win32AppWorkarounds;
@@ -4225,11 +4226,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         if (dxwrapper.equals("dxvk")) {
             java.io.File containerRoot = container != null ? container.getRootDir() : null;
             java.io.File shortcutConf = shortcut != null ? shortcut.getDxvkConfFile() : null;
-            int driverMaxMemMb = 0;
-            try {
-                driverMaxMemMb = Integer.parseInt(graphicsDriverConfig.getOrDefault("maxDeviceMemory", "0"));
-            } catch (Exception ignored) {}
-            DXVKConfigDialog.setEnvVars(this, dxwrapperConfig, envVars, containerRoot, driverMaxMemMb, shortcutConf);
+            DXVKConfigDialog.setEnvVars(this, dxwrapperConfig, envVars, containerRoot,
+                    resolveEffectiveVramCapMb(), shortcutConf);
         }
 
         boolean showFps = container != null && container.isShowFPS();
@@ -4279,13 +4277,17 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             Log.i("GraphicsDriverExtraction",
                     "ASTC transcode auto-default via tuning dialog");
         }
-        // RE3 Remake exercita uploads BC1-BC7 com staging copies: o par
-        // hibrido Wrapper-Default + camada July13 e o unico com suporte real
-        // a transcode (WRAPPER_BCN_GPU/ASTC + encode_etc2/astc_compute).
-        // O par alternativo wrapper-default-transcode/leegao_bcn_transcode_compat
-        // nao expoe WRAPPER_BCN/ASTC nem transcode no wrapper, entao o layer
-        // desabilita o transcode ("not supported") e o RE3 sai branco em ETC2
-        // e preto em ASTC. Por isso o transcode usa sempre o par hibrido.
+        // RE3 Remake exercita uploads BC1-BC7 com staging copies. Sessões com
+        // transcode usam sempre o par provado do Mali (wrapper-transcode +
+        // leegao_bcn_transcode): é o único com prova de vida neste aparelho
+        // (758 transcodes ETC2 no Mali 1.2). O par novo (Wrapper-Default +
+        // July13) deadlocks no path de cópia rastreada do wrapper
+        // (bufTracked/bcn_gpu_inflight: hang silencioso, 0% CPU) em qualquer
+        // modo de transcode, e o layer novo não tem fallback. Fora do
+        // transcode vale o par da seleção (preserva os fixes do wrapper novo).
+        // Wrappers com BCN nativo (GameNative/Kirimu/Ref4ik) nunca usam par.
+        final boolean provenTranscodePair = (requestedAstcTranscode || requestedEtc2Transcode)
+                && computeBcnMode && !isNativeBcnWrapper(mainWrapperSelection);
         String lastInstalledMainWrapper = container.getExtra("lastInstalledMainWrapper");
         CustomWrapperManager customWrapperManager = new CustomWrapperManager(this);
         String wrapperRevision = BuildConfig.VERSION_CODE + ":"
@@ -4296,14 +4298,20 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             // already-created container instead of retaining an older wrapper.
             // Sufixo -4 força re-extração em containers presos no par quebrado
             // mali-re3-transcode-pair-1.
-            wrapperRevision += ":july13-pair-4";
+            wrapperRevision += provenTranscodePair ? ":mali-transcode-pair-1" : ":july13-pair-4";
+        }
+        else if (provenTranscodePair) {
+            // Qualquer outro wrapper com transcode também usa o par provado;
+            // o marcador garante re-extração ao ligar/desligar o transcode.
+            wrapperRevision += ":mali-transcode-pair-1";
         }
         String lastInstalledMainWrapperRevision =
                 container.getExtra("lastInstalledMainWrapperRevision", "");
         if (firstTimeBoot || !mainWrapperSelection.equals(lastInstalledMainWrapper)
                 || !wrapperRevision.equals(lastInstalledMainWrapperRevision)) {
             if (mainWrapperSelection.toLowerCase().startsWith("wrapper")) {
-                String assetPath = resolveBundledWrapperAsset(mainWrapperSelection);
+                String assetPath = provenTranscodePair ? "graphics_driver/wrapper-transcode.tzst"
+                        : resolveBundledWrapperAsset(mainWrapperSelection);
                 Log.d("GraphicsDriverExtraction", "WRAPPER selection changed or first boot. Extracting: " + assetPath);
                 boolean success = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, assetPath, rootDir);
                 if (!success) {
@@ -4325,12 +4333,14 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         File bcnLayerLibrary = new File(rootDir, "usr/lib/libbcn_layer.so");
         File bcnLayerManifest = new File(rootDir,
                 "usr/share/vulkan/implicit_layer.d/libbcn_layer.json");
-        final String bcnLayerAsset = dedicatedBcnWrapper ? "graphics_driver/leegao_bcn_july13.tzst"
+        final String bcnLayerAsset = provenTranscodePair ? "graphics_driver/leegao_bcn_transcode.tzst"
+                : dedicatedBcnWrapper ? "graphics_driver/leegao_bcn_july13.tzst"
                         : "graphics_driver/leegao_bcn.tzst";
         // The version marker identifies the complete wrapper/layer pair. This
         // forces the matching layer to be restored when users switch stacks.
         // Sufixo -4 limpa containers presos no leegao-mali-re3-transcode-compat-1.
-        final String bcnLayerVersion = dedicatedBcnWrapper ? "leegao-july13-wrapper-default-4"
+        final String bcnLayerVersion = provenTranscodePair ? "leegao-mali12-transcode-1"
+                : dedicatedBcnWrapper ? "leegao-july13-wrapper-default-4"
                         : "leegao-winmali-2";
         boolean bcnLayerReady = bcnLayerLibrary.isFile() && bcnLayerManifest.isFile();
 
@@ -4380,22 +4390,15 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         String maxDeviceMemory = graphicsDriverConfig.getOrDefault("maxDeviceMemory", "0");
         try {
-            if (Integer.parseInt(maxDeviceMemory) > 0) {
-                envVars.put("WRAPPER_VMEM_MAX_SIZE", maxDeviceMemory);
-                envVars.put("UTIL_LAYER_VMEM_MAX_SIZE", maxDeviceMemory);
-            }
-            else if (isExperimentalPerformanceActive() && "1".equals(xperfConfig.get("vramCap"))) {
-                String capMode = xperfConfig.get("vramCapMode");
-                int vramCap = "2048".equals(capMode) ? 2048
-                        : "3072".equals(capMode) ? 3072
-                        : "4092".equals(capMode) ? 4092
-                        : "6144".equals(capMode) ? 6144
-                        : suggestVramCap();
-                if (vramCap > 0) {
-                    envVars.put("WRAPPER_VMEM_MAX_SIZE", String.valueOf(vramCap));
-                    envVars.put("UTIL_LAYER_VMEM_MAX_SIZE", String.valueOf(vramCap));
+            int driverMax = Integer.parseInt(maxDeviceMemory);
+            int xperfCap = resolveXperfVramCapMb();
+            int hardCap = driverMax > 0 ? driverMax : xperfCap;
+            if (hardCap > 0) {
+                envVars.put("WRAPPER_VMEM_MAX_SIZE", String.valueOf(hardCap));
+                envVars.put("UTIL_LAYER_VMEM_MAX_SIZE", String.valueOf(hardCap));
+                if (driverMax <= 0) {
                     Log.i("GraphicsDriverExtraction",
-                            "Unified-memory VRAM cap: " + vramCap + " MB");
+                            "Unified-memory VRAM cap: " + hardCap + " MB");
                 }
             }
         }
@@ -4450,7 +4453,13 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         envVars.remove("BCN_COMPUTE_IMAGE_VIEW");
         envVars.remove("BCN_LAYER_LOG_LEVEL");
         envVars.remove("BCN_PROFILE_TRANSFERS");
+        envVars.remove("BCN_QUALITY_PRESET");
         envVars.remove("WRAPPER_DIAG");
+        envVars.remove("WRAPPER_BCN_GPU");
+        envVars.remove("WRAPPER_BCN_ASTC");
+        envVars.remove("WRAPPER_ASTC_BLOCK");
+        envVars.remove("WRAPPER_BCN_GPU_CAP_MB");
+        envVars.remove("WRAPPER_NO_BCN_THREAD");
         String effectiveBcnTranscodeMode = "";
         if (experimentalBCN) {
             String bcnEmulation = graphicsDriverConfig.getOrDefault("bcnEmulation", "auto");
@@ -4501,6 +4510,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                     // ASTC= transcode= cache=", necessária para descobrir por
                     // que o RE3 deixa umas texturas brancas com o layer em
                     // LOADED mas sem nenhum transcode ativo.
+                    // (WRAPPER_DIAG só existe no wrapper novo; o par provado
+                    // do transcode ignora vars desconhecidas.)
                     envVars.put("WRAPPER_DIAG", "1");
                 }
             }
@@ -4510,6 +4521,10 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             if (computeLayerActive) {
                 if (astcTranscode) {
                     envVars.put("BCN_TRANSCODE_TO_ASTC", "1");
+                    // O wrapper do par provado anuncia o ASTC nativo sem
+                    // gates. O gate fica para o wrapper novo (DIAG "ASTC="):
+                    // o velho ignora vars desconhecidas, então é seguro.
+                    envVars.put("WRAPPER_BCN_ASTC", "1");
                     effectiveBcnTranscodeMode = "BCN→ASTC";
                 }
                 else if (etc2Transcode) {
@@ -4521,6 +4536,13 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 // Do not silently claim that a checked option reached Vulkan
                 // when the layer, backend, or compatible wrapper is missing.
                 effectiveBcnTranscodeMode = "BCN TRANSCODE ERROR";
+            }
+            // Paridade com o Mali: o layer do par provado lê BCN_QUALITY_PRESET
+            // (auto = layer escolhe; fast/balanced/high = shader do transcode).
+            // Só exporta fora do auto, igual ao Mali 1.2.
+            String bcnQualityPreset = graphicsDriverConfig.getOrDefault("bcnQualityPreset", "auto");
+            if (!"auto".equalsIgnoreCase(bcnQualityPreset)) {
+                envVars.put("BCN_QUALITY_PRESET", bcnQualityPreset);
             }
             envVars.put("WRAPPER_USE_BCN_CACHE", bcnEmulationCache);
             envVars.put("BCN_DISABLE_DISK_CACHE",
@@ -4541,6 +4563,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                         ? "off" : effectiveBcnTranscodeMode)
                 + ", astcEnv=" + envVars.get("BCN_TRANSCODE_TO_ASTC")
                 + ", etc2Env=" + envVars.get("BCN_TRANSCODE_TO_ETC2")
+                + ", wrapperBcnGpu=" + envVars.get("WRAPPER_BCN_GPU")
+                + ", wrapperBcnAstc=" + envVars.get("WRAPPER_BCN_ASTC")
                 + ", layer=" + bcnLayerAsset);
         if (frameRating != null) frameRating.onRendererDetected(getHudApiName());
 
@@ -4729,6 +4753,34 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         // big one should not be capped below its share: intersect both views.
         int modelCap = GPUInformation.getModelVramCapMB();
         return modelCap > 0 ? Math.min(ramBased, modelCap) : ramBased;
+    }
+
+    /** VRAM cap do Experimental Performance (0 = inativo). */
+    private int resolveXperfVramCapMb() {
+        try {
+            if (!isExperimentalPerformanceActive() || !"1".equals(xperfConfig.get("vramCap"))) return 0;
+            String capMode = xperfConfig.get("vramCapMode");
+            int vramCap = "2048".equals(capMode) ? 2048
+                    : "3072".equals(capMode) ? 3072
+                    : "4092".equals(capMode) ? 4092
+                    : "6144".equals(capMode) ? 6144
+                    : suggestVramCap();
+            return Math.max(0, vramCap);
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    /** Menor cap ativo (driver/xperf) ou 0: o reportado nunca passa do hard cap. */
+    private int resolveEffectiveVramCapMb() {
+        int driverMax = 0;
+        try {
+            if (graphicsDriverConfig != null)
+                driverMax = Integer.parseInt(graphicsDriverConfig.getOrDefault("maxDeviceMemory", "0"));
+        } catch (Exception ignored) {}
+        int xperfCap = resolveXperfVramCapMb();
+        if (driverMax > 0 && xperfCap > 0) return Math.min(driverMax, xperfCap);
+        return Math.max(driverMax, xperfCap);
     }
 
     private void copyFile(File sourceFile, File destFile) throws IOException {
@@ -5117,6 +5169,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         if (shortcut != null) {
             String execArgs = shortcut.getExtra("execArgs");
             execArgs = !execArgs.isEmpty() ? " " + execArgs : "";
+            String rageExeName = null;
 
             if (shortcut.path.endsWith(".lnk")) {
                 args += "\"" + shortcut.path + "\"" + execArgs;
@@ -5132,7 +5185,36 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                     filename = filename.substring(0, spaceIndex);
                 }
 
+                rageExeName = filename;
                 args += "/dir " + StringUtils.escapeDOSPath(exeDir) + " \"" + filename + "\"" + execArgs;
+            }
+
+            // GTA V em mobile estoura a RAM no streaming dirigindo pela cidade;
+            // completa as flags anti-OOM que o usuario ainda nao definiu.
+            if (RageLaunchArgs.isGtaV(rageExeName)) {
+                // Toggle mora na config DXVK (dialogo); extras legados do Mali
+                // ("gtaOptimization" no atalho/container) continuam valendo.
+                boolean gtaOpt = "1".equals(DXVKConfigDialog.parseConfig(dxwrapperConfig).get("gtaOpt"))
+                        || "1".equals(shortcut.getExtra("gtaOptimization", "0"))
+                        || (container != null && "1".equals(container.getExtra("gtaOptimization", "0")));
+                if (gtaOpt && !execArgs.toLowerCase(java.util.Locale.ENGLISH).contains("-nomemrestrict")) {
+                    args += RageLaunchArgs.POTATO_ARGS;
+                    execArgs += RageLaunchArgs.POTATO_ARGS;
+                    Log.i("WineStartCommand", "GTA V optimization preset applied");
+                }
+                String missing = RageLaunchArgs.missingArgs(execArgs);
+                if (!missing.isEmpty()) {
+                    args += missing;
+                    Log.i("WineStartCommand", "GTA V memory-safe args appended:" + missing);
+                }
+                try {
+                    java.io.File resolved = shortcut.resolveExecutableFile();
+                    if (resolved != null && resolved.getName().toLowerCase(java.util.Locale.ENGLISH).endsWith(".exe")) {
+                        RageLaunchArgs.ensureCommandLineTxt(resolved.getParentFile());
+                    }
+                } catch (Exception e) {
+                    Log.w("WineStartCommand", "Could not ensure GTA V commandline.txt", e);
+                }
             }
         } else {
             // Append EXTRA_EXEC_ARGS from overrideEnvVars if it exists
@@ -5355,7 +5437,11 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         boolean expectedAstc = bcnTranscodeBaseMode.contains("ASTC");
         boolean transcodeLine = lower.contains("transcode:")
                 || lower.contains("encode_etc2_compute")
-                || lower.contains("encode_astc_compute");
+                || lower.contains("encode_astc_compute")
+                // Formato das linhas de perfil do layer (ex: "[   encode_astc]
+                // Calls: 7 ..."): prova que o transcode rodou de verdade.
+                || lower.contains("encode_etc2]")
+                || lower.contains("encode_astc]");
         if (transcodeLine && (lower.contains("transcode:")
                 || (expectedEtc2 && lower.contains("etc2"))
                 || (expectedAstc && lower.contains("astc")))) {

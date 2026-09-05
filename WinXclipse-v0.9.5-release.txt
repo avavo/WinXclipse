@@ -31,7 +31,7 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
 
 ### Wrappers, ASTC and ETC2
 
-- The new hybrid stack is `Wrapper-Default` and is selected for new containers; ASTC/ETC2 transcode (RE3 Remake incluso) also uses this hybrid pair.
+- The new hybrid stack is `Wrapper-Default` and is selected for new containers; normal (non-transcode) sessions use this hybrid pair. ASTC/ETC2 transcode sessions (RE3 Remake incluso) use the proven Winlator Mali wrapper/layer pair instead, verified on Xclipse 940 with hundreds of ETC2 and 106 ASTC transcodes at ~1.2-2.2 GB/s.
 - Old `Wrapper-BCN` and `Wrapper-Xclipse` selections migrate to `Wrapper-Default`.
 - The previous generic `wrapper` selection migrates to `Wrapper-CMOD-V1`; the V2 path has its own stable `Wrapper-CMOD-V2` identity.
 - Built-in choices are Wrapper-Default, Wrapper-CMOD-V1 and Wrapper-Kirimu.
@@ -41,8 +41,8 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
 - The Downloads page reads the maintained wrapper release, downloads archives directly and installs them under stable identifiers.
 - Community configs automatically recognize bundled wrappers and recover missing downloadable wrappers from Downloads or the remote catalog without recreating the config.
 - Fixed ASTC/ETC2 transcoding activation so a requested transcode can enable the compute layer even when BCN emulation is set to None or Partial.
-- Explicit ASTC/ETC2 requests force Leegao decode instead of allowing wrapper driver-ID auto-detection to skip it. RE3 showed white ETC2/black ASTC because the alternate transcode pair exposes no WRAPPER_BCN/ASTC path; transcode now always uses the hybrid Wrapper-Default + July13 pair with forced decode and existing containers refresh automatically.
-- The HUD reports `ARMED`, `LOADED`, `ACTIVE`, or a specific error for the effective BCN-to-ASTC/ETC2 path. `ACTIVE` is shown only after the layer logs a real transcode operation; layer mapping alone is no longer treated as success.
+- Transcode sessions extract the proven Winlator Mali pair: the new wrapper hides ASTC unless `WRAPPER_BCN_ASTC` is set (black ASTC without it, still exported for the new stack), and its tracked BCN copy path deadlocks RE3 on Xclipse on the first emulated texture in every transcode mode (silent hang, 0% CPU). Stale wrapper BCN/ASTC variables are cleared on every boot, the BCN quality preset is exported when not `auto` (Mali 1.2 parity), and containers migrate between pairs automatically.
+- The HUD reports `ARMED`, `LOADED`, `ACTIVE`, or a specific error for the effective BCN-to-ASTC/ETC2 path. `ACTIVE` is shown only after the layer logs a real transcode operation, including its profile-line format; layer mapping alone is no longer treated as success.
 - Wrapper-Default uses the safer Mali shader-patch policy intended to avoid the wrapper-side pipeline crash observed in Red Dead Redemption.
 
 ### Controls

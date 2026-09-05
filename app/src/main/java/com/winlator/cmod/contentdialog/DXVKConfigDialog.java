@@ -35,14 +35,14 @@ public class DXVKConfigDialog extends ContentDialog {
     // dxvk.conf embarcado no repack (OpJuegos/ADM/Mali) vaza para a sessao.
     // Inclui o cap de VRAM reportada: sem ele o jogo dimensiona os pools de
     // streaming pelo heap inteiro e morre de OOM andando de carro (GTA V).
-    // Sao os defaults do DXVK quando zerados, entao so fazem efeito real
-    // contra arquivo externo ou quando ha cap configurado.
-    public static String buildSafeFallbackConfig(Context context, int driverMaxMemMb) {
+    // explicitCapMb e o menor hard cap ativo (driver/xperf): o reportado nunca
+    // passa do real, senao o jogo planeja alem do que existe e perde textura.
+    public static String buildSafeFallbackConfig(Context context, int explicitCapMb) {
         int dev;
         int shared;
-        if (driverMaxMemMb > 0) {
-            dev = driverMaxMemMb;
-            shared = driverMaxMemMb;
+        if (explicitCapMb > 0) {
+            dev = explicitCapMb;
+            shared = explicitCapMb;
         } else if (getTotalMemMb(context) <= 6144) {
             dev = 2048;
             shared = 2048;
@@ -72,6 +72,7 @@ public class DXVKConfigDialog extends ContentDialog {
     public static final int DXVK_TYPE_GPLASYNC = 2;
     private final ToggleButton swAsync;
     private final ToggleButton swAsyncCache;
+    private final ToggleButton swGtaOpt;
     private final View llAsync;
     private final View llAsyncCache;
     private final Context context;
@@ -120,6 +121,9 @@ public class DXVKConfigDialog extends ContentDialog {
                 AppUtils.showHelpBox(getContext(), v, R.string.dxvk_help_vk3d66));
         swAsync = findViewById(R.id.SWAsync);
         swAsyncCache = findViewById(R.id.SWAsyncCache);
+        swGtaOpt = findViewById(R.id.SWGtaOpt);
+        findViewById(R.id.BTGtaOptHelp).setOnClickListener(v ->
+                AppUtils.showHelpBox(getContext(), v, R.string.gta_optimization_help));
         llAsync = findViewById(R.id.LLAsync);
         llAsyncCache = findViewById(R.id.LLAsyncCache);
 
@@ -160,6 +164,7 @@ public class DXVKConfigDialog extends ContentDialog {
         AppUtils.setSpinnerSelectionFromIdentifier(sVkd3dFeatureLevel, config.get("vkd3dLevel"));
         swAsync.setChecked(config.get("async").equals("1"));
         swAsyncCache.setChecked(config.get("asyncCache").equals("1"));
+        swGtaOpt.setChecked(config.get("gtaOpt").equals("1"));
         cbNoTimeline.setChecked(config.get("noTimeline").equals("1"));
         cbVk3d66.setChecked(config.get("vk3d66").equals("1"));
 
@@ -196,6 +201,7 @@ public class DXVKConfigDialog extends ContentDialog {
             config.put("vkd3dLevel", sVkd3dFeatureLevel.getSelectedItem().toString());
             config.put("noTimeline", cbNoTimeline.isChecked() ? "1" : "0");
             config.put("vk3d66", cbVk3d66.isChecked() ? "1" : "0");
+            config.put("gtaOpt", swGtaOpt.isChecked() ? "1" : "0");
             anchor.setTag(config.toString());
         });
     }
@@ -281,13 +287,13 @@ public class DXVKConfigDialog extends ContentDialog {
     }
 
     public static void setEnvVars(Context context, KeyValueSet config, EnvVars envVars, File containerRoot,
-                                  int driverMaxMemMb) {
-        setEnvVars(context, config, envVars, containerRoot, driverMaxMemMb, null);
+                                  int explicitCapMb) {
+        setEnvVars(context, config, envVars, containerRoot, explicitCapMb, null);
     }
 
     /** Precedencia do conf custom: atalho > container > global legado. */
     public static void setEnvVars(Context context, KeyValueSet config, EnvVars envVars, File containerRoot,
-                                  int driverMaxMemMb, File shortcutConf) {
+                                  int explicitCapMb, File shortcutConf) {
         // Keep every D3D shader cache on fast internal storage. DXVK 1.x uses
         // STATE_CACHE_PATH while modern DXVK and VKD3D-Proton use their shader
         // cache variables, so set all three for both ARM64EC and x86 runtimes.
@@ -336,7 +342,7 @@ public class DXVKConfigDialog extends ContentDialog {
                 // (o DXVK le esse arquivo sozinho; o env tem precedencia).
                 // Respeita um DXVK_CONFIG manual da aba EnvVars, se houver.
                 if (!envVars.has("DXVK_CONFIG"))
-                    envVars.put("DXVK_CONFIG", buildSafeFallbackConfig(context, driverMaxMemMb));
+                    envVars.put("DXVK_CONFIG", buildSafeFallbackConfig(context, explicitCapMb));
                 Log.i("DXVKConfigDialog", "No custom dxvk.conf, applying safe fallback overrides");
             }
         }

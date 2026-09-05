@@ -912,4 +912,6 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="dxvk_conf_sanitize_msg">This dxvk.conf has settings that break games on Xclipse/Mali (RE2, GTA V):\n%1$s\nImport the sanitized version?</string>
     <string name="dxvk_conf_use_sanitized">Use sanitized</string>
     <string name="dxvk_conf_use_original">Keep original</string>
+    <string name="gta_optimization">GTA V optimization</string>
+    <string name="gta_optimization_help">Applies graphics and CPU optimizations for GTA V to improve performance on low-end hardware.</string>
 </resources>

@@ -211,5 +211,38 @@
             </LinearLayout>
         </LinearLayout>
 
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:layout_weight="1"
+                android:text="@string/gta_optimization" />
+
+            <ImageView
+                android:id="@+id/BTGtaOptHelp"
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:layout_gravity="center"
+                android:layout_marginLeft="8dp"
+                android:layout_marginRight="8dp"
+                android:src="@drawable/icon_help"
+                app:tint="?colorAccent" />
+
+            <ToggleButton
+                android:id="@+id/SWGtaOpt"
+                android:layout_width="64dp"
+                android:layout_height="32dp"
+                android:background="@drawable/toggle_button_selector"
+                android:textOn=""
+                android:textOff="" />
+
+        </LinearLayout>
+
     </LinearLayout>
 </ScrollView>
