@@ -4241,15 +4241,13 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             Log.i("GraphicsDriverExtraction",
                     "ASTC transcode auto-default via tuning dialog");
         }
-        // RE Engine exercises BC upload paths that are not covered by RE2.
-        // The hybrid default wrapper and July-13 layer have different ABIs
-        // from the exact pair shipped in the tested Winlator Mali APK, which
-        // produced white ETC2 and black ASTC surfaces in RE3. Keep the hybrid
-        // wrapper for normal use, but switch the complete pair together while
-        // explicit transcoding is enabled.
-        boolean transcodeCompatibilityPair = experimentalBCN
-                && "wrapper-default".equalsIgnoreCase(mainWrapperSelection)
-                && (requestedAstcTranscode || requestedEtc2Transcode);
+        // RE3 Remake exercita uploads BC1-BC7 com staging copies: o par
+        // hibrido Wrapper-Default + camada July13 e o unico com suporte real
+        // a transcode (WRAPPER_BCN_GPU/ASTC + encode_etc2/astc_compute).
+        // O par alternativo wrapper-default-transcode/leegao_bcn_transcode_compat
+        // nao expoe WRAPPER_BCN/ASTC nem transcode no wrapper, entao o layer
+        // desabilita o transcode ("not supported") e o RE3 sai branco em ETC2
+        // e preto em ASTC. Por isso o transcode usa sempre o par hibrido.
         String lastInstalledMainWrapper = container.getExtra("lastInstalledMainWrapper");
         CustomWrapperManager customWrapperManager = new CustomWrapperManager(this);
         String wrapperRevision = BuildConfig.VERSION_CODE + ":"
@@ -4258,17 +4256,16 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             // Built-in assets do not have a downloadable-content revision.
             // Include the matched pair revision so an APK update refreshes an
             // already-created container instead of retaining an older wrapper.
-            wrapperRevision += transcodeCompatibilityPair
-                    ? ":mali-re3-transcode-pair-1" : ":july13-pair-2";
+            // Sufixo -4 força re-extração em containers presos no par quebrado
+            // mali-re3-transcode-pair-1.
+            wrapperRevision += ":july13-pair-4";
         }
         String lastInstalledMainWrapperRevision =
                 container.getExtra("lastInstalledMainWrapperRevision", "");
         if (firstTimeBoot || !mainWrapperSelection.equals(lastInstalledMainWrapper)
                 || !wrapperRevision.equals(lastInstalledMainWrapperRevision)) {
             if (mainWrapperSelection.toLowerCase().startsWith("wrapper")) {
-                String assetPath = transcodeCompatibilityPair
-                        ? "graphics_driver/wrapper-default-transcode.tzst"
-                        : resolveBundledWrapperAsset(mainWrapperSelection);
+                String assetPath = resolveBundledWrapperAsset(mainWrapperSelection);
                 Log.d("GraphicsDriverExtraction", "WRAPPER selection changed or first boot. Extracting: " + assetPath);
                 boolean success = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, assetPath, rootDir);
                 if (!success) {
@@ -4290,15 +4287,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         File bcnLayerLibrary = new File(rootDir, "usr/lib/libbcn_layer.so");
         File bcnLayerManifest = new File(rootDir,
                 "usr/share/vulkan/implicit_layer.d/libbcn_layer.json");
-        final String bcnLayerAsset = transcodeCompatibilityPair
-                ? "graphics_driver/leegao_bcn_transcode_compat.tzst"
-                : dedicatedBcnWrapper ? "graphics_driver/leegao_bcn_july13.tzst"
+        final String bcnLayerAsset = dedicatedBcnWrapper ? "graphics_driver/leegao_bcn_july13.tzst"
                         : "graphics_driver/leegao_bcn.tzst";
         // The version marker identifies the complete wrapper/layer pair. This
         // forces the matching layer to be restored when users switch stacks.
-        final String bcnLayerVersion = transcodeCompatibilityPair
-                ? "leegao-mali-re3-transcode-compat-1"
-                : dedicatedBcnWrapper ? "leegao-july13-wrapper-default-3"
+        // Sufixo -4 limpa containers presos no leegao-mali-re3-transcode-compat-1.
+        final String bcnLayerVersion = dedicatedBcnWrapper ? "leegao-july13-wrapper-default-4"
                         : "leegao-winmali-2";
         boolean bcnLayerReady = bcnLayerLibrary.isFile() && bcnLayerManifest.isFile();
 
@@ -4455,17 +4449,16 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             computeLayerActive = computeLayerActive && bcnLayerReady && !nativeBcnWrapper;
             if (computeLayerActive) {
                 envVars.put("ENABLE_BCN_COMPUTE", "1");
+                // Transcode explícito nunca pode cair no auto-detect do wrapper
+                // (driverID Qualcomm/Turnip-like pula o transcode) e o path
+                // storage-image evita o branco/preto do RE3 com staging copies.
                 envVars.put("BCN_COMPUTE_AUTO",
-                        transcodeCompatibilityPair
-                                ? ("auto".equalsIgnoreCase(bcnEmulation) ? "1" : "0")
-                                : transcodeRequested ? "0"
+                        transcodeRequested ? "0"
                                 : "auto".equalsIgnoreCase(bcnEmulation) ? "1" : "0");
                 if (transcodeRequested) {
                     envVars.put("BCN_LAYER_LOG_LEVEL", "info,error");
-                    if (!transcodeCompatibilityPair) {
-                        envVars.put("BCN_COMPUTE_IMAGE_VIEW", "1");
-                        envVars.put("BCN_PROFILE_TRANSFERS", "1");
-                    }
+                    envVars.put("BCN_COMPUTE_IMAGE_VIEW", "1");
+                    envVars.put("BCN_PROFILE_TRANSFERS", "1");
                 }
             }
             else {
@@ -4501,7 +4494,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 + experimentalBCN + ", layerReady=" + bcnLayerReady
                 + ", nativeWrapper=" + nativeBcnWrapper
                 + ", dedicatedWrapper=" + dedicatedBcnWrapper
-                + ", maliCompatibilityPair=" + transcodeCompatibilityPair
                 + ", transcode=" + (effectiveBcnTranscodeMode.isEmpty()
                         ? "off" : effectiveBcnTranscodeMode)
                 + ", astcEnv=" + envVars.get("BCN_TRANSCODE_TO_ASTC")
