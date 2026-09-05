@@ -827,6 +827,11 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="xclipse_driver_download_hint">Download compatible drivers from the MdiEx releases page: https://github.com/avavo/MdiEx/releases</string>
     <string name="enable_dark_mode">Enable Dark Mode</string>
     <string name="follow_system_theme">Follow Android System Theme</string>
+    <string name="app_icon">App icon</string>
+    <string name="use_alternative_app_icon">Use alternative app icon</string>
+    <string name="alternative_app_icon_preview">Alternative WinXclipse icon preview</string>
+    <string name="app_icon_changed">App icon changed. The launcher may take a few seconds to refresh.</string>
+    <string name="app_icon_change_failed">Could not change the app icon.</string>
 
     <string name="fexcore_preset">FEXCore Preset</string>
     <string name="import_preset">Import Preset</string>

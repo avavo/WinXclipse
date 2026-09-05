@@ -8,6 +8,7 @@
     <color name="colorPrimary">#2F0B81</color>
     <color name="colorPrimaryDark">#2F0B81</color>
     <color name="colorAccent">#6D28D9</color>
+    <color name="ic_launcher_alternative_background">#250038</color>
     <color name="black">#000000</color>
 
     <!-- Dark Theme Colors -->

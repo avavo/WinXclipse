@@ -54,6 +54,7 @@ import com.winlator.cmod.core.ArrayUtils;
 import com.winlator.cmod.core.Callback;
 import com.winlator.cmod.core.DefaultVersion;
 import com.winlator.cmod.core.FileUtils;
+import com.winlator.cmod.core.LauncherIconManager;
 import com.winlator.cmod.core.PreloaderDialog;
 import com.winlator.cmod.core.StringUtils;
 import com.winlator.cmod.core.ShortcutArtworkManager;
@@ -207,6 +208,11 @@ public class SettingsFragment extends Fragment {
                 AppUtils.showHelpBox(context, v, R.string.help_dark_mode));
         view.findViewById(R.id.BTHelpFollowSystemTheme).setOnClickListener(v ->
                 AppUtils.showHelpBox(context, v, R.string.help_follow_system_theme));
+
+        final CheckBox cbUseAlternativeAppIcon = view.findViewById(
+                R.id.CBUseAlternativeAppIcon);
+        cbUseAlternativeAppIcon.setChecked(preferences.getBoolean(
+                LauncherIconManager.PREF_USE_ALTERNATIVE_ICON, false));
 
         // Initialize Big Picture Mode Checkbox
         cbEnableBigPictureMode = view.findViewById(R.id.CBEnableBigPictureMode);
@@ -468,10 +474,15 @@ public class SettingsFragment extends Fragment {
 
 //        int finalSelectedIndex = selectedIndex;
         view.findViewById(R.id.BTConfirm).setOnClickListener((v) -> {
+            boolean previousAlternativeIcon = preferences.getBoolean(
+                    LauncherIconManager.PREF_USE_ALTERNATIVE_ICON, false);
+            boolean useAlternativeIcon = cbUseAlternativeAppIcon.isChecked();
             SharedPreferences.Editor editor = preferences.edit();
 
             editor.putBoolean(AppUtils.PREF_DARK_MODE, cbDarkMode.isChecked());
             editor.putBoolean(AppUtils.PREF_FOLLOW_SYSTEM_THEME, cbFollowSystemTheme.isChecked());
+            editor.putBoolean(LauncherIconManager.PREF_USE_ALTERNATIVE_ICON,
+                    useAlternativeIcon);
             editor.putString("box64_preset", Box86_64PresetManager.getSpinnerSelectedId(sBox64Preset));
             editor.putString("fexcore_preset", FEXCorePresetManager.getSpinnerSelectedId(sFEXCorePreset));
             editor.putString(ShortcutArtworkManager.PREF_MODE,
@@ -525,6 +536,17 @@ public class SettingsFragment extends Fragment {
             saveCustomApiKeySettings(editor);
 
             if (editor.commit()) {
+                if (previousAlternativeIcon != useAlternativeIcon) {
+                    if (!LauncherIconManager.setAlternativeIcon(context, useAlternativeIcon)) {
+                        preferences.edit().putBoolean(
+                                LauncherIconManager.PREF_USE_ALTERNATIVE_ICON,
+                                previousAlternativeIcon).apply();
+                        cbUseAlternativeAppIcon.setChecked(previousAlternativeIcon);
+                        AppUtils.showToast(context, R.string.app_icon_change_failed);
+                        return;
+                    }
+                    AppUtils.showToast(context, R.string.app_icon_changed);
+                }
                 NavigationView navigationView = getActivity().findViewById(R.id.NavigationView);
                 navigationView.setCheckedItem(R.id.main_menu_containers);
                 FragmentManager fragmentManager = getParentFragmentManager();
@@ -573,6 +595,9 @@ public class SettingsFragment extends Fragment {
 
         TextView themeLabel = view.findViewById(R.id.TVTheme);
         applyFieldSetLabelStyle(themeLabel, isDarkMode);
+
+        TextView appIconLabel = view.findViewById(R.id.TVAppIcon);
+        applyFieldSetLabelStyle(appIconLabel, isDarkMode);
 
         TextView shortcutSettingsLabel = view.findViewById(R.id.TVShortcutSettings);
         applyFieldSetLabelStyle(shortcutSettingsLabel, isDarkMode);
