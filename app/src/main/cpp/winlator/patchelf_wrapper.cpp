@@ -1,84 +1,105 @@
 #include <jni.h>
 
+// NOTE: the patchelf bridge is intentionally unimplemented (nothing in the app
+// uses PatchElf). Every entry point returns a safe "failure" default so the
+// Java side degrades gracefully instead of reading undefined garbage off the
+// stack (falling off a non-void JNI function is undefined behavior and used to
+// fake success, e.g. a non-zero handle from createElfObject).
+
 extern "C"
 JNIEXPORT jlong JNICALL
 Java_com_winlator_cmod_core_PatchElf_createElfObject(JNIEnv *env, jobject thiz, jstring path) {
-    // TODO: implement createElfObject()
+    (void)env; (void)thiz; (void)path;
+    return 0;
 }
 extern "C"
 JNIEXPORT jboolean JNICALL
 Java_com_winlator_cmod_core_PatchElf_destroyElfObject(JNIEnv *env, jobject thiz, jlong object_ptr) {
-    // TODO: implement destroyElfObject()
+    (void)env; (void)thiz; (void)object_ptr;
+    return JNI_FALSE;
 }
 extern "C"
 JNIEXPORT jboolean JNICALL
 Java_com_winlator_cmod_core_PatchElf_isChanged(JNIEnv *env, jobject thiz, jlong object_ptr) {
-    // TODO: implement isChanged()
+    (void)env; (void)thiz; (void)object_ptr;
+    return JNI_FALSE;
 }
 extern "C"
 JNIEXPORT jstring JNICALL
 Java_com_winlator_cmod_core_PatchElf_getInterpreter(JNIEnv *env, jobject thiz, jlong object_ptr) {
-    // TODO: implement getInterpreter()
+    (void)env; (void)thiz; (void)object_ptr;
+    return nullptr;
 }
 extern "C"
 JNIEXPORT jboolean JNICALL
 Java_com_winlator_cmod_core_PatchElf_setInterpreter(JNIEnv *env, jobject thiz, jlong object_ptr,
                                                jstring interpreter) {
-    // TODO: implement setInterpreter()
+    (void)env; (void)thiz; (void)object_ptr; (void)interpreter;
+    return JNI_FALSE;
 }
 extern "C"
 JNIEXPORT jstring JNICALL
 Java_com_winlator_cmod_core_PatchElf_getOsAbi(JNIEnv *env, jobject thiz, jlong object_ptr) {
-    // TODO: implement getOsAbi()
+    (void)env; (void)thiz; (void)object_ptr;
+    return nullptr;
 }
 extern "C"
 JNIEXPORT jboolean JNICALL
 Java_com_winlator_cmod_core_PatchElf_replaceOsAbi(JNIEnv *env, jobject thiz, jlong object_ptr,
                                              jstring os_abi) {
-    // TODO: implement replaceOsAbi()
+    (void)env; (void)thiz; (void)object_ptr; (void)os_abi;
+    return JNI_FALSE;
 }
 extern "C"
 JNIEXPORT jstring JNICALL
 Java_com_winlator_cmod_core_PatchElf_getSoName(JNIEnv *env, jobject thiz, jlong object_ptr) {
-    // TODO: implement getSoName()
+    (void)env; (void)thiz; (void)object_ptr;
+    return nullptr;
 }
 extern "C"
 JNIEXPORT jboolean JNICALL
 Java_com_winlator_cmod_core_PatchElf_replaceSoName(JNIEnv *env, jobject thiz, jlong object_ptr,
                                               jstring so_name) {
-    // TODO: implement replaceSoName()
+    (void)env; (void)thiz; (void)object_ptr; (void)so_name;
+    return JNI_FALSE;
 }
 extern "C"
 JNIEXPORT jobjectArray JNICALL
 Java_com_winlator_cmod_core_PatchElf_getRPath(JNIEnv *env, jobject thiz, jlong object_ptr) {
-    // TODO: implement getRPath()
+    (void)env; (void)thiz; (void)object_ptr;
+    return nullptr;
 }
 extern "C"
 JNIEXPORT jboolean JNICALL
 Java_com_winlator_cmod_core_PatchElf_addRPath(JNIEnv *env, jobject thiz, jlong object_ptr,
                                          jstring rpath) {
-    // TODO: implement addRPath()
+    (void)env; (void)thiz; (void)object_ptr; (void)rpath;
+    return JNI_FALSE;
 }
 extern "C"
 JNIEXPORT jboolean JNICALL
 Java_com_winlator_cmod_core_PatchElf_removeRPath(JNIEnv *env, jobject thiz, jlong object_ptr,
                                             jstring rpath) {
-    // TODO: implement removeRPath()
+    (void)env; (void)thiz; (void)object_ptr; (void)rpath;
+    return JNI_FALSE;
 }
 extern "C"
 JNIEXPORT jobjectArray JNICALL
 Java_com_winlator_cmod_core_PatchElf_getNeeded(JNIEnv *env, jobject thiz, jlong object_ptr) {
-    // TODO: implement getNeeded()
+    (void)env; (void)thiz; (void)object_ptr;
+    return nullptr;
 }
 extern "C"
 JNIEXPORT jboolean JNICALL
 Java_com_winlator_cmod_core_PatchElf_addNeeded(JNIEnv *env, jobject thiz, jlong object_ptr,
                                           jstring needed) {
-    // TODO: implement addNeeded()
+    (void)env; (void)thiz; (void)object_ptr; (void)needed;
+    return JNI_FALSE;
 }
 extern "C"
 JNIEXPORT jboolean JNICALL
 Java_com_winlator_cmod_core_PatchElf_removeNeeded(JNIEnv *env, jobject thiz, jlong object_ptr,
                                              jstring needed) {
-    // TODO: implement removeNeeded()
+    (void)env; (void)thiz; (void)object_ptr; (void)needed;
+    return JNI_FALSE;
 }

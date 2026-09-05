@@ -2,7 +2,14 @@ package com.winlator.cmod.renderer.apex;
 
 import android.util.Log;
 
-/** JNI bridge for the experimental Apex GLES frame-interpolation engine. */
+/**
+ * JNI bridge for the experimental Apex GLES frame-interpolation engine.
+ *
+ * <p>libapex.so is a prebuilt binary shipped under app/src/main/jniLibs (no
+ * source in this repo; it is intentionally tracked in git). Loading is
+ * best-effort: when the library is missing or rejects a frame, callers fall
+ * back to the GLES compute path (see LSFGEffect).
+ */
 public final class ApexNative {
     private static final String TAG = "ApexNative";
     private static final boolean AVAILABLE;

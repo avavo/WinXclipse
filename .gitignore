@@ -37,14 +37,15 @@ app/src/main/assets/graphics_driver/*
 !app/src/main/assets/contents/
 app/src/main/assets/contents/*
 !app/src/main/assets/contents/Box64-0.4.3-260519-024717c.wcp
-!app/src/main/assets/contents/Dxvk-2.6.2-arm64ec-gplasync.wcp
-!app/src/main/assets/contents/dxvk-1.7.2.wcp
-!app/src/main/assets/contents/Dxvk-1.7.3-async.wcp
 !app/src/main/assets/contents/FEXCore-2608.wcp
-!app/src/main/assets/contents/vkd3d-proton-3.0.1b.wcp
 !app/src/main/assets/dxwrapper/
 app/src/main/assets/dxwrapper/*
-!app/src/main/assets/dxwrapper/dxvk-1.11.1-sarek.txz
+# Default DXVK/D8VK payloads referenced by DefaultVersion.java — a fresh clone
+# must contain them or first boot has no DX renderer.
+!app/src/main/assets/dxwrapper/d8vk-1.0.txz
+!app/src/main/assets/dxwrapper/dxvk-1.10.1.tzst
+!app/src/main/assets/dxwrapper/dxvk-1.10.3-arm64ec-async.txz
+!app/src/main/assets/dxwrapper/dxvk-async-1.10.3.txz
 !app/src/main/assets/inputcontrols/
 app/src/main/assets/inputcontrols/*
 !app/src/main/assets/inputcontrols/profiles/

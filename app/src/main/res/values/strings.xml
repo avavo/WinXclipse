@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE resources [
-    <!ENTITY TERMUX_PACKAGE_NAME "com.winlator">
-    <!ENTITY TERMUX_X11_APP_NAME "Winlator:X11">
+    <!ENTITY TERMUX_PACKAGE_NAME "com.win.xclipse">
+    <!ENTITY TERMUX_X11_APP_NAME "WinXclipse:X11">
     ]>
 <resources>
     <string name="help">Help</string>

@@ -21,7 +21,7 @@ import com.winlator.cmod.xenvironment.ImageFs;
 
 import java.io.File;
 
-public class GuestProgramLauncherComponent extends EnvironmentComponent {
+public abstract class GuestProgramLauncherComponent extends EnvironmentComponent {
     private String guestExecutable;
     private static int pid = -1;
     private String[] bindingPaths;
@@ -251,8 +251,6 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
         }
     }
 
-    public String execShellCommand(String command) {
-        throw new UnsupportedOperationException("execShellCommand not implemented in base class.");
-    }
+    public abstract String execShellCommand(String command);
 
 }

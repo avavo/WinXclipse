@@ -1076,7 +1076,7 @@ public class FileManagerFragment extends Fragment {
         try {
             Intent intent = new Intent(Intent.ACTION_SEND);
             intent.setType("*/*");
-            intent.putExtra(Intent.EXTRA_STREAM, androidx.core.content.FileProvider.getUriForFile(requireContext(), "com.winlator.cmod.tileprovider", file));
+            intent.putExtra(Intent.EXTRA_STREAM, androidx.core.content.FileProvider.getUriForFile(requireContext(), requireContext().getPackageName() + ".fileprovider", file));
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             startActivity(Intent.createChooser(intent, getString(R.string.share)));
         } catch (Exception e) {

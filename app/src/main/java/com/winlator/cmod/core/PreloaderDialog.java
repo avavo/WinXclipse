@@ -103,7 +103,9 @@ public class PreloaderDialog {
                 dialog.dismiss();
             }
         }
-        catch (Exception e) {}
+        catch (Exception ignored) {
+            // Dismiss is best-effort: the activity may already be gone.
+        }
     }
 
     public void closeOnUiThread() {

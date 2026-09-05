@@ -28,15 +28,19 @@ public class PatchElf {
     }
 
     public void unloadElf() {
-        if (elfInstancePtr != 0)
+        if (elfInstancePtr != 0) {
             destroyElfObject(elfInstancePtr);
+            elfInstancePtr = 0;
+            elfFile = null;
+        }
     }
 
+    /**
+     * The native patchelf bridge is unimplemented (see patchelf_wrapper.cpp),
+     * so saving always fails gracefully instead of pretending to succeed.
+     */
     public boolean saveElf(@NonNull File file) {
-        if (file != elfFile && !file.exists()) {
-            // TODO: save elf file
-            return true;
-        }
+        android.util.Log.w("PatchElf", "saveElf is not implemented; ignoring request for " + file);
         return false;
     }
 
@@ -46,7 +50,8 @@ public class PatchElf {
         return saveElf(elfFile);
     }
 
-    // TODO: implement these ops.
+    // Native patchelf bridge: intentionally unimplemented, the JNI stubs
+    // report failure (see winlator/patchelf_wrapper.cpp). Nothing uses this.
 
     private native long createElfObject(String path);
     private native boolean destroyElfObject(long objectPtr);

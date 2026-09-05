@@ -712,8 +712,8 @@ public class ShortcutsFragment extends Fragment {
                 }
                 frontendDir = new File(folderPath);
             } else {
-                // Default to Downloads\Winlator\Frontend if no custom URI is set
-                frontendDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Winlator/Frontend");
+                // Default to Downloads\WinXclipse\Frontend if no custom URI is set
+                frontendDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "WinXclipse/Frontend");
                 if (!frontendDir.exists() && !frontendDir.mkdirs()) {
                     Toast.makeText(getContext(), "Failed to create default directory", Toast.LENGTH_SHORT).show();
                     return;
@@ -724,29 +724,31 @@ public class ShortcutsFragment extends Fragment {
             // Check for FRONTEND_INSTRUCTIONS.txt
             File instructionsFile = new File(frontendDir, "FRONTEND_INSTRUCTIONS.txt");
             if (true) {
+                String pkg = getContext() != null ? getContext().getPackageName() : "com.win.xclipse";
+                String component = pkg + "/" + XServerDisplayActivity.class.getName();
                 try (FileWriter writer = new FileWriter(instructionsFile, false)) {
-                    writer.write("Instructions for adding Winlator shortcuts to Frontends:\n\n");
+                    writer.write("Instructions for adding WinXclipse shortcuts to Frontends:\n\n");
                     writer.write("Daijisho:\n\n");
                     writer.write("1. Open Daijisho\n");
                     writer.write("2. Navigate to the Settings tab.\n");
                     writer.write("3. Navigate to Settings\\Library\n");
                     writer.write("4. Select, Import from Pegasus\n");
-                    writer.write("5. Add the metadata.pegasus.txt file located in this directory (Downloads\\Winlator\\Frontend)\n");
-                    writer.write("6. Set the Sync path to Downloads\\Winlator\\Frontend\n");
+                    writer.write("5. Add the metadata.pegasus.txt file located in this directory (Downloads\\WinXclipse\\Frontend)\n");
+                    writer.write("6. Set the Sync path to Downloads\\WinXclipse\\Frontend\n");
                     writer.write("7. Start your game!\n\n");
                     writer.write("Beacon:\n\n");
                     writer.write("1. Navigate to Settings\n");
                     writer.write("2. Click the + Icon\n");
                     writer.write("3. Set the following values:\n\n");
                     writer.write("Platform Type: Custom\n");
-                    writer.write("Name: Windows (or Winlator, whatever you prefer)\n");
+                    writer.write("Name: Windows (or WinXclipse, whatever you prefer)\n");
                     writer.write("Short name: windows\n");
-                    writer.write("Player app: Select Winlator Cmod (or whichever fork you are using that has adopted this code)\n");
-                    writer.write("ROMs folder: Use Android FilePicker to select the Downloads\\Winlator\\Frontend directory\n");
+                    writer.write("Player app: Select WinXclipse (or whichever fork you are using that has adopted this code)\n");
+                    writer.write("ROMs folder: Use Android FilePicker to select the Downloads\\WinXclipse\\Frontend directory\n");
                     writer.write("Expand Advanced:\n");
                     writer.write("File handling: Default\n");
                     writer.write("Use custom launch: True\n");
-                    writer.write("am start command: am start -n " + "com.winlator.cmod/com.winlator.cmod.XServerDisplayActivity -e shortcut_path {file_path}\n\n");
+                    writer.write("am start command: am start -n " + component + " -e shortcut_path {file_path}\n\n");
                     writer.write("4. Click Save\n");
                     writer.write("5. Scan the folder for your game\n");
                     writer.write("6. Launch your game!\n");
@@ -760,11 +762,13 @@ public class ShortcutsFragment extends Fragment {
             // Check for metadata.pegasus.txt
             File metadataFile = new File(frontendDir, "metadata.pegasus.txt");
             try (FileWriter writer = new FileWriter(metadataFile, false)) {
+                String pkg = getContext() != null ? getContext().getPackageName() : "com.win.xclipse";
+                String component = pkg + "/" + XServerDisplayActivity.class.getName();
                 writer.write("collection: Windows\n");
                 writer.write("shortname: windows\n");
                 writer.write("extensions: desktop\n");
                 writer.write("launch: am start\n");
-                writer.write("  -n " + "com.winlator.cmod/com.winlator.cmod.XServerDisplayActivity\n");
+                writer.write("  -n " + component + "\n");
                 writer.write("  -e shortcut_path {file.path}\n");
                 writer.write("  --activity-clear-task\n");
                 writer.write("  --activity-clear-top\n");

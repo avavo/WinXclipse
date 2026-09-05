@@ -16,8 +16,8 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** Ajusta dxvk.conf de terceiros (template Mali/OpJuegos) para GPU movel.
- *  Puro Java, sem dependencias Android, para poder testar isolado. */
+/** Tunes third-party dxvk.conf files (Mali/OpJuegos template) for mobile GPUs.
+ *  Pure Java, no Android dependencies, so it can be tested standalone. */
 public final class DxvkConfSanitizer {
 
     public static final class Result {
@@ -32,8 +32,8 @@ public final class DxvkConfSanitizer {
         }
     }
 
-    // Chaves que nao existem no DXVK (typo ou legado removido): ignoradas pelo
-    // driver, mas poluem o log e confundem ("conf ta pegando?"). Comenta fora.
+    // Keys that do not exist in DXVK (typo or removed legacy): ignored by the
+    // driver, but they pollute the log and confuse ("is the conf applying?"). Comment out.
     private static final Set<String> INVALID_KEYS = new HashSet<>(Arrays.asList(
             "dxvk.memorytrack",
             "dxvk.presentthrottle",
@@ -106,40 +106,40 @@ public final class DxvkConfSanitizer {
                     String fixed = null;
 
                     if (INVALID_KEYS.contains(normKey)) {
-                        fixed = "# removido pelo WinXclipse (opcao inexistente no DXVK): " + stripped;
-                        issues.add(key + " nao existe no DXVK (linha ignorada pelo driver)");
+                        fixed = "# removed by WinXclipse (option does not exist in DXVK): " + stripped;
+                        issues.add(key + " does not exist in DXVK (line ignored by the driver)");
                         changed = true;
                     } else if (normKey.equals("d3d11.relaxedbarriers") && normVal.equals("true")) {
-                        fixed = "d3d11.relaxedBarriers = False  # sanitizado: True buga textura/mapa no Xclipse/Mali";
-                        issues.add("relaxedBarriers=True causa glitch/mapa bugado (RE2/GTA)");
+                        fixed = "d3d11.relaxedBarriers = False  # sanitized: True breaks textures/map on Xclipse/Mali";
+                        issues.add("relaxedBarriers=True causes glitches/broken map (RE2/GTA)");
                         changed = true;
                     } else if (normKey.equals("dxvk.userawssbo") && normVal.equals("true")) {
-                        fixed = "dxvk.useRawSsbo = Auto  # sanitizado: True e inseguro em GPU movel";
-                        issues.add("useRawSsbo=True pode corromper shader em GPU movel");
+                        fixed = "dxvk.useRawSsbo = Auto  # sanitized: True is unsafe on mobile GPUs";
+                        issues.add("useRawSsbo=True can corrupt shaders on mobile GPUs");
                         changed = true;
                     } else if ((normKey.equals("dxgi.maxdevicememory")
                             || normKey.equals("dxgi.maxsharedmemory")
                             || normKey.equals("d3d9.maxavailablememory"))
                             && parseMb(value) >= 0 && parseMb(value) < MIN_SAFE_VRAM_MB) {
                         fixed = key + " = " + SANITIZED_VRAM_MB
-                                + "  # sanitizado: " + value + " MB quebra RE2/GTA (0x80070057, texture loss)";
-                        issues.add(key + "=" + value + " MB e baixo demais (crash/texture loss)");
+                                + "  # sanitized: " + value + " MB breaks RE2/GTA (0x80070057, texture loss)";
+                        issues.add(key + "=" + value + " MB is too low (crash/texture loss)");
                         changed = true;
                     } else if (normKey.equals("dxvk.numcompilerthreads") && parseMb(value) > MAX_COMPILER_THREADS) {
                         fixed = "dxvk.numCompilerThreads = " + SANITIZED_COMPILER_THREADS
-                                + "  # sanitizado: excesso rouba CPU do jogo no 8-core";
-                        issues.add("numCompilerThreads=" + value + " alto demais p/ mobile");
+                                + "  # sanitized: too many steals game CPU on mobile";
+                        issues.add("numCompilerThreads=" + value + " too high for mobile");
                         changed = true;
                     } else if (normKey.equals("dxvk.hud") && !normVal.isEmpty()
                             && !normVal.equals("0") && !normVal.equals("none")
                             && !normVal.equals("false")) {
-                        fixed = "# removido pelo WinXclipse (HUD rouba FPS): " + stripped;
-                        issues.add("hud ativo rouba CPU/GPU e esquenta (throttle)");
+                        fixed = "# removed by WinXclipse (HUD costs FPS): " + stripped;
+                        issues.add("active hud wastes CPU/GPU and heats up (throttle)");
                         changed = true;
                     } else if ((normKey.equals("dxgi.customdeviceid") || normKey.equals("dxgi.customvendorid"))
                             && (normVal.equals("0") || normVal.equals("0000"))) {
-                        fixed = "# removido pelo WinXclipse (ID 0 invalido): " + stripped;
-                        issues.add(key + "=0 invalido (cai em path generico de GPU)");
+                        fixed = "# removed by WinXclipse (ID 0 is invalid): " + stripped;
+                        issues.add(key + "=0 is invalid (falls back to generic GPU path)");
                         changed = true;
                     }
 
@@ -151,8 +151,8 @@ public final class DxvkConfSanitizer {
 
         String sanitized = out.toString();
         if (changed) {
-            sanitized = "# Sanitizado pelo WinXclipse (" + issues.size()
-                    + " ajustes p/ Xclipse/Mali)\n" + sanitized;
+            sanitized = "# Sanitized by WinXclipse (" + issues.size()
+                    + " fixes for Xclipse/Mali)\n" + sanitized;
         }
         return new Result(issues, sanitized, changed);
     }

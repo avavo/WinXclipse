@@ -51,23 +51,6 @@ public class GamepadConfiguratorDialog {
         this.preferences = PreferenceManager.getDefaultSharedPreferences(context);
     }
 
-//    public void show() {
-//        LayoutInflater inflater = LayoutInflater.from(context);
-//        View dialogView = inflater.inflate(R.layout.dialog_gamepad_configurator, null);
-//
-//        setupMappingSpinners(dialogView);
-//        refreshSpinners();
-//        setupProfileControls(dialogView);
-//
-//        new AlertDialog.Builder(context)
-//                .setTitle("Gamepad Configurator")
-//                .setView(dialogView)
-//                .setPositiveButton("Save", (dialog, which) -> saveMappings())
-//                .setNegativeButton("Cancel", null)
-//                .show();
-//    }
-
-
     public void setupMappingSpinners() {
         Log.d("GamepadConfiguratorDialog", "Starting setupMappingSpinners");
 
@@ -350,18 +333,6 @@ public class GamepadConfiguratorDialog {
         return profilesDir;
     }
 
-//    private ArrayList<String> getProfileNames() {
-//        ArrayList<String> profileNames = new ArrayList<>();
-//        File[] files = getProfilesDir().listFiles();
-//        if (files != null) {
-//            for (File file : files) {
-//                String name = file.getName().replace(".json", "");
-//                profileNames.add(name);
-//            }
-//        }
-//        return profileNames;
-//    }
-
     public void saveProfile(String profileName) {
         try {
             JSONObject profileData = new JSONObject();
@@ -391,7 +362,7 @@ public class GamepadConfiguratorDialog {
             preferences.edit().putStringSet("gamepad_profiles", profiles).apply();
 
         } catch (JSONException | IOException e) {
-            e.printStackTrace();
+            Log.e("GamepadConfiguratorDialog", "Error saving gamepad profile", e);
         }
     }
 
@@ -418,7 +389,7 @@ public class GamepadConfiguratorDialog {
                 externalController.setButtonMapping(buttonIndex, mappedIndex);
             }
         } catch (IOException | JSONException e) {
-            e.printStackTrace();
+            Log.e("GamepadConfiguratorDialog", "Error loading gamepad profile", e);
             Toast.makeText(context, "Error loading profile", Toast.LENGTH_SHORT).show();
         }
     }

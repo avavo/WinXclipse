@@ -274,7 +274,7 @@ public class ContainerDetailFragment extends Fragment {
                 for (int i = 0; i < shown; i++)
                     issueList.append("• ").append(res.issues.get(i)).append('\n');
                 if (res.issues.size() > shown)
-                    issueList.append("• +").append(res.issues.size() - shown).append(" outros…\n");
+                    issueList.append("• +").append(res.issues.size() - shown).append(" more…\n");
                 new androidx.appcompat.app.AlertDialog.Builder(sanitizeContext)
                         .setTitle(R.string.dxvk_conf_sanitize_title)
                         .setMessage(sanitizeContext.getString(

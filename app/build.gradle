@@ -1,17 +1,5 @@
-buildscript {
-    repositories {
-        google()
-        mavenCentral()
-        gradlePluginPortal()
-    }
-    dependencies {
-        // Adjust Gradle plugin versions if needed
-        classpath 'com.android.tools.build:gradle:8.8.0'
-        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.0'
-    }
-
-}
-
+// AGP version comes from gradle/libs.versions.toml via the root project
+// (alias libs.plugins.android.application apply false). Do not redeclare it here.
 plugins {
     id 'com.android.application'
 }
@@ -30,6 +18,7 @@ android {
     // offline/default operation.
 
     compileSdk 34
+    buildToolsVersion "35.0.0"
 
     buildFeatures {
         buildConfig true
@@ -151,17 +140,18 @@ android {
 }
 
 dependencies {
-    // Winlator’s dependencies
-    implementation 'androidx.appcompat:appcompat:1.4.0'
+    // Winlator’s dependencies (androidx UI bumped for compileSdk 34 / AGP 8.8;
+    // versions mirrored in gradle/libs.versions.toml)
+    implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation 'androidx.preference:preference:1.2.1'
-    implementation 'com.google.android.material:material:1.4.0'
+    implementation 'com.google.android.material:material:1.12.0'
     implementation 'com.github.luben:zstd-jni:1.5.2-3@aar'
     implementation 'org.tukaani:xz:1.7'
-    implementation 'org.apache.commons:commons-compress:1.20'
-    implementation 'androidx.activity:activity-ktx:1.4.0'
-    implementation 'androidx.fragment:fragment-ktx:1.4.0'
+    implementation 'org.apache.commons:commons-compress:1.21'
+    implementation 'androidx.activity:activity-ktx:1.9.0'
+    implementation 'androidx.fragment:fragment-ktx:1.8.0'
     implementation files('libs/MidiSynth/MidiSynth.jar')
-    implementation 'androidx.recyclerview:recyclerview:1.2.0'
+    implementation 'androidx.recyclerview:recyclerview:1.3.2'
     implementation 'com.squareup.retrofit2:retrofit:2.9.0'
     implementation 'com.squareup.retrofit2:converter-gson:2.9.0'
     implementation 'com.squareup.okhttp3:okhttp:4.9.3'
@@ -169,7 +159,7 @@ dependencies {
     implementation 'org.conscrypt:conscrypt-android:2.5.2'
     implementation 'org.bouncycastle:bcprov-jdk15on:1.68'
     implementation 'org.openjsse:openjsse:1.1.7'
-    implementation 'androidx.core:core:1.0.1'
+    implementation 'androidx.core:core:1.13.1'
     implementation 'com.github.bumptech.glide:glide:4.11.0'
     implementation 'com.kohlschutter.junixsocket:junixsocket-common:2.6.0'
     implementation 'com.kohlschutter.junixsocket:junixsocket-native-common:2.6.0'
