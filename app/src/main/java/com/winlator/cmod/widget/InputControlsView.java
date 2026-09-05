@@ -23,6 +23,8 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 
+import androidx.preference.PreferenceManager;
+
 import com.winlator.cmod.R;
 import com.winlator.cmod.inputcontrols.Binding;
 import com.winlator.cmod.inputcontrols.ControlElement;
@@ -621,13 +623,14 @@ public class InputControlsView extends View {
                     break;
                 }
                 case MotionEvent.ACTION_MOVE: {
-                    for (byte i = 0, count = (byte)event.getPointerCount(); i < count; i++) {
+                    for (int i = 0, count = event.getPointerCount(); i < count; i++) {
                         float x = event.getX(i);
                         float y = event.getY(i);
+                        int movePointerId = event.getPointerId(i);
 
                         handled = false;
                         for (ControlElement element : profile.getElements()) {
-                            if (element.handleTouchMove(i, x, y)) handled = true;
+                            if (element.handleTouchMove(movePointerId, x, y)) handled = true;
                         }
                         if (!handled) touchpadView.onTouchEvent(event);
                     }
@@ -635,13 +638,26 @@ public class InputControlsView extends View {
                 }
                 case MotionEvent.ACTION_UP:
                 case MotionEvent.ACTION_POINTER_UP:
-                case MotionEvent.ACTION_CANCEL:
                     for (ControlElement element : profile.getElements()) if (element.handleTouchUp(pointerId)) handled = true;
                     if (!handled) touchpadView.onTouchEvent(event);
+                    break;
+                case MotionEvent.ACTION_CANCEL:
+                    cancelAllTouches();
+                    // A cancel terminates the whole gesture, including any fingers
+                    // that had been routed to the underlying touchpad.
+                    touchpadView.onTouchEvent(event);
                     break;
             }
         }
         return true;
+    }
+
+    /** Releases every element owned by the current Android touch gesture. */
+    public void cancelAllTouches() {
+        if (profile == null) return;
+        for (ControlElement element : profile.getElements()) element.handleTouchCancel();
+        mouseMoveOffset.set(0, 0);
+        invalidate();
     }
 
     private void resetTouchscreenTimeout() {
@@ -649,6 +665,8 @@ public class InputControlsView extends View {
         if (timeoutHandler != null && hideControlsRunnable != null) {
             // Cancel any pending hide requests
             timeoutHandler.removeCallbacks(hideControlsRunnable);
+            if (!PreferenceManager.getDefaultSharedPreferences(getContext())
+                    .getBoolean("touchscreen_timeout_enabled", false)) return;
             // Post a new request to hide the controls after 5 seconds
             timeoutHandler.postDelayed(hideControlsRunnable, 5000); // Adjust timeout as necessary
         }

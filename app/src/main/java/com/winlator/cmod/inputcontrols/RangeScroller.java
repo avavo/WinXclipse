@@ -139,4 +139,16 @@ public class RangeScroller {
         }
         isActionDown = false;
     }
+
+    /** Cancels a range gesture without turning it into a tap. */
+    public void handleTouchCancel() {
+        if (isActionDown) {
+            destroyTimer();
+            element.restoreBindings(savedBindings);
+            savedBindings = null;
+            inputControlsView.handleInputEvent(binding, false);
+        }
+        isActionDown = false;
+        scrolling = false;
+    }
 }

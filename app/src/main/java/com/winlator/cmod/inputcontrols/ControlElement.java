@@ -1129,6 +1129,39 @@ public class ControlElement {
         return true;
     }
 
+    /**
+     * Aborts this element's active gesture without treating it as a completed
+     * tap. Android ACTION_CANCEL applies to every pointer in the gesture.
+     */
+    public boolean handleTouchCancel() {
+        if (currentPointerId == -1) return false;
+
+        if (type == Type.BUTTON || type == Type.RANGE_BUTTON) {
+            Binding binding = getBindingAt(0);
+            touchTime = null;
+
+            // A toggle that was already latched did not emit a new press on
+            // ACTION_DOWN, so preserve it. Otherwise neutralize the provisional
+            // press without changing the latch state.
+            if (!toggleSwitch || !selected) {
+                inputControlsView.handleInputEvent(binding, false);
+            }
+
+            if (type == Type.RANGE_BUTTON) scroller.handleTouchCancel();
+        }
+        else if (type == Type.D_PAD || type == Type.STICK || type == Type.TRACKPAD) {
+            for (byte i = 0; i < states.length; i++) {
+                if (states[i]) inputControlsView.handleInputEvent(getBindingAt(i), false);
+                states[i] = false;
+            }
+            currentPosition = null;
+        }
+
+        currentPointerId = -1;
+        inputControlsView.invalidate();
+        return true;
+    }
+
     public PointF getCurrentPosition() {
         if (currentPosition == null) {
             currentPosition = new PointF(x, y); // Initialize to the center (same as outer circle)

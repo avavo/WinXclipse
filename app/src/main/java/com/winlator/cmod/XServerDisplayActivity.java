@@ -552,10 +552,10 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         // Handler and Runnable to manage timeout for hiding controls
 
-        boolean isTimeoutEnabled = preferences.getBoolean("touchscreen_timeout_enabled", true);
-
         hideControlsRunnable = () -> {
-            if (isTimeoutEnabled) {
+            if (preferences.getBoolean("touchscreen_timeout_enabled", false)
+                    && inputControlsView != null) {
+                inputControlsView.cancelAllTouches();
                 inputControlsView.setVisibility(View.GONE);
                 Log.d("XServerDisplayActivity", "Touchscreen controls hidden after timeout.");
             }

@@ -205,6 +205,7 @@ public class TouchpadView extends View {
         if (timeoutHandler != null && hideControlsRunnable != null) {
             // Cancel any pending hide requests
             timeoutHandler.removeCallbacks(hideControlsRunnable);
+            if (!preferences.getBoolean("touchscreen_timeout_enabled", false)) return;
             // Post a new request to hide the controls after 5 seconds
             timeoutHandler.postDelayed(hideControlsRunnable, 5000); // Adjust timeout as necessary
         }
