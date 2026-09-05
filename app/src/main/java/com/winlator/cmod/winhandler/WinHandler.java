@@ -140,6 +140,13 @@ public class WinHandler {
     private final short[] lastLow  = new short[MAX_PLAYERS];
     private final short[] lastHigh = new short[MAX_PLAYERS];
     private Thread rumblePollerThread;
+    // Throttle: o guest atualiza o SHM ate 60x/s; disparar um one-shot a cada
+    // poll empilha vibracoes sobrepostas e deixa o motor preso ("bugando"),
+    // ainda mais com gravacao de tela/ADB comendo CPU. Segura re-triggers.
+    private final long[] lastRumbleVibrateMs = new long[MAX_PLAYERS];
+    private static final long RUMBLE_MIN_INTERVAL_MS = 70L;
+    private static final long RUMBLE_ONESHOT_MS = 100L;
+    private final boolean[] phoneRumbleActive = new boolean[MAX_PLAYERS];
 
     // --- Turbo (autofire) ----------------------------------------------------
     private static final int BUTTON_COUNT = 15; // length of sdlButtons
@@ -230,6 +237,20 @@ public class WinHandler {
     public void stop() {
         running = false;
         stopVibrationListener();
+        // Garante que nenhum motor fica preso ligado ao sair da sessao.
+        try {
+            for (int s = 0; s < MAX_PLAYERS; s++) {
+                lastLow[s] = 0; lastHigh[s] = 0;
+                lastRumbleVibrateMs[s] = 0L;
+                phoneRumbleActive[s] = false;
+            }
+            stopVibration(0, currentController);
+            for (int i = 0; i < extraControllers.length; i++) stopVibration(i + 1, extraControllers[i]);
+            try {
+                Vibrator phone = (Vibrator) activity.getSystemService(Context.VIBRATOR_SERVICE);
+                if (phone != null) phone.cancel();
+            } catch (Exception ignored) {}
+        } catch (Exception ignored) {}
 
         for (int i = 0; i < fakeInputWriters.length; i++) {
             if (fakeInputWriters[i] != null) {
@@ -391,13 +412,21 @@ public class WinHandler {
         if (vibrator == null || !vibrator.hasVibrator()) return;
         if (!cancel && magnitude > 0) {
             int amplitude = clampAmplitude(magnitude);
+            // FF replay.length 0 = efeito continuo ("ate mandar parar") e
+            // 65535 = praticamente infinito: sem clamp o motor fica preso
+            // ligado ("bugando"), ainda mais se o stop se perde com gravacao
+            // de tela/ADB comendo CPU. Duracao 0 com forca vira janela curta
+            // renovada pelos proximos eventos; teto evita travao de 65s.
+            int dur = durationMs;
+            if (dur <= 0) dur = 500;
+            else if (dur > 2500) dur = 2500;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator.vibrate(VibrationEffect.createOneShot(Math.max(1, durationMs), amplitude));
+                vibrator.vibrate(VibrationEffect.createOneShot(dur, amplitude));
             } else {
-                vibrator.vibrate(Math.max(1, durationMs));
+                vibrator.vibrate(dur);
             }
         } else {
-            vibrator.cancel();
+            try { vibrator.cancel(); } catch (Exception ignored) {}
         }
     }
 
@@ -980,13 +1009,36 @@ public class WinHandler {
 
 
     private void pollSlotRumble(int slot, MappedByteBuffer buf, ExternalController ctrl) {
-        if (buf == null) return;
-        if (!controllerManager.isSlotEnabled(slot) || !controllerManager.isVibrationEnabled(slot)) return;
+        if (buf == null || slot < 0 || slot >= MAX_PLAYERS) return;
+        // Master OFF ou slot desativado: precisa PARAR vibracao presa em vez de
+        // so retornar (senao o motor fica ligado apos desligar a chave).
+        if (!controllerManager.isMasterVibrationEnabled()
+                || !controllerManager.isSlotEnabled(slot)
+                || !controllerManager.isVibrationEnabled(slot)) {
+            if (lastLow[slot] != 0 || lastHigh[slot] != 0) {
+                lastLow[slot] = 0; lastHigh[slot] = 0;
+                stopVibration(slot, ctrl);
+            }
+            return;
+        }
 
-        short low = buf.getShort(32);
-        short high = buf.getShort(34);
+        short low;
+        short high;
+        try {
+            low = buf.getShort(32);
+            high = buf.getShort(34);
+        } catch (Exception ignored) { return; }
 
-        if (low == lastLow[slot] && high == lastHigh[slot]) return;
+        if (low == lastLow[slot] && high == lastHigh[slot]) {
+            // Mesmo valor: mantem o motor vivo sem re-disparar a cada 16ms.
+            // Se ainda ha intensidade, renova o one-shot so apos o intervalo
+            // para nao deixar gaps nem empilhar vibracoes.
+            if ((low != 0 || high != 0)
+                    && android.os.SystemClock.uptimeMillis() - lastRumbleVibrateMs[slot] >= (RUMBLE_ONESHOT_MS + 20L)) {
+                startVibration(slot, ctrl, low, high);
+            }
+            return;
+        }
         lastLow[slot] = low; lastHigh[slot] = high;
 
         if (low == 0 && high == 0) {
@@ -999,42 +1051,123 @@ public class WinHandler {
     private void startVibration(int slot, ExternalController ctrl, short low, short high) {
         int amplitude = Math.max(low & 0xFFFF, high & 0xFFFF);
         if (amplitude <= 0) { stopVibration(slot, ctrl); return; }
+        long now = android.os.SystemClock.uptimeMillis();
+        // Stop (0,0) sempre passa; mudanca de intensidade respeita o throttle
+        // para nao sobrecarregar o vibrador quando o jogo modula a cada frame.
+        if (now - lastRumbleVibrateMs[slot] < RUMBLE_MIN_INTERVAL_MS) return;
+        lastRumbleVibrateMs[slot] = now;
         int a = Math.min(255, Math.round(amplitude / 65535f * 254f) + 1);
 
-        // Prefer controller's vibrator
+        // Prefer controller's own motors, with dual-motor support (API 31+)
+        // igual ao path event-driven (triggerVibration). O path antigo usava
+        // so device.getVibrator() deprecated, que em alguns pads retorna stub
+        // sem amplitude e a vibracao "buga".
         if (ctrl != null) {
-            InputDevice dev = InputDevice.getDevice(ctrl.getDeviceId());
-            if (dev != null) {
-                Vibrator v = dev.getVibrator();
-                if (v != null && v.hasVibrator()) {
-                    v.vibrate(VibrationEffect.createOneShot(50, a));
-                    return;
+            try {
+                InputDevice dev = InputDevice.getDevice(ctrl.getDeviceId());
+                if (dev != null) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        try {
+                            android.os.VibratorManager vm = dev.getVibratorManager();
+                            int[] ids = vm != null ? vm.getVibratorIds() : new int[0];
+                            if (ids != null && ids.length >= 2) {
+                                int strongA = Math.min(255, Math.round((low & 0xFFFF) / 65535f * 254f) + 1);
+                                int weakA = Math.min(255, Math.round((high & 0xFFFF) / 65535f * 254f) + 1);
+                                Vibrator v0 = vm.getVibrator(ids[0]);
+                                Vibrator v1 = vm.getVibrator(ids[1]);
+                                if (v0 != null && v0.hasVibrator())
+                                    v0.vibrate(VibrationEffect.createOneShot(RUMBLE_ONESHOT_MS, Math.max(1, strongA)));
+                                if (v1 != null && v1.hasVibrator())
+                                    v1.vibrate(VibrationEffect.createOneShot(RUMBLE_ONESHOT_MS, Math.max(1, weakA)));
+                                return;
+                            } else if (ids != null && ids.length == 1) {
+                                Vibrator v = vm.getVibrator(ids[0]);
+                                if (v != null && v.hasVibrator()) {
+                                    v.vibrate(VibrationEffect.createOneShot(RUMBLE_ONESHOT_MS, a));
+                                    return;
+                                }
+                            }
+                        } catch (Exception ignored) { /* cai para o fallback abaixo */ }
+                    }
+                    Vibrator v = dev.getVibrator();
+                    if (v != null && v.hasVibrator()) {
+                        v.vibrate(VibrationEffect.createOneShot(RUMBLE_ONESHOT_MS, a));
+                        return;
+                    }
                 }
-            }
+            } catch (Exception ignored) {}
         }
 
         // Optional: fall back to phone vibrator only for slot 0
         if (slot == 0) {
-            Vibrator phone = (Vibrator) activity.getSystemService(Context.VIBRATOR_SERVICE);
-            if (phone != null && phone.hasVibrator()) {
-                float curved = (float) Math.pow(a / 255f, 0.6f);
-                int pa = Math.max(0, Math.min(255, Math.round(curved * 255f)));
-                if (pa > 0) phone.vibrate(VibrationEffect.createOneShot(50, pa));
-            }
+            try {
+                Vibrator phone = (Vibrator) activity.getSystemService(Context.VIBRATOR_SERVICE);
+                if (phone != null && phone.hasVibrator()) {
+                    float curved = (float) Math.pow(a / 255f, 0.6f);
+                    int pa = Math.max(0, Math.min(255, Math.round(curved * 255f)));
+                    if (pa > 0) {
+                        phone.vibrate(VibrationEffect.createOneShot(RUMBLE_ONESHOT_MS, pa));
+                        phoneRumbleActive[slot] = true;
+                    }
+                }
+            } catch (Exception ignored) {}
         }
     }
 
     private void stopVibration(int slot, ExternalController ctrl) {
+        lastRumbleVibrateMs[slot] = 0L;
         if (ctrl != null) {
-            InputDevice dev = InputDevice.getDevice(ctrl.getDeviceId());
-            if (dev != null) {
-                Vibrator v = dev.getVibrator();
-                if (v != null && v.hasVibrator()) v.cancel();
-            }
+            try {
+                InputDevice dev = InputDevice.getDevice(ctrl.getDeviceId());
+                if (dev != null) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        try {
+                            android.os.VibratorManager vm = dev.getVibratorManager();
+                            int[] ids = vm != null ? vm.getVibratorIds() : new int[0];
+                            if (ids != null && ids.length > 0) {
+                                for (int id : ids) {
+                                    try {
+                                        Vibrator vv = vm.getVibrator(id);
+                                        if (vv != null) vv.cancel();
+                                    } catch (Exception ignored) {}
+                                }
+                            } else {
+                                Vibrator v = dev.getVibrator();
+                                if (v != null) v.cancel();
+                            }
+                        } catch (Exception ignored) {
+                            try {
+                                Vibrator v = dev.getVibrator();
+                                if (v != null) v.cancel();
+                            } catch (Exception ignored2) {}
+                        }
+                    } else {
+                        Vibrator v = dev.getVibrator();
+                        if (v != null) v.cancel();
+                    }
+                }
+            } catch (Exception ignored) {}
         }
-        if (slot == 0) {
-            Vibrator phone = (Vibrator) activity.getSystemService(Context.VIBRATOR_SERVICE);
-            if (phone != null) phone.cancel();
+        // O vibrador do celular e compartilhado: so cancela quando nenhum slot
+        // que usa o fallback ainda esta ativo, senao P2 derruba a vibracao de P1.
+        if (slot >= 0 && slot < MAX_PLAYERS) phoneRumbleActive[slot] = false;
+        boolean anyPhone = false;
+        for (boolean b : phoneRumbleActive) if (b) { anyPhone = true; break; }
+        if (!anyPhone) {
+            try {
+                Vibrator phone = (Vibrator) activity.getSystemService(Context.VIBRATOR_SERVICE);
+                // So cancela o celular se nenhum pad fisico assumiu o slot 0;
+                // se P1 tem vibrador proprio, o celular nem foi usado.
+                boolean p1HasMotor = false;
+                if (currentController != null) {
+                    try {
+                        InputDevice d0 = InputDevice.getDevice(currentController.getDeviceId());
+                        Vibrator vv = d0 != null ? d0.getVibrator() : null;
+                        p1HasMotor = vv != null && vv.hasVibrator();
+                    } catch (Exception ignored) {}
+                }
+                if (!p1HasMotor && phone != null) phone.cancel();
+            } catch (Exception ignored) {}
         }
     }
 

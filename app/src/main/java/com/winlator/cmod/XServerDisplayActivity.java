@@ -402,10 +402,22 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     /** BT/USB/headset connects fire bursts of add/remove events; collapse
      * them into a single PulseAudio restart. */
     private static final long PULSE_RESTART_DEBOUNCE_MS = 2000L;
+    /** Killing the daemon disconnects every Wine client, so never do it in a
+     * tight loop (ADB/USB flapping, BT bursts, recorder toggles). */
+    private static final long PULSE_RESTART_MIN_INTERVAL_MS = 10000L;
+    private long lastPulseRestartMs = 0L;
     private final Runnable pulseAudioRestartRunnable = () -> {
         if (environment == null || isFinishing() || isDestroyed()) return;
         PulseAudioComponent pulse = environment.getComponent(PulseAudioComponent.class);
         if (pulse == null) return;
+        long now = android.os.SystemClock.uptimeMillis();
+        if (now - lastPulseRestartMs < PULSE_RESTART_MIN_INTERVAL_MS) {
+            Log.i("AudioDeviceCallback", "Skipping PulseAudio restart (last restart "
+                    + (now - lastPulseRestartMs) + "ms ago, cooldown "
+                    + PULSE_RESTART_MIN_INTERVAL_MS + "ms).");
+            return;
+        }
+        lastPulseRestartMs = now;
         Log.i("AudioDeviceCallback", "Recreating PulseAudio sink on new route.");
         new Thread(pulse::restart, "PulseAudioRestart").start();
     };
@@ -5626,36 +5638,35 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             @Override
             public void onAudioDevicesAdded(AudioDeviceInfo[] addedDevices) {
                 logAudioDevices("added", addedDevices);
-                if (isRecorderSubmixOnly(addedDevices)) {
-                    Log.i("AudioDeviceCallback",
-                            "Recorder submix change only; keeping PulseAudio daemon alive.");
-                    return;
-                }
+                // NUNCA reinicia o daemon PulseAudio aqui: matar o daemon
+                // desconecta os clientes Wine (socket unix) e eles nao
+                // reconectam — o jogo fica mudo ate reiniciar o container.
+                // Foi exatamente isso que mutava o jogo ~2s depois de iniciar
+                // o gravador Samsung (submix + evento companheiro de rota
+                // agendava o kill via debounce). O sink AAudio segue a rota
+                // sozinho; se trocar pra BT/fone e ficar mudo, reinicie o
+                // container manualmente (caso raro).
+                if (shouldIgnoreAudioDevices(addedDevices)) return;
                 if (environment != null) {
                     ALSAServerComponent alsaComponent = environment.getComponent(ALSAServerComponent.class);
                     if (alsaComponent != null) {
                         Log.d("AudioDeviceCallback", "Audio device added. Triggering rebuild.");
                         alsaComponent.notifyAudioDeviceChanged();
                     }
-                    schedulePulseAudioRestart();
                 }
             }
 
             @Override
             public void onAudioDevicesRemoved(AudioDeviceInfo[] removedDevices) {
                 logAudioDevices("removed", removedDevices);
-                if (isRecorderSubmixOnly(removedDevices)) {
-                    Log.i("AudioDeviceCallback",
-                            "Recorder submix change only; keeping PulseAudio daemon alive.");
-                    return;
-                }
+                // Idem acima: manter o daemon vivo durante gravacao/ADB/USB.
+                if (shouldIgnoreAudioDevices(removedDevices)) return;
                 if (environment != null) {
                     ALSAServerComponent alsaComponent = environment.getComponent(ALSAServerComponent.class);
                     if (alsaComponent != null) {
                         Log.d("AudioDeviceCallback", "Audio device removed. Triggering rebuild.");
                         alsaComponent.notifyAudioDeviceChanged();
                     }
-                    schedulePulseAudioRestart();
                 }
             }
         };
@@ -5664,16 +5675,56 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         audioManager.registerAudioDeviceCallback(audioDeviceCallback, new Handler(Looper.getMainLooper()));
     }
 
-    /** Screen recording announces a virtual capture device. Restarting the
-     * PulseAudio daemon for that alone is what mutes the game while
-     * recording, so submix-only changes are ignored. */
-    private static boolean isRecorderSubmixOnly(AudioDeviceInfo[] devices) {
-        if (devices == null || devices.length == 0) return false;
+    /** Central filter for AudioDeviceCallback bursts.
+     * Returning true means: keep both daemons alive, do nothing.
+     * - Any REMOTE_SUBMIX in the batch means a screen/audio recording
+     *   (or scrcpy/adb audio capture) just started/stopped. Restarting the
+     *   PulseAudio daemon at that moment is what mutes/corta o audio do
+     *   jogo durante a gravacao, so the whole batch is ignored.
+     * - Batches without a real playback sink (microfone/source-only, ADB/USB
+     *   accessory announcements, empty batches) must not tear down the AAudio
+     *   sink either: rebuilding on those is what faz o audio quebrar poucos
+     *   segundos depois de conectar o ADB/USB. */
+    private static boolean shouldIgnoreAudioDevices(AudioDeviceInfo[] devices) {
+        if (devices == null || devices.length == 0) return true;
+        if (containsRemoteSubmix(devices)) {
+            Log.i("AudioDeviceCallback",
+                    "Recorder submix present; keeping PulseAudio/ALSA alive.");
+            return true;
+        }
+        if (!hasRealSinkRoute(devices)) {
+            Log.i("AudioDeviceCallback",
+                    "No playback-sink change (source-only/ADB accessory); ignoring.");
+            return true;
+        }
+        return false;
+    }
+
+    private static boolean containsRemoteSubmix(AudioDeviceInfo[] devices) {
+        if (devices == null) return false;
         for (AudioDeviceInfo device : devices) {
             if (device == null) continue;
-            if (device.getType() != AudioDeviceInfo.TYPE_REMOTE_SUBMIX) return false;
+            if (device.getType() == AudioDeviceInfo.TYPE_REMOTE_SUBMIX) return true;
         }
-        return true;
+        return false;
+    }
+
+    private static boolean hasRealSinkRoute(AudioDeviceInfo[] devices) {
+        if (devices == null) return false;
+        for (AudioDeviceInfo device : devices) {
+            if (device == null) continue;
+            if (!device.isSink()) continue;
+            if (device.getType() == AudioDeviceInfo.TYPE_REMOTE_SUBMIX) continue;
+            return true;
+        }
+        return false;
+    }
+
+    /** Screen recording announces a virtual capture device. Restarting the
+     * PulseAudio daemon for that alone is what mutes the game while
+     * recording, so submix-only changes are ignored. Kept for compat. */
+    private static boolean isRecorderSubmixOnly(AudioDeviceInfo[] devices) {
+        return containsRemoteSubmix(devices) && !hasRealSinkRoute(devices);
     }
 
     private static void logAudioDevices(String action, AudioDeviceInfo[] devices) {
@@ -5687,13 +5738,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         }
     }
 
-    /** PulseAudio's AAudio sink goes stale on route changes (BT, headset,
-     * USB audio, recorder submix) and stays silent until recreated. */
+    /** Desativado de proposito: matar o daemon PulseAudio (kill + re-exec)
+     * desconecta os clientes Wine e o jogo fica mudo ate reiniciar o
+     * container. Mantido como no-op para documentar; se um dia for
+     * reativado, precisa de reconexao garantida dos clientes. */
     private void schedulePulseAudioRestart() {
-        if (environment == null || isFinishing() || isDestroyed()) return;
-        if (environment.getComponent(PulseAudioComponent.class) == null) return;
-        handler.removeCallbacks(pulseAudioRestartRunnable);
-        handler.postDelayed(pulseAudioRestartRunnable, PULSE_RESTART_DEBOUNCE_MS);
+        Log.i("AudioDeviceCallback", "PulseAudio restart skipped (daemon kept alive to avoid permanent mute).");
     }
 }
 

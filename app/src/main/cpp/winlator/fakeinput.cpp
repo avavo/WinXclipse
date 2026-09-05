@@ -1,4 +1,5 @@
 #include <cstring>
+#include <cstdlib>
 #include <string>
 #include <vector>
 #include <iostream>
@@ -129,14 +130,33 @@ char *from_real_to_fake_path(const char *pathname) {
 
 __attribute__((visibility("hidden")))
 const char *get_event(const char *pathname) {
-	const char *event = strrchr(pathname, '/') + 1;
+	if (!pathname) return "";
+	const char *slash = strrchr(pathname, '/');
+	const char *event = slash ? slash + 1 : pathname;
 	return event;
 }
 
 __attribute__((visibility("hidden")))
 int get_event_number(const char *event) {
-    int event_number = atoi(event + strlen(event) - 1);
-    return event_number;
+    if (!event) return -1;
+    // event names look like "event0".."event31". The old code only parsed
+    // the last character (atoi(last char)), so event10 collided with event0,
+    // event11 with event1, etc. As soon as ADB/scrcpy/USB adds extra input
+    // devices the numbers go past 9 and rumble gets routed to the wrong
+    // slot (vibracao bugando). Parse the full trailing number instead.
+    const char *p = strstr(event, "event");
+    if (p) p += 5;
+    else {
+        // Fallback: trailing digits of whatever name we got.
+        p = event + strlen(event);
+        while (p > event && *(p - 1) >= '0' && *(p - 1) <= '9') p--;
+        if (p == event + strlen(event)) return -1;
+    }
+    if (*p == '\0') return -1;
+    char *end = nullptr;
+    long n = strtol(p, &end, 10);
+    if (end == p || n < 0 || n > 255) return -1;
+    return (int)n;
 }
 
 EXPORT int open(const char *pathname, int flags, ...) {
@@ -262,7 +282,8 @@ EXPORT int fstat(int fd, struct stat *buf) {
 
     auto controller = controller_map.find(fd);
     if (controller != controller_map.end()) {
-    	buf->st_rdev = makedev(1, get_event_number(controller->second));
+        int ev = get_event_number(controller->second);
+        if (ev >= 0) buf->st_rdev = makedev(1, ev);
     }
 
     return ret;

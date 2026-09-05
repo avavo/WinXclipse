@@ -149,6 +149,9 @@ public class ALSAClient {
         }
     }
 
+    private final Object rebuildLock = new Object();
+    private volatile long lastRebuildMs = 0L;
+
     /**
      * This is the new method to handle audio device changes.
      * It will be called from the Android system when a device is connected or disconnected.
@@ -166,7 +169,17 @@ public class ALSAClient {
         // The pacer (streamPtr) is safe. We only need to rebuild the hardware stream
         // (mirrorStreamPtr). The retry loop sleeps up to ~1 s and this method runs on
         // the main-thread AudioDeviceCallback, so the rebuild happens on a worker.
+        // Guard against bursts (BT/USB/ADB flapping): collapse calls within 2s and
+        // serialize rebuilds, otherwise concurrent threads double-close the same
+        // AAudio ptr and the audio fica quebrando.
+        long now = System.currentTimeMillis();
+        if (now - lastRebuildMs < 2000L) {
+            System.out.println("Audio device change coalesced (burst); skipping rebuild.");
+            return;
+        }
+        lastRebuildMs = now;
         Thread rebuildThread = new Thread(() -> {
+            synchronized (rebuildLock) {
             if (mirrorStreamPtr != 0) {
                 System.out.println("Tearing down old playback stream...");
                 stop(mirrorStreamPtr);
@@ -203,6 +216,7 @@ public class ALSAClient {
                 } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
             }
             System.out.println("Failed to rebuild playback stream after " + MAX_RETRIES + " attempts.");
+            }
         }, "ALSADeviceRebuild");
         rebuildThread.setDaemon(true);
         rebuildThread.start();
