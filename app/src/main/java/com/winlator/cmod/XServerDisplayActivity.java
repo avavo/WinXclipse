@@ -5458,6 +5458,16 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         }
         boolean expectedEtc2 = bcnTranscodeBaseMode.contains("ETC2");
         boolean expectedAstc = bcnTranscodeBaseMode.contains("ASTC");
+        // Some layer/wrapper builds intentionally omit the per-texture
+        // "transcode:"/"encode_*" telemetry.  They still report the
+        // compute pipeline creation, which is the reliable fallback signal
+        // that the requested transcode backend is active for this session.
+        if (lower.contains("create_bcn_compute_pipelines")
+                && lower.contains(" took")
+                && (expectedEtc2 || expectedAstc)) {
+            updateBcnTelemetryState("ACTIVE");
+            return;
+        }
         boolean transcodeLine = lower.contains("transcode:")
                 || lower.contains("encode_etc2_compute")
                 || lower.contains("encode_astc_compute")

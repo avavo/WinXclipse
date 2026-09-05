@@ -42,7 +42,7 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
 - Community configs automatically recognize bundled wrappers and recover missing downloadable wrappers from Downloads or the remote catalog without recreating the config.
 - Fixed ASTC/ETC2 transcoding activation so a requested transcode can enable the compute layer even when BCN emulation is set to None or Partial.
 - Transcode sessions extract the proven Winlator Mali pair: the new wrapper hides ASTC unless `WRAPPER_BCN_ASTC` is set (black ASTC without it, still exported for the new stack), and its tracked BCN copy path deadlocks RE3 on Xclipse on the first emulated texture in every transcode mode (silent hang, 0% CPU). Stale wrapper BCN/ASTC variables are cleared on every boot, the BCN quality preset is exported when not `auto` (Mali 1.2 parity), and containers migrate between pairs automatically.
-- The HUD reports `ARMED`, `LOADED`, `ACTIVE`, or a specific error for the effective BCN-to-ASTC/ETC2 path. `ACTIVE` is shown only after the layer logs a real transcode operation, including its profile-line format; layer mapping alone is no longer treated as success.
+- The HUD reports `ARMED`, `LOADED`, `ACTIVE`, or a specific error for the effective BCN-to-ASTC/ETC2 path. `ACTIVE` is shown after a real transcode operation is logged, including the layer profile-line format, or after compute pipelines are created when a wrapper omits per-texture telemetry; layer mapping alone remains `LOADED`.
 - Wrapper-Default uses the safer Mali shader-patch policy intended to avoid the wrapper-side pipeline crash observed in Red Dead Redemption.
 
 ### Controls
