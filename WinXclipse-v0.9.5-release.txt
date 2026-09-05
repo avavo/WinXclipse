@@ -126,30 +126,6 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
 - Native X11 2D operations process full 32-bit pixels, reducing byte-loop overhead on shared LPDDR memory.
 - HUD RAM warnings use consistent 90% blink and 93% dialog thresholds across device memory tiers.
 
-## APK Information
-
-- Version name: 0.9.5
-- Version code: 26
-- ABI: arm64-v8a
-- Minimum Android: 8.0 (API 26)
-- Target SDK: 28
-
-### Package Variants
-
-- Main: `com.win.xclipse`
-- AnTuTu: `com.antutu.ABenchMark`
-- Geekbench 6: `com.primatelabs.geekbench6`
-- PUBG Mobile: `com.tencent.ig`
-
-Providers and internal paths follow the active application ID for every variant.
-
-### Existing Download Sources
-
-- Wrappers: https://github.com/avavo/WinXclipse/releases/tag/wrappers
-- ExynosTools: https://github.com/WearyConcern1165/ExynosTools/releases
-- WinXclipse drivers: https://github.com/avavo/WinXclipse/releases/tag/drivers_0.9
-- Community configs: https://github.com/avavo/WinXclipse/releases/tag/community-configs
-
 ## Status
 
 ### Functionally experimental
