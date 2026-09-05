@@ -115,6 +115,7 @@ All notable changes between WinXclipse releases, newest first.
 - Sessions without a custom `dxvk.conf` now pin safe DXVK defaults (`relaxedBarriers=False`, `useRawSsbo=Auto`, a RAM-tier VRAM cap) through `DXVK_CONFIG`, so a `dxvk.conf` shipped next to a repack's `.exe` can no longer silently break RE2/GTA V regardless of container settings; a manual `DXVK_CONFIG` from Environment Variables is still respected.
 - DXVK-reported video memory is capped again: a set Graphics Driver Max Device Memory reaches `dxgi.maxDeviceMemory/SharedMemory` as in 0.7.6, and unset values fall back to a RAM-tier default (2048/2048 MB up to 6 GB RAM, 3072/2048 MB above), fixing the GTA V city-driving OOM freeze/crash on shared-memory Xclipse GPUs.
 - `VKD3D_SHADER_MODEL=6_6` is only set when VKD3D is actually enabled, instead of leaking into D3D11 sessions and legacy VKD3D setups.
+- Shortcut sessions no longer linger forever when the game never spawns an application process: Wine's debugger (`winedbg`) counts as a base process, stale `shortcut_path` launches are tracked by the lifecycle probe, and a launcher stub with no app for 2 minutes closes the session with a logged reason.
 
 ## 0.9
 

@@ -252,6 +252,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     private volatile boolean observedShortcutApplication;
     private long shortcutIdleSinceMs;
     private static final long SHORTCUT_IDLE_CLOSE_DELAY_MS = 5000L;
+    // Backstop para launch que nunca gera processo (stub travado, path obsoleto):
+    // sem app por 2 min apos o start.exe aparecer, fecha em vez de prender a sessao.
+    private static final long SHORTCUT_NEVER_STARTED_CLOSE_DELAY_MS = 120000L;
+    private volatile boolean launchedAsShortcut;
+    private volatile long shortcutLaunchMs;
+    private volatile boolean sawStartExe;
     private volatile boolean automaticLifecycleClose;
     private volatile String lifecycleCloseReason = "";
     private volatile boolean lifecycleLogWritten;
@@ -273,8 +279,17 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     };
     private final Runnable shortcutExitProbe = new Runnable() {
         @Override public void run() {
-            if (shortcut == null || sessionStopped.get() || isFinishing() || isDestroyed()) return;
-            boolean hasApplication = hasNonBaseWineProcess();
+            if (sessionStopped.get() || isFinishing() || isDestroyed()) return;
+            if (!launchedAsShortcut && shortcut == null) return;
+            boolean hasApplication = false;
+            boolean startSeen = false;
+            for (String process : ProcessHelper.listRunningWineProcessNames()) {
+                String name = process == null ? "" : process.toLowerCase(Locale.US).trim();
+                if (name.isEmpty()) continue;
+                if (name.equals("start.exe")) startSeen = true;
+                if (!isBaseWineProcess(name)) hasApplication = true;
+            }
+            if (startSeen) sawStartExe = true;
             long now = android.os.SystemClock.elapsedRealtime();
             if (hasApplication) {
                 sawShortcutProcess = true;
@@ -292,6 +307,14 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                     finishSession();
                     return;
                 }
+            }
+            else if (launchedAsShortcut && sawStartExe
+                    && now - shortcutLaunchMs >= SHORTCUT_NEVER_STARTED_CLOSE_DELAY_MS) {
+                automaticLifecycleClose = true;
+                lifecycleCloseReason = "The game did not start; launcher stub finished without an application process within 2 minutes.";
+                Log.i("WineLifecycle", lifecycleCloseReason);
+                finishSession();
+                return;
             }
             sidebarHandler.postDelayed(this, 500L);
         }
@@ -2321,8 +2344,14 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         // A Wine desktop is intentionally persistent. A shortcut, however,
         // should leave as soon as its application (and any launcher children)
         // has been gone for five continuous seconds. Base Wine services and
-        // crash reporters do not keep the session alive.
-        if (shortcut != null) {
+        // crash reporters do not keep the session alive. A stale shortcut_path
+        // that failed to resolve still counts as a shortcut launch so a dead
+        // session cannot linger forever either.
+        launchedAsShortcut = shortcut != null
+                || (getIntent() != null && getIntent().hasExtra("shortcut_path"));
+        shortcutLaunchMs = android.os.SystemClock.elapsedRealtime();
+        sawStartExe = false;
+        if (launchedAsShortcut) {
             sawShortcutProcess = false;
             observedShortcutApplication = false;
             shortcutIdleSinceMs = 0L;
@@ -5349,21 +5378,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         return false;
     }
 
-    private boolean hasNonBaseWineProcess() {
-        for (String process : ProcessHelper.listRunningWineProcessNames()) {
-            String name = process == null ? "" : process.toLowerCase(Locale.US).trim();
-            if (name.isEmpty() || isBaseWineProcess(name)) continue;
-            return true;
-        }
-        return false;
-    }
-
     private static boolean isBaseWineProcess(String name) {
         if (isStrictBaseWineProcess(name)) return true;
         // Crash Defender/reporters may deliberately survive the game and must
         // not keep a completed shortcut session open forever.
         return name.contains("crash") || name.contains("defender")
-                || name.contains("werfault");
+                || name.contains("werfault") || name.contains("winedbg");
     }
 
     private static boolean isStrictBaseWineProcess(String name) {
@@ -5385,6 +5405,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             case "wfm.exe":
             case "tabtip.exe":
             case "winemenubuilder.exe":
+            case "winedbg.exe":
                 return true;
             default:
                 return false;
