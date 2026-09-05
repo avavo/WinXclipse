@@ -111,7 +111,8 @@ All notable changes between WinXclipse releases, newest first.
 - Wine registry self-healing validates the real `WINE REGISTRY Version N` header and recreates invalid win64 headers for every supported prefix source, preventing the recurring invalid-registry/32-bit-wineserver startup failure.
 - Synthesized Wine/Proton profiles skip unusable non-archive `prefixPack` files instead of failing during container creation.
 - PulseAudio output is recreated on audio route/device changes instead of going silent. Recorder-only (submix) device announcements are ignored, so starting a screen recording no longer mutes the game.
-- Sessions without a custom `dxvk.conf` now pin safe DXVK defaults (`relaxedBarriers=False`, `useRawSsbo=Auto`, uncapped device/shared memory) through `DXVK_CONFIG`, so a `dxvk.conf` shipped next to a repack's `.exe` can no longer silently break RE2/GTA V regardless of container settings; a manual `DXVK_CONFIG` from Environment Variables is still respected.
+- Sessions without a custom `dxvk.conf` now pin safe DXVK defaults (`relaxedBarriers=False`, `useRawSsbo=Auto`, a RAM-tier VRAM cap) through `DXVK_CONFIG`, so a `dxvk.conf` shipped next to a repack's `.exe` can no longer silently break RE2/GTA V regardless of container settings; a manual `DXVK_CONFIG` from Environment Variables is still respected.
+- DXVK-reported video memory is capped again: a set Graphics Driver Max Device Memory reaches `dxgi.maxDeviceMemory/SharedMemory` as in 0.7.6, and unset values fall back to a RAM-tier default (2048/2048 MB up to 6 GB RAM, 3072/2048 MB above), fixing the GTA V city-driving OOM freeze/crash on shared-memory Xclipse GPUs.
 - `VKD3D_SHADER_MODEL=6_6` is only set when VKD3D is actually enabled, instead of leaking into D3D11 sessions and legacy VKD3D setups.
 
 ## 0.9

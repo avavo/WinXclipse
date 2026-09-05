@@ -80,9 +80,6 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
 
 ### Additional Souza Changelog Items
 
-- Video Configuration centralizes the renderer, GPU name, present mode, texture filter, FSR, and red/blue channel swap for containers and shortcuts.
-- Audio Configuration includes driver and volume controls, with MIDI soundfont selection in the same dialog and PulseAudio as the default.
-- Shortcut artwork can use Browser search, the executable icon, or a custom image, globally or per shortcut; newly created shortcuts always start in Browser mode with an immediate cover fetch. The complete gamepad skin set remains selectable in the Input Controls editor.
 - The Community Config install dialog uses the purple-bordered blurred style with a rounded 2:3 cover banner and a slightly narrower popup.
 - New containers use the Intermediate FEXCore preset. XInput, DInput, and Exclusive XInput remain opt-in, and 32-bit WoW64 processes keep a separate CPU list with an all-core fallback.
 - Texture Filter includes Bilinear, Nearest, FSR, and None; old FSR settings migrate to the current saved fields. Gyroscope input starts enabled, while LayerCache Helix stays opt-in.

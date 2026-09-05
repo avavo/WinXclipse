@@ -7,6 +7,7 @@ import android.widget.AdapterView;
 import android.widget.CheckBox;
 import android.widget.ArrayAdapter;
 import android.widget.Spinner;
+import android.widget.TextView;
 import android.widget.ToggleButton;
 
 import com.winlator.cmod.R;
@@ -32,10 +33,39 @@ public class DXVKConfigDialog extends ContentDialog {
     public static final long MAX_CUSTOM_CONF_BYTES = 64 * 1024;
     // Neutraliza as chaves que quebram RE Engine/RAGE em GPU movel quando um
     // dxvk.conf embarcado no repack (OpJuegos/ADM/Mali) vaza para a sessao.
-    // Sao os defaults do DXVK, entao so fazem efeito contra arquivo externo.
-    public static final String SAFE_FALLBACK_CONFIG =
-            "d3d11.relaxedBarriers = False; dxvk.useRawSsbo = Auto; " +
-            "dxgi.maxDeviceMemory = 0; dxgi.maxSharedMemory = 0; d3d9.maxAvailableMemory = 4096";
+    // Inclui o cap de VRAM reportada: sem ele o jogo dimensiona os pools de
+    // streaming pelo heap inteiro e morre de OOM andando de carro (GTA V).
+    // Sao os defaults do DXVK quando zerados, entao so fazem efeito real
+    // contra arquivo externo ou quando ha cap configurado.
+    public static String buildSafeFallbackConfig(Context context, int driverMaxMemMb) {
+        int dev;
+        int shared;
+        if (driverMaxMemMb > 0) {
+            dev = driverMaxMemMb;
+            shared = driverMaxMemMb;
+        } else if (getTotalMemMb(context) <= 6144) {
+            dev = 2048;
+            shared = 2048;
+        } else {
+            dev = 3072;
+            shared = 2048;
+        }
+        return "d3d11.relaxedBarriers = False; dxvk.useRawSsbo = Auto; " +
+                "dxgi.maxDeviceMemory = " + dev + "; dxgi.maxSharedMemory = " + shared +
+                "; d3d9.maxAvailableMemory = 4096";
+    }
+
+    private static long getTotalMemMb(Context context) {
+        try {
+            android.app.ActivityManager am = (android.app.ActivityManager)
+                    context.getSystemService(Context.ACTIVITY_SERVICE);
+            android.app.ActivityManager.MemoryInfo mi = new android.app.ActivityManager.MemoryInfo();
+            am.getMemoryInfo(mi);
+            return mi.totalMem / (1024 * 1024);
+        } catch (Exception e) {
+            return 0;
+        }
+    }
     public static final String[] VKD3D_FEATURE_LEVELS = {"12_0", "12_1", "12_2", "11_1", "11_0", "10_1", "10_0", "9_3", "9_2", "9_1"};
     public static final int DXVK_TYPE_NONE = 0;
     public static final int DXVK_TYPE_ASYNC = 1;
@@ -47,11 +77,33 @@ public class DXVKConfigDialog extends ContentDialog {
     private final Context context;
     private final boolean arm64EC;
     private List<String> dxvkVersions;
+    private final CustomConf customConf;
+    private TextView tvDxvkConfStatus;
+    private View btRemoveDxvkConf;
+
+    /** Estado do dxvk.conf custom, compartilhado com a tela que abriu o dialogo.
+     *  O dialogo nunca toca em arquivo: só monta stage; quem salva é o host. */
+    public static class CustomConf {
+        public final File targetFile;
+        public String stagedContent;
+        public boolean stagedRemoved;
+        public final Runnable requestImport;
+
+        public CustomConf(File targetFile, Runnable requestImport) {
+            this.targetFile = targetFile;
+            this.requestImport = requestImport;
+        }
+    }
 
     public DXVKConfigDialog(View anchor, boolean arm64EC) {
+        this(anchor, arm64EC, null);
+    }
+
+    public DXVKConfigDialog(View anchor, boolean arm64EC, CustomConf customConf) {
         super(anchor.getContext(), R.layout.dxvk_config_dialog);
         context = anchor.getContext();
         this.arm64EC = arm64EC;
+        this.customConf = customConf;
         setIcon(R.drawable.icon_settings);
         setTitle("DXVK + VKD3D "+context.getString(R.string.configuration));
 
@@ -70,6 +122,24 @@ public class DXVKConfigDialog extends ContentDialog {
         swAsyncCache = findViewById(R.id.SWAsyncCache);
         llAsync = findViewById(R.id.LLAsync);
         llAsyncCache = findViewById(R.id.LLAsyncCache);
+
+        View llDxvkConf = findViewById(R.id.LLDxvkConf);
+        if (customConf == null) {
+            llDxvkConf.setVisibility(View.GONE);
+        } else {
+            tvDxvkConfStatus = findViewById(R.id.TVDxvkConfStatus);
+            btRemoveDxvkConf = findViewById(R.id.BTRemoveDxvkConf);
+            findViewById(R.id.BTImportDxvkConf).setOnClickListener(v -> {
+                if (customConf.requestImport != null) customConf.requestImport.run();
+            });
+            btRemoveDxvkConf.setOnClickListener(v -> {
+                customConf.stagedContent = null;
+                customConf.stagedRemoved = true;
+                refreshCustomConf();
+                AppUtils.showToast(context, R.string.dxvk_conf_removed);
+            });
+            refreshCustomConf();
+        }
 
         ContentsManager contentsManager = new ContentsManager(context);
         contentsManager.syncContents();
@@ -130,6 +200,35 @@ public class DXVKConfigDialog extends ContentDialog {
         });
     }
 
+    /** Atualiza status/botao da secao dxvk.conf (chamado pelo host apos importar). */
+    public void refreshCustomConf() {
+        if (customConf == null || tvDxvkConfStatus == null) return;
+        if (customConf.stagedRemoved) {
+            tvDxvkConfStatus.setText(context.getString(R.string.dxvk_custom_conf_none));
+            btRemoveDxvkConf.setEnabled(false);
+            return;
+        }
+        if (customConf.stagedContent != null) {
+            int bytes;
+            try {
+                bytes = customConf.stagedContent.getBytes("UTF-8").length;
+            } catch (Exception e) {
+                bytes = customConf.stagedContent.length();
+            }
+            tvDxvkConfStatus.setText(context.getString(R.string.dxvk_custom_conf_pending, bytes));
+            btRemoveDxvkConf.setEnabled(true);
+            return;
+        }
+        File active = customConf.targetFile;
+        if (active != null && active.isFile() && active.length() > 0) {
+            tvDxvkConfStatus.setText(context.getString(R.string.dxvk_custom_conf_active, (int) active.length()));
+            btRemoveDxvkConf.setEnabled(true);
+        } else {
+            tvDxvkConfStatus.setText(context.getString(R.string.dxvk_custom_conf_none));
+            btRemoveDxvkConf.setEnabled(false);
+        }
+    }
+
     private void updateConfigVisibility(int dxvkType) {
         if (dxvkType == DXVK_TYPE_ASYNC) {
             llAsync.setVisibility(View.VISIBLE);
@@ -164,7 +263,7 @@ public class DXVKConfigDialog extends ContentDialog {
     }
 
     public static void setEnvVars(Context context, KeyValueSet config, EnvVars envVars) {
-        setEnvVars(context, config, envVars, null);
+        setEnvVars(context, config, envVars, null, 0);
     }
 
     public static File getContainerDxvkConfFile(File containerRoot) {
@@ -178,6 +277,11 @@ public class DXVKConfigDialog extends ContentDialog {
     }
 
     public static void setEnvVars(Context context, KeyValueSet config, EnvVars envVars, File containerRoot) {
+        setEnvVars(context, config, envVars, containerRoot, 0);
+    }
+
+    public static void setEnvVars(Context context, KeyValueSet config, EnvVars envVars, File containerRoot,
+                                  int driverMaxMemMb) {
         // Keep every D3D shader cache on fast internal storage. DXVK 1.x uses
         // STATE_CACHE_PATH while modern DXVK and VKD3D-Proton use their shader
         // cache variables, so set all three for both ARM64EC and x86 runtimes.
@@ -225,7 +329,7 @@ public class DXVKConfigDialog extends ContentDialog {
                 // (o DXVK le esse arquivo sozinho; o env tem precedencia).
                 // Respeita um DXVK_CONFIG manual da aba EnvVars, se houver.
                 if (!envVars.has("DXVK_CONFIG"))
-                    envVars.put("DXVK_CONFIG", SAFE_FALLBACK_CONFIG);
+                    envVars.put("DXVK_CONFIG", buildSafeFallbackConfig(context, driverMaxMemMb));
                 Log.i("DXVKConfigDialog", "No custom dxvk.conf, applying safe fallback overrides");
             }
         }

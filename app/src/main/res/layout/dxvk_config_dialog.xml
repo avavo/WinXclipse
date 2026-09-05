@@ -164,5 +164,52 @@
             android:entries="@array/dxvk_framerate_entries"
             android:spinnerMode="dialog"/>
 
+        <LinearLayout
+            android:id="@+id/LLDxvkConf"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="vertical">
+
+            <View style="@style/HorizontalLine" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/dxvk_custom_conf" />
+
+            <TextView
+                android:id="@+id/TVDxvkConfStatus"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/dxvk_custom_conf_none" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:layout_marginBottom="8dp"
+                android:orientation="horizontal">
+
+                <Button
+                    style="@style/ButtonNeutral"
+                    android:id="@+id/BTImportDxvkConf"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:text="@string/dxvk_import_conf" />
+
+                <Button
+                    style="@style/ButtonNeutral"
+                    android:id="@+id/BTRemoveDxvkConf"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:layout_marginLeft="8dp"
+                    android:text="@string/dxvk_remove_conf" />
+            </LinearLayout>
+        </LinearLayout>
+
     </LinearLayout>
 </ScrollView>

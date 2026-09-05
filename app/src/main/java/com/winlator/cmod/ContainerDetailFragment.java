@@ -102,8 +102,8 @@ public class ContainerDetailFragment extends Fragment {
     private String xperfConfig = "";
     private Callback<String> openDirectoryCallback;
     private static final int REQUEST_CODE_IMPORT_DXVK_CONF = 1101;
-    private String pendingDxvkConfContent = null;
-    private boolean pendingDxvkConfRemoved = false;
+    private DXVKConfigDialog.CustomConf dxvkConfState;
+    private DXVKConfigDialog activeDxvkDialog;
 
     private static boolean isDarkMode;
 
@@ -264,10 +264,7 @@ public class ContainerDetailFragment extends Fragment {
                 if (!isPlausibleDxvkConf(content)) throw new IllegalArgumentException("not a dxvk.conf");
                 DxvkConfSanitizer.Result res = DxvkConfSanitizer.sanitize(content);
                 if (!res.changed) {
-                    pendingDxvkConfContent = content;
-                    pendingDxvkConfRemoved = false;
-                    refreshDxvkConfStatus(getView());
-                    AppUtils.showToast(getContext(), R.string.dxvk_conf_imported);
+                    stageDxvkConf(content);
                     return;
                 }
                 Context sanitizeContext = getContext();
@@ -282,18 +279,10 @@ public class ContainerDetailFragment extends Fragment {
                         .setTitle(R.string.dxvk_conf_sanitize_title)
                         .setMessage(sanitizeContext.getString(
                                 R.string.dxvk_conf_sanitize_msg, issueList.toString().trim()))
-                        .setPositiveButton(R.string.dxvk_conf_use_sanitized, (d, w) -> {
-                            pendingDxvkConfContent = res.sanitized;
-                            pendingDxvkConfRemoved = false;
-                            refreshDxvkConfStatus(getView());
-                            AppUtils.showToast(getContext(), R.string.dxvk_conf_imported);
-                        })
-                        .setNeutralButton(R.string.dxvk_conf_use_original, (d, w) -> {
-                            pendingDxvkConfContent = content;
-                            pendingDxvkConfRemoved = false;
-                            refreshDxvkConfStatus(getView());
-                            AppUtils.showToast(getContext(), R.string.dxvk_conf_imported);
-                        })
+                        .setPositiveButton(R.string.dxvk_conf_use_sanitized, (d, w) ->
+                                stageDxvkConf(res.sanitized))
+                        .setNeutralButton(R.string.dxvk_conf_use_original, (d, w) ->
+                                stageDxvkConf(content))
                         .setNegativeButton(android.R.string.cancel, null)
                         .show();
             }
@@ -457,7 +446,16 @@ public class ContainerDetailFragment extends Fragment {
         final String[] pendingFrameGenerationLowLatency = {isEditMode() && container != null
                 ? container.getExtra("frameGenerationLowLatency", "0") : "0"};
 
-        setupDXWrapperSpinner(sDXWrapper, vDXWrapperConfig, sWineVersion, contentsManager);
+        setupDXWrapperSpinner(sDXWrapper, vDXWrapperConfig, sWineVersion, contentsManager,
+                dxvkConfState = new DXVKConfigDialog.CustomConf(
+                        isEditMode() ? container.getDxvkConfFile() : null,
+                        this::openDxvkConfPicker),
+                dlg -> {
+                    activeDxvkDialog = dlg;
+                    dlg.setOnDismissListener(d -> {
+                        if (activeDxvkDialog == dlg) activeDxvkDialog = null;
+                    });
+                });
         setupDDrawSpinner(sDDrawrapper, isEditMode() ? container.getDDrawWrapper() : Container.DEFAULT_DDRAWRAPPER);
         KeyValueSet initialDXConfig = DXVKConfigDialog.parseConfig(vDXWrapperConfig.getTag());
         if (initialDXConfig.get("ddrawrapper").isEmpty()) {
@@ -470,7 +468,6 @@ public class ContainerDetailFragment extends Fragment {
 
         view.findViewById(R.id.BTHelpDXWrapper).setOnClickListener((v) -> AppUtils.showHelpBox(context, v, R.string.dxwrapper_help_content));
         view.findViewById(R.id.BTHelpGraphicsDriver).setOnClickListener((v) -> AppUtils.showHelpBox(context, v, R.string.graphics_driver_help_content));
-        setupDxvkConfImport(view);
 
 
 
@@ -1327,17 +1324,12 @@ public class ContainerDetailFragment extends Fragment {
                 .show();
     }
 
-    private void setupDxvkConfImport(final View view) {
-        View btImport = view.findViewById(R.id.BTImportDxvkConf);
-        View btRemove = view.findViewById(R.id.BTRemoveDxvkConf);
-        if (btImport != null) btImport.setOnClickListener(v -> openDxvkConfPicker());
-        if (btRemove != null) btRemove.setOnClickListener(v -> {
-            pendingDxvkConfContent = null;
-            pendingDxvkConfRemoved = true;
-            refreshDxvkConfStatus(view);
-            AppUtils.showToast(getContext(), R.string.dxvk_conf_removed);
-        });
-        refreshDxvkConfStatus(view);
+    private void stageDxvkConf(String content) {
+        if (dxvkConfState == null) return;
+        dxvkConfState.stagedContent = content;
+        dxvkConfState.stagedRemoved = false;
+        if (activeDxvkDialog != null) activeDxvkDialog.refreshCustomConf();
+        AppUtils.showToast(getContext(), R.string.dxvk_conf_imported);
     }
 
     private void openDxvkConfPicker() {
@@ -1381,58 +1373,32 @@ public class ContainerDetailFragment extends Fragment {
                 || t.contains("d3d9.") || t.contains("d3d8.");
     }
 
-    private void refreshDxvkConfStatus(View view) {
-        if (view == null) view = getView();
-        if (view == null) return;
-        TextView tv = view.findViewById(R.id.TVDxvkConfStatus);
-        View btRemove = view.findViewById(R.id.BTRemoveDxvkConf);
-        if (tv == null) return;
-        Context ctx = getContext();
-        if (pendingDxvkConfRemoved) {
-            tv.setText(ctx != null ? ctx.getString(R.string.dxvk_custom_conf_none) : "No custom conf");
-            if (btRemove != null) btRemove.setEnabled(false);
-            return;
-        }
-        if (pendingDxvkConfContent != null) {
-            int bytes = pendingDxvkConfContent.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
-            tv.setText(ctx != null ? ctx.getString(R.string.dxvk_custom_conf_pending, bytes) : "Pending (" + bytes + " B)");
-            if (btRemove != null) btRemove.setEnabled(true);
-            return;
-        }
-        File active = (isEditMode() && container != null) ? container.getDxvkConfFile() : null;
-        if (active != null && active.isFile() && active.length() > 0) {
-            tv.setText(ctx != null ? ctx.getString(R.string.dxvk_custom_conf_active, (int) active.length()) : "Active");
-            if (btRemove != null) btRemove.setEnabled(true);
-        } else {
-            tv.setText(ctx != null ? ctx.getString(R.string.dxvk_custom_conf_none) : "No custom conf");
-            if (btRemove != null) btRemove.setEnabled(false);
-        }
-    }
-
     private void applyPendingDxvkConf(Container target) {
-        if (target == null) return;
+        if (target == null || dxvkConfState == null) return;
         try {
-            if (pendingDxvkConfRemoved) {
+            if (dxvkConfState.stagedRemoved) {
                 File f = target.getDxvkConfFile();
                 if (f != null && f.isFile()) f.delete();
-            } else if (pendingDxvkConfContent != null) {
+            } else if (dxvkConfState.stagedContent != null) {
                 File f = target.getDxvkConfFile();
-                if (f != null) FileUtils.writeString(f, pendingDxvkConfContent);
+                if (f != null) FileUtils.writeString(f, dxvkConfState.stagedContent);
             }
         }
         catch (Exception e) {
             Log.e(TAG, "Unable to apply dxvk.conf", e);
         }
         finally {
-            pendingDxvkConfContent = null;
-            pendingDxvkConfRemoved = false;
+            dxvkConfState.stagedContent = null;
+            dxvkConfState.stagedRemoved = false;
         }
     }
 
     public static void setupDXWrapperSpinner(final Spinner sDXWrapper,
                                              final View vDXWrapperConfig,
                                              final Spinner sWineVersion,
-                                             final ContentsManager contentsManager) {
+                                             final ContentsManager contentsManager,
+                                             final DXVKConfigDialog.CustomConf customConf,
+                                             final Callback<DXVKConfigDialog> onDialogShown) {
         sDXWrapper.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
@@ -1442,7 +1408,9 @@ public class ContainerDetailFragment extends Fragment {
                         String wineIdentifier = String.valueOf(sWineVersion.getSelectedItem());
                         boolean arm64EC = WineInfo.fromIdentifier(v.getContext(), contentsManager,
                                 wineIdentifier).isArm64EC();
-                        new DXVKConfigDialog(vDXWrapperConfig, arm64EC).show();
+                        DXVKConfigDialog dialog = new DXVKConfigDialog(vDXWrapperConfig, arm64EC, customConf);
+                        if (onDialogShown != null) onDialogShown.call(dialog);
+                        dialog.show();
                     });
                     vDXWrapperConfig.setVisibility(View.VISIBLE);
                 }
