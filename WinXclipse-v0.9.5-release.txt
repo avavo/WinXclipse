@@ -1,6 +1,6 @@
 # WinXclipse v0.9.5
 
-WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It adds configurable Apex frame generation, reorganizes the Vulkan wrappers, ports the newer Souza touch controls, improves the HUD, incorporates the applicable platform work documented in the Souza branch changelog, and fixes several container, shortcut and input-editor crashes.
+WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It adds configurable Apex frame generation, reorganizes the Vulkan wrappers, ports the newer Souza touch controls, improves the HUD, incorporates the applicable platform work documented in the Souza branch changelog, and fixes long-session virtual-controller lockups, recording-related audio loss, rumble routing, and several container, shortcut and input-editor crashes.
 
 # Highlights
 
@@ -31,13 +31,13 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
 
 ### Wrappers, ASTC and ETC2
 
-- The new hybrid stack is `Wrapper-Default` and is selected for new containers; normal (non-transcode) sessions use this hybrid pair. ASTC/ETC2 transcode sessions (RE3 Remake incluso) use the proven Winlator Mali wrapper/layer pair instead, verified on Xclipse 940 with hundreds of ETC2 and 106 ASTC transcodes at ~1.2-2.2 GB/s.
+- The new hybrid stack is `Wrapper-Default` and is selected for new containers; normal (non-transcode) sessions use this hybrid pair. ASTC/ETC2 transcode sessions, including RE3 Remake, use the proven Winlator Mali wrapper/layer pair instead, verified on Xclipse 940 with hundreds of ETC2 and 106 ASTC transcodes at ~1.2-2.2 GB/s.
 - Old `Wrapper-BCN` and `Wrapper-Xclipse` selections migrate to `Wrapper-Default`.
 - The previous generic `wrapper` selection migrates to `Wrapper-CMOD-V1`; the V2 path has its own stable `Wrapper-CMOD-V2` identity.
 - Built-in choices are Wrapper-Default, Wrapper-CMOD-V1 and Wrapper-Kirimu.
 - Wrapper-CMOD-V2 is available only through the existing Wrappers release.
-- Wrapper-GameNative is download-only and is no longer embedded in the APK.
-- The existing Wrappers release contains BCN, CMOD V2, GameNative and Ref4ik-v6. No new GitHub release is required.
+- Wrapper-Leegao and Wrapper-GameNative are download-only and are not embedded in the APK.
+- The existing Wrappers release contains CMOD V1, CMOD V2, Leegao, GameNative and Ref4ik-v6.
 - The Downloads page reads the maintained wrapper release, downloads archives directly and installs them under stable identifiers.
 - Community configs automatically recognize bundled wrappers and recover missing downloadable wrappers from Downloads or the remote catalog without recreating the config.
 - Fixed ASTC/ETC2 transcoding activation so a requested transcode can enable the compute layer even when BCN emulation is set to None or Partial.
@@ -54,6 +54,9 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
 - Moved the left stick of Virtual Gamepad 1 and 2 only slightly to the right, away from the display edge.
 - Removed touchscreen-button haptic feedback and its switch as intended. Physical-controller game rumble remains enabled through the existing master/per-player controls and test button.
 - Fixed the editable-template crash after changing a button icon: the icon cache now covers the complete Souza icon set and validates missing or invalid icons before drawing.
+- Fixed long-session virtual-controller failures caused by confusing Android pointer indexes with pointer IDs. Multitouch cancellation now releases every active button and axis, publishes a neutral gamepad state, and cannot leave the character walking in the last direction.
+- The touchscreen timeout follows its current setting, waits while any control or touchpad gesture is held, and neutralizes input before hiding the overlay.
+- Physical-controller rumble now handles multi-digit Linux `eventN` devices, independent dual motors, repeated-effect throttling and reliable stop/cleanup, preventing ADB/USB renumbering or a missed stop from leaving vibration stuck.
 
 ### Display Sidebar and HUD
 
@@ -101,6 +104,7 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
 - Wine sessions support normal and reverse landscape, allowing either long edge of the phone or tablet to face upward without enabling portrait rotation.
 - Replaced the old update alert with a WinXclipse-styled AMOLED dialog that clearly shows installed and available versions.
 - Corrected the application version display to `0.9.5`.
+- Settings can switch to an optional alternative launcher icon without killing the app; the launcher may take a few seconds to refresh its icon cache.
 
 ### Stability and Rendering
 
@@ -112,7 +116,9 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
 - Wine registry repair now validates the correct registry header and can recover every supported prefix source from invalid-registry and mismatched-wineserver startup failures.
 - Raw Wine/Proton profiles skip unusable non-archive prefix packs instead of aborting container creation.
 - Normal and Essential startup disable the optional PlugPlay, RpcSs and tablet-input services. Aggressive keeps controller-critical PlugPlay available while disabling RpcSs and tablet input; Proton prefixes without a tablet-input registry key also receive a short bounded `tabtip.exe` cleanup, reducing the active idle baseline to roughly seven or eight without touching controller discovery or rumble.
-- PulseAudio output is recreated when the audio route or device changes instead of going silent. Announcements from screen recording alone are ignored, so recording no longer mutes the game.
+- PulseAudio keeps its daemon and Wine clients connected during recording, ADB/USB announcements and output-route changes. Recorder-only/source-only events are ignored; if Android disconnects AAudio, a debounced native bridge replaces only `module-aaudio-sink`, restores its state and moves existing game streams to it.
+- File sharing and generated frontend launch metadata resolve the active package ID for all four APK variants. The default frontend export directory is now `Downloads/WinXclipse/Frontend`.
+- D8VK 1.0 and the selected DXVK 1.10.3 async/ARM64EC payloads are bundled again, matching the visible defaults.
 - Shortcut sessions wait for all non-base guest processes to disappear and then close after five continuous idle seconds; Wine services and crash-defender/reporting processes cannot keep an exited or failed game session open. An optional Wine lifecycle diagnostic records the reason, process snapshot, non-standard processes and recent guest output in `Downloads/WinXclipse/logs`.
 - Out-of-spec X11 PutImage requests no longer terminate Wine sessions through a fatal BadMatch path; packed cursor and mask uploads use their correct size.
 - First-boot progress now advances through imagefs extraction, runtime installation, and finalization instead of appearing frozen.
@@ -138,7 +144,7 @@ Providers and internal paths follow the active application ID for every variant.
 
 ### Existing Download Sources
 
-- Wrappers: https://github.com/avavo/WinXclipse/releases/tag/wrappers-9.5
+- Wrappers: https://github.com/avavo/WinXclipse/releases/tag/wrappers
 - ExynosTools: https://github.com/WearyConcern1165/ExynosTools/releases
 - WinXclipse drivers: https://github.com/avavo/WinXclipse/releases/tag/drivers_0.9
 - Community configs: https://github.com/avavo/WinXclipse/releases/tag/community-configs

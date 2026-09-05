@@ -24,8 +24,8 @@ public final class ExternalDownloadCatalog {
     private static final String TAG = "ExternalDownloadCatalog";
     private static final String DRIVER_CACHE_KEY = "xclipse_driver_release_cache_v2";
     private static final String DRIVER_REFRESH_TIME_KEY = "xclipse_driver_release_refresh_time";
-    private static final String WRAPPER_CACHE_KEY = "xclipse_wrapper_release_cache_v2";
-    private static final String WRAPPER_REFRESH_TIME_KEY = "xclipse_wrapper_release_refresh_time_v2";
+    private static final String WRAPPER_CACHE_KEY = "xclipse_wrapper_release_cache_v3";
+    private static final String WRAPPER_REFRESH_TIME_KEY = "xclipse_wrapper_release_refresh_time_v3";
     /** "owner/name" lists every release; "owner/name@tag" pins one release. */
     private static final String[] DRIVER_REPOSITORIES = {
             "WearyConcern1165/ExynosTools",
