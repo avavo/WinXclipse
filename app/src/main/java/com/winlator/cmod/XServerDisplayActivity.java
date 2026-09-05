@@ -4264,6 +4264,15 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 graphicsDriverConfig.getOrDefault("bcnEmulationType",
                         "1".equals(graphicsDriverConfig.getOrDefault("bcnSoftwareSwitch", "0"))
                                 ? "software" : GPUInformation.defaultBcnEmulationType()));
+        if ((requestedAstcTranscode || requestedEtc2Transcode) && !computeBcnMode) {
+            // Transcode (encode_etc2/astc_compute) só existe no backend compute.
+            // Config antiga/inválida com Type=Software + transcode marcava
+            // BCN TRANSCODE ERROR e o jogo saía branco/preto sem decodificar
+            // nada. Intenção do usuário (transcode ligado) vence o backend.
+            computeBcnMode = true;
+            Log.w("GraphicsDriverExtraction",
+                    "Transcode requested with software BCN backend; forcing compute");
+        }
         if ("1".equals(graphicsDriverConfig.getOrDefault("astcAutoDefault", "0"))
                 && computeBcnMode && !requestedAstcTranscode && !requestedEtc2Transcode) {
             requestedAstcTranscode = true;

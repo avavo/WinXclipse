@@ -246,6 +246,21 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
         bcnSoftwareSwitchCheckBox.setChecked("1".equals(config.getOrDefault("bcnSoftwareSwitch", "0")));
         astcAutoDefaultCheckBox.setChecked("1".equals(config.getOrDefault("astcAutoDefault", "0")));
         refreshExtensions(initialVersion);
+        // O listener do type-spinner dispara durante o setSelection acima,
+        // antes dos checkboxes serem marcados — uma config antiga
+        // software+transcode passava batida e salvava a combinação inválida
+        // (no launch vira BCN TRANSCODE ERROR e o jogo sai branco/preto).
+        refreshTranscodeEnabled();
+    }
+
+    private void refreshTranscodeEnabled() {
+        boolean software = "software".equalsIgnoreCase(selectedValue(bcnTypeSpinner));
+        astcTranscodeCheckBox.setEnabled(!software);
+        etc2TranscodeCheckBox.setEnabled(!software);
+        if (software) {
+            astcTranscodeCheckBox.setChecked(false);
+            etc2TranscodeCheckBox.setChecked(false);
+        }
     }
 
     private void applyWrapperBcnProfile(String graphicsDriver, boolean experimentalBcn) {
@@ -287,13 +302,7 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
         bcnTypeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override public void onItemSelected(AdapterView<?> parent, View view,
                                                  int position, long id) {
-                boolean software = "software".equalsIgnoreCase(selectedValue(bcnTypeSpinner));
-                astcTranscodeCheckBox.setEnabled(!software);
-                etc2TranscodeCheckBox.setEnabled(!software);
-                if (software) {
-                    astcTranscodeCheckBox.setChecked(false);
-                    etc2TranscodeCheckBox.setChecked(false);
-                }
+                refreshTranscodeEnabled();
             }
             @Override public void onNothingSelected(AdapterView<?> parent) {}
         });
@@ -326,8 +335,10 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
         result.put("bcnEmulation", selectedValue(bcnEmulationSpinner));
         result.put("bcnEmulationType", selectedValue(bcnTypeSpinner));
         result.put("bcnEmulationCache", selectedValue(bcnCacheSpinner));
-        result.put("astcTranscode", boolValue(astcTranscodeCheckBox));
-        result.put("etc2Transcode", boolValue(etc2TranscodeCheckBox));
+        // Transcode só existe no backend compute; nunca persiste software+transcode.
+        boolean saveSoftware = "software".equalsIgnoreCase(selectedValue(bcnTypeSpinner));
+        result.put("astcTranscode", saveSoftware ? "0" : boolValue(astcTranscodeCheckBox));
+        result.put("etc2Transcode", saveSoftware ? "0" : boolValue(etc2TranscodeCheckBox));
         result.put("bcnSoftwareSwitch", boolValue(bcnSoftwareSwitchCheckBox));
         result.put("astcAutoDefault", boolValue(astcAutoDefaultCheckBox));
         // GPU name and present mode belong to Video Configuration.  Keeping the
