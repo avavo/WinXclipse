@@ -660,6 +660,14 @@ public class InputControlsView extends View {
         invalidate();
     }
 
+    public boolean hasActiveTouches() {
+        if (profile == null) return false;
+        for (ControlElement element : profile.getElements()) {
+            if (element.isTouchActive()) return true;
+        }
+        return false;
+    }
+
     private void resetTouchscreenTimeout() {
 //        Log.d("InputControlsView", "Touch detected, resetting timeout.");
         if (timeoutHandler != null && hideControlsRunnable != null) {

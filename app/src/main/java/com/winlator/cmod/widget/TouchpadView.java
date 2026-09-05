@@ -210,6 +210,11 @@ public class TouchpadView extends View {
             timeoutHandler.postDelayed(hideControlsRunnable, 5000); // Adjust timeout as necessary
         }
     }
+
+    public boolean hasActiveTouches() {
+        return numFingers > 0;
+    }
+
     private boolean handleStylusHoverEvent(MotionEvent event) {
         int action = event.getActionMasked();
 

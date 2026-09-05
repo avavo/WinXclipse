@@ -883,6 +883,10 @@ public class ControlElement {
         return getBoundingBox().contains((int)(x + 0.5f), (int)(y + 0.5f));
     }
 
+    public boolean isTouchActive() {
+        return currentPointerId != -1;
+    }
+
     private boolean isKeepButtonPressedAfterMinTime() {
         Binding binding = getBindingAt(0);
         return !toggleSwitch && (binding == Binding.GAMEPAD_BUTTON_L3 || binding == Binding.GAMEPAD_BUTTON_R3);
@@ -1143,7 +1147,7 @@ public class ControlElement {
             // A toggle that was already latched did not emit a new press on
             // ACTION_DOWN, so preserve it. Otherwise neutralize the provisional
             // press without changing the latch state.
-            if (!toggleSwitch || !selected) {
+            if (binding != Binding.NONE && (!toggleSwitch || !selected)) {
                 inputControlsView.handleInputEvent(binding, false);
             }
 
