@@ -260,8 +260,8 @@ public class ContainerDetailFragment extends Fragment {
         if (requestCode == REQUEST_CODE_IMPORT_DXVK_CONF && resultCode == Activity.RESULT_OK) {
             if (data == null || data.getData() == null) return;
             try {
-                String content = readDxvkConfText(data.getData());
-                if (!isPlausibleDxvkConf(content)) throw new IllegalArgumentException("not a dxvk.conf");
+                String content = DxvkConfSanitizer.readUriText(getContext(), data.getData());
+                if (!DxvkConfSanitizer.isPlausible(content)) throw new IllegalArgumentException("not a dxvk.conf");
                 DxvkConfSanitizer.Result res = DxvkConfSanitizer.sanitize(content);
                 if (!res.changed) {
                     stageDxvkConf(content);
@@ -1346,33 +1346,6 @@ public class ContainerDetailFragment extends Fragment {
         }
     }
 
-    private String readDxvkConfText(Uri uri) throws Exception {
-        Context ctx = getContext();
-        if (ctx == null || uri == null) throw new IllegalArgumentException("no uri");
-        try (java.io.InputStream in = ctx.getContentResolver().openInputStream(uri);
-             java.io.BufferedReader reader = new java.io.BufferedReader(
-                     new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8))) {
-            StringBuilder sb = new StringBuilder();
-            char[] buf = new char[8192];
-            int n;
-            while ((n = reader.read(buf)) != -1) {
-                sb.append(buf, 0, n);
-                if (sb.length() > DXVKConfigDialog.MAX_CUSTOM_CONF_BYTES) break;
-            }
-            return sb.toString();
-        }
-    }
-
-    private static boolean isPlausibleDxvkConf(String content) {
-        if (content == null) return false;
-        String t = content.trim();
-        if (t.isEmpty() || t.length() > DXVKConfigDialog.MAX_CUSTOM_CONF_BYTES) return false;
-        if (t.indexOf('=') < 0) return false;
-        if (t.indexOf('\0') >= 0) return false;
-        return t.contains("dxgi.") || t.contains("dxvk.") || t.contains("d3d11.")
-                || t.contains("d3d9.") || t.contains("d3d8.");
-    }
-
     private void applyPendingDxvkConf(Container target) {
         if (target == null || dxvkConfState == null) return;
         try {
@@ -1425,13 +1398,24 @@ public class ContainerDetailFragment extends Fragment {
     public static void setupDXWrapperSpinner(final Spinner sDXWrapper,
                                              final View vDXWrapperConfig,
                                              final boolean arm64EC) {
+        setupDXWrapperSpinner(sDXWrapper, vDXWrapperConfig, arm64EC, null, null);
+    }
+
+    public static void setupDXWrapperSpinner(final Spinner sDXWrapper,
+                                             final View vDXWrapperConfig,
+                                             final boolean arm64EC,
+                                             final DXVKConfigDialog.CustomConf customConf,
+                                             final Callback<DXVKConfigDialog> onDialogShown) {
         sDXWrapper.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 String dxwrapper = getDXWrapperIdentifier(sDXWrapper.getSelectedItem());
                 if (dxwrapper.equals("dxvk")) {
-                    vDXWrapperConfig.setOnClickListener(v ->
-                            new DXVKConfigDialog(vDXWrapperConfig, arm64EC).show());
+                    vDXWrapperConfig.setOnClickListener(v -> {
+                        DXVKConfigDialog dialog = new DXVKConfigDialog(vDXWrapperConfig, arm64EC, customConf);
+                        if (onDialogShown != null) onDialogShown.call(dialog);
+                        dialog.show();
+                    });
                     vDXWrapperConfig.setVisibility(View.VISIBLE);
                 }
                 else vDXWrapperConfig.setVisibility(View.GONE);

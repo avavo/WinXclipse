@@ -23,6 +23,7 @@ All notable changes between WinXclipse releases, newest first.
   the existing FSR/HDR compositor passes.
 - Containers can import a custom `dxvk.conf` per container from the container settings, below the DX wrapper selector, with Import/Remove actions and live status. It is applied on save through `DXVK_CONFIG_FILE`, travels with duplicate/export, and is inherited by shortcuts.
 - Imported `dxvk.conf` files are checked against the known-bad Mali/OpJuegos template: `relaxedBarriers=True` (grey roads and map corruption in RE2/GTA V), `useRawSsbo=True`, sub-1024 MB memory caps, invalid keys, active HUD, and zeroed device IDs are flagged, with a one-tap sanitized import offered.
+- Shortcuts can import their own `dxvk.conf` from the same DXVK + VKD3D dialog, stored as a sidecar beside the shortcut's `.desktop` file. It takes precedence over the container and global configs, travels with shortcut clones, and is renamed/removed together with the shortcut.
 
 ### Changed
 

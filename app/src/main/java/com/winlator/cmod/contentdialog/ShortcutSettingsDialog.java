@@ -4,6 +4,7 @@ package com.winlator.cmod.contentdialog;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.net.Uri;
 import android.graphics.Color;
 import android.graphics.drawable.Icon;
 import android.util.Log;
@@ -22,6 +23,7 @@ import android.widget.TextView;
 import android.text.TextUtils;
 
 import androidx.preference.PreferenceManager;
+import androidx.appcompat.app.AlertDialog;
 
 import com.google.android.material.tabs.TabLayout;
 import com.winlator.cmod.BuildConfig;
@@ -37,6 +39,7 @@ import com.winlator.cmod.contents.ContentProfile;
 import com.winlator.cmod.contents.ContentsManager;
 import com.winlator.cmod.core.AppUtils;
 import com.winlator.cmod.contentdialog.ExperimentalPerformanceDialog;
+import com.winlator.cmod.core.FileUtils;
 import com.winlator.cmod.core.DefaultVersion;
 import com.winlator.cmod.core.EnvVars;
 import com.winlator.cmod.core.KeyValueSet;
@@ -67,6 +70,8 @@ public class ShortcutSettingsDialog extends ContentDialog {
     private InputControlsManager inputControlsManager;
     private TextView tvGraphicsDriverVersion;
     private String box64Version;
+    private DXVKConfigDialog.CustomConf dxvkConfState;
+    private DXVKConfigDialog activeDxvkDialog;
 
     private static final String APP_DATA_DIR = "/data/data/" + BuildConfig.APPLICATION_ID;
     private static final String[] MEDIACONV_ENV_VARS = {
@@ -162,7 +167,14 @@ public class ShortcutSettingsDialog extends ContentDialog {
 
         boolean arm64ECWine = WineInfo.fromIdentifier(context, contentsManager,
                 shortcut.container.getWineVersion()).isArm64EC();
-        ContainerDetailFragment.setupDXWrapperSpinner(sDXWrapper, vDXWrapperConfig, arm64ECWine);
+        dxvkConfState = new DXVKConfigDialog.CustomConf(shortcut.getDxvkConfFile(), this::openDxvkConfPicker);
+        ContainerDetailFragment.setupDXWrapperSpinner(sDXWrapper, vDXWrapperConfig, arm64ECWine,
+                dxvkConfState, dlg -> {
+                    activeDxvkDialog = dlg;
+                    dlg.setOnDismissListener(d -> {
+                        if (activeDxvkDialog == dlg) activeDxvkDialog = null;
+                    });
+                });
         ContainerDetailFragment.setupDDrawSpinner(sDDrawrapper, shortcut.getExtra("ddrawrapper", shortcut.container.getDDrawWrapper()));
         KeyValueSet initialDXConfig = DXVKConfigDialog.parseConfig(vDXWrapperConfig.getTag());
         if (initialDXConfig.get("ddrawrapper").isEmpty()) {
@@ -828,6 +840,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
 
                 // Save all changes to the shortcut
                 shortcut.saveData();
+                applyDxvkConfState();
             }
         });
     }
@@ -970,6 +983,73 @@ public class ShortcutSettingsDialog extends ContentDialog {
         shortcut.putExtra(extraName, newValue);
     }
 
+    private void openDxvkConfPicker() {
+        try {
+            fragment.pickDxvkConf(this);
+        } catch (Exception e) {
+            Log.e("ShortcutSettingsDialog", "Unable to open dxvk.conf picker", e);
+            AppUtils.showToast(getContext(), R.string.dxvk_conf_import_failed);
+        }
+    }
+
+    /** Chamado pelo ShortcutsFragment com o Uri escolhido no picker. */
+    public void onDxvkConfPicked(Uri uri) {
+        if (dxvkConfState == null || uri == null) return;
+        try {
+            String content = DxvkConfSanitizer.readUriText(getContext(), uri);
+            if (!DxvkConfSanitizer.isPlausible(content))
+                throw new IllegalArgumentException("not a dxvk.conf");
+            DxvkConfSanitizer.Result res = DxvkConfSanitizer.sanitize(content);
+            if (!res.changed) {
+                stageDxvkConf(content);
+                return;
+            }
+            Context ctx = getContext();
+            if (ctx == null) return;
+            StringBuilder issueList = new StringBuilder();
+            int shown = Math.min(res.issues.size(), 8);
+            for (int i = 0; i < shown; i++)
+                issueList.append("• ").append(res.issues.get(i)).append('\n');
+            if (res.issues.size() > shown)
+                issueList.append("• +").append(res.issues.size() - shown).append(" outros…\n");
+            new AlertDialog.Builder(ctx)
+                    .setTitle(R.string.dxvk_conf_sanitize_title)
+                    .setMessage(ctx.getString(R.string.dxvk_conf_sanitize_msg, issueList.toString().trim()))
+                    .setPositiveButton(R.string.dxvk_conf_use_sanitized, (d, w) -> stageDxvkConf(res.sanitized))
+                    .setNeutralButton(R.string.dxvk_conf_use_original, (d, w) -> stageDxvkConf(content))
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show();
+        } catch (Exception e) {
+            Log.e("ShortcutSettingsDialog", "Unable to import dxvk.conf", e);
+            AppUtils.showToast(getContext(), R.string.dxvk_conf_import_failed);
+        }
+    }
+
+    private void stageDxvkConf(String content) {
+        if (dxvkConfState == null) return;
+        dxvkConfState.stagedContent = content;
+        dxvkConfState.stagedRemoved = false;
+        if (activeDxvkDialog != null) activeDxvkDialog.refreshCustomConf();
+        AppUtils.showToast(getContext(), R.string.dxvk_conf_imported);
+    }
+
+    private void applyDxvkConfState() {
+        if (dxvkConfState == null) return;
+        try {
+            File target = shortcut.getDxvkConfFile();
+            if (dxvkConfState.stagedRemoved) {
+                if (target != null && target.isFile()) target.delete();
+            } else if (dxvkConfState.stagedContent != null && target != null) {
+                FileUtils.writeString(target, dxvkConfState.stagedContent);
+            }
+        } catch (Exception e) {
+            Log.e("ShortcutSettingsDialog", "Unable to apply dxvk.conf", e);
+        } finally {
+            dxvkConfState.stagedContent = null;
+            dxvkConfState.stagedRemoved = false;
+        }
+    }
+
     private void renameShortcut(String newName) {
         File parent = shortcut.file.getParentFile();
         File oldDesktopFile = shortcut.file; // Reference to the old file
@@ -989,6 +1069,17 @@ public class ShortcutSettingsDialog extends ContentDialog {
         if (linkFile.isFile()) {
             File newLinkFile = new File(parent, newName + ".lnk");
             if (!newLinkFile.isFile()) linkFile.renameTo(newLinkFile);
+        }
+
+        // Move the per-shortcut dxvk.conf sidecar alongside (staged content
+        // overwrites it on save; a staged removal deletes both copies).
+        File oldConf = new File(parent, FileUtils.getBasename(oldDesktopFile.getName()) + ".dxvk.conf");
+        File newConf = new File(parent, newName + ".dxvk.conf");
+        if (dxvkConfState != null && dxvkConfState.stagedRemoved) {
+            if (oldConf.isFile()) oldConf.delete();
+            if (newConf.isFile()) newConf.delete();
+        } else if (oldConf.isFile() && !newConf.isFile()) {
+            oldConf.renameTo(newConf);
         }
 
         fragment.loadShortcutsList();

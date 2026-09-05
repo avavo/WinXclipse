@@ -1,5 +1,12 @@
 package com.winlator.cmod.contentdialog;
 
+import android.content.Context;
+import android.net.Uri;
+
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -44,6 +51,34 @@ public final class DxvkConfSanitizer {
     private static final int SANITIZED_COMPILER_THREADS = 3;
 
     private DxvkConfSanitizer() {}
+
+    /** Le o texto de um SAF Uri com limite de 64 KB, preservando quebras de linha. */
+    public static String readUriText(Context context, Uri uri) throws Exception {
+        if (context == null || uri == null) throw new IllegalArgumentException("no uri");
+        try (InputStream in = context.getContentResolver().openInputStream(uri);
+             BufferedReader reader = new BufferedReader(
+                     new InputStreamReader(in, StandardCharsets.UTF_8))) {
+            StringBuilder sb = new StringBuilder();
+            char[] buf = new char[8192];
+            int n;
+            while ((n = reader.read(buf)) != -1) {
+                sb.append(buf, 0, n);
+                if (sb.length() > DXVKConfigDialog.MAX_CUSTOM_CONF_BYTES) break;
+            }
+            return sb.toString();
+        }
+    }
+
+    /** Checagem barata: parece dxvk.conf (chave=valor de secao conhecida). */
+    public static boolean isPlausible(String content) {
+        if (content == null) return false;
+        String t = content.trim();
+        if (t.isEmpty() || t.length() > DXVKConfigDialog.MAX_CUSTOM_CONF_BYTES) return false;
+        if (t.indexOf('=') < 0) return false;
+        if (t.indexOf('\0') >= 0) return false;
+        return t.contains("dxgi.") || t.contains("dxvk.") || t.contains("d3d11.")
+                || t.contains("d3d9.") || t.contains("d3d8.");
+    }
 
     public static Result sanitize(String content) {
         List<String> issues = new ArrayList<>();

@@ -282,6 +282,12 @@ public class DXVKConfigDialog extends ContentDialog {
 
     public static void setEnvVars(Context context, KeyValueSet config, EnvVars envVars, File containerRoot,
                                   int driverMaxMemMb) {
+        setEnvVars(context, config, envVars, containerRoot, driverMaxMemMb, null);
+    }
+
+    /** Precedencia do conf custom: atalho > container > global legado. */
+    public static void setEnvVars(Context context, KeyValueSet config, EnvVars envVars, File containerRoot,
+                                  int driverMaxMemMb, File shortcutConf) {
         // Keep every D3D shader cache on fast internal storage. DXVK 1.x uses
         // STATE_CACHE_PATH while modern DXVK and VKD3D-Proton use their shader
         // cache variables, so set all three for both ARM64EC and x86 runtimes.
@@ -309,8 +315,9 @@ public class DXVKConfigDialog extends ContentDialog {
         File rootDir = ImageFs.find(context).getRootDir();
         File globalConf = new File(rootDir, ImageFs.CONFIG_PATH+"/dxvk.conf");
         File containerConf = getContainerDxvkConfFile(containerRoot);
-        File activeConf = isValidCustomConfFile(containerConf) ? containerConf
-                : (isValidCustomConfFile(globalConf) ? globalConf : null);
+        File activeConf = isValidCustomConfFile(shortcutConf) ? shortcutConf
+                : (isValidCustomConfFile(containerConf) ? containerConf
+                : (isValidCustomConfFile(globalConf) ? globalConf : null));
         if (activeConf != null) {
             envVars.put("DXVK_CONFIG_FILE", activeConf.getAbsolutePath());
             envVars.remove("DXVK_CONFIG");

@@ -4195,11 +4195,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         if (dxwrapper.equals("dxvk")) {
             java.io.File containerRoot = container != null ? container.getRootDir() : null;
+            java.io.File shortcutConf = shortcut != null ? shortcut.getDxvkConfFile() : null;
             int driverMaxMemMb = 0;
             try {
                 driverMaxMemMb = Integer.parseInt(graphicsDriverConfig.getOrDefault("maxDeviceMemory", "0"));
             } catch (Exception ignored) {}
-            DXVKConfigDialog.setEnvVars(this, dxwrapperConfig, envVars, containerRoot, driverMaxMemMb);
+            DXVKConfigDialog.setEnvVars(this, dxwrapperConfig, envVars, containerRoot, driverMaxMemMb, shortcutConf);
         }
 
         boolean showFps = container != null && container.isShowFPS();

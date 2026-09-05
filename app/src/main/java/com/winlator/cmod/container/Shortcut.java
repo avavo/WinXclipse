@@ -261,6 +261,19 @@ import java.nio.file.Files;
             return new File(new File(container.getRootDir(), COVER_ART_DIR), this.name + ".png");
         }
 
+        /** Sidecar opcional com dxvk.conf so deste atalho; precede o do container. */
+        public File getDxvkConfFile() {
+            if (file == null) return null;
+            File dir = file.getParentFile();
+            if (dir == null) return null;
+            return new File(dir, FileUtils.getBasename(file.getName()) + ".dxvk.conf");
+        }
+
+        public boolean hasCustomDxvkConf() {
+            File f = getDxvkConfFile();
+            return f != null && f.isFile() && f.length() > 0;
+        }
+
         public boolean saveGeneratedCoverArt(Bitmap generatedCoverArt) {
             if (generatedCoverArt == null) return false;
             File coverFile = getGeneratedCoverArtFile();
@@ -365,6 +378,18 @@ import java.nio.file.Files;
                 if (this.iconFile != null && this.iconFile.isFile()) {
                     File newIconFile = new File(newContainer.getIconsDir(64), this.iconFile.getName());
                     FileUtils.copy(this.iconFile, newIconFile);
+                }
+
+                // Carry the per-shortcut dxvk.conf sidecar, if any
+                File conf = getDxvkConfFile();
+                if (conf != null && conf.isFile()) {
+                    File newConf = new File(newShortcutFile.getParentFile(),
+                            FileUtils.getBasename(newShortcutFile.getName()) + ".dxvk.conf");
+                    try {
+                        FileUtils.copy(conf, newConf);
+                    } catch (Exception e) {
+                        Log.w("Shortcut", "Could not clone dxvk.conf sidecar", e);
+                    }
                 }
 
                 return true;

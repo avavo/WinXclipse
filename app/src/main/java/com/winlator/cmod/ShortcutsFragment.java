@@ -103,6 +103,29 @@ public class ShortcutsFragment extends Fragment {
         artworkPickerLauncher.launch(intent);
     }
 
+    private ShortcutSettingsDialog dxvkConfDialogTarget;
+
+    private final ActivityResultLauncher<Intent> dxvkConfPickerLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                ShortcutSettingsDialog target = dxvkConfDialogTarget;
+                dxvkConfDialogTarget = null;
+                if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null
+                        && result.getData().getData() != null && target != null) {
+                    target.onDxvkConfPicked(result.getData().getData());
+                }
+            });
+
+    /** Abre o picker de dxvk.conf para o dialogo de atalho que pediu. */
+    public void pickDxvkConf(ShortcutSettingsDialog dialog) {
+        dxvkConfDialogTarget = dialog;
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("*/*");
+        intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"text/*", "application/octet-stream"});
+        dxvkConfPickerLauncher.launch(intent);
+    }
+
     private void showArtworkSourceDialog(final Shortcut shortcut) {
         Context context = requireContext();
         String[] entries = getResources().getStringArray(R.array.shortcut_artwork_mode_entries);
@@ -535,7 +558,11 @@ public class ShortcutsFragment extends Fragment {
             listItemMenu.setOnMenuItemClickListener((menuItem) -> {
                 int itemId = menuItem.getItemId();
                 if (itemId == R.id.shortcut_settings) {
-                    (new ShortcutSettingsDialog(ShortcutsFragment.this, shortcut)).show();
+                    ShortcutSettingsDialog dialog = new ShortcutSettingsDialog(ShortcutsFragment.this, shortcut);
+                    dialog.setOnDismissListener(d -> {
+                        if (dxvkConfDialogTarget == dialog) dxvkConfDialogTarget = null;
+                    });
+                    dialog.show();
                 }
                 else if (itemId == R.id.shortcut_change_artwork) {
                     showArtworkSourceDialog(shortcut);
@@ -545,6 +572,7 @@ public class ShortcutsFragment extends Fragment {
                         boolean desktopDeleted  = safeDelete(shortcut.file);
                         boolean iconDeleted     = safeDelete(shortcut.iconFile);
                         boolean lnkDeleted      = deletePairedLnkForShortcut(shortcut);
+                        safeDelete(shortcut.getDxvkConfFile());
 
                         if (desktopDeleted) {
                             disableShortcutOnScreen(requireContext(), shortcut);
