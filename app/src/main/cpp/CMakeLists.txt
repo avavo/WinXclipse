@@ -20,6 +20,7 @@ add_library(winlator SHARED
         winlator/sysvshared_memory.c
         winlator/xconnector_epoll.c
         winlator/alsa_client.c
+        winlator/pulseaudio_reload_bridge.c
         winlator/patchelf_wrapper.cpp
         winlator/vulkan.cpp
         # MdiEx runtime (Core/Policy, Loader, Sched, MemShim, AHB, Surface)
@@ -77,6 +78,7 @@ target_link_libraries(winlator
         jnigraphics
         openxr_loader
         aaudio
+        dl
         EGL
         GLESv2
         GLESv3

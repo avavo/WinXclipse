@@ -2,6 +2,7 @@ package com.winlator.cmod.xenvironment.components;
 
 import android.content.Context;
 import android.os.Process;
+import android.util.Log;
 
 import com.winlator.cmod.core.AppUtils;
 import com.winlator.cmod.core.FileUtils;
@@ -24,6 +25,10 @@ public class PulseAudioComponent extends EnvironmentComponent {
     private final int volumePercent;
     private static int pid = -1;
     private static final Object lock = new Object();
+
+    static {
+        System.loadLibrary("winlator");
+    }
 
     public PulseAudioComponent(UnixSocketConfig socketConfig) {
         this(socketConfig, 100);
@@ -72,6 +77,31 @@ public class PulseAudioComponent extends EnvironmentComponent {
             }
         }
     }
+
+    /** Swaps only module-aaudio-sink for a fresh instance; the daemon (and
+     * every Wine client connected to PULSE_SERVER) stays alive. Needed
+     * because Android's audio policy force-disconnects the sink's AAudio/mmap
+     * stream when a recorder attaches a remote submix or the output route
+     * changes (AAUDIO_ERROR_DISCONNECTED, result -899), and the prebuilt
+     * module never reopens its stream — without this reload the game stays
+     * silent until the container restarts. */
+    public boolean reloadAaudioSink() {
+        synchronized (lock) {
+            if (pid == -1 || socketConfig == null || socketConfig.path == null) return false;
+            try {
+                boolean reloaded = nativeReloadAaudioSink(socketConfig.path, volumePercent);
+                if (reloaded) Log.i("PulseAudioComponent", "module-aaudio-sink reloaded");
+                else Log.e("PulseAudioComponent", "module-aaudio-sink reload failed");
+                return reloaded;
+            }
+            catch (UnsatisfiedLinkError e) {
+                Log.e("PulseAudioComponent", "PulseAudio reload bridge unavailable", e);
+                return false;
+            }
+        }
+    }
+
+    private static native boolean nativeReloadAaudioSink(String serverPath, int volumePercent);
     
     private void copyFromLibraryDir(File dst) {
         String[] libs = new String[] {
@@ -87,7 +117,7 @@ public class PulseAudioComponent extends EnvironmentComponent {
                 if (is != null) {
                     Files.copy(is, dstDir, StandardCopyOption.REPLACE_EXISTING);
                     FileUtils.chmod(dstDir.toFile(), 0771);
-                }    
+                }
             }
             catch (IOException e) {
                 throw new RuntimeException(e);

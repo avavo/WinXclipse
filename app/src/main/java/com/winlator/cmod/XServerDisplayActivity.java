@@ -399,28 +399,32 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     private AudioDeviceCallback audioDeviceCallback;
     private AudioManager audioManager;
-    /** BT/USB/headset connects fire bursts of add/remove events; collapse
-     * them into a single PulseAudio restart. */
-    private static final long PULSE_RESTART_DEBOUNCE_MS = 2000L;
-    /** Killing the daemon disconnects every Wine client, so never do it in a
-     * tight loop (ADB/USB flapping, BT bursts, recorder toggles). */
-    private static final long PULSE_RESTART_MIN_INTERVAL_MS = 10000L;
-    private long lastPulseRestartMs = 0L;
-    private final Runnable pulseAudioRestartRunnable = () -> {
+    /** Recorder/BT/USB events arrive in bursts; collapse them into a single
+     * deferred module-aaudio-sink reload. */
+    private static final long PULSE_SINK_RELOAD_DEBOUNCE_MS = 1500L;
+    /** The reload keeps the daemon alive, but reloading in a tight loop
+     * (ADB/USB flapping, BT bursts, recorder toggles) would thrash the
+     * AAudio stream, so space consecutive reloads out. */
+    private static final long PULSE_SINK_RELOAD_MIN_INTERVAL_MS = 3000L;
+    private long lastPulseSinkReloadMs = 0L;
+    private final Handler pulseSinkHandler = new Handler(Looper.getMainLooper());
+    private final Runnable pulseSinkReloadRunnable = this::reloadPulseSinkWhenReady;
+
+    private void reloadPulseSinkWhenReady() {
         if (environment == null || isFinishing() || isDestroyed()) return;
         PulseAudioComponent pulse = environment.getComponent(PulseAudioComponent.class);
-        if (pulse == null) return;
+        if (pulse == null) return; // session uses the ALSA driver instead
         long now = android.os.SystemClock.uptimeMillis();
-        if (now - lastPulseRestartMs < PULSE_RESTART_MIN_INTERVAL_MS) {
-            Log.i("AudioDeviceCallback", "Skipping PulseAudio restart (last restart "
-                    + (now - lastPulseRestartMs) + "ms ago, cooldown "
-                    + PULSE_RESTART_MIN_INTERVAL_MS + "ms).");
+        if (now - lastPulseSinkReloadMs < PULSE_SINK_RELOAD_MIN_INTERVAL_MS) {
+            long remaining = PULSE_SINK_RELOAD_MIN_INTERVAL_MS - (now - lastPulseSinkReloadMs);
+            Log.i("AudioDeviceCallback", "Deferring AAudio sink reload for another "
+                    + remaining + "ms (cooldown).");
+            pulseSinkHandler.postDelayed(pulseSinkReloadRunnable, remaining);
             return;
         }
-        lastPulseRestartMs = now;
-        Log.i("AudioDeviceCallback", "Recreating PulseAudio sink on new route.");
-        new Thread(pulse::restart, "PulseAudioRestart").start();
-    };
+        lastPulseSinkReloadMs = now;
+        new Thread(pulse::reloadAaudioSink, "PulseSinkReload").start();
+    }
 
     private static final String APP_DATA_DIR = "/data/data/" + BuildConfig.APPLICATION_ID;
     private static final String[] MEDIACONV_ENV_VARS = {
@@ -1294,6 +1298,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     @Override
     protected void onDestroy() {
+        pulseSinkHandler.removeCallbacks(pulseSinkReloadRunnable);
         sidebarHandler.removeCallbacks(sidebarStatusRunnable);
         sidebarHandler.removeCallbacks(bcnLayerMapProbe);
         sidebarHandler.removeCallbacks(shortcutExitProbe);
@@ -1350,6 +1355,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         if (audioManager != null && audioDeviceCallback != null) {
             audioManager.unregisterAudioDeviceCallback(audioDeviceCallback);
         }
+        pulseSinkHandler.removeCallbacks(pulseSinkReloadRunnable);
 
         savePlaytimeData();
         handler.removeCallbacks(savePlaytimeRunnable);
@@ -5638,15 +5644,20 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             @Override
             public void onAudioDevicesAdded(AudioDeviceInfo[] addedDevices) {
                 logAudioDevices("added", addedDevices);
-                // NUNCA reinicia o daemon PulseAudio aqui: matar o daemon
-                // desconecta os clientes Wine (socket unix) e eles nao
-                // reconectam — o jogo fica mudo ate reiniciar o container.
-                // Foi exatamente isso que mutava o jogo ~2s depois de iniciar
-                // o gravador Samsung (submix + evento companheiro de rota
-                // agendava o kill via debounce). O sink AAudio segue a rota
-                // sozinho; se trocar pra BT/fone e ficar mudo, reinicie o
-                // container manualmente (caso raro).
+                // NUNCA matar o daemon PulseAudio aqui (desconecta os
+                // clientes Wine para sempre). Quando um gravador anexa o
+                // remote submix, o audio policy derruba o stream AAudio/mmap
+                // do sink (AAUDIO_ERROR_DISCONNECTED, result -899) e o modulo
+                // nunca reabre sozinho — recarregamos APENAS o modulo do
+                // sink, mantendo o daemon e os clientes Wine vivos.
+                if (containsRemoteSubmix(addedDevices)) {
+                    schedulePulseSinkReload();
+                    return;
+                }
                 if (shouldIgnoreAudioDevices(addedDevices)) return;
+                // Real playback route change (BT/USB/headset): the sink's
+                // stream is bound to the old route, refresh it too.
+                schedulePulseSinkReload();
                 if (environment != null) {
                     ALSAServerComponent alsaComponent = environment.getComponent(ALSAServerComponent.class);
                     if (alsaComponent != null) {
@@ -5659,8 +5670,14 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             @Override
             public void onAudioDevicesRemoved(AudioDeviceInfo[] removedDevices) {
                 logAudioDevices("removed", removedDevices);
-                // Idem acima: manter o daemon vivo durante gravacao/ADB/USB.
+                // Idem acima: recorder soltando o submix tambem invalida a
+                // rota e mata o stream do sink — recarrega o modulo.
+                if (containsRemoteSubmix(removedDevices)) {
+                    schedulePulseSinkReload();
+                    return;
+                }
                 if (shouldIgnoreAudioDevices(removedDevices)) return;
+                schedulePulseSinkReload();
                 if (environment != null) {
                     ALSAServerComponent alsaComponent = environment.getComponent(ALSAServerComponent.class);
                     if (alsaComponent != null) {
@@ -5676,11 +5693,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     }
 
     /** Central filter for AudioDeviceCallback bursts.
-     * Returning true means: keep both daemons alive, do nothing.
+     * Returning true means the ALSA server is left alone and no physical
+     * playback route changed.
      * - Any REMOTE_SUBMIX in the batch means a screen/audio recording
-     *   (or scrcpy/adb audio capture) just started/stopped. Restarting the
-     *   PulseAudio daemon at that moment is what mutes/corta o audio do
-     *   jogo durante a gravacao, so the whole batch is ignored.
+     *   (or scrcpy/adb audio capture) just started/stopped. PulseAudio gets
+     *   its targeted sink-module reload before this filter is evaluated;
+     *   the ALSA server does not need a rebuild for the virtual device.
      * - Batches without a real playback sink (microfone/source-only, ADB/USB
      *   accessory announcements, empty batches) must not tear down the AAudio
      *   sink either: rebuilding on those is what faz o audio quebrar poucos
@@ -5689,7 +5707,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         if (devices == null || devices.length == 0) return true;
         if (containsRemoteSubmix(devices)) {
             Log.i("AudioDeviceCallback",
-                    "Recorder submix present; keeping PulseAudio/ALSA alive.");
+                    "Recorder submix present; leaving ALSA server unchanged.");
             return true;
         }
         if (!hasRealSinkRoute(devices)) {
@@ -5720,13 +5738,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         return false;
     }
 
-    /** Screen recording announces a virtual capture device. Restarting the
-     * PulseAudio daemon for that alone is what mutes the game while
-     * recording, so submix-only changes are ignored. Kept for compat. */
-    private static boolean isRecorderSubmixOnly(AudioDeviceInfo[] devices) {
-        return containsRemoteSubmix(devices) && !hasRealSinkRoute(devices);
-    }
-
     private static void logAudioDevices(String action, AudioDeviceInfo[] devices) {
         if (devices == null) return;
         for (AudioDeviceInfo device : devices) {
@@ -5738,12 +5749,15 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         }
     }
 
-    /** Desativado de proposito: matar o daemon PulseAudio (kill + re-exec)
-     * desconecta os clientes Wine e o jogo fica mudo ate reiniciar o
-     * container. Mantido como no-op para documentar; se um dia for
-     * reativado, precisa de reconexao garantida dos clientes. */
-    private void schedulePulseAudioRestart() {
-        Log.i("AudioDeviceCallback", "PulseAudio restart skipped (daemon kept alive to avoid permanent mute).");
+    /** Troca apenas o module-aaudio-sink por uma instancia nova (o daemon
+     * continua vivo e os clientes Wine conectados). O debounce espera o
+     * burst de eventos assentar e o audio policy terminar de derrubar o
+     * stream morto antes de recriar o sink. */
+    private void schedulePulseSinkReload() {
+        pulseSinkHandler.removeCallbacks(pulseSinkReloadRunnable);
+        pulseSinkHandler.postDelayed(pulseSinkReloadRunnable, PULSE_SINK_RELOAD_DEBOUNCE_MS);
+        Log.i("AudioDeviceCallback", "AAudio sink reload scheduled in "
+                + PULSE_SINK_RELOAD_DEBOUNCE_MS + "ms (daemon kept alive).");
     }
 }
 
