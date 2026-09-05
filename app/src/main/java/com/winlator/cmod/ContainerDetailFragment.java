@@ -1695,18 +1695,48 @@ public class ContainerDetailFragment extends Fragment {
         for (String version : versions) {
             // Hide bundled identifiers whose tree the user removed; installed
             // content profiles below (including the replacement) stay listed.
-            if (new File(new File(imagefsOpt, version), "bin/wine").isFile()) wineVersions.add(version);
+            if (new File(new File(imagefsOpt, version), "bin/wine").isFile())
+                addUniqueWineVersion(wineVersions, version);
         }
         for (ContentProfile profile : contentsManager.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_WINE)) {
             if (contentsManager.isInstalledProfile(profile))
-                wineVersions.add(ContentsManager.getEntryName(profile));
+                addUniqueWineVersion(wineVersions, ContentsManager.getEntryName(profile));
         }
         for (ContentProfile profile : contentsManager.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_PROTON)) {
             if (contentsManager.isInstalledProfile(profile))
-                wineVersions.add(ContentsManager.getEntryName(profile));
+                addUniqueWineVersion(wineVersions, ContentsManager.getEntryName(profile));
         }
         sWineVersion.setAdapter(new ThemedSpinnerAdapter<>(context, wineVersions));
         if (isEditMode()) AppUtils.setSpinnerSelectionFromValue(sWineVersion, container.getWineVersion());
+    }
+
+    /**
+     * The bundled runtime and its managed content profile can point to the
+     * same Wine/Proton tree.  Their raw identifiers differ (for example
+     * {@code proton-9.0-arm64ec} vs. {@code Proton-9.0-arm64ec-0}), but they
+     * must only occupy one row in the container creation spinner.
+     */
+    private static void addUniqueWineVersion(List<String> versions, String candidate) {
+        if (candidate == null || candidate.isEmpty()) return;
+        String key = normalizeWineVersionKey(candidate);
+        for (String existing : versions) {
+            if (normalizeWineVersionKey(existing).equals(key)) return;
+        }
+        versions.add(candidate);
+    }
+
+    private static String normalizeWineVersionKey(String value) {
+        String key = value.trim().toLowerCase(Locale.ENGLISH);
+        int firstDash = key.indexOf('-');
+        if (firstDash < 0) return key;
+
+        String type = key.substring(0, firstDash);
+        String version = key.substring(firstDash + 1);
+        // The APK-bundled runtime uses versionCode 0 while its managed profile
+        // appends "-0".  Remove only that identity suffix; non-zero content
+        // versions remain selectable as separate builds.
+        version = version.replaceFirst("-0$", "");
+        return type + '-' + version;
     }
 
     public String getControllerMapping(View view) {
