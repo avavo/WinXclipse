@@ -596,7 +596,13 @@ public class Container {
         data.put("fexcoreVersion", fexcoreVersion);
         data.put("fexcorePreset", getFEXCorePreset());
         data.put("desktopTheme", desktopTheme);
-        data.put("extraData", extraData != null ? extraData : new JSONObject());
+        // JSONObject is mutable.  Never place the live extraData instance in
+        // the serialized state/snapshot: doing so made loadedDataSnapshot
+        // change together with later UI edits, so the concurrent-save merge
+        // mistook edited extras for untouched values and restored the old
+        // values from disk.
+        data.put("extraData", extraData != null
+                ? new JSONObject(extraData.toString()) : new JSONObject());
         data.put("rcfileId", rcfileId);
         data.put("midiSoundFont", midiSoundFont);
         data.put("lc_all", lc_all);
@@ -800,7 +806,10 @@ public class Container {
         // Snapshot normalized in-memory values, not the legacy raw JSON. This
         // prevents a migration from looking like a later user edit and winning
         // over a genuinely newer config written by another instance.
-        loadedDataSnapshot = buildData();
+        // Keep a detached baseline for the three-way save merge.  This second
+        // copy is intentional defensive isolation if buildData gains another
+        // mutable JSON field in the future.
+        loadedDataSnapshot = new JSONObject(buildData().toString());
     }
 
     public static void checkObsoleteOrMissingProperties(JSONObject data) {

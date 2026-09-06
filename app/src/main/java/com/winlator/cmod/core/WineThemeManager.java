@@ -15,7 +15,7 @@ import com.winlator.cmod.xserver.ScreenInfo;
 import java.io.File;
 
 public abstract class WineThemeManager {
-    public static final int DESKTOP_THEME_REVISION = 2;
+    public static final int DESKTOP_THEME_REVISION = 3;
     public enum Theme {SYSTEM, LIGHT, DARK}
     public enum BackgroundType {IMAGE, COLOR}
     public static final String DEFAULT_DESKTOP_THEME = Theme.SYSTEM+","+BackgroundType.IMAGE+",#0277bd";
@@ -55,18 +55,19 @@ public abstract class WineThemeManager {
         }
     }
 
-    public static void apply(Context context, ThemeInfo themeInfo, ScreenInfo screenInfo) {
+    public static boolean apply(Context context, ThemeInfo themeInfo, ScreenInfo screenInfo) {
         File rootDir = ImageFs.find(context).getRootDir();
         File userRegFile = new File(rootDir, ImageFs.WINEPREFIX+"/user.reg");
         String background = Color.red(themeInfo.backgroundColor)+" "+Color.green(themeInfo.backgroundColor)+" "+Color.blue(themeInfo.backgroundColor);
         Theme resolvedTheme = getResolvedTheme(context, themeInfo.theme);
+        boolean wallpaperReady = true;
 
         if (themeInfo.backgroundType == BackgroundType.IMAGE) {
-            createWallpaperBMPFile(context, screenInfo, resolvedTheme);
+            wallpaperReady = createWallpaperBMPFile(context, screenInfo, resolvedTheme);
         }
 
         try (WineRegistryEditor registryEditor = new WineRegistryEditor(userRegFile)) {
-            if (themeInfo.backgroundType == BackgroundType.IMAGE) {
+            if (themeInfo.backgroundType == BackgroundType.IMAGE && wallpaperReady) {
                 registryEditor.setStringValue("Control Panel\\Desktop", "Wallpaper", ImageFs.CACHE_PATH+"/wallpaper.bmp");
                 // The old icon-style wallpaper was intentionally generated at
                 // 480p and centered.  The new full desktop artwork must cover
@@ -145,6 +146,7 @@ public abstract class WineThemeManager {
                 registryEditor.setStringValue("Control Panel\\Colors", "WindowText", "255 255 255");
             }
         }
+        return wallpaperReady;
     }
 
     /** Resolves Follow Android while preserving an explicit Light/Dark override. */
@@ -152,11 +154,17 @@ public abstract class WineThemeManager {
         if (configuredTheme == Theme.LIGHT || configuredTheme == Theme.DARK) {
             return configuredTheme;
         }
+        // Follow Android must follow the device configuration itself, even if
+        // WinXclipse's own interface has a manual Light/Dark override.
+        int nightMode = android.content.res.Resources.getSystem().getConfiguration().uiMode
+                & android.content.res.Configuration.UI_MODE_NIGHT_MASK;
+        if (nightMode == android.content.res.Configuration.UI_MODE_NIGHT_YES) return Theme.DARK;
+        if (nightMode == android.content.res.Configuration.UI_MODE_NIGHT_NO) return Theme.LIGHT;
         return AppUtils.isDarkMode(context) ? Theme.DARK : Theme.LIGHT;
     }
 
-    private static void createWallpaperBMPFile(Context context, ScreenInfo screenInfo,
-                                                Theme resolvedTheme) {
+    private static boolean createWallpaperBMPFile(Context context, ScreenInfo screenInfo,
+                                                   Theme resolvedTheme) {
         int outputWidth = Math.max(1, screenInfo.width);
         int outputHeight = Math.max(1, screenInfo.height);
 
@@ -210,8 +218,12 @@ public abstract class WineThemeManager {
         }
 
         ImageFs imageFs = ImageFs.find(context);
-        MSBitmap.create(outputBitmap, new File(imageFs.getRootDir(), ImageFs.CACHE_PATH+"/wallpaper.bmp"));
+        File outputFile = new File(imageFs.getRootDir(), ImageFs.CACHE_PATH+"/wallpaper.bmp");
+        File parent = outputFile.getParentFile();
+        boolean parentReady = parent != null && (parent.isDirectory() || parent.mkdirs());
+        boolean written = parentReady && MSBitmap.create(outputBitmap, outputFile);
         outputBitmap.recycle();
+        return written && outputFile.isFile() && outputFile.length() > 54;
     }
 
     public static File getUserWallpaperFile(Context context) {

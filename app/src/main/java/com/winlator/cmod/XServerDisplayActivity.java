@@ -2070,9 +2070,15 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 +","+xServer.screenInfo;
         String storedTheme = container.getExtra("desktopTheme");
         if (!themeKey.equals(storedTheme)) {
-            WineThemeManager.apply(this, desktopThemeInfo, xServer.screenInfo);
-            container.putExtra("desktopTheme", themeKey);
-            containerDataChanged = true;
+            if (WineThemeManager.apply(this, desktopThemeInfo, xServer.screenInfo)) {
+                container.putExtra("desktopTheme", themeKey);
+                containerDataChanged = true;
+            }
+            else {
+                // Do not cache a failed render. The next launch must retry
+                // instead of keeping Wine on its plain-color fallback forever.
+                Log.w("WineThemeManager", "Could not generate Wine desktop wallpaper");
+            }
         }
 
         WineStartMenuCreator.create(this, container);
