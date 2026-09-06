@@ -4,6 +4,7 @@ import android.content.Context;
 import android.util.Log;
 
 import com.winlator.cmod.container.Container;
+import com.winlator.cmod.container.Shortcut;
 import com.winlator.cmod.xenvironment.ImageFs;
 
 import java.io.File;
@@ -288,8 +289,8 @@ public abstract class MSLink {
                 + "StartupWMClass=" + executable + "\n\n"
                 + "[Extra Data]\n"
                 + "container_id=" + container.id + "\n";
-        FileUtils.writeString(desktopFile, content);
-        return desktopFile.isFile() ? desktopFile : null;
+        return Shortcut.writeDesktopFileWithBackup(desktopFile, content)
+                ? desktopFile : null;
     }
 
     private static String windowsWorkingDirectory(Container container, String targetPath) {

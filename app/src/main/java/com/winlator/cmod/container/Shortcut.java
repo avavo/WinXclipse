@@ -8,6 +8,9 @@
     import com.winlator.cmod.core.StringUtils;
 
 import java.io.IOException;
+import java.io.RandomAccessFile;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
 import java.nio.file.Files;
     import org.json.JSONException;
     import org.json.JSONObject;
@@ -19,6 +22,7 @@ import java.nio.file.Files;
     import java.util.UUID;
 
     public class Shortcut {
+        private static final Object CONFIG_SAVE_LOCK = new Object();
         public final Container container;
         public final String name;
         public final String path;
@@ -27,6 +31,7 @@ import java.nio.file.Files;
         public File iconFile;
         public final String wmClass;
         private final JSONObject extraData = new JSONObject();
+        private JSONObject loadedExtraSnapshot = new JSONObject();
         private Bitmap coverArt; // Changed to private to use getter method
         private String customCoverArtPath; // Path to custom cover art
 
@@ -55,7 +60,7 @@ import java.nio.file.Files;
             String section = "";
             int index;
 
-            for (String line : FileUtils.readLines(file)) {
+            for (String line : readLinesWithRecovery(file)) {
                 line = line.trim();
                 if (line.isEmpty() || line.startsWith("#")) continue;
 
@@ -86,8 +91,8 @@ import java.nio.file.Files;
             }
 
             /* --- NEW: quick bail-out if header was missing or no meaningful data --- */
-            if (!seenDesktopEntry) {
-                Log.w("Shortcut", "Ignoring malformed shortcut (no [Desktop Entry]): "
+            if (!seenDesktopEntry || execArgs.isEmpty()) {
+                Log.w("Shortcut", "Ignoring malformed shortcut (missing header or Exec): "
                         + file.getName());
                 throw new IllegalArgumentException("Malformed .desktop file");
             }
@@ -115,6 +120,8 @@ import java.nio.file.Files;
             loadCoverArt();
 
             Container.checkObsoleteOrMissingProperties(extraData);
+            try { loadedExtraSnapshot = new JSONObject(extraData.toString()); }
+            catch (JSONException ignored) {}
         }
 
         private void loadCoverArt() {
@@ -197,20 +204,49 @@ import java.nio.file.Files;
             catch (JSONException e) {}
         }
 
-        public void saveData() {
-            String content = "[Desktop Entry]\n";
-            for (String line : FileUtils.readLines(file)) {
+        public boolean saveData() {
+            synchronized (CONFIG_SAVE_LOCK) {
+                File parent = file != null ? file.getParentFile() : null;
+                if (parent == null) return false;
+                File lockFile = new File(parent, ".winxclipse-shortcuts.lock");
+                try (RandomAccessFile lockAccess = new RandomAccessFile(lockFile, "rw");
+                     FileChannel lockChannel = lockAccess.getChannel();
+                     FileLock ignored = lockChannel.lock()) {
+                    return saveDataLocked();
+                }
+                catch (IOException | RuntimeException error) {
+                    Log.e("Shortcut", "Could not lock shortcut settings: " + file, error);
+                    return false;
+                }
+            }
+        }
+
+        private boolean saveDataLocked() {
+            ArrayList<String> diskLines = readLinesWithRecovery(file);
+            if (!containsUsableDesktopEntry(diskLines)) {
+                Log.e("Shortcut", "Refusing to overwrite shortcut without a recoverable Exec: "
+                        + file.getPath());
+                return false;
+            }
+            JSONObject diskExtra = readExtraData(diskLines);
+            JSONObject mergedExtra = mergeConcurrentExtraData(extraData,
+                    loadedExtraSnapshot, diskExtra);
+
+            StringBuilder content = new StringBuilder("[Desktop Entry]\n");
+            for (String line : diskLines) {
                 if (line.contains("[Extra Data]")) break;
-                if (!line.contains("[Desktop Entry]") && !line.isEmpty()) content += line + "\n";
+                if (!line.contains("[Desktop Entry]") && !line.isEmpty()) {
+                    content.append(line).append('\n');
+                }
             }
 
-            if (extraData.length() > 0) {
-                content += "\n[Extra Data]\n";
-                Iterator<String> keys = extraData.keys();
+            if (mergedExtra.length() > 0) {
+                content.append("\n[Extra Data]\n");
+                Iterator<String> keys = mergedExtra.keys();
                 while (keys.hasNext()) {
                     String key = keys.next();
                     try {
-                        content += key + "=" + extraData.getString(key) + "\n";
+                        content.append(key).append('=').append(mergedExtra.getString(key)).append('\n');
                     } catch (JSONException e) {}
                 }
             }
@@ -218,10 +254,162 @@ import java.nio.file.Files;
             // Verify that the file reference is correct
             if (!file.getName().endsWith(".desktop")) {
                 Log.e("Shortcut", "Incorrect file reference before saving: " + file.getPath());
-                return; // Prevent saving to an incorrect file
+                return false; // Prevent saving to an incorrect file
             }
 
-            FileUtils.writeString(file, content);
+            File backup = getDataBackupFile(file);
+            if (!FileUtils.writeStringAtomic(file, content.toString())) {
+                Log.e("Shortcut", "Could not persist shortcut settings: " + file.getPath());
+                return false;
+            }
+            if (!FileUtils.writeStringAtomic(backup, content.toString())) {
+                Log.w("Shortcut", "Could not refresh shortcut recovery mirror: " + backup);
+            }
+            replaceJson(extraData, mergedExtra);
+            try { loadedExtraSnapshot = new JSONObject(mergedExtra.toString()); }
+            catch (JSONException ignored) {}
+            return true;
+        }
+
+        private static ArrayList<String> readLinesWithRecovery(File file) {
+            ArrayList<String> lines = FileUtils.readLines(file);
+            if (containsUsableDesktopEntry(lines)) return lines;
+            File backup = getDataBackupFile(file);
+            ArrayList<String> backupLines = FileUtils.readLines(backup);
+            if (containsUsableDesktopEntry(backupLines)) {
+                String raw = FileUtils.readString(backup);
+                if (FileUtils.writeStringAtomic(file, raw)) {
+                    Log.w("Shortcut", "Recovered shortcut settings from backup: "
+                            + file.getAbsolutePath());
+                }
+                return backupLines;
+            }
+            return lines;
+        }
+
+        private static boolean containsUsableDesktopEntry(List<String> lines) {
+            if (lines == null) return false;
+            boolean inDesktopEntry = false;
+            boolean seenDesktopEntry = false;
+            for (String line : lines) {
+                String value = line.trim();
+                if (value.startsWith("[")) {
+                    inDesktopEntry = "[Desktop Entry]".equals(value);
+                    if (inDesktopEntry) seenDesktopEntry = true;
+                }
+                else if (seenDesktopEntry && inDesktopEntry && value.startsWith("Exec=")
+                        && value.length() > "Exec=".length()) return true;
+            }
+            return false;
+        }
+
+        public static File getDataBackupFile(File file) {
+            return new File(file.getParentFile(), "." + file.getName() + ".winxclipse.bak");
+        }
+
+        public static void moveDataBackup(File oldPrimary, File newPrimary) {
+            File oldBackup = getDataBackupFile(oldPrimary);
+            if (!oldBackup.isFile()) return;
+            File newBackup = getDataBackupFile(newPrimary);
+            if (FileUtils.writeStringAtomic(newBackup, FileUtils.readString(oldBackup))) {
+                if (!oldBackup.delete()) {
+                    Log.w("Shortcut", "Could not remove stale shortcut backup: " + oldBackup);
+                }
+            }
+        }
+
+        /** Restores shortcuts whose primary .desktop vanished while their
+         * hidden recovery generation is still present. */
+        public static int recoverBackupsInDirectory(File directory) {
+            if (directory == null || !directory.isDirectory()) return 0;
+            File[] backups = directory.listFiles(candidate -> candidate.isFile()
+                    && candidate.getName().startsWith(".")
+                    && candidate.getName().endsWith(".desktop.winxclipse.bak"));
+            if (backups == null) return 0;
+            int recovered = 0;
+            for (File backup : backups) {
+                String backupName = backup.getName();
+                String primaryName = backupName.substring(1,
+                        backupName.length() - ".winxclipse.bak".length());
+                File primary = new File(directory, primaryName);
+                if (primary.isFile()) continue;
+                ArrayList<String> backupLines = FileUtils.readLines(backup);
+                if (!containsUsableDesktopEntry(backupLines)) continue;
+                if (FileUtils.writeStringAtomic(primary, FileUtils.readString(backup))) {
+                    recovered++;
+                    Log.w("Shortcut", "Recovered missing shortcut from backup: "
+                            + primary.getAbsolutePath());
+                }
+            }
+            return recovered;
+        }
+
+        /** Creates a new shortcut and its first recovery generation together. */
+        public static boolean writeDesktopFileWithBackup(File file, String content) {
+            if (!FileUtils.writeStringAtomic(file, content)) return false;
+            File backup = getDataBackupFile(file);
+            if (!FileUtils.writeStringAtomic(backup, content)) {
+                Log.w("Shortcut", "Could not create shortcut recovery mirror: " + backup);
+            }
+            return true;
+        }
+
+        private static JSONObject readExtraData(List<String> lines) {
+            JSONObject out = new JSONObject();
+            boolean inExtra = false;
+            if (lines == null) return out;
+            for (String raw : lines) {
+                String line = raw.trim();
+                if (line.startsWith("[")) {
+                    inExtra = "[Extra Data]".equals(line);
+                    continue;
+                }
+                if (!inExtra || line.isEmpty() || line.startsWith("#")) continue;
+                int equals = line.indexOf('=');
+                if (equals <= 0) continue;
+                try { out.put(line.substring(0, equals), line.substring(equals + 1)); }
+                catch (JSONException ignored) {}
+            }
+            return out;
+        }
+
+        private static JSONObject mergeConcurrentExtraData(JSONObject current,
+                                                           JSONObject snapshot,
+                                                           JSONObject disk) {
+            JSONObject merged;
+            try { merged = new JSONObject(current.toString()); }
+            catch (JSONException e) { merged = new JSONObject(); }
+            for (Iterator<String> it = disk.keys(); it.hasNext();) {
+                String key = it.next();
+                if (sameJsonValue(current, snapshot, key)) {
+                    try { merged.put(key, disk.get(key)); }
+                    catch (JSONException ignored) {}
+                }
+            }
+            for (Iterator<String> it = snapshot.keys(); it.hasNext();) {
+                String key = it.next();
+                if (!disk.has(key) && sameJsonValue(current, snapshot, key)) merged.remove(key);
+            }
+            return merged;
+        }
+
+        private static boolean sameJsonValue(JSONObject first, JSONObject second, String key) {
+            boolean firstHas = first != null && first.has(key);
+            boolean secondHas = second != null && second.has(key);
+            if (firstHas != secondHas) return false;
+            if (!firstHas) return true;
+            return String.valueOf(first.opt(key)).equals(String.valueOf(second.opt(key)));
+        }
+
+        private static void replaceJson(JSONObject target, JSONObject source) {
+            ArrayList<String> oldKeys = new ArrayList<>();
+            for (Iterator<String> it = target.keys(); it.hasNext();) oldKeys.add(it.next());
+            for (String key : oldKeys) target.remove(key);
+            for (Iterator<String> it = source.keys(); it.hasNext();) {
+                String key = it.next();
+                try { target.put(key, source.get(key)); }
+                catch (JSONException ignored) {}
+            }
         }
 
 
@@ -372,7 +560,9 @@ import java.nio.file.Files;
                 }
 
                 // Write the updated content to the new .desktop file
-                FileUtils.writeString(newShortcutFile, updatedContent.toString());
+                if (!writeDesktopFileWithBackup(newShortcutFile, updatedContent.toString())) {
+                    return false;
+                }
 
                 // Optionally copy the icon if it exists
                 if (this.iconFile != null && this.iconFile.isFile()) {

@@ -917,6 +917,9 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="dxvk_conf_sanitize_msg">This dxvk.conf has settings that break games on Xclipse/Mali (RE2, GTA V):\n%1$s\nImport the sanitized version?</string>
     <string name="dxvk_conf_use_sanitized">Use sanitized</string>
     <string name="dxvk_conf_use_original">Keep original</string>
+    <string name="ram_fix">RAM Fix</string>
+    <string name="ram_fix_help">Enabled by default. For GTA V, applies the tested memory-streaming limits that prevent missing textures, freezes and crashes caused by shared RAM/VRAM pressure. Disable it only if you manage these launch flags yourself.</string>
+    <string name="configuration_save_failed">Could not save the game configuration. Check free storage and try again.</string>
     <string name="gta_optimization">GTA V optimization</string>
     <string name="gta_optimization_help">Applies graphics and CPU optimizations for GTA V to improve performance on low-end hardware.</string>
 </resources>

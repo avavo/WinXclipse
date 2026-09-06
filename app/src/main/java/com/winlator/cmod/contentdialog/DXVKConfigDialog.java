@@ -28,7 +28,7 @@ import java.util.Locale;
 import java.util.List;
 
 public class DXVKConfigDialog extends ContentDialog {
-    public static final String DEFAULT_CONFIG = "version="+DefaultVersion.DXVK+",framerate=0,async=1,asyncCache=0,vkd3dVersion="+DefaultVersion.VKD3D+",vkd3dLevel=12_1,ddrawrapper=,noTimeline=1,vk3d66=1";
+    public static final String DEFAULT_CONFIG = "version="+DefaultVersion.DXVK+",framerate=0,async=1,asyncCache=0,vkd3dVersion="+DefaultVersion.VKD3D+",vkd3dLevel=12_1,ddrawrapper=,noTimeline=1,vk3d66=1,ramFix=1";
     public static final String CUSTOM_CONF_FILENAME = "dxvk.conf";
     public static final long MAX_CUSTOM_CONF_BYTES = 64 * 1024;
     // Neutraliza as chaves que quebram RE Engine/RAGE em GPU movel quando um
@@ -72,6 +72,7 @@ public class DXVKConfigDialog extends ContentDialog {
     public static final int DXVK_TYPE_GPLASYNC = 2;
     private final ToggleButton swAsync;
     private final ToggleButton swAsyncCache;
+    private final ToggleButton swRamFix;
     private final ToggleButton swGtaOpt;
     private final View llAsync;
     private final View llAsyncCache;
@@ -121,7 +122,10 @@ public class DXVKConfigDialog extends ContentDialog {
                 AppUtils.showHelpBox(getContext(), v, R.string.dxvk_help_vk3d66));
         swAsync = findViewById(R.id.SWAsync);
         swAsyncCache = findViewById(R.id.SWAsyncCache);
+        swRamFix = findViewById(R.id.SWRamFix);
         swGtaOpt = findViewById(R.id.SWGtaOpt);
+        findViewById(R.id.BTRamFixHelp).setOnClickListener(v ->
+                AppUtils.showHelpBox(getContext(), v, R.string.ram_fix_help));
         findViewById(R.id.BTGtaOptHelp).setOnClickListener(v ->
                 AppUtils.showHelpBox(getContext(), v, R.string.gta_optimization_help));
         llAsync = findViewById(R.id.LLAsync);
@@ -164,6 +168,7 @@ public class DXVKConfigDialog extends ContentDialog {
         AppUtils.setSpinnerSelectionFromIdentifier(sVkd3dFeatureLevel, config.get("vkd3dLevel"));
         swAsync.setChecked(config.get("async").equals("1"));
         swAsyncCache.setChecked(config.get("asyncCache").equals("1"));
+        swRamFix.setChecked(config.getBoolean("ramFix", true));
         swGtaOpt.setChecked(config.get("gtaOpt").equals("1"));
         cbNoTimeline.setChecked(config.get("noTimeline").equals("1"));
         cbVk3d66.setChecked(config.get("vk3d66").equals("1"));
@@ -201,6 +206,7 @@ public class DXVKConfigDialog extends ContentDialog {
             config.put("vkd3dLevel", sVkd3dFeatureLevel.getSelectedItem().toString());
             config.put("noTimeline", cbNoTimeline.isChecked() ? "1" : "0");
             config.put("vk3d66", cbVk3d66.isChecked() ? "1" : "0");
+            config.put("ramFix", swRamFix.isChecked() ? "1" : "0");
             config.put("gtaOpt", swGtaOpt.isChecked() ? "1" : "0");
             anchor.setTag(config.toString());
         });

@@ -83,29 +83,75 @@ public class ContainerManager {
 
             maxContainerId = Math.max(maxContainerId, id);
 
+            File configFile = new File(file, ".container");
+            Container container = loadContainerConfig(id, file, configFile, "primary");
+
+            if (container == null) {
+                File backupFile = new File(file, ".container.bak");
+                container = loadContainerConfig(id, file, backupFile, "backup");
+                if (container != null) {
+                    String backupString = FileUtils.readString(backupFile);
+                    if (FileUtils.writeStringAtomic(configFile, backupString)) {
+                        Log.w("ContainerManager", "Recovered container config from backup: "
+                                + file.getAbsolutePath());
+                    }
+                }
+            }
+
+            // Older builds had no recovery generation. If their config was
+            // lost but the full Wine prefix is still occupying storage, bring
+            // the container and its desktop shortcuts back with safe defaults.
+            if (container == null) container = recoverContainerShell(id, file);
+
+            if (container != null) containers.add(container);
+            else Log.w("ContainerManager", "Skipping directory without a recoverable container: "
+                    + file.getAbsolutePath());
+        }
+    }
+
+    private Container loadContainerConfig(int id, File rootDir, File configFile,
+                                          String generation) {
+        if (!configFile.isFile()) return null;
+        String raw = FileUtils.readString(configFile);
+        if (raw.trim().isEmpty()) return null;
+        try {
             Container container = new Container(id, this);
-            container.setRootDir(file);
+            container.setRootDir(rootDir);
+            container.loadData(new JSONObject(raw));
+            return container;
+        }
+        catch (JSONException | RuntimeException error) {
+            Log.e("ContainerManager", "Unable to load " + generation
+                    + " container config: " + configFile.getAbsolutePath(), error);
+            return null;
+        }
+    }
 
-            File configFile = container.getConfigFile();
-            if (!configFile.isFile()) {
-                Log.w("ContainerManager", "Skipping container directory without config: " + file.getAbsolutePath());
-                continue;
-            }
+    private Container recoverContainerShell(int id, File rootDir) {
+        File wineDir = new File(rootDir, ".wine");
+        boolean hasPrefix = new File(wineDir, "drive_c").isDirectory()
+                || new File(wineDir, "system.reg").isFile();
+        if (!hasPrefix) return null;
+        try {
+            JSONObject recoveredData = new JSONObject();
+            recoveredData.put("id", id);
+            recoveredData.put("name", "Container-" + id);
+            // The built-in runtime is guaranteed to exist after installation;
+            // the user can still select a different runtime in container settings.
+            recoveredData.put("wineVersion", WineInfo.MAIN_WINE_VERSION.identifier());
 
-            String configString = FileUtils.readString(configFile);
-            if (configString == null || configString.trim().isEmpty()) {
-                Log.w("ContainerManager", "Skipping container with empty config: " + file.getAbsolutePath());
-                continue;
-            }
-
-            try {
-                JSONObject data = new JSONObject(configString);
-                container.loadData(data);
-                containers.add(container);
-            }
-            catch (JSONException e) {
-                Log.e("ContainerManager", "Skipping malformed container config: " + file.getAbsolutePath(), e);
-            }
+            Container container = new Container(id, this);
+            container.setRootDir(rootDir);
+            container.loadData(recoveredData);
+            if (!container.saveData()) return null;
+            Log.w("ContainerManager", "Rebuilt missing container index around existing prefix: "
+                    + rootDir.getAbsolutePath());
+            return container;
+        }
+        catch (JSONException | RuntimeException error) {
+            Log.e("ContainerManager", "Could not rebuild container index: "
+                    + rootDir.getAbsolutePath(), error);
+            return null;
         }
     }
 
@@ -210,7 +256,10 @@ public class ContainerManager {
 //                return null;
 //            }
 
-            container.saveData();
+            if (!container.saveData()) {
+                FileUtils.delete(containerDir);
+                return null;
+            }
             maxContainerId++;
             containers.add(container);
             return container;
@@ -242,7 +291,10 @@ public class ContainerManager {
             return;
         }
         dstContainer.setName(srcContainer.getName() + " (" + context.getString(R.string._copy) + ")");
-        dstContainer.saveData();
+        if (!dstContainer.saveData()) {
+            FileUtils.delete(dstDir);
+            return;
+        }
 
         maxContainerId++;
         containers.add(dstContainer);
@@ -270,6 +322,7 @@ public class ContainerManager {
 
         for (Container container : containers) {
             File desktopDir = container.getDesktopDir();
+            Shortcut.recoverBackupsInDirectory(desktopDir);
             File[] list = (desktopDir.exists() ? desktopDir.listFiles() : null);
             if (list == null) continue;
             for (File file : list) {
@@ -303,6 +356,7 @@ public class ContainerManager {
             if (Thread.currentThread().isInterrupted()) return changed;
 
             File desktopDir = container.getDesktopDir();
+            Shortcut.recoverBackupsInDirectory(desktopDir);
             ArrayList<File> wineLinks = new ArrayList<>();
             Set<String> visitedRoots = new HashSet<>();
             collectWineLinks(desktopDir, 0, new int[]{0}, wineLinks, visitedRoots);
@@ -338,6 +392,7 @@ public class ContainerManager {
         ArrayList<Shortcut> shortcuts = new ArrayList<>();
         if (container == null) return shortcuts;
         File desktopDir = container.getDesktopDir();
+        Shortcut.recoverBackupsInDirectory(desktopDir);
         File[] files = desktopDir.isDirectory() ? desktopDir.listFiles() : null;
         if (files == null) return shortcuts;
         for (File file : files) {
@@ -656,7 +711,12 @@ public class ContainerManager {
                     return;
                 }
                 newContainer.setName(importDir.getName());
-                newContainer.saveData();
+                if (!newContainer.saveData()) {
+                    FileUtils.delete(newContainerDir);
+                    Log.e("ContainerManager", "Failed to persist imported container config: "
+                            + newContainerDir.getPath());
+                    return;
+                }
                 containers.add(newContainer);
                 maxContainerId++;
 

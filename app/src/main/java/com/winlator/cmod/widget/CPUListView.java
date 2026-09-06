@@ -7,6 +7,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.CheckBox;
 import android.widget.LinearLayout;
+import android.widget.Space;
 import android.widget.TextView;
 
 import androidx.annotation.Nullable;
@@ -30,7 +31,10 @@ public class CPUListView extends LinearLayout {
 
     public CPUListView(Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
-        setOrientation(HORIZONTAL);
+        // Each generated group is a row. Keeping the parent horizontal placed
+        // the 4-core/5-core groups beside one another and made the grid crooked.
+        setOrientation(VERTICAL);
+        setGravity(Gravity.CENTER_HORIZONTAL);
         numProcessors = (byte)Runtime.getRuntime().availableProcessors();
         refreshContent();
     }
@@ -47,13 +51,18 @@ public class CPUListView extends LinearLayout {
         for (int row = 0; row < rowCount; row++) {
             LinearLayout rowLayout = new LinearLayout(getContext());
             rowLayout.setOrientation(HORIZONTAL);
-            rowLayout.setGravity(Gravity.CENTER_HORIZONTAL);
+            rowLayout.setGravity(Gravity.CENTER);
             LayoutParams layoutParams = new LayoutParams(
-                    LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
+                    LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
             if (row > 0) layoutParams.topMargin = (int)(density * 6);
             rowLayout.setLayoutParams(layoutParams);
 
-            for (int i = row * perRow; i < Math.min((row + 1) * perRow, numProcessors); i++) {
+            int first = row * perRow;
+            int last = Math.min((row + 1) * perRow, numProcessors);
+            int missing = perRow - (last - first);
+            if (missing > 0) addWeightedSpace(rowLayout, missing / 2f);
+
+            for (int i = first; i < last; i++) {
                 View itemView = inflater.inflate(R.layout.cpu_list_item, rowLayout, false);
                 String tag = "CPU"+i;
                 CheckBox checkBox = itemView.findViewById(R.id.CheckBox);
@@ -63,8 +72,16 @@ public class CPUListView extends LinearLayout {
                 ((TextView)itemView.findViewById(R.id.TextView)).setText(tag);
                 rowLayout.addView(itemView);
             }
+            if (missing > 0) addWeightedSpace(rowLayout, missing - missing / 2f);
             addView(rowLayout);
         }
+    }
+
+    private void addWeightedSpace(LinearLayout row, float weight) {
+        if (weight <= 0) return;
+        Space space = new Space(getContext());
+        space.setLayoutParams(new LinearLayout.LayoutParams(0, 1, weight));
+        row.addView(space);
     }
 
     public void setCheckedCPUList(String checkedCPUList) {

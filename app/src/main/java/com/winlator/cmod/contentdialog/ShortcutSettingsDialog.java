@@ -839,7 +839,10 @@ public class ShortcutSettingsDialog extends ContentDialog {
                 shortcut.putExtra("vsyncMode", null);
 
                 // Save all changes to the shortcut
-                shortcut.saveData();
+                if (!shortcut.saveData()) {
+                    AppUtils.showToast(context, R.string.configuration_save_failed);
+                    return;
+                }
                 applyDxvkConfState();
             }
         });
@@ -1040,7 +1043,10 @@ public class ShortcutSettingsDialog extends ContentDialog {
             if (dxvkConfState.stagedRemoved) {
                 if (target != null && target.isFile()) target.delete();
             } else if (dxvkConfState.stagedContent != null && target != null) {
-                FileUtils.writeString(target, dxvkConfState.stagedContent);
+                if (!FileUtils.writeStringAtomic(target, dxvkConfState.stagedContent)) {
+                    Log.e("ShortcutSettingsDialog", "Unable to persist shortcut dxvk.conf: "
+                            + target);
+                }
             }
         } catch (Exception e) {
             Log.e("ShortcutSettingsDialog", "Unable to apply dxvk.conf", e);
@@ -1058,6 +1064,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
         // Rename the desktop file if the new one doesn't exist
         if (!newDesktopFile.isFile() && oldDesktopFile.renameTo(newDesktopFile)) {
             // Successfully renamed, update the shortcut's file reference
+            Shortcut.moveDataBackup(oldDesktopFile, newDesktopFile);
             updateShortcutFileReference(newDesktopFile); // New helper method
 
             // As a precaution, delete any remaining old file

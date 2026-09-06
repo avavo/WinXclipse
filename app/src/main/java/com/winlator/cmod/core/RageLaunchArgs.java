@@ -4,6 +4,7 @@ import android.util.Log;
 
 import java.io.File;
 import java.util.Locale;
+import java.util.regex.Pattern;
 
 /** Flags de streaming seguras p/ GTA V (RAGE) em GPU movel com pouca RAM.
  *  Testado na pratica: -maxStreamedGrid 10 -minStreamedGrid 5 -hdr 0
@@ -11,6 +12,8 @@ import java.util.Locale;
  *  onde antes congelava e fechava andando de carro pela cidade (OOM).
  *  Flags que o usuario ja definiu (exec args ou commandline.txt) prevalecem. */
 public final class RageLaunchArgs {
+
+    private static final String MANAGED_FLAGS_FILE = ".winxclipse-ram-fix";
 
     private static final String[][] MEMORY_SAFE_FLAGS = {
             {"-maxStreamedGrid", "10"},
@@ -49,6 +52,17 @@ public final class RageLaunchArgs {
         return out.toString();
     }
 
+    /** Considers both shortcut arguments and RAGE's commandline.txt so a custom
+     * value in either location always wins over the managed default. */
+    public static String missingArgs(String launchArgs, File gameDir) {
+        StringBuilder existing = new StringBuilder(launchArgs != null ? launchArgs : "");
+        if (gameDir != null && gameDir.isDirectory()) {
+            File cmdline = new File(gameDir, "commandline.txt");
+            if (cmdline.isFile()) existing.append('\n').append(FileUtils.readString(cmdline));
+        }
+        return missingArgs(existing.toString());
+    }
+
     private static boolean containsFlag(String lowerHaystack, String flag) {
         String needle = flag.toLowerCase(Locale.ENGLISH);
         int i = lowerHaystack.indexOf(needle);
@@ -65,22 +79,75 @@ public final class RageLaunchArgs {
     /** Garante as flags no commandline.txt ao lado do exe (mecanismo canonico do
      *  RAGE; cobre launch via PlayGTAV.exe). Mescla sem apagar linhas do usuario.
      *  Retorna true se escreveu algo. Nunca joga excecao. */
-    public static boolean ensureCommandLineTxt(File gameDir) {
+    public static boolean ensureCommandLineTxt(File gameDir, String launchArgs) {
         if (gameDir == null || !gameDir.isDirectory()) return false;
         try {
             File cmdline = new File(gameDir, "commandline.txt");
             String existing = cmdline.isFile() ? FileUtils.readString(cmdline) : "";
-            String missing = missingArgs(existing);
+            String missing = missingArgs((launchArgs != null ? launchArgs : "") + "\n" + existing);
             if (missing.isEmpty()) return false;
             StringBuilder content = new StringBuilder(existing);
             if (content.length() > 0 && content.charAt(content.length() - 1) != '\n') content.append('\n');
             content.append(missing.trim()).append('\n');
-            if (FileUtils.writeString(cmdline, content.toString())) {
+            if (FileUtils.writeStringAtomic(cmdline, content.toString())) {
+                File marker = new File(gameDir, MANAGED_FLAGS_FILE);
+                String managed = marker.isFile() ? FileUtils.readString(marker) : "";
+                if (!managed.isEmpty() && !managed.endsWith("\n")) managed += "\n";
+                FileUtils.writeStringAtomic(marker, managed + missing.trim() + "\n");
                 Log.i("RageLaunchArgs", "commandline.txt updated in " + gameDir.getAbsolutePath());
                 return true;
             }
         } catch (Exception e) {
             Log.w("RageLaunchArgs", "Could not update commandline.txt", e);
+        }
+        return false;
+    }
+
+    public static boolean ensureCommandLineTxt(File gameDir) {
+        return ensureCommandLineTxt(gameDir, "");
+    }
+
+    /** Removes only the exact values managed by RAM Fix. Custom values for the
+     * same flags remain untouched, so disabling the option does not erase a
+     * user's own tuning. */
+    public static boolean removeFromCommandLineTxt(File gameDir) {
+        if (gameDir == null || !gameDir.isDirectory()) return false;
+        File cmdline = new File(gameDir, "commandline.txt");
+        File marker = new File(gameDir, MANAGED_FLAGS_FILE);
+        if (!cmdline.isFile()) {
+            if (marker.isFile()) marker.delete();
+            return false;
+        }
+        try {
+            String existing = FileUtils.readString(cmdline);
+            String updated = existing;
+            boolean legacyManagedValues = !marker.isFile();
+            String managed = legacyManagedValues ? "" : FileUtils.readString(marker);
+            for (String[] flag : MEMORY_SAFE_FLAGS) {
+                if (!legacyManagedValues
+                        && !containsFlag(managed.toLowerCase(Locale.ENGLISH), flag[0])) continue;
+                String regex = "(?i)(?<![A-Za-z0-9])" + Pattern.quote(flag[0])
+                        + "[ \\t]+" + Pattern.quote(flag[1]) + "(?=$|[ \\t\\r\\n])";
+                updated = updated.replaceAll(regex, "");
+            }
+            updated = updated.replaceAll("(?m)[ \\t]+$", "")
+                    .replaceAll("(?m)^[ \\t]+", "")
+                    .replaceAll("(?:\\r?\\n){3,}", "\n\n");
+            if (updated.equals(existing)) {
+                if (marker.isFile()) marker.delete();
+                return false;
+            }
+            if (FileUtils.writeStringAtomic(cmdline, updated)) {
+                if (marker.isFile() && !marker.delete()) {
+                    Log.w("RageLaunchArgs", "Could not remove RAM Fix ownership marker");
+                }
+                Log.i("RageLaunchArgs", "RAM Fix flags removed from "
+                        + cmdline.getAbsolutePath());
+                return true;
+            }
+        }
+        catch (Exception e) {
+            Log.w("RageLaunchArgs", "Could not remove RAM Fix flags", e);
         }
         return false;
     }

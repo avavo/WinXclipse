@@ -659,16 +659,18 @@ public class FileManagerFragment extends Fragment {
             }
             
             File desktopFile = new File(desktopDir, displayName + ".desktop");
-            try (java.io.PrintWriter writer = new java.io.PrintWriter(new java.io.FileWriter(desktopFile))) {
-                writer.println("[Desktop Entry]");
-                writer.println("Name=" + displayName);
-                String escapedExecPath = com.winlator.cmod.core.StringUtils.escapeFileDOSPath(execPath);
-                String winePrefix = getContainerWineHome(container) + "/.wine";
-                writer.println("Exec=env WINEPREFIX=\"" + winePrefix + "\" wine " + escapedExecPath);
-                writer.println("Type=Application");
-                if (!workDir.isEmpty()) writer.println("Path=" + workDir);
-                writer.println("Icon=" + displayName);
-                writer.println("container_id=" + container.id);
+            String escapedExecPath = com.winlator.cmod.core.StringUtils.escapeFileDOSPath(execPath);
+            String winePrefix = getContainerWineHome(container) + "/.wine";
+            String content = "[Desktop Entry]\n"
+                    + "Name=" + displayName + "\n"
+                    + "Exec=env WINEPREFIX=\"" + winePrefix + "\" wine " + escapedExecPath + "\n"
+                    + "Type=Application\n"
+                    + (!workDir.isEmpty() ? "Path=" + workDir + "\n" : "")
+                    + "Icon=" + displayName + "\n"
+                    + "container_id=" + container.id + "\n";
+            if (!Shortcut.writeDesktopFileWithBackup(desktopFile, content)) {
+                Toast.makeText(getContext(), "Failed to create shortcut", Toast.LENGTH_SHORT).show();
+                return;
             }
             Toast.makeText(getContext(), "Shortcut created on container desktop!", Toast.LENGTH_SHORT).show();
 
@@ -693,7 +695,7 @@ public class FileManagerFragment extends Fragment {
                 }
             }
             catch (Exception ignored) {}
-        } catch (IOException e) {
+        } catch (Exception e) {
             Toast.makeText(getContext(), "Failed to create shortcut", Toast.LENGTH_SHORT).show();
         }
     }

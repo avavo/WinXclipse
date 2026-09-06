@@ -28,10 +28,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.OutputStreamWriter;
 import java.io.RandomAccessFile;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Stack;
 import java.util.UUID;
@@ -109,6 +111,55 @@ public abstract class FileUtils {
             e.printStackTrace();
         }
         return false;
+    }
+
+    /**
+     * Persists configuration text without ever exposing a partially-written
+     * destination.  The temporary file lives beside the target so the final
+     * rename stays on the same filesystem; fsync makes a process/cache eviction
+     * immediately after pressing Save unable to discard the confirmed data.
+     */
+    public static boolean writeStringAtomic(File file, String data) {
+        if (file == null || data == null) return false;
+        File parent = file.getParentFile();
+        if (parent != null && !parent.isDirectory() && !parent.mkdirs()) {
+            Log.e(TAG, "Unable to create configuration directory: " + parent);
+            return false;
+        }
+
+        File temp = new File(parent, "." + file.getName() + "." + UUID.randomUUID() + ".tmp");
+        try (FileOutputStream output = new FileOutputStream(temp);
+             BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(
+                     output, StandardCharsets.UTF_8))) {
+            writer.write(data);
+            writer.flush();
+            output.getFD().sync();
+        }
+        catch (IOException e) {
+            Log.e(TAG, "Unable to write temporary configuration: " + file, e);
+            temp.delete();
+            return false;
+        }
+
+        try {
+            try {
+                Files.move(temp.toPath(), file.toPath(),
+                        StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            }
+            catch (IOException | UnsupportedOperationException atomicMoveError) {
+                // Some Android filesystems reject ATOMIC_MOVE when replacing an
+                // existing inode even though a normal same-directory rename works.
+                Files.move(temp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            }
+            return file.isFile() && file.length() == data.getBytes(StandardCharsets.UTF_8).length;
+        }
+        catch (IOException | RuntimeException e) {
+            Log.e(TAG, "Unable to replace configuration atomically: " + file, e);
+            return false;
+        }
+        finally {
+            if (temp.exists()) temp.delete();
+        }
     }
 
     public static void symlink(File linkTarget, File linkFile) {

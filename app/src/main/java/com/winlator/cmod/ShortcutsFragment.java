@@ -570,6 +570,7 @@ public class ShortcutsFragment extends Fragment {
                 else if (itemId == R.id.shortcut_remove) {
                     ContentDialog.confirm(context, R.string.do_you_want_to_remove_this_shortcut, () -> {
                         boolean desktopDeleted  = safeDelete(shortcut.file);
+                        safeDelete(Shortcut.getDataBackupFile(shortcut.file));
                         boolean iconDeleted     = safeDelete(shortcut.iconFile);
                         boolean lnkDeleted      = deletePairedLnkForShortcut(shortcut);
                         safeDelete(shortcut.getDxvkConfFile());

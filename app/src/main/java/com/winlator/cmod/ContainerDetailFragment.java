@@ -964,7 +964,10 @@ public class ContainerDetailFragment extends Fragment {
                             pendingFrameGenerationTargetFPS[0],
                             pendingFrameGenerationBackend[0],
                             pendingFrameGenerationLowLatency[0]);
-                    container.saveData();
+                    if (!container.saveData()) {
+                        AppUtils.showToast(context, R.string.configuration_save_failed);
+                        return;
+                    }
                     applyPendingDxvkConf(container);
                     saveWineRegistryKeys(view);
                     getActivity().onBackPressed();
@@ -1354,7 +1357,9 @@ public class ContainerDetailFragment extends Fragment {
                 if (f != null && f.isFile()) f.delete();
             } else if (dxvkConfState.stagedContent != null) {
                 File f = target.getDxvkConfFile();
-                if (f != null) FileUtils.writeString(f, dxvkConfState.stagedContent);
+                if (f != null && !FileUtils.writeStringAtomic(f, dxvkConfState.stagedContent)) {
+                    Log.e(TAG, "Unable to persist container dxvk.conf: " + f);
+                }
             }
         }
         catch (Exception e) {

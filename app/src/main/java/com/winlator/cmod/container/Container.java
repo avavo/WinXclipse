@@ -22,9 +22,14 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.File;
+import java.io.IOException;
+import java.io.RandomAccessFile;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
 import java.util.Iterator;
 
 public class Container {
+    private static final Object CONFIG_SAVE_LOCK = new Object();
     public enum XrControllerMapping {
         BUTTON_A, BUTTON_B, BUTTON_X, BUTTON_Y, BUTTON_GRIP, BUTTON_TRIGGER,
         THUMBSTICK_UP, THUMBSTICK_DOWN, THUMBSTICK_LEFT, THUMBSTICK_RIGHT
@@ -36,7 +41,7 @@ public class Container {
     public static final String DEFAULT_EMULATOR = "FEXCore";
     public static final String DEFAULT_DXWRAPPER = "dxvk";
     public static final String DEFAULT_DXWRAPPERCONFIG = "version=" + DefaultVersion.DXVK + ",framerate=0,async=1,asyncCache=0"
-            + ",vkd3dVersion=" + DefaultVersion.VKD3D + ",vkd3dLevel=12_1,ddrawrapper=none";
+            + ",vkd3dVersion=" + DefaultVersion.VKD3D + ",vkd3dLevel=12_1,ddrawrapper=none,ramFix=1";
     public static final String DEFAULT_GRAPHICSDRIVERCONFIG = "vulkanVersion=1.3;version=" + DefaultVersion.WRAPPER + ";blacklistedExtensions=;maxDeviceMemory=0;presentMode=mailbox;syncFrame=0;disablePresentWait=0;resourceType=auto;gpuName=Device;refreshRate=60;vsyncMode=off;vblankOff=1";
     public static final String DEFAULT_DDRAWRAPPER = "none";
     public static final String DEFAULT_WINCOMPONENTS = "direct3d=1,directsound=0,directmusic=0,directshow=0,directplay=0,xaudio=0,vcrun2010=1,opengl=0";
@@ -94,6 +99,8 @@ public class Container {
     private String box64Version = DefaultVersion.BOX64;
     private String emulator;
     private boolean isRelativeMouseMovement;
+    /** Snapshot used to merge saves from long-lived/stale Container instances. */
+    private JSONObject loadedDataSnapshot;
 
     private boolean gstreamerWorkaround = false;
 
@@ -409,6 +416,10 @@ public class Container {
         return new File(rootDir, ".container");
     }
 
+    public File getConfigBackupFile() {
+        return new File(rootDir, ".container.bak");
+    }
+
     public File getDxvkConfFile() {
         return rootDir != null ? new File(rootDir, "dxvk.conf") : null;
     }
@@ -494,76 +505,160 @@ public class Container {
         };
     }
 
-    public void saveData() {
+    public boolean saveData() {
+        synchronized (CONFIG_SAVE_LOCK) {
+            if (rootDir == null) return false;
+            File lockFile = new File(rootDir, ".container.lock");
+            try (RandomAccessFile lockAccess = new RandomAccessFile(lockFile, "rw");
+                 FileChannel lockChannel = lockAccess.getChannel();
+                 FileLock ignored = lockChannel.lock()) {
+                return saveDataLocked();
+            }
+            catch (IOException | RuntimeException error) {
+                Log.e("Container", "Could not lock container config " + id, error);
+                return false;
+            }
+        }
+    }
+
+    private boolean saveDataLocked() {
         try {
-            // Defensive merge: if in-memory extraData is empty/truncated but
-            // file on disk already has a valid appVersion, preserve it.
-            // This stops the 1579-byte overwrite that caused 8.5s every launch.
-            JSONObject mergedExtra = extraData;
             File cfg = getConfigFile();
-            if (cfg.isFile() && (mergedExtra==null || mergedExtra.length()<5 || !mergedExtra.has("appVersion"))) {
-                String raw = FileUtils.readString(cfg);
-                if (raw != null && raw.contains("\"extraData\"")) {
-                    try {
-                        JSONObject existing = new JSONObject(raw);
-                        if (existing.has("extraData")) {
-                            JSONObject diskExtra = existing.getJSONObject("extraData");
-                            if (diskExtra.has("appVersion") && diskExtra.optString("appVersion").length()>0) {
-                                if (mergedExtra==null) mergedExtra = new JSONObject();
-                                // Preserve all disk keys that in-memory lacks
-                                for (Iterator<String> it = diskExtra.keys(); it.hasNext();) {
-                                    String k = it.next();
-                                    if (!mergedExtra.has(k)) mergedExtra.put(k, diskExtra.get(k));
-                                }
-                            }
-                        }
-                    } catch (Exception ignored) {}
+            String diskRaw = cfg.isFile() ? FileUtils.readString(cfg) : "";
+            JSONObject diskData = null;
+            if (!diskRaw.trim().isEmpty()) {
+                try { diskData = normalizeDataForMerge(new JSONObject(diskRaw)); }
+                catch (JSONException e) {
+                    Log.w("Container", "Existing config is malformed; keeping recovery backup", e);
                 }
             }
-            JSONObject data = new JSONObject();
-            data.put("id", id);
-            data.put("name", name);
-            data.put("screenSize", screenSize);
-            data.put("envVars", envVars);
-            data.put("cpuList", cpuList);
-            data.put("cpuListWoW64", cpuListWoW64);
-            data.put("graphicsDriver", graphicsDriver);
-            data.put("graphicsDriverConfig", graphicsDriverConfig);
-            data.put("emulator", emulator);
-            data.put("dxwrapper", dxwrapper);
-            data.put("ddrawrapper", ddrawrapper);
-            if (!dxwrapperConfig.isEmpty()) data.put("dxwrapperConfig", dxwrapperConfig);
-            data.put("audioDriver", audioDriver);
-            data.put("wincomponents", wincomponents);
-            data.put("drives", drives);
-            data.put("showFPS", showFPS);
-            data.put("hudMode", hudMode);
-            data.put("relativeMouseMovement", isRelativeMouseMovement);
-            data.put("fullscreenStretched", fullscreenStretched);
-            data.put("inputType", inputType);
-            data.put("exclusiveXInput", exclusiveXInput);
-            data.put("wow64Mode", wow64Mode);
-            data.put("startupSelection", startupSelection);
-            data.put("box64Version", box64Version);
-            data.put("box64Preset", box64Preset);
-            data.put("fexcoreVersion", fexcoreVersion);
-                        data.put("fexcorePreset", getFEXCorePreset());
-data.put("desktopTheme", desktopTheme);
-            data.put("extraData", mergedExtra!=null?mergedExtra:extraData);
-            data.put("rcfileId", rcfileId);
-            data.put("midiSoundFont", midiSoundFont);
-            data.put("lc_all", lc_all);
-            data.put("primaryController", primaryController);
-            data.put("controllerMapping", controllerMapping);
-            data.put("gstreamerWorkaround", gstreamerWorkaround);
-            // Always persist wineVersion so a later MAIN change doesn't flip old containers
-            data.put("wineVersion", wineVersion);
+            JSONObject data = buildData();
+            if (diskData != null && loadedDataSnapshot != null) {
+                data = mergeConcurrentDiskChanges(data, loadedDataSnapshot, diskData);
+            }
             String out = data.toString();
-            FileUtils.writeString(cfg, out);
-            // Keep in-memory in sync if we merged
-            extraData = mergedExtra!=null?mergedExtra:extraData;
+            File backup = getConfigBackupFile();
+            if (!FileUtils.writeStringAtomic(cfg, out)) {
+                Log.e("Container", "Failed to persist container " + id);
+                return false;
+            }
+            // Atomic replacement already leaves either the old or new primary
+            // intact. Mirror the confirmed latest generation so a later
+            // external deletion/corruption does not roll settings backward.
+            if (!FileUtils.writeStringAtomic(backup, out)) {
+                Log.w("Container", "Could not refresh container recovery mirror " + id);
+            }
+            // Synchronize this instance with fields preserved from a newer
+            // on-disk generation, preventing the next runtime metadata save
+            // from reverting them again.
+            loadData(new JSONObject(out));
+            return true;
         }
-        catch (JSONException e) {}
+        catch (JSONException e) {
+            Log.e("Container", "Failed to serialize container " + id, e);
+            return false;
+        }
+    }
+
+    private JSONObject normalizeDataForMerge(JSONObject raw) throws JSONException {
+        Container normalized = new Container(id);
+        normalized.loadData(new JSONObject(raw.toString()));
+        return normalized.buildData();
+    }
+
+    private JSONObject buildData() throws JSONException {
+        JSONObject data = new JSONObject();
+        data.put("id", id);
+        data.put("name", name);
+        data.put("screenSize", screenSize);
+        data.put("envVars", envVars);
+        data.put("cpuList", cpuList);
+        data.put("cpuListWoW64", cpuListWoW64);
+        data.put("graphicsDriver", graphicsDriver);
+        data.put("graphicsDriverConfig", graphicsDriverConfig);
+        data.put("emulator", emulator);
+        data.put("dxwrapper", dxwrapper);
+        data.put("ddrawrapper", ddrawrapper);
+        if (!dxwrapperConfig.isEmpty()) data.put("dxwrapperConfig", dxwrapperConfig);
+        data.put("audioDriver", audioDriver);
+        data.put("wincomponents", wincomponents);
+        data.put("drives", drives);
+        data.put("showFPS", showFPS);
+        data.put("hudMode", hudMode);
+        data.put("relativeMouseMovement", isRelativeMouseMovement);
+        data.put("fullscreenStretched", fullscreenStretched);
+        data.put("inputType", inputType);
+        data.put("exclusiveXInput", exclusiveXInput);
+        data.put("wow64Mode", wow64Mode);
+        data.put("startupSelection", startupSelection);
+        data.put("box64Version", box64Version);
+        data.put("box64Preset", box64Preset);
+        data.put("fexcoreVersion", fexcoreVersion);
+        data.put("fexcorePreset", getFEXCorePreset());
+        data.put("desktopTheme", desktopTheme);
+        data.put("extraData", extraData != null ? extraData : new JSONObject());
+        data.put("rcfileId", rcfileId);
+        data.put("midiSoundFont", midiSoundFont);
+        data.put("lc_all", lc_all);
+        data.put("primaryController", primaryController);
+        data.put("controllerMapping", controllerMapping);
+        data.put("gstreamerWorkaround", gstreamerWorkaround);
+        // Always persist wineVersion so a later MAIN change doesn't flip old containers.
+        data.put("wineVersion", wineVersion);
+        return data;
+    }
+
+    private static JSONObject mergeConcurrentDiskChanges(JSONObject current,
+                                                         JSONObject snapshot,
+                                                         JSONObject disk)
+            throws JSONException {
+        JSONObject merged = new JSONObject(current.toString());
+        for (Iterator<String> it = disk.keys(); it.hasNext();) {
+            String key = it.next();
+            if ("extraData".equals(key)) continue;
+            if (sameJsonValue(current, snapshot, key)) merged.put(key, disk.get(key));
+        }
+        for (Iterator<String> it = snapshot.keys(); it.hasNext();) {
+            String key = it.next();
+            if ("extraData".equals(key)) continue;
+            if (!disk.has(key) && sameJsonValue(current, snapshot, key)) {
+                merged.remove(key);
+            }
+        }
+
+        JSONObject currentExtra = current.optJSONObject("extraData");
+        JSONObject snapshotExtra = snapshot.optJSONObject("extraData");
+        JSONObject diskExtra = disk.optJSONObject("extraData");
+        if (currentExtra == null) currentExtra = new JSONObject();
+        if (snapshotExtra == null) snapshotExtra = new JSONObject();
+        if (diskExtra == null) diskExtra = new JSONObject();
+        JSONObject mergedExtra = new JSONObject(currentExtra.toString());
+        for (Iterator<String> it = diskExtra.keys(); it.hasNext();) {
+            String key = it.next();
+            if (sameJsonValue(currentExtra, snapshotExtra, key)) {
+                mergedExtra.put(key, diskExtra.get(key));
+            }
+        }
+        // Honor removals performed by another live instance for keys this
+        // instance never touched since loading.
+        for (Iterator<String> it = snapshotExtra.keys(); it.hasNext();) {
+            String key = it.next();
+            if (!diskExtra.has(key) && sameJsonValue(currentExtra, snapshotExtra, key)) {
+                mergedExtra.remove(key);
+            }
+        }
+        merged.put("extraData", mergedExtra);
+        return merged;
+    }
+
+    private static boolean sameJsonValue(JSONObject first, JSONObject second, String key) {
+        boolean firstHas = first != null && first.has(key);
+        boolean secondHas = second != null && second.has(key);
+        if (firstHas != secondHas) return false;
+        if (!firstHas) return true;
+        Object a = first.opt(key);
+        Object b = second.opt(key);
+        return String.valueOf(a).equals(String.valueOf(b));
     }
 
 
@@ -583,6 +678,10 @@ data.put("desktopTheme", desktopTheme);
         boolean hasWineVersionKey = data.has("wineVersion");
         wineVersion = hasWineVersionKey ? WineInfo.MAIN_WINE_VERSION.identifier() : "proton-9.0-x86_64";
         dxwrapperConfig = "";
+        cpuList = null;
+        cpuListWoW64 = null;
+        emulator = null;
+        extraData = null;
         checkObsoleteOrMissingProperties(data);
 
         for (Iterator<String> it = data.keys(); it.hasNext(); ) {
@@ -698,6 +797,10 @@ data.put("desktopTheme", desktopTheme);
                     break;
             }
         }
+        // Snapshot normalized in-memory values, not the legacy raw JSON. This
+        // prevents a migration from looking like a later user edit and winning
+        // over a genuinely newer config written by another instance.
+        loadedDataSnapshot = buildData();
     }
 
     public static void checkObsoleteOrMissingProperties(JSONObject data) {

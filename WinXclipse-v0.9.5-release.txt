@@ -125,6 +125,9 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
 - First-boot progress now advances through imagefs extraction, runtime installation, and finalization instead of appearing frozen.
 - Native X11 2D operations process full 32-bit pixels, reducing byte-loop overhead on shared LPDDR memory.
 - HUD RAM warnings use consistent 90% blink and 93% dialog thresholds across device memory tiers.
+- The DXVK + VKD3D gear includes `RAM Fix`, enabled by default. GTA V receives the tested memory-streaming limits that prevent missing textures and shared-RAM/VRAM OOM freezes; disabling it removes only WinXclipse's exact managed values and preserves custom tuning.
+- Confirmed container, shortcut and imported `dxvk.conf` settings are flushed to disk and atomically replaced. Cross-process locks and merge preserve newer settings when an older live instance saves runtime metadata; latest-state recovery mirrors restore missing/malformed indexes, and existing Wine-prefix data is made visible again with safe defaults if an older build lost its index.
+- CPU-affinity checkboxes are centered in true rows of four on octa-core devices and five on deca-core devices in both container and shortcut settings.
 
 ## Status
 

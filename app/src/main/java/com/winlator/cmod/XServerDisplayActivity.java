@@ -5213,11 +5213,13 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             }
 
             // GTA V em mobile estoura a RAM no streaming dirigindo pela cidade;
-            // completa as flags anti-OOM que o usuario ainda nao definiu.
+            // RAM Fix completa as flags anti-OOM que o usuario ainda nao definiu.
             if (RageLaunchArgs.isGtaV(rageExeName)) {
-                // Toggle mora na config DXVK (dialogo); extras legados do Mali
-                // ("gtaOptimization" no atalho/container) continuam valendo.
-                boolean gtaOpt = "1".equals(DXVKConfigDialog.parseConfig(dxwrapperConfig).get("gtaOpt"))
+                KeyValueSet dxvkLaunchConfig = DXVKConfigDialog.parseConfig(dxwrapperConfig);
+                boolean ramFix = dxvkLaunchConfig.getBoolean("ramFix", true);
+                // O preset agressivo continua separado e opt-in; RAM Fix nunca
+                // ativa DX10/potato mode por conta propria.
+                boolean gtaOpt = "1".equals(dxvkLaunchConfig.get("gtaOpt"))
                         || "1".equals(shortcut.getExtra("gtaOptimization", "0"))
                         || (container != null && "1".equals(container.getExtra("gtaOptimization", "0")));
                 if (gtaOpt && !execArgs.toLowerCase(java.util.Locale.ENGLISH).contains("-nomemrestrict")) {
@@ -5225,18 +5227,25 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                     execArgs += RageLaunchArgs.POTATO_ARGS;
                     Log.i("WineStartCommand", "GTA V optimization preset applied");
                 }
-                String missing = RageLaunchArgs.missingArgs(execArgs);
-                if (!missing.isEmpty()) {
-                    args += missing;
-                    Log.i("WineStartCommand", "GTA V memory-safe args appended:" + missing);
-                }
                 try {
                     java.io.File resolved = shortcut.resolveExecutableFile();
-                    if (resolved != null && resolved.getName().toLowerCase(java.util.Locale.ENGLISH).endsWith(".exe")) {
-                        RageLaunchArgs.ensureCommandLineTxt(resolved.getParentFile());
+                    java.io.File gameDir = resolved != null
+                            && resolved.getName().toLowerCase(java.util.Locale.ENGLISH).endsWith(".exe")
+                            ? resolved.getParentFile() : null;
+                    if (ramFix) {
+                        String missing = RageLaunchArgs.missingArgs(execArgs, gameDir);
+                        if (!missing.isEmpty()) {
+                            args += missing;
+                            Log.i("WineStartCommand", "GTA V RAM Fix args appended:" + missing);
+                        }
+                        RageLaunchArgs.ensureCommandLineTxt(gameDir, execArgs);
+                    }
+                    else {
+                        RageLaunchArgs.removeFromCommandLineTxt(gameDir);
+                        Log.i("WineStartCommand", "GTA V RAM Fix disabled");
                     }
                 } catch (Exception e) {
-                    Log.w("WineStartCommand", "Could not ensure GTA V commandline.txt", e);
+                    Log.w("WineStartCommand", "Could not apply GTA V RAM Fix state", e);
                 }
             }
         } else {
