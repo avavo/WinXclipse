@@ -15,9 +15,10 @@ import com.winlator.cmod.xserver.ScreenInfo;
 import java.io.File;
 
 public abstract class WineThemeManager {
-    public enum Theme {LIGHT, DARK}
+    public static final int DESKTOP_THEME_REVISION = 2;
+    public enum Theme {SYSTEM, LIGHT, DARK}
     public enum BackgroundType {IMAGE, COLOR}
-    public static final String DEFAULT_DESKTOP_THEME = Theme.LIGHT+","+BackgroundType.IMAGE+",#0277bd";
+    public static final String DEFAULT_DESKTOP_THEME = Theme.SYSTEM+","+BackgroundType.IMAGE+",#0277bd";
 
     public static class ThemeInfo {
         public final Theme theme;
@@ -25,7 +26,7 @@ public abstract class WineThemeManager {
         public final int backgroundColor;
 
         public ThemeInfo(String value) {
-            Theme parsedTheme = Theme.LIGHT;
+            Theme parsedTheme = Theme.SYSTEM;
             BackgroundType parsedBackgroundType = BackgroundType.IMAGE;
             int parsedBackgroundColor;
             try {
@@ -58,7 +59,7 @@ public abstract class WineThemeManager {
         File rootDir = ImageFs.find(context).getRootDir();
         File userRegFile = new File(rootDir, ImageFs.WINEPREFIX+"/user.reg");
         String background = Color.red(themeInfo.backgroundColor)+" "+Color.green(themeInfo.backgroundColor)+" "+Color.blue(themeInfo.backgroundColor);
-        Theme resolvedTheme = getResolvedTheme(context);
+        Theme resolvedTheme = getResolvedTheme(context, themeInfo.theme);
 
         if (themeInfo.backgroundType == BackgroundType.IMAGE) {
             createWallpaperBMPFile(context, screenInfo, resolvedTheme);
@@ -67,8 +68,17 @@ public abstract class WineThemeManager {
         try (WineRegistryEditor registryEditor = new WineRegistryEditor(userRegFile)) {
             if (themeInfo.backgroundType == BackgroundType.IMAGE) {
                 registryEditor.setStringValue("Control Panel\\Desktop", "Wallpaper", ImageFs.CACHE_PATH+"/wallpaper.bmp");
+                // The old icon-style wallpaper was intentionally generated at
+                // 480p and centered.  The new full desktop artwork must cover
+                // the Wine desktop even if a game changes its resolution.
+                registryEditor.setStringValue("Control Panel\\Desktop", "WallpaperStyle", "2");
+                registryEditor.setStringValue("Control Panel\\Desktop", "TileWallpaper", "0");
             }
-            else registryEditor.removeValue("Control Panel\\Desktop", "Wallpaper");
+            else {
+                registryEditor.removeValue("Control Panel\\Desktop", "Wallpaper");
+                registryEditor.removeValue("Control Panel\\Desktop", "WallpaperStyle");
+                registryEditor.removeValue("Control Panel\\Desktop", "TileWallpaper");
+            }
 
             if (resolvedTheme == Theme.LIGHT) {
                 registryEditor.setStringValue("Control Panel\\Colors", "ActiveBorder", "245 245 245");
@@ -137,15 +147,18 @@ public abstract class WineThemeManager {
         }
     }
 
-    /** Wine's desktop always follows the effective Android/app theme. */
-    public static Theme getResolvedTheme(Context context) {
+    /** Resolves Follow Android while preserving an explicit Light/Dark override. */
+    public static Theme getResolvedTheme(Context context, Theme configuredTheme) {
+        if (configuredTheme == Theme.LIGHT || configuredTheme == Theme.DARK) {
+            return configuredTheme;
+        }
         return AppUtils.isDarkMode(context) ? Theme.DARK : Theme.LIGHT;
     }
 
     private static void createWallpaperBMPFile(Context context, ScreenInfo screenInfo,
                                                 Theme resolvedTheme) {
-        final int outputHeight = 480;
-        int outputWidth = (int)Math.ceil(((float)outputHeight / screenInfo.height) * screenInfo.width);
+        int outputWidth = Math.max(1, screenInfo.width);
+        int outputHeight = Math.max(1, screenInfo.height);
 
         Bitmap outputBitmap = Bitmap.createBitmap(outputWidth, outputHeight, Bitmap.Config.ARGB_8888);
         Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -165,7 +178,23 @@ public abstract class WineThemeManager {
         }
 
         if (image != null) {
-            Rect srcRect = new Rect(0, 0, image.getWidth(), image.getHeight());
+            // Center-crop instead of distorting the artwork on 4:3, 16:10 or
+            // ultrawide container resolutions.
+            int sourceWidth = image.getWidth();
+            int sourceHeight = image.getHeight();
+            float sourceAspect = (float)sourceWidth / sourceHeight;
+            float targetAspect = (float)outputWidth / outputHeight;
+            Rect srcRect;
+            if (sourceAspect > targetAspect) {
+                int cropWidth = Math.max(1, Math.round(sourceHeight * targetAspect));
+                int left = (sourceWidth - cropWidth) / 2;
+                srcRect = new Rect(left, 0, left + cropWidth, sourceHeight);
+            }
+            else {
+                int cropHeight = Math.max(1, Math.round(sourceWidth / targetAspect));
+                int top = (sourceHeight - cropHeight) / 2;
+                srcRect = new Rect(0, top, sourceWidth, top + cropHeight);
+            }
             Rect dstRect = new Rect(0, 0, outputWidth, outputHeight);
             canvas.drawBitmap(image, srcRect, dstRect, paint);
             image.recycle();

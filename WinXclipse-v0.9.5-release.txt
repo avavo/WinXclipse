@@ -105,7 +105,8 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
 - The Community Config install dialog shows a rounded portrait cover banner in a slightly narrower popup, and missing DXVK/Box64/FEXCore/VKD3D content is downloaded and installed automatically during import.
 - Container pickers act directly when only one container exists; the About and backend Logs dialogs follow the same bordered style, and logs can be saved to Downloads besides being shared.
 - All memory selectors now include 6, 8, 10 and 12 GB options, and the old 4092 MB value migrates to 4096 MB. Spinner and popup surfaces use the same purple outline in light and dark modes.
-- Wine Light/Dark mode follows the effective Android app theme and selects the matching bundled WinXclipse wallpaper whenever Background is set to Image; manually imported wallpapers remain supported.
+- Wine Light/Dark mode follows the effective Android app theme by default, still allows a per-container Light or Dark override, and selects the matching bundled WinXclipse wallpaper whenever Background is set to Image; manually imported wallpapers remain supported.
+- Wine wallpapers fill the complete container desktop at every supported resolution instead of leaving a solid-color frame around a centered 480p image; non-16:9 modes use an aspect-preserving center crop.
 - Wine sessions support normal and reverse landscape, allowing either long edge of the phone or tablet to face upward without enabling portrait rotation.
 - Replaced the old update alert with a WinXclipse-styled AMOLED dialog that clearly shows installed and available versions.
 - Corrected the application version display to `0.9.5`.

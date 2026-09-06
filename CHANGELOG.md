@@ -68,7 +68,8 @@ All notable changes between WinXclipse releases, newest first.
 - The native HUD starts in monochrome mode with Show FPS, wrapper, GPU, CPU, RAM, battery, border, and SoC information selected; a one-time 0.9.5 migration also enables Show FPS for an older saved HUD mask, after which the user's choice is preserved.
 - Experimental Performance no longer enables any sub-option implicitly. WoW64 performance-core pinning and Translation Turbo are shown beside the other system controls, remain off until selected, and still require the Experimental Performance master at runtime.
 - Graphics Driver, DXVK and Wine video-memory selectors now expose 6144, 8192, 10240 and 12288 MB. The former 4092 MB compatibility value migrates to the correct 4096 MB value.
-- The Wine desktop Light/Dark mode follows the effective Android app theme. Image backgrounds use matching bundled WinXclipse light and dark wallpapers, while a user-selected custom wallpaper continues to take precedence.
+- The Wine desktop Light/Dark mode follows the effective Android app theme by default, while explicit Light and Dark overrides remain available per container. Image backgrounds use matching bundled WinXclipse light and dark wallpapers, while a user-selected custom wallpaper continues to take precedence.
+- Wine image wallpapers are generated at the container desktop resolution, center-cropped to preserve their aspect ratio, and explicitly stretched by Wine instead of appearing as a centered 480p rectangle over the solid background color.
 
 ### Performance
 

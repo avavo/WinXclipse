@@ -1143,11 +1143,10 @@ public class ContainerDetailFragment extends Fragment {
 
         WineThemeManager.ThemeInfo desktopTheme = new WineThemeManager.ThemeInfo(isEditMode() ? container.getDesktopTheme() : WineThemeManager.DEFAULT_DESKTOP_THEME);
         Spinner sDesktopTheme = view.findViewById(R.id.SDesktopTheme);
-        // Wine's Light/Dark choice mirrors the effective Android app theme.
-        // Keep the field visible so the active mode is obvious, but do not
-        // allow a value that the runtime would immediately override.
-        sDesktopTheme.setSelection(WineThemeManager.getResolvedTheme(context).ordinal());
-        sDesktopTheme.setEnabled(false);
+        // Follow Android is the default, while explicit Light and Dark choices
+        // remain available for users who want a container-specific override.
+        sDesktopTheme.setSelection(desktopTheme.theme.ordinal());
+        sDesktopTheme.setEnabled(true);
         final ImagePickerView ipvDesktopBackgroundImage = view.findViewById(R.id.IPVDesktopBackgroundImage);
         final ColorPickerView cpvDesktopBackgroundColor = view.findViewById(R.id.CPVDesktopBackgroundColor);
         cpvDesktopBackgroundColor.setColor(desktopTheme.backgroundColor);

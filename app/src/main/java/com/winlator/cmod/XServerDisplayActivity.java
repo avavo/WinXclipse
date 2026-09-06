@@ -2060,13 +2060,15 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         }
 
         String desktopTheme = container.getDesktopTheme();
+        WineThemeManager.ThemeInfo desktopThemeInfo = new WineThemeManager.ThemeInfo(desktopTheme);
         // Include the resolved Android mode in the cache key so changing the
         // system theme regenerates both Wine colors and its bundled wallpaper.
-        String themeKey = desktopTheme+","+WineThemeManager.getResolvedTheme(this)
+        String themeKey = WineThemeManager.DESKTOP_THEME_REVISION+","+desktopTheme
+                +","+WineThemeManager.getResolvedTheme(this, desktopThemeInfo.theme)
                 +","+xServer.screenInfo;
         String storedTheme = container.getExtra("desktopTheme");
         if (!themeKey.equals(storedTheme)) {
-            WineThemeManager.apply(this, new WineThemeManager.ThemeInfo(desktopTheme), xServer.screenInfo);
+            WineThemeManager.apply(this, desktopThemeInfo, xServer.screenInfo);
             container.putExtra("desktopTheme", themeKey);
             containerDataChanged = true;
         }

@@ -172,6 +172,7 @@
         <item>@string/dinput_modern</item>
     </string-array>
     <string-array name="desktop_theme_entries">
+        <item>Follow Android (Default)</item>
         <item>Light</item>
         <item>Dark</item>
     </string-array>
