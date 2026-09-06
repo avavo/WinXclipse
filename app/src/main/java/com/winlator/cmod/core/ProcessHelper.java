@@ -4,9 +4,11 @@ import android.os.Process;
 import android.util.Log;
 
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FilenameFilter;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -15,6 +17,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -25,6 +28,9 @@ public abstract class ProcessHelper {
     private static final CopyOnWriteArrayList<Callback<String>> debugCallbacks = new CopyOnWriteArrayList<>();
     private static final ArrayDeque<String> recentDebugLines = new ArrayDeque<>();
     private static final Object recentDebugLock = new Object();
+    private static final Object diagnosticLogLock = new Object();
+    private static BufferedWriter dxvkDiagnosticWriter;
+    private static BufferedWriter vkd3dDiagnosticWriter;
     private static final ExecutorService debugExecutor = Executors.newCachedThreadPool();
     private static final byte SIGCONT = 18;
     private static final byte SIGSTOP = 19;
@@ -153,6 +159,7 @@ public abstract class ProcessHelper {
             recentDebugLines.addLast(line);
             while (recentDebugLines.size() > MAX_RECENT_DEBUG_LINES) recentDebugLines.removeFirst();
         }
+        appendDiagnosticLine(line);
         for (Callback<String> callback : debugCallbacks) {
             try {
                 callback.call(line);
@@ -166,6 +173,80 @@ public abstract class ProcessHelper {
     public static List<String> getRecentDebugLines() {
         synchronized (recentDebugLock) {
             return new ArrayList<>(recentDebugLines);
+        }
+    }
+
+    /** Starts the per-container DXVK/VKD3D diagnostic side logs for this session. */
+    public static void startDiagnosticLogs(File directory, String sessionStamp) {
+        stopDiagnosticLogs();
+        if (directory == null || sessionStamp == null || sessionStamp.isEmpty()) return;
+        if (!directory.isDirectory() && !directory.mkdirs()) {
+            Log.w("ProcessHelper", "Could not create diagnostic log directory: " + directory);
+            return;
+        }
+        synchronized (diagnosticLogLock) {
+            try {
+                dxvkDiagnosticWriter = new BufferedWriter(new FileWriter(
+                        new File(directory, "dxvk_" + sessionStamp + ".log"), false));
+                vkd3dDiagnosticWriter = new BufferedWriter(new FileWriter(
+                        new File(directory, "vkd3d_" + sessionStamp + ".log"), false));
+                String header = "WinXclipse graphics diagnostic\nSession: " + sessionStamp + "\n\n";
+                dxvkDiagnosticWriter.write(header);
+                vkd3dDiagnosticWriter.write(header);
+                dxvkDiagnosticWriter.flush();
+                vkd3dDiagnosticWriter.flush();
+            }
+            catch (IOException e) {
+                Log.e("ProcessHelper", "Could not open graphics diagnostic logs", e);
+                closeDiagnosticWritersLocked();
+            }
+        }
+    }
+
+    /** Flushes and closes the per-container DXVK/VKD3D diagnostic side logs. */
+    public static void stopDiagnosticLogs() {
+        synchronized (diagnosticLogLock) {
+            closeDiagnosticWritersLocked();
+        }
+    }
+
+    private static void appendDiagnosticLine(String line) {
+        if (line == null) return;
+        String lower = line.toLowerCase(Locale.US);
+        boolean vkd3d = lower.contains("vkd3d") || lower.contains("d3d12")
+                || lower.contains("shader model");
+        boolean dxvk = lower.contains("dxvk") || lower.contains("d3d11")
+                || lower.contains("d3d10") || lower.contains("dxgi")
+                || lower.contains("vulkan") || lower.contains("pipeline")
+                || lower.contains("chunk");
+        synchronized (diagnosticLogLock) {
+            try {
+                if (vkd3d && vkd3dDiagnosticWriter != null) {
+                    vkd3dDiagnosticWriter.write(line);
+                    vkd3dDiagnosticWriter.newLine();
+                    vkd3dDiagnosticWriter.flush();
+                }
+                if (dxvk && dxvkDiagnosticWriter != null) {
+                    dxvkDiagnosticWriter.write(line);
+                    dxvkDiagnosticWriter.newLine();
+                    dxvkDiagnosticWriter.flush();
+                }
+            }
+            catch (IOException e) {
+                Log.w("ProcessHelper", "Graphics diagnostic log write failed", e);
+                closeDiagnosticWritersLocked();
+            }
+        }
+    }
+
+    private static void closeDiagnosticWritersLocked() {
+        if (dxvkDiagnosticWriter != null) {
+            try { dxvkDiagnosticWriter.close(); } catch (IOException ignored) {}
+            dxvkDiagnosticWriter = null;
+        }
+        if (vkd3dDiagnosticWriter != null) {
+            try { vkd3dDiagnosticWriter.close(); } catch (IOException ignored) {}
+            vkd3dDiagnosticWriter = null;
         }
     }
 

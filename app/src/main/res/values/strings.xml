@@ -358,7 +358,9 @@
 
     <string name="xperf_need_master">Enable Experimental Performance first</string>
     <string name="experimental_bcn">Experimental BCN Support</string>
-    <string name="experimental_bcn_description">Loads the opt-in BCN compatibility layer. Wrapper-Default uses the matched July 13 Winlator-Mali wrapper and Leegao layer; existing wrappers keep their current stack.</string>
+    <string name="experimental_bcn_description">Enables the experimental BCN compatibility layer for this container or shortcut. The optimized Xclipse archive is an optional setting inside this section.</string>
+    <string name="bcn_xclipse_optimized">Use optimized Xclipse BCN layer</string>
+    <string name="bcn_xclipse_optimized_description">Uses the newer Xclipse-optimized BCN archive and tuning variables. Leave disabled to keep the standard experimental BCN path.</string>
     <string name="bcn_emulation">BCn Emulation</string>
     <string name="bcn_emulation_type">BCn Emulation Type</string>
     <string name="bcn_emulation_cache">BCn Emulation Cache</string>

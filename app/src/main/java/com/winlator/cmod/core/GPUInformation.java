@@ -91,8 +91,8 @@ public abstract class GPUInformation {
      * the per-model tuning table: the 1-2 WGP mid-rangers (530/540), the
      * ~3 WGP 920 and the RDNA3 550 stay at 2048 MB regardless of device RAM;
      * the flagship 940/950 ship with varying RAM so they follow the RAM-based
-     * split (2048 MB on 8 GB-class, 4092 MB on 12 GB-class); the 8 WGP 960
-     * always gets the full 4092 MB. Returns 0 when no model override exists.
+     * split (2048 MB on 8 GB-class, 4096 MB on 12 GB-class); the 8 WGP 960
+     * always gets the full 4096 MB. Returns 0 when no model override exists.
      */
     public static int getModelVramCapMB() {
         switch (getXclipseModel()) {
@@ -102,7 +102,7 @@ public abstract class GPUInformation {
             case 920:
                 return 2048;
             case 960:
-                return 4092;
+                return 4096;
             default:
                 return 0;
         }

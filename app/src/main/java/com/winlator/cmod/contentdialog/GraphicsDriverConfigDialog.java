@@ -50,6 +50,8 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
     private final CheckBox etc2TranscodeCheckBox;
     private final CheckBox bcnSoftwareSwitchCheckBox;
     private final CheckBox astcAutoDefaultCheckBox;
+    private final CheckBox bcnMasterCheckBox;
+    private final CheckBox bcnOptimizationCheckBox;
 
     private final String initialVersion;
     private final String initialExtensionBlacklist;
@@ -82,18 +84,30 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
         etc2TranscodeCheckBox = findViewById(R.id.CBETC2Transcode);
         bcnSoftwareSwitchCheckBox = findViewById(R.id.CBBCnSoftwareSwitch);
         astcAutoDefaultCheckBox = findViewById(R.id.CBAstcAutoDefault);
-        findViewById(R.id.LLExperimentalBCNOptions).setVisibility(
-                experimentalBcn ? View.VISIBLE : View.GONE);
+        bcnMasterCheckBox = findViewById(R.id.CBGraphicsBCN);
+        bcnOptimizationCheckBox = findViewById(R.id.CBGraphicsBCNOptimization);
 
         initialConfig = parseGraphicsDriverConfig(String.valueOf(anchor.getTag()));
         initialVersion = initialConfig.getOrDefault("version", DefaultVersion.WRAPPER);
         initialExtensionBlacklist = initialConfig.getOrDefault("blacklistedExtensions", "");
 
+        boolean configuredBcn = "1".equals(initialConfig.getOrDefault("experimentalBcn", "0"));
+        bcnMasterCheckBox.setChecked(configuredBcn || experimentalBcn);
+        bcnOptimizationCheckBox.setChecked(
+                "1".equals(initialConfig.getOrDefault("bcnXclipseOptimized", "0")));
+        Runnable updateBcnVisibility = () -> findViewById(R.id.LLExperimentalBCNOptions)
+                .setVisibility(bcnMasterCheckBox.isChecked() ? View.VISIBLE : View.GONE);
+        updateBcnVisibility.run();
+        bcnMasterCheckBox.setOnCheckedChangeListener((button, checked) -> {
+            updateBcnVisibility.run();
+            applyWrapperBcnProfile(graphicsDriver, checked);
+        });
+
         applyTheme(anchor.getContext());
         loadDriverVersions(anchor.getContext(), graphicsDriver);
         restoreValues(initialConfig);
         configureListeners();
-        applyWrapperBcnProfile(graphicsDriver, experimentalBcn);
+        applyWrapperBcnProfile(graphicsDriver, bcnMasterCheckBox.isChecked());
         findViewById(R.id.BTASTCTranscodeHelp).setOnClickListener(v ->
                 AppUtils.showHelpBox(getContext(), v, R.string.astc_transcode_help));
         findViewById(R.id.BTETC2TranscodeHelp).setOnClickListener(v ->
@@ -104,6 +118,10 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
                 AppUtils.showHelpBox(getContext(), v, R.string.gdc_help_sync_frame));
         findViewById(R.id.BTDisablePresentWaitHelp).setOnClickListener(v ->
                 AppUtils.showHelpBox(getContext(), v, R.string.gdc_help_disable_present_wait));
+        findViewById(R.id.BTGraphicsBCNHelp).setOnClickListener(v ->
+                AppUtils.showHelpBox(getContext(), v, R.string.experimental_bcn_description));
+        findViewById(R.id.BTGraphicsBCNOptimizationHelp).setOnClickListener(v ->
+                AppUtils.showHelpBox(getContext(), v, R.string.bcn_xclipse_optimized_description));
 
         setOnConfirmCallback(() -> {
             String result = writeGraphicsDriverConfig();
@@ -264,21 +282,33 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
     }
 
     private void applyWrapperBcnProfile(String graphicsDriver, boolean experimentalBcn) {
-        /* Kirimu ships its own working software BCN path: when Experimental
-         * BCN is on, lock the shared-layer options to that profile. */
-        if (!experimentalBcn || graphicsDriver == null
-                || !graphicsDriver.toLowerCase(Locale.ENGLISH).contains("kirimu")) {
+        boolean kirimuBcn = experimentalBcn && graphicsDriver != null
+                && graphicsDriver.toLowerCase(Locale.ENGLISH).contains("kirimu");
+
+        bcnTypeSpinner.setEnabled(!kirimuBcn);
+        bcnCacheSpinner.setEnabled(!kirimuBcn);
+        bcnOptimizationCheckBox.setEnabled(!kirimuBcn);
+        bcnSoftwareSwitchCheckBox.setEnabled(!kirimuBcn);
+        astcAutoDefaultCheckBox.setEnabled(!kirimuBcn);
+
+        if (!kirimuBcn) {
+            refreshTranscodeEnabled();
             return;
         }
+
+        /* Kirimu is the legacy integrated wrapper.  It does not consume the
+         * standalone Leegao cache/transcode/optimization switches, so keeping
+         * those values enabled produced a configuration the runtime could not
+         * actually honor.  Only its native WRAPPER_EMULATE_BCN mode remains. */
         AppUtils.setSpinnerSelectionFromValue(bcnTypeSpinner, "software");
-        bcnTypeSpinner.setEnabled(false);
+        AppUtils.setSpinnerSelectionFromValue(bcnCacheSpinner, "0");
+        bcnOptimizationCheckBox.setChecked(false);
+        bcnSoftwareSwitchCheckBox.setChecked(false);
+        astcAutoDefaultCheckBox.setChecked(false);
         astcTranscodeCheckBox.setEnabled(false);
         astcTranscodeCheckBox.setChecked(false);
         etc2TranscodeCheckBox.setEnabled(false);
         etc2TranscodeCheckBox.setChecked(false);
-        if (!initialConfig.containsKey("bcnEmulationCache")) {
-            AppUtils.setSpinnerSelectionFromValue(bcnCacheSpinner, "1");
-        }
     }
 
     private void configureListeners() {
@@ -332,6 +362,8 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
         result.put("syncFrame", boolValue(syncFrameCheckBox));
         result.put("disablePresentWait", boolValue(disablePresentWaitCheckBox));
         result.put("resourceType", selectedValue(resourceTypeSpinner));
+        result.put("experimentalBcn", boolValue(bcnMasterCheckBox));
+        result.put("bcnXclipseOptimized", boolValue(bcnOptimizationCheckBox));
         result.put("bcnEmulation", selectedValue(bcnEmulationSpinner));
         result.put("bcnEmulationType", selectedValue(bcnTypeSpinner));
         result.put("bcnEmulationCache", selectedValue(bcnCacheSpinner));

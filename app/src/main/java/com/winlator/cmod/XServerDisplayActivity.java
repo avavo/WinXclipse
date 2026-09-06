@@ -262,6 +262,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     private volatile boolean automaticLifecycleClose;
     private volatile String lifecycleCloseReason = "";
     private volatile boolean lifecycleLogWritten;
+    private File wineLogDirectory;
+    private String wineLogStamp = "";
     private final java.util.concurrent.atomic.AtomicBoolean sessionStopped = new java.util.concurrent.atomic.AtomicBoolean(false);
     PreloaderDialog preloaderDialog = null;
     private Runnable configChangedCallback = null;
@@ -1036,6 +1038,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
                 setupWineSystemFiles();
                 extractArm64ecInputDLLs(); // REQUIRED: Uses updated xinput1_3 main.c from x86_64 build, prevents crashes with 3+ players, avoids need for input shim dlls.
+                prepareWineDiagnosticLogs();
                 extractGraphicsDriverFiles();
                 changeWineAudioDriver();
 
@@ -1371,6 +1374,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         if (winHandler != null) winHandler.stop();
         if (wineRequestHandler != null) wineRequestHandler.stop();
         ProcessHelper.terminateAllWineProcesses();
+        ProcessHelper.stopDiagnosticLogs();
     }
 
     @Override
@@ -2056,7 +2060,10 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         }
 
         String desktopTheme = container.getDesktopTheme();
-        String themeKey = desktopTheme+","+xServer.screenInfo;
+        // Include the resolved Android mode in the cache key so changing the
+        // system theme regenerates both Wine colors and its bundled wallpaper.
+        String themeKey = desktopTheme+","+WineThemeManager.getResolvedTheme(this)
+                +","+xServer.screenInfo;
         String storedTheme = container.getExtra("desktopTheme");
         if (!themeKey.equals(storedTheme)) {
             WineThemeManager.apply(this, new WineThemeManager.ThemeInfo(desktopTheme), xServer.screenInfo);
@@ -2232,13 +2239,14 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 ? shortcut.getExtra("xperfConfig")
                 : container.getExtra("xperfConfig", "");
         xperfConfig = ExperimentalPerformanceDialog.parseConfig(xperfRaw);
-        CpuClusters.setPerformancePinningEnabled(!"0".equals(xperfConfig.get("wow64Pin")));
+        CpuClusters.setPerformancePinningEnabled(experimentalPerformance
+                && "1".equals(xperfConfig.get("wow64Pin")));
         if (experimentalPerformance) {
             // Opt-in and fully reversible runtime defaults. Each piece is
             // individually switchable via the Experimental Performance tuning
             // dialog (container extra "xperfConfig", shortcut-overridable);
-            // keys default to the historical behaviour except perfcache,
-            // which now stays off unless explicitly enabled.
+            // Every feature is opt-in.  The master switch never silently turns
+            // on a WoW64 or translation tweak for a new container.
             // WRAPPER_MAX_IMAGE_COUNT is applied here on purpose: it runs after
             // extractGraphicsDriverFiles(), so the opt-in value overrides the
             // present-mode-derived swapchain limit.
@@ -4250,7 +4258,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             java.io.File containerRoot = container != null ? container.getRootDir() : null;
             java.io.File shortcutConf = shortcut != null ? shortcut.getDxvkConfFile() : null;
             DXVKConfigDialog.setEnvVars(this, dxwrapperConfig, envVars, containerRoot,
-                    resolveEffectiveVramCapMb(), shortcutConf);
+                    resolveEffectiveVramCapMb(), shortcutConf, wineLogDirectory);
         }
 
         boolean showFps = container != null && container.isShowFPS();
@@ -4272,11 +4280,22 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         envVars.put("LIBGL_KOPPER_DISABLE", "true");
 
         String mainWrapperSelection = this.graphicsDriver;
-        boolean experimentalBCN = container != null
-                && "1".equals(container.getExtra("experimentalBCN", "0"));
-        if (shortcut != null && shortcut.hasExtra("experimentalBCN")) {
+        boolean nativeBcnWrapper = isNativeBcnWrapper(mainWrapperSelection);
+        boolean kirimuWrapper = isKirimuWrapper(mainWrapperSelection);
+        String legacyExperimentalBcn = container != null
+                ? container.getExtra("experimentalBCN", "0") : "0";
+        boolean experimentalBCN = "1".equals(
+                graphicsDriverConfig.getOrDefault("experimentalBcn", legacyExperimentalBcn));
+        if (shortcut != null && shortcut.hasExtra("experimentalBCN")
+                && !graphicsDriverConfig.containsKey("experimentalBcn")) {
             experimentalBCN = "1".equals(shortcut.getExtra("experimentalBCN", "0"));
         }
+        // The Xclipse archive/tuning is a separate opt-in nested inside the
+        // normal Experimental BCN switch.  Keeping this false by default
+        // preserves the established BCN layer for existing containers.
+        boolean optimizedBcn = experimentalBCN
+                && !nativeBcnWrapper
+                && "1".equals(graphicsDriverConfig.getOrDefault("bcnXclipseOptimized", "0"));
         boolean requestedAstcTranscode = "1".equals(
                 graphicsDriverConfig.getOrDefault("astcTranscode", "0"));
         boolean requestedEtc2Transcode = "1".equals(
@@ -4285,7 +4304,15 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 graphicsDriverConfig.getOrDefault("bcnEmulationType",
                         "1".equals(graphicsDriverConfig.getOrDefault("bcnSoftwareSwitch", "0"))
                                 ? "software" : GPUInformation.defaultBcnEmulationType()));
-        if ((requestedAstcTranscode || requestedEtc2Transcode) && !computeBcnMode) {
+        if (kirimuWrapper) {
+            // Saved configs from older builds may still contain standalone
+            // Leegao toggles.  Kirimu cannot consume them, so sanitize them at
+            // launch even before the user re-saves the Graphics dialog.
+            requestedAstcTranscode = false;
+            requestedEtc2Transcode = false;
+            computeBcnMode = false;
+        }
+        else if ((requestedAstcTranscode || requestedEtc2Transcode) && !computeBcnMode) {
             // Transcode (encode_etc2/astc_compute) só existe no backend compute.
             // Config antiga/inválida com Type=Software + transcode marcava
             // BCN TRANSCODE ERROR e o jogo saía branco/preto sem decodificar
@@ -4294,7 +4321,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             Log.w("GraphicsDriverExtraction",
                     "Transcode requested with software BCN backend; forcing compute");
         }
-        if ("1".equals(graphicsDriverConfig.getOrDefault("astcAutoDefault", "0"))
+        if (!kirimuWrapper
+                && "1".equals(graphicsDriverConfig.getOrDefault("astcAutoDefault", "0"))
                 && computeBcnMode && !requestedAstcTranscode && !requestedEtc2Transcode) {
             requestedAstcTranscode = true;
             Log.i("GraphicsDriverExtraction",
@@ -4350,19 +4378,19 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             }
         }
 
-        boolean nativeBcnWrapper = isNativeBcnWrapper(mainWrapperSelection);
         boolean dedicatedBcnWrapper = "wrapper-default".equalsIgnoreCase(mainWrapperSelection);
 
         File bcnLayerLibrary = new File(rootDir, "usr/lib/libbcn_layer.so");
         File bcnLayerManifest = new File(rootDir,
                 "usr/share/vulkan/implicit_layer.d/libbcn_layer.json");
-        final String bcnLayerAsset = provenTranscodePair ? "graphics_driver/leegao_bcn_transcode.tzst"
+        final String bcnLayerAsset = optimizedBcn ? "graphics_driver/leegao_bcn_xclipse.tzst"
+                : provenTranscodePair ? "graphics_driver/leegao_bcn_transcode.tzst"
                 : dedicatedBcnWrapper ? "graphics_driver/leegao_bcn_july13.tzst"
                         : "graphics_driver/leegao_bcn.tzst";
         // The version marker identifies the complete wrapper/layer pair. This
         // forces the matching layer to be restored when users switch stacks.
-        // Sufixo -4 limpa containers presos no leegao-mali-re3-transcode-compat-1.
-        final String bcnLayerVersion = provenTranscodePair ? "leegao-mali12-transcode-1"
+        final String bcnLayerVersion = optimizedBcn ? "xclipse-rdna2-bcn-1"
+                : provenTranscodePair ? "mali-transcode-pair-1"
                 : dedicatedBcnWrapper ? "leegao-july13-wrapper-default-4"
                         : "leegao-winmali-2";
         boolean bcnLayerReady = bcnLayerLibrary.isFile() && bcnLayerManifest.isFile();
@@ -4469,6 +4497,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         envVars.remove("DISABLE_BCN_COMPUTE");
         envVars.remove("BCN_COMPUTE_AUTO");
         envVars.remove("WRAPPER_EMULATE_BCN");
+        envVars.remove("WRAPPER_SAFE_CREATE_DEVICE");
+        envVars.remove("WRAPPER_STAGING_ARENA_MIB");
         envVars.remove("WRAPPER_USE_BCN_CACHE");
         envVars.remove("BCN_DISABLE_DISK_CACHE");
         envVars.remove("BCN_TRANSCODE_TO_ASTC");
@@ -4483,6 +4513,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         envVars.remove("WRAPPER_ASTC_BLOCK");
         envVars.remove("WRAPPER_BCN_GPU_CAP_MB");
         envVars.remove("WRAPPER_NO_BCN_THREAD");
+        envVars.remove("BCN_PROFILE_XCLIPSE");
+        envVars.remove("XCLIPSE_PROFILING");
+        envVars.remove("XCLIPSE_ENGINE");
+        envVars.remove("XCLIPSE_BARRIER_OPT");
+        envVars.remove("XCLIPSE_VRS");
+        envVars.remove("XCLIPSE_DIRECT_RENDER");
         String effectiveBcnTranscodeMode = "";
         if (experimentalBCN) {
             String bcnEmulation = graphicsDriverConfig.getOrDefault("bcnEmulation", "auto");
@@ -4511,6 +4547,14 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                     break;
             }
             envVars.put("WRAPPER_EMULATE_BCN", emulateBcn);
+            if (kirimuWrapper) {
+                // Kirimu contains its own BCN implementation.  Keep the old
+                // wrapper binary and use only knobs exported by that binary;
+                // a bounded staging arena prevents failed texture uploads from
+                // repeatedly ballooning the process toward the device limit.
+                envVars.put("WRAPPER_SAFE_CREATE_DEVICE", "1");
+                envVars.put("WRAPPER_STAGING_ARENA_MIB", "128");
+            }
 
             // ASTC/ETC2 are implemented by the compute layer even when BCn
             // emulation itself is set to none/partial. Previously those modes
@@ -4538,7 +4582,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                     envVars.put("WRAPPER_DIAG", "1");
                 }
             }
-            else {
+            else if (!kirimuWrapper) {
                 envVars.put("DISABLE_BCN_COMPUTE", "1");
             }
             if (computeLayerActive) {
@@ -4555,21 +4599,37 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                     effectiveBcnTranscodeMode = "BCN→ETC2";
                 }
             }
-            else if (transcodeRequested) {
+            else if (transcodeRequested && !kirimuWrapper) {
                 // Do not silently claim that a checked option reached Vulkan
                 // when the layer, backend, or compatible wrapper is missing.
                 effectiveBcnTranscodeMode = "BCN TRANSCODE ERROR";
             }
-            // Paridade com o Mali: o layer do par provado lê BCN_QUALITY_PRESET
-            // (auto = layer escolhe; fast/balanced/high = shader do transcode).
-            // Só exporta fora do auto, igual ao Mali 1.2.
             String bcnQualityPreset = graphicsDriverConfig.getOrDefault("bcnQualityPreset", "auto");
-            if (!"auto".equalsIgnoreCase(bcnQualityPreset)) {
+            // Preserve an explicitly saved preset for the established BCN
+            // path; the new Xclipse profile additionally receives its tuning
+            // variables below.
+            if (!kirimuWrapper && !"auto".equalsIgnoreCase(bcnQualityPreset)) {
                 envVars.put("BCN_QUALITY_PRESET", bcnQualityPreset);
             }
-            envVars.put("WRAPPER_USE_BCN_CACHE", bcnEmulationCache);
-            envVars.put("BCN_DISABLE_DISK_CACHE",
-                    "0".equals(bcnEmulationCache) ? "1" : "0");
+            if (optimizedBcn && computeLayerActive) {
+                // These variables belong only to the opt-in Xclipse profile;
+                // normal Experimental BCN must keep the legacy layer defaults.
+                envVars.put("BCN_QUALITY_PRESET", bcnQualityPreset);
+                envVars.put("XCLIPSE_ENGINE", "1");
+                envVars.put("XCLIPSE_BARRIER_OPT", "1");
+                envVars.put("XCLIPSE_VRS", "0");
+                envVars.put("XCLIPSE_DIRECT_RENDER",
+                        graphicsDriverConfig.getOrDefault("xclipseDirectRender", "auto"));
+                if (transcodeRequested) {
+                    envVars.put("BCN_PROFILE_XCLIPSE", "1");
+                    envVars.put("XCLIPSE_PROFILING", "1");
+                }
+            }
+            if (!kirimuWrapper) {
+                envVars.put("WRAPPER_USE_BCN_CACHE", bcnEmulationCache);
+                envVars.put("BCN_DISABLE_DISK_CACHE",
+                        "0".equals(bcnEmulationCache) ? "1" : "0");
+            }
         }
         bcnTranscodeBaseMode = effectiveBcnTranscodeMode;
         bcnTelemetryRequested = effectiveBcnTranscodeMode.startsWith("BCN→");
@@ -4580,6 +4640,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         if (bcnTelemetryRequested) sidebarHandler.post(bcnLayerMapProbe);
         Log.i("GraphicsDriverExtraction", "Experimental BCN="
                 + experimentalBCN + ", layerReady=" + bcnLayerReady
+                + ", optimized=" + optimizedBcn
                 + ", nativeWrapper=" + nativeBcnWrapper
                 + ", dedicatedWrapper=" + dedicatedBcnWrapper
                 + ", transcode=" + (effectiveBcnTranscodeMode.isEmpty()
@@ -4752,7 +4813,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
      * device memory as VRAM invites games to over-commit and triggers OOM
      * kills of the Wine tree. Under the opt-in performance profile the real
      * device memory is queried: 8 GB-class devices get a conservative 2048 MB
-     * cap, 12 GB-class (and above) keep the 4092 MB ceiling. Fixed-tier SoCs
+     * cap, 12 GB-class (and above) keep the 4096 MB ceiling. Fixed-tier SoCs
      * back this up when the kernel report is unavailable.
      */    private int suggestVramCap() {
         ActivityManager activityManager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
@@ -4771,7 +4832,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         }
         // Android reports usable RAM below the marketing size (a "12 GB"
         // device usually lands near 11 GB), so split the tiers at 10 GB.
-        int ramBased = totalMB >= 10240 ? 4092 : 2048;
+        int ramBased = totalMB >= 10240 ? 4096 : 2048;
         // A small GPU can never consume what the RAM formula grants, and a
         // big one should not be capped below its share: intersect both views.
         int modelCap = GPUInformation.getModelVramCapMB();
@@ -4785,8 +4846,11 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             String capMode = xperfConfig.get("vramCapMode");
             int vramCap = "2048".equals(capMode) ? 2048
                     : "3072".equals(capMode) ? 3072
-                    : "4092".equals(capMode) ? 4092
+                    : ("4092".equals(capMode) || "4096".equals(capMode)) ? 4096
                     : "6144".equals(capMode) ? 6144
+                    : "8192".equals(capMode) ? 8192
+                    : "10240".equals(capMode) ? 10240
+                    : "12288".equals(capMode) ? 12288
                     : suggestVramCap();
             return Math.max(0, vramCap);
         } catch (Exception e) {
@@ -5554,6 +5618,44 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         }
     }
 
+    private static boolean isKirimuWrapper(String wrapper) {
+        return wrapper != null && wrapper.toLowerCase(Locale.ENGLISH).contains("kirimu");
+    }
+
+    private static String sanitizeWineLogDirectoryName(String value) {
+        String clean = value == null ? "" : value.trim()
+                .replaceAll("[^A-Za-z0-9._-]+", "_")
+                .replaceAll("^[.]+|[.]+$", "");
+        if (clean.isEmpty()) clean = "container";
+        return clean.length() > 80 ? clean.substring(0, 80) : clean;
+    }
+
+    private File getWineLogDirectory() {
+        File root = new File(Environment.getExternalStoragePublicDirectory(
+                Environment.DIRECTORY_DOWNLOADS), "WinXclipse/logs");
+        String name = container == null ? "container" : container.getName();
+        if (name == null || name.trim().isEmpty())
+            name = "container-" + (container == null ? "unknown" : container.id);
+        return new File(root, sanitizeWineLogDirectoryName(name));
+    }
+
+    private void prepareWineDiagnosticLogs() {
+        wineLogDirectory = null;
+        wineLogStamp = "";
+        if (preferences == null || !preferences.getBoolean("enable_wine_lifecycle_logs", false)) return;
+
+        wineLogDirectory = getWineLogDirectory();
+        if (!wineLogDirectory.isDirectory() && !wineLogDirectory.mkdirs()) {
+            Log.w("WineLifecycle", "Could not create per-container log directory: "
+                    + wineLogDirectory);
+            wineLogDirectory = null;
+            return;
+        }
+        wineLogStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date());
+        ProcessHelper.startDiagnosticLogs(wineLogDirectory, wineLogStamp);
+        Log.i("WineLifecycle", "Graphics diagnostics enabled at " + wineLogDirectory);
+    }
+
     private void writeWineLifecycleLogIfNeeded() {
         if (lifecycleLogWritten || preferences == null
                 || !preferences.getBoolean("enable_wine_lifecycle_logs", false)) return;
@@ -5566,15 +5668,13 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                     .toLowerCase(Locale.US).trim();
             if (!isStrictBaseWineProcess(name)) nonStandard.add(detail);
         }
-        if (!automaticLifecycleClose && nonStandard.isEmpty()) return;
-
-        File directory = new File(Environment.getExternalStoragePublicDirectory(
-                Environment.DIRECTORY_DOWNLOADS), "WinXclipse/logs");
+        File directory = wineLogDirectory != null ? wineLogDirectory : getWineLogDirectory();
         if (!directory.exists() && !directory.mkdirs()) {
             Log.w("WineLifecycle", "Could not create lifecycle log directory: " + directory);
             return;
         }
-        String stamp = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US)
+        String stamp = wineLogStamp;
+        if (stamp.isEmpty()) stamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US)
                 .format(new Date());
         File logFile = new File(directory, "wine_lifecycle_" + stamp + ".txt");
         StringBuilder report = new StringBuilder(4096);
@@ -5582,6 +5682,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 .append("Time: ").append(stamp).append('\n')
                 .append("Shortcut: ").append(shortcutName == null ? "(container)" : shortcutName)
                 .append('\n')
+                .append("Container log directory: ").append(directory.getAbsolutePath()).append('\n')
+                .append("DXVK side log: dxvk_").append(stamp).append(".log\n")
+                .append("VKD3D side log: vkd3d_").append(stamp).append(".log\n")
                 .append("Automatic close: ").append(automaticLifecycleClose).append('\n')
                 .append("Reason: ").append(lifecycleCloseReason.isEmpty()
                         ? "Session stopped while non-standard guest processes were active."
@@ -5596,7 +5699,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         else for (String process : nonStandard) report.append("- ").append(process).append('\n');
 
         List<String> recentLines = ProcessHelper.getRecentDebugLines();
-        int first = Math.max(0, recentLines.size() - 200);
+        int first = Math.max(0, recentLines.size() - 2000);
         report.append("\nLast guest output lines:\n");
         if (first == recentLines.size()) report.append("(none)\n");
         else for (int index = first; index < recentLines.size(); index++)

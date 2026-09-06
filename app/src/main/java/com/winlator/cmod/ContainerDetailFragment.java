@@ -578,6 +578,16 @@ public class ContainerDetailFragment extends Fragment {
                 && "1".equals(container.getExtra("experimentalPerformance", "0")));
         xperfConfig = isEditMode() ? container.getExtra("xperfConfig", "") : "";
 
+        final CheckBox cbWoW64PerformancePin = view.findViewById(R.id.CBWoW64PerformancePin);
+        final CheckBox cbTranslationTurbo = view.findViewById(R.id.CBTranslationTurbo);
+        KeyValueSet initialXPerfConfig = ExperimentalPerformanceDialog.parseConfig(xperfConfig);
+        cbWoW64PerformancePin.setChecked("1".equals(initialXPerfConfig.get("wow64Pin")));
+        cbTranslationTurbo.setChecked("1".equals(initialXPerfConfig.get("translationTurbo")));
+        view.findViewById(R.id.BTWOW64PerformancePinHelp).setOnClickListener(v ->
+                AppUtils.showHelpBox(context, v, R.string.xperf_help_wow64_pin));
+        view.findViewById(R.id.BTTranslationTurboHelp).setOnClickListener(v ->
+                AppUtils.showHelpBox(context, v, R.string.xperf_help_translation_turbo));
+
         final CheckBox cbExperimentalBCN = view.findViewById(R.id.CBExperimentalBCN);
         cbExperimentalBCN.setChecked(isEditMode()
                 && "1".equals(container.getExtra("experimentalBCN", "0")));
@@ -910,6 +920,10 @@ public class ContainerDetailFragment extends Fragment {
                 boolean gstreamerWorkaround = cbGStreamerWorkaroundToggle.isChecked();
                 boolean experimentalPerformance = cbExperimentalPerformance.isChecked();
                 boolean experimentalBCN = cbExperimentalBCN.isChecked();
+                KeyValueSet editedXPerfConfig = ExperimentalPerformanceDialog.parseConfig(xperfConfig);
+                editedXPerfConfig.put("wow64Pin", cbWoW64PerformancePin.isChecked() ? "1" : "0");
+                editedXPerfConfig.put("translationTurbo", cbTranslationTurbo.isChecked() ? "1" : "0");
+                xperfConfig = editedXPerfConfig.toString();
 
 
 
@@ -1129,7 +1143,11 @@ public class ContainerDetailFragment extends Fragment {
 
         WineThemeManager.ThemeInfo desktopTheme = new WineThemeManager.ThemeInfo(isEditMode() ? container.getDesktopTheme() : WineThemeManager.DEFAULT_DESKTOP_THEME);
         Spinner sDesktopTheme = view.findViewById(R.id.SDesktopTheme);
-        sDesktopTheme.setSelection(desktopTheme.theme.ordinal());
+        // Wine's Light/Dark choice mirrors the effective Android app theme.
+        // Keep the field visible so the active mode is obvious, but do not
+        // allow a value that the runtime would immediately override.
+        sDesktopTheme.setSelection(WineThemeManager.getResolvedTheme(context).ordinal());
+        sDesktopTheme.setEnabled(false);
         final ImagePickerView ipvDesktopBackgroundImage = view.findViewById(R.id.IPVDesktopBackgroundImage);
         final ColorPickerView cpvDesktopBackgroundColor = view.findViewById(R.id.CPVDesktopBackgroundColor);
         cpvDesktopBackgroundColor.setColor(desktopTheme.backgroundColor);

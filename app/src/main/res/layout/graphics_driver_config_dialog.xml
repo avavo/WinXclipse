@@ -92,6 +92,26 @@
             android:layout_height="wrap_content"
             android:gravity="center_vertical"
             android:orientation="horizontal">
+            <CheckBox
+                android:id="@+id/CBGraphicsBCN"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/experimental_bcn" />
+            <ImageView
+                android:id="@+id/BTGraphicsBCNHelp"
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:layout_marginLeft="8dp"
+                android:src="@drawable/icon_help"
+                app:tint="?colorAccent" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
             <CheckBox
                 android:id="@+id/CBSyncFrame"
@@ -137,6 +157,26 @@
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+                <CheckBox
+                    android:id="@+id/CBGraphicsBCNOptimization"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/bcn_xclipse_optimized" />
+                <ImageView
+                    android:id="@+id/BTGraphicsBCNOptimizationHelp"
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:layout_marginLeft="8dp"
+                    android:src="@drawable/icon_help"
+                    app:tint="?colorAccent" />
+            </LinearLayout>
 
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/bcn_emulation" />
             <Spinner android:id="@+id/SGraphicsDriverBCnEmulation" style="@style/ComboBox" android:layout_width="match_parent" android:layout_height="48dp" android:entries="@array/bcn_emulation_entries" />

@@ -44,6 +44,8 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
 - Transcode sessions extract the proven Winlator Mali pair: the new wrapper hides ASTC unless `WRAPPER_BCN_ASTC` is set (black ASTC without it, still exported for the new stack), and its tracked BCN copy path deadlocks RE3 on Xclipse on the first emulated texture in every transcode mode (silent hang, 0% CPU). Stale wrapper BCN/ASTC variables are cleared on every boot, the BCN quality preset is exported when not `auto` (Mali 1.2 parity), and containers migrate between pairs automatically.
 - The HUD reports `ARMED`, `LOADED`, `ACTIVE`, or a specific error for the effective BCN-to-ASTC/ETC2 path. `ACTIVE` is shown after a real transcode operation is logged, including the layer profile-line format, or after compute pipelines are created when a wrapper omits per-texture telemetry; layer mapping alone remains `LOADED`.
 - Wrapper-Default uses the safer Mali shader-patch policy intended to avoid the wrapper-side pipeline crash observed in Red Dead Redemption.
+- Experimental BCN is configured directly from the Graphics Driver gear. The established Leegao layer remains available as the default path, while the Xclipse-optimized BCN archive is a separate opt-in and is selected even when no explicit ASTC/ETC2 transcode mode is enabled.
+- Wrapper-Kirimu keeps the exact legacy bundled binary and uses only its integrated BCN interface. Leegao-only cache/transcode controls are disabled for Kirimu, safe device creation is enabled, and its staging arena is bounded to 128 MB to reduce the reported RAM growth/retry loop without replacing the old wrapper.
 
 ### Controls
 
@@ -88,6 +90,7 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
 - Texture Filter includes Bilinear, Nearest, FSR, and None; old FSR settings migrate to the current saved fields. Gyroscope input starts enabled, while LayerCache Helix stays opt-in.
 - The combined DXVK/VKD3D configuration includes the DDraw wrapper selector and a None option that restores Wine's builtin ddraw.dll.
 - Contextual help is available for theme, rotation, performance, DXVK/VKD3D, video, and graphics settings. Update checks are rate-limited so the prompt appears at most once every four days for a newer release.
+- Experimental Performance starts with every individual optimization disabled. WoW64 performance-core pinning and Translation Turbo sit with the main system controls instead of being preselected inside the tuning popup.
 - The HUD can show SoC load and GPU temperature and can disable the high-RAM blink/dialog. Modern 2340x1080, 2560x1440, and 3120x1440 display sizes are available to containers and shortcuts.
 - Wine stdout, stderr, and exit status are mirrored to logcat for startup diagnosis. Control shaders, native X11 blits, input-shim lookups, EGL/JNI lookups, and the audio pacer include the Souza changelog's low-overhead paths.
 - ARM64EC startup uses the current FEX bridge, WineD3D keeps the compatible GL route, the memory shim no longer leaks into the main native library, and fakeinput is size-verified before preload.
@@ -101,6 +104,8 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
 - Shortcut and Community Config cover cards now clip the artwork into rounded top corners and join cleanly to the lower text panel. Community cards repeat the cover as a dark blurred label background, show compatibility instead of the phone model, and keep each game's config count at the lower-left above the label. Every dialog, popup, and dropdown shares the purple-bordered style in both themes.
 - The Community Config install dialog shows a rounded portrait cover banner in a slightly narrower popup, and missing DXVK/Box64/FEXCore/VKD3D content is downloaded and installed automatically during import.
 - Container pickers act directly when only one container exists; the About and backend Logs dialogs follow the same bordered style, and logs can be saved to Downloads besides being shared.
+- All memory selectors now include 6, 8, 10 and 12 GB options, and the old 4092 MB value migrates to 4096 MB. Spinner and popup surfaces use the same purple outline in light and dark modes.
+- Wine Light/Dark mode follows the effective Android app theme and selects the matching bundled WinXclipse wallpaper whenever Background is set to Image; manually imported wallpapers remain supported.
 - Wine sessions support normal and reverse landscape, allowing either long edge of the phone or tablet to face upward without enabling portrait rotation.
 - Replaced the old update alert with a WinXclipse-styled AMOLED dialog that clearly shows installed and available versions.
 - Corrected the application version display to `0.9.5`.
@@ -121,6 +126,7 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
 - File sharing and generated frontend launch metadata resolve the active package ID for all four APK variants. The default frontend export directory is now `Downloads/WinXclipse/Frontend`.
 - D8VK 1.0 and the selected DXVK 1.10.3 async/ARM64EC payloads are bundled again, matching the visible defaults.
 - Shortcut sessions wait for all non-base guest processes to disappear and then close after five continuous idle seconds; Wine services and crash-defender/reporting processes cannot keep an exited or failed game session open. An optional Wine lifecycle diagnostic records the reason, process snapshot, non-standard processes and recent guest output in `Downloads/WinXclipse/logs`.
+- When lifecycle diagnostics are enabled, each container receives its own log directory with a general `wine_lifecycle` report plus separate timestamped DXVK and VKD3D logs. The feature remains disabled by default.
 - Out-of-spec X11 PutImage requests no longer terminate Wine sessions through a fatal BadMatch path; packed cursor and mask uploads use their correct size.
 - First-boot progress now advances through imagefs extraction, runtime installation, and finalization instead of appearing frozen.
 - Native X11 2D operations process full 32-bit pixels, reducing byte-loop overhead on shared LPDDR memory.

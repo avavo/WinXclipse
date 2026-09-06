@@ -7,8 +7,6 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
-import android.graphics.RectF;
-import android.util.DisplayMetrics;
 
 import com.winlator.cmod.R;
 import com.winlator.cmod.xenvironment.ImageFs;
@@ -60,8 +58,11 @@ public abstract class WineThemeManager {
         File rootDir = ImageFs.find(context).getRootDir();
         File userRegFile = new File(rootDir, ImageFs.WINEPREFIX+"/user.reg");
         String background = Color.red(themeInfo.backgroundColor)+" "+Color.green(themeInfo.backgroundColor)+" "+Color.blue(themeInfo.backgroundColor);
+        Theme resolvedTheme = getResolvedTheme(context);
 
-        if (themeInfo.backgroundType == BackgroundType.IMAGE) createWallpaperBMPFile(context, screenInfo);
+        if (themeInfo.backgroundType == BackgroundType.IMAGE) {
+            createWallpaperBMPFile(context, screenInfo, resolvedTheme);
+        }
 
         try (WineRegistryEditor registryEditor = new WineRegistryEditor(userRegFile)) {
             if (themeInfo.backgroundType == BackgroundType.IMAGE) {
@@ -69,7 +70,7 @@ public abstract class WineThemeManager {
             }
             else registryEditor.removeValue("Control Panel\\Desktop", "Wallpaper");
 
-            if (themeInfo.theme == Theme.LIGHT) {
+            if (resolvedTheme == Theme.LIGHT) {
                 registryEditor.setStringValue("Control Panel\\Colors", "ActiveBorder", "245 245 245");
                 registryEditor.setStringValue("Control Panel\\Colors", "ActiveTitle", "96 125 139");
                 registryEditor.setStringValue("Control Panel\\Colors", "Background", background);
@@ -101,7 +102,7 @@ public abstract class WineThemeManager {
                 registryEditor.setStringValue("Control Panel\\Colors", "WindowFrame", "158 158 158");
                 registryEditor.setStringValue("Control Panel\\Colors", "WindowText", "0 0 0");
             }
-            else if (themeInfo.theme == Theme.DARK) {
+            else {
                 registryEditor.setStringValue("Control Panel\\Colors", "ActiveBorder", "48 48 48");
                 registryEditor.setStringValue("Control Panel\\Colors", "ActiveTitle", "33 33 33");
                 registryEditor.setStringValue("Control Panel\\Colors", "Background", background);
@@ -136,7 +137,13 @@ public abstract class WineThemeManager {
         }
     }
 
-    private static void createWallpaperBMPFile(Context context, ScreenInfo screenInfo) {
+    /** Wine's desktop always follows the effective Android/app theme. */
+    public static Theme getResolvedTheme(Context context) {
+        return AppUtils.isDarkMode(context) ? Theme.DARK : Theme.LIGHT;
+    }
+
+    private static void createWallpaperBMPFile(Context context, ScreenInfo screenInfo,
+                                                Theme resolvedTheme) {
         final int outputHeight = 480;
         int outputWidth = (int)Math.ceil(((float)outputHeight / screenInfo.height) * screenInfo.width);
 
@@ -146,40 +153,36 @@ public abstract class WineThemeManager {
 
         File userWallpaperFile = getUserWallpaperFile(context);
         Bitmap image = userWallpaperFile.isFile() ? BitmapFactory.decodeFile(userWallpaperFile.getPath()) : null;
+        boolean customWallpaper = image != null;
+        if (!customWallpaper) {
+            BitmapFactory.Options options = new BitmapFactory.Options();
+            options.inScaled = false;
+            image = BitmapFactory.decodeResource(context.getResources(),
+                    resolvedTheme == Theme.DARK
+                            ? R.drawable.wine_wallpaper_dark
+                            : R.drawable.wine_wallpaper_light,
+                    options);
+        }
+
         if (image != null) {
             Rect srcRect = new Rect(0, 0, image.getWidth(), image.getHeight());
             Rect dstRect = new Rect(0, 0, outputWidth, outputHeight);
             canvas.drawBitmap(image, srcRect, dstRect, paint);
-        }
-        else if (userWallpaperFile.isFile()) {
-            // A wallpaper file exists but could not be decoded (corrupted/truncated);
-            // fall back to the bundled wallpaper instead of crashing.
-            paint.setStyle(Paint.Style.FILL);
-            paint.setColor(0xff01579b);
-            canvas.drawRect(0, 0, outputWidth, outputHeight * 0.5f, paint);
-            paint.setColor(0xff0277bd);
-            canvas.drawRect(0, outputHeight * 0.5f, outputWidth, outputHeight, paint);
+            image.recycle();
         }
         else {
-            BitmapFactory.Options options = new BitmapFactory.Options();
-            options.inTargetDensity = DisplayMetrics.DENSITY_HIGH;
-            Bitmap wallpaperBitmap = BitmapFactory.decodeResource(context.getResources(), R.drawable.wallpaper, options);
+            // Keep a deterministic fallback if either the custom or bundled
+            // image cannot be decoded; never leave Wine with a stale BMP.
             paint.setStyle(Paint.Style.FILL);
-            paint.setColor(0xff01579b);
+            paint.setColor(resolvedTheme == Theme.DARK ? 0xff120925 : 0xfff4a18c);
             canvas.drawRect(0, 0, outputWidth, outputHeight * 0.5f, paint);
-            paint.setColor(0xff0277bd);
+            paint.setColor(resolvedTheme == Theme.DARK ? 0xff0b1740 : 0xff322080);
             canvas.drawRect(0, outputHeight * 0.5f, outputWidth, outputHeight, paint);
-
-            float targetSize = outputHeight * (320.0f / 480.0f);
-            float centerX = (outputWidth - targetSize) * 0.5f;
-            float centerY = (outputHeight - targetSize) * 0.5f;
-            Rect srcRect = new Rect(0, 0, wallpaperBitmap.getWidth(), wallpaperBitmap.getHeight());
-            RectF dstRect = new RectF(centerX, centerY, centerX + targetSize, centerY + targetSize);
-            canvas.drawBitmap(wallpaperBitmap, srcRect, dstRect, paint);
         }
 
         ImageFs imageFs = ImageFs.find(context);
         MSBitmap.create(outputBitmap, new File(imageFs.getRootDir(), ImageFs.CACHE_PATH+"/wallpaper.bmp"));
+        outputBitmap.recycle();
     }
 
     public static File getUserWallpaperFile(Context context) {

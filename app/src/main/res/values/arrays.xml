@@ -66,6 +66,10 @@
         <item>1024 MB</item>
         <item>2048 MB</item>
         <item>4096 MB</item>
+        <item>6144 MB</item>
+        <item>8192 MB</item>
+        <item>10240 MB</item>
+        <item>12288 MB</item>
     </string-array>
     <string-array name="device_memory_entries">
         <item>0 (Default)</item>
@@ -73,6 +77,10 @@
         <item>1024 MB</item>
         <item>2048 MB</item>
         <item>4096 MB</item>
+        <item>6144 MB</item>
+        <item>8192 MB</item>
+        <item>10240 MB</item>
+        <item>12288 MB</item>
     </string-array>
     <string-array name="shortcut_artwork_mode_entries">
         <item>@string/shortcut_artwork_browser</item>
@@ -126,6 +134,10 @@
         <item>1024 MB</item>
         <item>2048 MB</item>
         <item>4096 MB</item>
+        <item>6144 MB</item>
+        <item>8192 MB</item>
+        <item>10240 MB</item>
+        <item>12288 MB</item>
     </string-array>
     <string-array name="dxvk_framerate_entries">
         <item>0 (Default)</item>

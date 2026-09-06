@@ -612,6 +612,16 @@ public class ShortcutSettingsDialog extends ContentDialog {
         final String containerXPerfConfig = shortcut.container.getExtra("xperfConfig", "");
         final String[] pendingXPerfConfig = { shortcut.getExtra("xperfConfig", containerXPerfConfig) };
 
+        final CheckBox cbWoW64PerformancePin = findViewById(R.id.CBWoW64PerformancePin);
+        final CheckBox cbTranslationTurbo = findViewById(R.id.CBTranslationTurbo);
+        KeyValueSet initialXPerfConfig = ExperimentalPerformanceDialog.parseConfig(pendingXPerfConfig[0]);
+        cbWoW64PerformancePin.setChecked("1".equals(initialXPerfConfig.get("wow64Pin")));
+        cbTranslationTurbo.setChecked("1".equals(initialXPerfConfig.get("translationTurbo")));
+        findViewById(R.id.BTWOW64PerformancePinHelp).setOnClickListener(v ->
+                AppUtils.showHelpBox(context, v, R.string.xperf_help_wow64_pin));
+        findViewById(R.id.BTTranslationTurboHelp).setOnClickListener(v ->
+                AppUtils.showHelpBox(context, v, R.string.xperf_help_translation_turbo));
+
         final CheckBox cbExperimentalBCN = findViewById(R.id.CBExperimentalBCN);
         final boolean containerExperimentalBCN = "1".equals(
                 shortcut.container.getExtra("experimentalBCN", "0"));
@@ -734,6 +744,11 @@ public class ShortcutSettingsDialog extends ContentDialog {
                 shortcut.putExtra("experimentalPerformance",
                         experimentalPerformance == containerExperimentalPerformance
                                 ? null : (experimentalPerformance ? "1" : "0"));
+                KeyValueSet editedXPerfConfig = ExperimentalPerformanceDialog.parseConfig(
+                        pendingXPerfConfig[0]);
+                editedXPerfConfig.put("wow64Pin", cbWoW64PerformancePin.isChecked() ? "1" : "0");
+                editedXPerfConfig.put("translationTurbo", cbTranslationTurbo.isChecked() ? "1" : "0");
+                pendingXPerfConfig[0] = editedXPerfConfig.toString();
                 String savedXPerf = pendingXPerfConfig[0] == null ? "" : pendingXPerfConfig[0];
                 shortcut.putExtra("xperfConfig", savedXPerf.equals(containerXPerfConfig) ? null : savedXPerf);
 

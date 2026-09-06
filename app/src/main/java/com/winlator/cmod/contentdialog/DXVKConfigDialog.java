@@ -300,6 +300,12 @@ public class DXVKConfigDialog extends ContentDialog {
     /** Precedencia do conf custom: atalho > container > global legado. */
     public static void setEnvVars(Context context, KeyValueSet config, EnvVars envVars, File containerRoot,
                                   int explicitCapMb, File shortcutConf) {
+        setEnvVars(context, config, envVars, containerRoot, explicitCapMb, shortcutConf, null);
+    }
+
+    /** Applies DXVK/VKD3D settings and optionally routes graphics diagnostics to a container log directory. */
+    public static void setEnvVars(Context context, KeyValueSet config, EnvVars envVars, File containerRoot,
+                                  int explicitCapMb, File shortcutConf, File diagnosticLogDirectory) {
         // Keep every D3D shader cache on fast internal storage. DXVK 1.x uses
         // STATE_CACHE_PATH while modern DXVK and VKD3D-Proton use their shader
         // cache variables, so set all three for both ARM64EC and x86 runtimes.
@@ -312,10 +318,19 @@ public class DXVKConfigDialog extends ContentDialog {
         envVars.put("DXVK_STATE_CACHE_PATH", cachePath);
         envVars.put("DXVK_SHADER_CACHE_PATH", cachePath);
         envVars.put("VKD3D_SHADER_CACHE_PATH", cachePath);
-        envVars.put("DXVK_LOG_LEVEL", "none");
-        envVars.put("DXVK_LOG_PATH", "none");
-        envVars.put("VKD3D_DEBUG", "none");
-        envVars.put("VKD3D_SHADER_DEBUG", "none");
+        if (diagnosticLogDirectory != null) {
+            if (!diagnosticLogDirectory.isDirectory()) diagnosticLogDirectory.mkdirs();
+            envVars.put("DXVK_LOG_LEVEL", "error");
+            envVars.put("DXVK_LOG_PATH", diagnosticLogDirectory.getAbsolutePath());
+            envVars.put("VKD3D_DEBUG", "err");
+            envVars.put("VKD3D_SHADER_DEBUG", "err");
+        }
+        else {
+            envVars.put("DXVK_LOG_LEVEL", "none");
+            envVars.put("DXVK_LOG_PATH", "none");
+            envVars.put("VKD3D_DEBUG", "none");
+            envVars.put("VKD3D_SHADER_DEBUG", "none");
+        }
         if ("1".equals(config.get("noTimeline")))
             envVars.put("DXVK_DISABLE_TIMELINE_SEMAPHORES", "1");
         // SM 6.6 so faz sentido com VKD3D ativo; com "none" o jogo e D3D11 e a

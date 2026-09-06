@@ -581,6 +581,38 @@
                         android:id="@+id/SStartupSelection"
                         android:entries="@array/startup_selection_entries" />
 
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+                        <CheckBox
+                            android:id="@+id/CBWoW64PerformancePin"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="@string/xperf_wow64_pin" />
+                        <ImageView
+                            style="@style/HelpButton"
+                            android:id="@+id/BTWOW64PerformancePinHelp" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+                        <CheckBox
+                            android:id="@+id/CBTranslationTurbo"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="@string/xperf_translation_turbo" />
+                        <ImageView
+                            style="@style/HelpButton"
+                            android:id="@+id/BTTranslationTurboHelp" />
+                    </LinearLayout>
+
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
@@ -624,7 +656,8 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:gravity="center_vertical"
-                        android:orientation="horizontal">
+                        android:orientation="horizontal"
+                        android:visibility="gone">
                         <CheckBox
                             android:id="@+id/CBExperimentalBCN"
                             android:layout_width="0dp"
