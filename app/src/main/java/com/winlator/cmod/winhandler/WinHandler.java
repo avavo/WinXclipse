@@ -1291,6 +1291,30 @@ public class WinHandler {
         updateVirtualActivator(state); // keep gyroActive in sync with virtual presses
     }
 
+    /**
+     * Publishes an unconditional neutral P1 state through every controller
+     * backend. This recovers games whose fake-input consumer missed a release
+     * even though the shared-memory state already returned to zero.
+     */
+    public void neutralizeVirtualGamepadState() {
+        final ControlsProfile profile = activity.getInputControlsView().getProfile();
+        if (profile == null || !profile.isVirtualGamepad()) return;
+
+        GamepadState state = profile.getGamepadState();
+        state.reset();
+        lastVirtualState = state;
+        hasVirtualState = true;
+        gyroX = gyroY = 0f;
+        smoothGyroX = smoothGyroY = 0f;
+        isGyroActive = false;
+        lastVirtualActivatorPressed = false;
+
+        writeStateToMappedBuffer(state, gamepadBuffer, true, 0);
+        FakeInputWriter writer = fakeInputWriters[0];
+        if (writer != null) writer.reset();
+        sendGamepadState();
+    }
+
     // ========================== Controller mapping ==========================
 
     public void refreshControllerMappings() {

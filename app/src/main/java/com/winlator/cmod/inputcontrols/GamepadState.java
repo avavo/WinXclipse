@@ -48,6 +48,17 @@ public class GamepadState {
         return (buttons & (1<<buttonIdx)) != 0;
     }
 
+    public void reset() {
+        thumbLX = 0;
+        thumbLY = 0;
+        thumbRX = 0;
+        thumbRY = 0;
+        triggerL = 0;
+        triggerR = 0;
+        buttons = 0;
+        for (int i = 0; i < dpad.length; i++) dpad[i] = false;
+    }
+
     public byte getDPadX() {
         return (byte)(dpad[1] ? 1 : (dpad[3] ? -1 : 0));
     }

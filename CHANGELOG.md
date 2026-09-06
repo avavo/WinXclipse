@@ -27,6 +27,7 @@ All notable changes between WinXclipse releases, newest first.
 - Settings offers an optional alternative WinXclipse launcher icon. Android switches between launcher aliases without killing the app, while the default icon remains available at any time.
 - Graphics Driver Configuration now contains the Experimental BCN master and a separate `Use optimized Xclipse BCN layer` switch. The established Leegao path remains the default; the Xclipse-tuned archive is loaded only when explicitly selected.
 - Optional Wine lifecycle diagnostics now create a per-container directory under `Downloads/WinXclipse/logs` with a general session report plus separate DXVK and VKD3D side logs.
+- Virtual gamepad releases now publish a complete neutral snapshot on touch-up, cancellation, and window focus loss, preventing RE Engine titles such as Resident Evil 2 from keeping a stick or button held after a missed release event.
 
 ### Changed
 

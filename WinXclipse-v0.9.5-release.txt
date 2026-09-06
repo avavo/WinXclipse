@@ -46,6 +46,7 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
 - Wrapper-Default uses the safer Mali shader-patch policy intended to avoid the wrapper-side pipeline crash observed in Red Dead Redemption.
 - Experimental BCN is configured directly from the Graphics Driver gear. The established Leegao layer remains available as the default path, while the Xclipse-optimized BCN archive is a separate opt-in and is selected even when no explicit ASTC/ETC2 transcode mode is enabled.
 - Wrapper-Kirimu keeps the exact legacy bundled binary and uses only its integrated BCN interface. Leegao-only cache/transcode controls are disabled for Kirimu, safe device creation is enabled, and its staging arena is bounded to 128 MB to reduce the reported RAM growth/retry loop without replacing the old wrapper.
+- Virtual gamepad releases now publish a complete neutral snapshot on touch-up, cancellation, and window focus loss, preventing RE Engine titles such as Resident Evil 2 from keeping a stick or button held after a missed release event.
 
 ### Controls
 

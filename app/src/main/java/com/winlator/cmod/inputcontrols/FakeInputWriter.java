@@ -117,6 +117,10 @@ public final class FakeInputWriter {
 
         if (!changed) return;
         writeEvent(EV_SYN, SYN_REPORT, 0);
+        flushBuffer();
+    }
+
+    private void flushBuffer() {
         buffer.flip();
         try {
             while (buffer.hasRemaining()) channel.write(buffer);
@@ -129,8 +133,29 @@ public final class FakeInputWriter {
 
     public synchronized void reset() {
         if (!open && !open()) return;
-        GamepadState neutral = new GamepadState();
-        writeGamepadState(neutral);
+        // Send a complete neutral snapshot instead of relying on the local
+        // delta cache. If Wine/libfakeinput missed one release event, the
+        // writer can already believe it is neutral while the game is not.
+        buffer.clear();
+        changed = false;
+        for (int i = 0; i < BUTTON_MAP.length; i++) {
+            previousButtons[i] = false;
+            writeEvent(EV_MSC, MSC_SCAN, BUTTON_MAP[i]);
+            writeEvent(EV_KEY, BUTTON_MAP[i], 0);
+        }
+        previousLX = previousLY = previousRX = previousRY = 0;
+        previousLT = previousRT = 0;
+        previousHatX = previousHatY = 0;
+        writeEvent(EV_ABS, ABS_X, 0);
+        writeEvent(EV_ABS, ABS_Y, 0);
+        writeEvent(EV_ABS, ABS_RX, 0);
+        writeEvent(EV_ABS, ABS_RY, 0);
+        writeEvent(EV_ABS, ABS_BRAKE, 0);
+        writeEvent(EV_ABS, ABS_GAS, 0);
+        writeEvent(EV_ABS, ABS_HAT0X, 0);
+        writeEvent(EV_ABS, ABS_HAT0Y, 0);
+        writeEvent(EV_SYN, SYN_REPORT, 0);
+        flushBuffer();
     }
 
     public synchronized void destroy() {

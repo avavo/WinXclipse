@@ -640,6 +640,10 @@ public class InputControlsView extends View {
                 case MotionEvent.ACTION_POINTER_UP:
                     for (ControlElement element : profile.getElements()) if (element.handleTouchUp(pointerId)) handled = true;
                     if (!handled) touchpadView.onTouchEvent(event);
+                    // ACTION_UP is the end of the complete gesture. Re-publish
+                    // an unconditional neutral snapshot so a missed Linux
+                    // fake-input release cannot leave games walking/turning.
+                    if (actionMasked == MotionEvent.ACTION_UP) neutralizeVirtualGamepadState();
                     break;
                 case MotionEvent.ACTION_CANCEL:
                     cancelAllTouches();
@@ -657,7 +661,14 @@ public class InputControlsView extends View {
         if (profile == null) return;
         for (ControlElement element : profile.getElements()) element.handleTouchCancel();
         mouseMoveOffset.set(0, 0);
+        neutralizeVirtualGamepadState();
         invalidate();
+    }
+
+    private void neutralizeVirtualGamepadState() {
+        if (profile == null || !profile.isVirtualGamepad() || xServer == null) return;
+        WinHandler winHandler = xServer.getWinHandler();
+        if (winHandler != null) winHandler.neutralizeVirtualGamepadState();
     }
 
     public boolean hasActiveTouches() {

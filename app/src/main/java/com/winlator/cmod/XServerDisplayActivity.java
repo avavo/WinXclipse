@@ -1251,6 +1251,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     public void onPause() {
         super.onPause();
         if (launchBlockedByContentOperation) return;
+        if (inputControlsView != null) inputControlsView.cancelAllTouches();
         boolean gyroEnabled = preferences.getBoolean("gyro_enabled", true);
 
         if (gyroEnabled) {
@@ -1950,6 +1951,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
         if (!hasFocus) {
+            if (inputControlsView != null) inputControlsView.cancelAllTouches();
             if (pointerCaptureRequested && touchpadView != null) {
                 touchpadView.releasePointerCapture();
                 pointerCaptureRequested = false;
