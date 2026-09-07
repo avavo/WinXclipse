@@ -66,6 +66,16 @@ public class DXVKConfigDialog extends ContentDialog {
             return 0;
         }
     }
+    // Pool pequeno para RAGE (GTA V): a comunidade confirmou que reportar pouca
+    // VRAM (512 MB) mantem a RAM total em ~80% em vez de 85-90% (faixa do lmkd),
+    // junto das flags de streaming do RAM Fix. So faz sentido com ramFix ligado
+    // e sem conf custom/hard cap do usuario, que sempre tem precedencia.
+    public static final int RAGE_SMALL_POOL_MB = 512;
+    public static String buildRageFallbackConfig() {
+        return "d3d11.relaxedBarriers = False; dxvk.useRawSsbo = Auto; " +
+                "dxgi.maxDeviceMemory = " + RAGE_SMALL_POOL_MB + "; dxgi.maxSharedMemory = 2048" +
+                "; d3d9.maxAvailableMemory = 4096";
+    }
     public static final String[] VKD3D_FEATURE_LEVELS = {"12_0", "12_1", "12_2", "11_1", "11_0", "10_1", "10_0", "9_3", "9_2", "9_1"};
     public static final int DXVK_TYPE_NONE = 0;
     public static final int DXVK_TYPE_ASYNC = 1;
@@ -306,6 +316,12 @@ public class DXVKConfigDialog extends ContentDialog {
     /** Applies DXVK/VKD3D settings and optionally routes graphics diagnostics to a container log directory. */
     public static void setEnvVars(Context context, KeyValueSet config, EnvVars envVars, File containerRoot,
                                   int explicitCapMb, File shortcutConf, File diagnosticLogDirectory) {
+        setEnvVars(context, config, envVars, containerRoot, explicitCapMb, shortcutConf, diagnosticLogDirectory, false);
+    }
+
+    /** Mesmo que acima, com pool pequeno reportado para alvos RAGE (GTA V). */
+    public static void setEnvVars(Context context, KeyValueSet config, EnvVars envVars, File containerRoot,
+                                  int explicitCapMb, File shortcutConf, File diagnosticLogDirectory, boolean rageSmallPool) {
         // Keep every D3D shader cache on fast internal storage. DXVK 1.x uses
         // STATE_CACHE_PATH while modern DXVK and VKD3D-Proton use their shader
         // cache variables, so set all three for both ARM64EC and x86 runtimes.
@@ -363,8 +379,11 @@ public class DXVKConfigDialog extends ContentDialog {
                 // (o DXVK le esse arquivo sozinho; o env tem precedencia).
                 // Respeita um DXVK_CONFIG manual da aba EnvVars, se houver.
                 if (!envVars.has("DXVK_CONFIG"))
-                    envVars.put("DXVK_CONFIG", buildSafeFallbackConfig(context, explicitCapMb));
-                Log.i("DXVKConfigDialog", "No custom dxvk.conf, applying safe fallback overrides");
+                    envVars.put("DXVK_CONFIG", rageSmallPool ? buildRageFallbackConfig()
+                            : buildSafeFallbackConfig(context, explicitCapMb));
+                Log.i("DXVKConfigDialog", rageSmallPool
+                        ? "No custom dxvk.conf, applying RAGE small-pool overrides (512MB device)"
+                        : "No custom dxvk.conf, applying safe fallback overrides");
             }
         }
 

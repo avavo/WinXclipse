@@ -4358,8 +4358,16 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         if (dxwrapper.equals("dxvk")) {
             java.io.File containerRoot = container != null ? container.getRootDir() : null;
             java.io.File shortcutConf = shortcut != null ? shortcut.getDxvkConfFile() : null;
+            int effectiveVramCapMb = resolveEffectiveVramCapMb();
+            // RAGE com RAM Fix e sem hard cap do usuario: pool pequeno reportado
+            // (512 MB). Conf custom, DXVK_CONFIG manual e hard cap passam na frente
+            // dentro do setEnvVars; sem RAM Fix fica o fallback normal por tier.
+            boolean rageSmallPool = isRageShortcut(shortcut)
+                    && effectiveVramCapMb <= 0
+                    && this.dxwrapperConfig != null
+                    && this.dxwrapperConfig.getBoolean("ramFix", true);
             DXVKConfigDialog.setEnvVars(this, dxwrapperConfig, envVars, containerRoot,
-                    resolveEffectiveVramCapMb(), shortcutConf, wineLogDirectory);
+                    effectiveVramCapMb, shortcutConf, wineLogDirectory, rageSmallPool);
         }
 
         boolean showFps = container != null && container.isShowFPS();
@@ -5377,9 +5385,16 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 args += "/dir " + StringUtils.escapeDOSPath(exeDir) + " \"" + filename + "\"" + execArgs;
             }
 
-            // GTA V em mobile estoura a RAM no streaming dirigindo pela cidade;
-            // RAM Fix completa as flags anti-OOM que o usuario ainda nao definiu.
-            if (RageLaunchArgs.isGtaV(rageExeName)) {
+            // GTA V em mobile estoura a RAM no streaming (van do inicio, dirigindo
+            // pela cidade); RAM Fix completa as flags anti-OOM que o usuario ainda
+            // nao definiu. Vale para a cadeia toda (PlayGTAV/GTA5 direto,
+            // GTAVLauncher, Language Selector): o atalho padrao do repack e o
+            // launcher, que antes pulavam tudo e crashavam "do nada".
+            boolean rageDirect = RageLaunchArgs.isGtaV(rageExeName);
+            boolean rageCliForwarder = rageExeName != null
+                    && rageExeName.equalsIgnoreCase("GTAVLauncher.exe");
+            boolean rageChain = rageDirect || rageCliForwarder || isRageShortcut(shortcut);
+            if (rageChain) {
                 KeyValueSet dxvkLaunchConfig = DXVKConfigDialog.parseConfig(dxwrapperConfig);
                 boolean ramFix = dxvkLaunchConfig.getBoolean("ramFix", true);
                 // O preset agressivo continua separado e opt-in; RAM Fix nunca
@@ -5387,7 +5402,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 boolean gtaOpt = "1".equals(dxvkLaunchConfig.get("gtaOpt"))
                         || "1".equals(shortcut.getExtra("gtaOptimization", "0"))
                         || (container != null && "1".equals(container.getExtra("gtaOptimization", "0")));
-                if (gtaOpt && !execArgs.toLowerCase(java.util.Locale.ENGLISH).contains("-nomemrestrict")) {
+                // Flags de CLI so vao para binarios RAGE que as aceitam (jogo direto
+                // ou GTAVLauncher, que repassa). Outras ferramentas na pasta do jogo
+                // (ex.: unins000.exe) nao recebem nada na linha de comando; o
+                // commandline.txt abaixo ja cobre o jogo em qualquer cadeia.
+                boolean forwardCli = rageDirect || rageCliForwarder;
+                if (gtaOpt && forwardCli && !execArgs.toLowerCase(java.util.Locale.ENGLISH).contains("-nomemrestrict")) {
                     args += RageLaunchArgs.POTATO_ARGS;
                     execArgs += RageLaunchArgs.POTATO_ARGS;
                     Log.i("WineStartCommand", "GTA V optimization preset applied");
@@ -5399,10 +5419,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                             ? resolved.getParentFile() : null;
                     if (ramFix) {
                         String missing = RageLaunchArgs.missingArgs(execArgs, gameDir);
-                        if (!missing.isEmpty()) {
+                        if (!missing.isEmpty() && forwardCli) {
                             args += missing;
                             Log.i("WineStartCommand", "GTA V RAM Fix args appended:" + missing);
                         }
+                        // commandline.txt o RAGE sempre le do diretorio do jogo,
+                        // independente do launcher: cobre a cadeia inteira.
                         RageLaunchArgs.ensureCommandLineTxt(gameDir, execArgs);
                     }
                     else {
