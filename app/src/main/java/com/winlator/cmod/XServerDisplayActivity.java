@@ -1082,6 +1082,39 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         return false;
     }
 
+    /**
+     * Alvo RAGE (GTA V)? Cobre o exe direto (PlayGTAV/GTA5), o launcher e a
+     * cadeia via pasta do jogo (ex.: Language Selector na mesma pasta).
+     */
+    private static boolean isRageShortcut(Shortcut shortcut) {
+        if (shortcut == null) return false;
+        try {
+            String exeName = shortcut.getExecutable();
+            if (exeName != null) {
+                int space = exeName.indexOf(' ');
+                if (space >= 0) exeName = exeName.substring(0, space);
+                exeName = exeName.replace("\"", "").trim();
+                int slash = Math.max(exeName.lastIndexOf('\\'), exeName.lastIndexOf('/'));
+                if (slash >= 0) exeName = exeName.substring(slash + 1);
+                if (RageLaunchArgs.isGtaV(exeName)
+                        || exeName.equalsIgnoreCase("GTAVLauncher.exe")) return true;
+            }
+            java.io.File resolved = shortcut.resolveExecutableFile();
+            if (resolved != null) {
+                if (RageLaunchArgs.isGtaV(resolved.getName())) return true;
+                java.io.File dir = resolved.getParentFile();
+                if (dir != null && dir.isDirectory()) {
+                    return new java.io.File(dir, "GTA5.exe").isFile()
+                            || new java.io.File(dir, "PlayGTAV.exe").isFile()
+                            || new java.io.File(dir, "GTAVLauncher.exe").isFile();
+                }
+            }
+        } catch (Exception e) {
+            Log.w("XServerDisplayActivity", "RAGE probe failed", e);
+        }
+        return false;
+    }
+
 
 
 
@@ -2129,17 +2162,75 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             containerDataChanged = true;
         }
 
-        if (!"1".equals(container.getExtra("controllerFixVersion"))) {
+        // Controller fix (xidi): mapeia os gamepads virtuais no DirectInput para os
+        // controles nao ficarem presos/falhando em jogos DInput. So e instalado
+        // quando DInput esta ativo, e nunca para alvos RAGE (GTA V usa XInput e o
+        // overwrite quebrava o boot). v2 migra prefixes marcados com v1.
+        // Prefix novo sem o fix usa o builtin do Wine, como nos outros Winlator.
+        String controllerFixVersion = container.getExtra("controllerFixVersion");
+        {
+            int effectiveInputType = container.getInputType();
+            if (shortcut != null) {
+                String shortcutInputType = shortcut.getExtra("inputType");
+                if (!shortcutInputType.isEmpty()) {
+                    try {
+                        effectiveInputType = Byte.parseByte(shortcutInputType);
+                    }
+                    catch (NumberFormatException ignored) {}
+                }
+            }
+            boolean effectiveDinput = (effectiveInputType & WinHandler.FLAG_INPUT_TYPE_DINPUT) != 0;
+            boolean rageTarget = isRageShortcut(shortcut);
             File system32Dir = new File(container.getRootDir(), ".wine/drive_c/windows/system32");
-            FileUtils.copy(this, "controllerfix/dinput.dll", new File(system32Dir, "dinput.dll"));
-            FileUtils.copy(this, "controllerfix/dinput8.dll", new File(system32Dir, "dinput8.dll"));
-            FileUtils.copy(this, "controllerfix/xidi.ini", new File(system32Dir, "xidi.ini"));
-            // FileUtils.copy swallows IO errors; only mark as applied when the
-            // files really landed so a failed copy is retried on next launch.
-            if (new File(system32Dir, "dinput.dll").isFile()
-                    && new File(system32Dir, "dinput8.dll").isFile()
-                    && new File(system32Dir, "xidi.ini").isFile()) {
-                container.putExtra("controllerFixVersion", "1");
+            boolean xidiPresent = new File(system32Dir, "xidi.ini").isFile();
+            boolean shouldHaveXidi = effectiveDinput && !rageTarget;
+            Log.i("XServerDisplayActivity", "controllerfix gate: version=" + controllerFixVersion
+                    + " dinput=" + effectiveDinput + " rage=" + rageTarget
+                    + " wantXidi=" + shouldHaveXidi + " haveXidi=" + xidiPresent);
+            if (!shouldHaveXidi) {
+                // xidi.ini so existe se nos instalamos: e o marcador seguro.
+                // Prefix novo (sem versao) ja usa o builtin: nunca apagar o builtin aqui.
+                if (xidiPresent) {
+                    try {
+                        File srcDir;
+                        if (wineInfo != null && wineInfo.isArm64EC())
+                            srcDir = new File(imageFs.getWinePath() + "/lib/wine/aarch64-windows");
+                        else if (wineInfo != null && !wineInfo.isWin64())
+                            srcDir = new File(imageFs.getWinePath() + "/lib/wine/i386-windows");
+                        else
+                            srcDir = new File(imageFs.getWinePath() + "/lib/wine/x86_64-windows");
+                        File syswow64SrcDir = new File(imageFs.getWinePath() + "/lib/wine/i386-windows");
+                        File syswow64Dir = new File(container.getRootDir(), ".wine/drive_c/windows/syswow64");
+                        for (String dll : new String[]{"dinput.dll", "dinput8.dll"}) {
+                            FileUtils.copy(new File(srcDir, dll), new File(system32Dir, dll));
+                            if (wineInfo == null || wineInfo.isWin64())
+                                FileUtils.copy(new File(syswow64SrcDir, dll), new File(syswow64Dir, dll));
+                        }
+                    } catch (Exception e) {
+                        Log.w("XServerDisplayActivity", "Could not restore builtin dinput", e);
+                    }
+                    if (new File(system32Dir, "xidi.ini").delete())
+                        Log.i("XServerDisplayActivity", "Removed xidi controllerfix (dinput=" + effectiveDinput + " rage=" + rageTarget + ")");
+                }
+                if (!"2".equals(controllerFixVersion)) {
+                    container.putExtra("controllerFixVersion", "2");
+                    containerDataChanged = true;
+                }
+            } else if (!xidiPresent) {
+                FileUtils.copy(this, "controllerfix/dinput.dll", new File(system32Dir, "dinput.dll"));
+                FileUtils.copy(this, "controllerfix/dinput8.dll", new File(system32Dir, "dinput8.dll"));
+                FileUtils.copy(this, "controllerfix/xidi.ini", new File(system32Dir, "xidi.ini"));
+                // FileUtils.copy swallows IO errors; only mark as applied when the
+                // files really landed so a failed copy is retried on next launch.
+                if (new File(system32Dir, "dinput.dll").isFile()
+                        && new File(system32Dir, "dinput8.dll").isFile()
+                        && new File(system32Dir, "xidi.ini").isFile()) {
+                    Log.i("XServerDisplayActivity", "Installed xidi controllerfix (dinput=" + effectiveDinput + " rage=" + rageTarget + ")");
+                    container.putExtra("controllerFixVersion", "2");
+                    containerDataChanged = true;
+                }
+            } else if (!"2".equals(controllerFixVersion)) {
+                container.putExtra("controllerFixVersion", "2");
                 containerDataChanged = true;
             }
         }
