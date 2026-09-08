@@ -16,6 +16,7 @@ import com.winlator.cmod.contents.ContentsManager;
 import com.winlator.cmod.core.AppUtils;
 import com.winlator.cmod.core.DefaultVersion;
 import com.winlator.cmod.core.EnvVars;
+import com.winlator.cmod.core.FileUtils;
 import com.winlator.cmod.core.KeyValueSet;
 import com.winlator.cmod.core.StringUtils;
 import com.winlator.cmod.core.VKD3DVersionItem;
@@ -30,56 +31,20 @@ import java.util.List;
 public class DXVKConfigDialog extends ContentDialog {
     public static final String DEFAULT_CONFIG = "version="+DefaultVersion.DXVK+",framerate=0,async=1,asyncCache=0,vkd3dVersion="+DefaultVersion.VKD3D+",vkd3dLevel=12_1,ddrawrapper=,noTimeline=1,vk3d66=1,ramFix=1,ramFixPool=0";
     public static final String CUSTOM_CONF_FILENAME = "dxvk.conf";
+    public static final String MANAGED_CONF_GUEST_PATH = "Z:/usr/dxvk.conf";
+    private static final String MANAGED_CONF_RELATIVE_PATH = "usr/dxvk.conf";
+    private static final String GENERATED_CONF_MARKER = "# WinXclipse generated RAM Fix";
     public static final long MAX_CUSTOM_CONF_BYTES = 64 * 1024;
     // Neutraliza as chaves que quebram RE Engine/RAGE em GPU movel quando um
     // dxvk.conf embarcado no repack (OpJuegos/ADM/Mali) vaza para a sessao.
     // Inclui o cap de VRAM reportada: sem ele o jogo dimensiona os pools de
     // streaming pelo heap inteiro e morre de OOM andando de carro (GTA V).
-    // explicitCapMb e o menor hard cap ativo (driver/xperf): o reportado nunca
-    // passa do real, senao o jogo planeja alem do que existe e perde textura.
-    // Chaves de seguranca: sempre valem (neutralizam repack quebrado). Chaves de
-    // memoria cedem para um dxvk.conf ao lado do .exe (CR/repack): o arquivo
-    // governa a memoria dele, como nos outros Winlator — o env nao pisa nele.
+    // explicitCapMb e o menor limite selecionado (driver/xperf); com RAM Fix
+    // ele restringe apenas o valor reportado, sem estrangular o heap Vulkan.
+    // Um arquivo custom substitui o template inteiro e continua sendo a saida
+    // avancada para jogos que precisam de chaves proprias.
     private static final String SAFETY_KEYS =
             "d3d11.relaxedBarriers = False; dxvk.useRawSsbo = Auto";
-    private static final String[] MEMORY_KEYS =
-            {"dxgi.maxdevicememory", "dxgi.maxsharedmemory", "d3d9.maxavailablememory"};
-
-    /** Chaves (lowercase) definidas num dxvk.conf ao lado do exe, se existir. */
-    public static java.util.Set<String> gameDirConfKeys(File gameDirDxvkConf) {
-        java.util.Set<String> keys = new java.util.HashSet<>();
-        if (gameDirDxvkConf == null || !gameDirDxvkConf.isFile()) return keys;
-        try {
-            String content = new String(java.nio.file.Files.readAllBytes(gameDirDxvkConf.toPath()),
-                    java.nio.charset.StandardCharsets.UTF_8);
-            for (String line : content.split("\r?\n")) {
-                String t = line.trim();
-                int hash = t.indexOf('#');
-                if (hash >= 0) t = t.substring(0, hash).trim();
-                int eq = t.indexOf('=');
-                if (eq > 0) keys.add(t.substring(0, eq).trim().toLowerCase(java.util.Locale.ENGLISH));
-            }
-        } catch (Exception ignored) {}
-        return keys;
-    }
-
-    /** Monta o env final: seguranca sempre + memoria so nas chaves que o arquivo nao definiu. */
-    public static String mergeGameDirConf(String memoryPart, java.util.Set<String> fileKeys) {
-        StringBuilder out = new StringBuilder(SAFETY_KEYS);
-        if (memoryPart != null) {
-            for (String entry : memoryPart.split(";")) {
-                String t = entry.trim();
-                if (t.isEmpty()) continue;
-                int eq = t.indexOf('=');
-                String key = eq > 0 ? t.substring(0, eq).trim().toLowerCase(java.util.Locale.ENGLISH) : "";
-                boolean isMemory = false;
-                for (String mk : MEMORY_KEYS) if (mk.equals(key)) { isMemory = true; break; }
-                if (isMemory && fileKeys.contains(key)) continue;
-                out.append("; ").append(t);
-            }
-        }
-        return out.toString();
-    }
 
     /** Pool configurado pelo usuario no dialogo (0 = Auto). So vale com RAM Fix ligado. */
     public static int resolveRamFixPoolMb(KeyValueSet config) {
@@ -101,15 +66,14 @@ public class DXVKConfigDialog extends ContentDialog {
         if (explicitCapMb > 0) {
             dev = explicitCapMb;
             shared = explicitCapMb;
-            // Reportado nunca passa do hard cap real: senao o jogo planeja
-            // alem do que existe e perde textura. Teto de 4096 no d3d9.
+            // O valor escolhido limita toda a memoria reportada. Teto de 4096
+            // no d3d9 quando o RAM Fix nao aplica um pool explicito uniforme.
             d3d9 = Math.min(explicitCapMb, 4096);
         } else if (ramFixOn) {
             // RAM Fix geral (todos os jogos, nao so RAGE): teto conservador para
             // memoria unificada nao empurrar a RAM total para 85-90% (faixa do
             // lmkd) nem derrubar o celular inteiro em aparelho curto. Como nos
-            // outros Winlator, o dxvk.conf ao lado do .exe governa a memoria
-            // dele (merge por chave no setEnvVars) — aqui e so o fallback.
+            // outros Winlator, um dxvk.conf custom substitui este fallback.
             if (getTotalMemMb(context) <= 6144) {
                 dev = 1024;
                 shared = 1024;
@@ -134,6 +98,7 @@ public class DXVKConfigDialog extends ContentDialog {
 
     private static String formatMemoryPart(int dev, int shared, int d3d9) {
         return "dxgi.maxDeviceMemory = " + dev + "; dxgi.maxSharedMemory = " + shared
+                + "; d3d9.maxDeviceMemory = " + d3d9
                 + "; d3d9.maxAvailableMemory = " + d3d9;
     }
 
@@ -146,16 +111,11 @@ public class DXVKConfigDialog extends ContentDialog {
         return tierMemoryPart(context, explicitCapMb, true);
     }
 
-    /** Aplica o override do seletor de pool: troca so o device, shared/d3d9 seguem o auto. */
+    /** Aplica o seletor a todos os campos de memoria reportada, como no Winlator-Mali. */
     private static String applyPoolOverride(String memoryPart, int poolMb, int explicitCapMb) {
         if (poolMb <= 0) return memoryPart;
-        int dev = explicitCapMb > 0 ? Math.min(poolMb, explicitCapMb) : poolMb;
-        try {
-            String rest = memoryPart.replaceFirst("(?i)dxgi\\.maxDeviceMemory\\s*=\\s*\\d+",
-                    "dxgi.maxDeviceMemory = " + dev);
-            if (!rest.equals(memoryPart)) return rest;
-        } catch (Exception ignored) {}
-        return "dxgi.maxDeviceMemory = " + dev + "; " + memoryPart;
+        int reported = explicitCapMb > 0 ? Math.min(poolMb, explicitCapMb) : poolMb;
+        return formatMemoryPart(reported, reported, reported);
     }
 
     private static long getTotalMemMb(Context context) {
@@ -170,17 +130,14 @@ public class DXVKConfigDialog extends ContentDialog {
         }
     }
     // Pool pequeno para RAGE (GTA V): a comunidade confirmou que reportar pouca
-    // VRAM (512 MB device) mantem a RAM total em ~80% em vez de 85-90% (faixa do lmkd),
-    // junto das flags de streaming do RAM Fix. Shared/d3d9 tambem baixos: o total
-    // reportado (512+1024) segura o sistema — 512+2048+4096 ainda derrubava o
-    // celular inteiro em teste. So faz sentido com ramFix ligado e sem conf
-    // custom/hard cap do usuario, que sempre tem precedencia.
+    // VRAM (512 MB) mantem a RAM total em ~80% em vez de 85-90% (faixa do lmkd),
+    // junto das flags de streaming do RAM Fix. Device/shared/d3d9 recebem o
+    // mesmo valor, seguindo a implementacao comprovada do Winlator-Mali.
     public static final int RAGE_SMALL_POOL_MB = 512;
-    public static final int RAGE_SMALL_SHARED_MB = 1024;
-    public static final int RAGE_SMALL_D3D9_MB = 2048;
+    public static final int RAGE_SMALL_SHARED_MB = 512;
+    public static final int RAGE_SMALL_D3D9_MB = 512;
     private static String rageMemoryPart() {
-        return "dxgi.maxDeviceMemory = " + RAGE_SMALL_POOL_MB + "; dxgi.maxSharedMemory = " + RAGE_SMALL_SHARED_MB
-                + "; d3d9.maxAvailableMemory = " + RAGE_SMALL_D3D9_MB;
+        return formatMemoryPart(RAGE_SMALL_POOL_MB, RAGE_SMALL_SHARED_MB, RAGE_SMALL_D3D9_MB);
     }
     public static String buildRageFallbackConfig() {
         return SAFETY_KEYS + "; " + rageMemoryPart();
@@ -190,6 +147,69 @@ public class DXVKConfigDialog extends ContentDialog {
     }
     public static String buildSafeFallbackConfig(Context context, int explicitCapMb, boolean ramFixOn) {
         return SAFETY_KEYS + "; " + tierMemoryPart(context, explicitCapMb, ramFixOn);
+    }
+
+    private static File getManagedConfFile(File rootDir) {
+        return new File(rootDir, MANAGED_CONF_RELATIVE_PATH);
+    }
+
+    private static String asConfigFileLines(String envStyleConfig) {
+        StringBuilder out = new StringBuilder();
+        if (envStyleConfig == null) return "";
+        for (String entry : envStyleConfig.split(";")) {
+            String value = entry.trim();
+            if (!value.isEmpty()) out.append(value).append('\n');
+        }
+        return out.toString();
+    }
+
+    private static String buildManagedRamFixConfig(String memoryPart) {
+        StringBuilder out = new StringBuilder();
+        out.append(GENERATED_CONF_MARKER).append('\n');
+        out.append("# Memory values are reported to DXVK; ")
+                .append("they are not a Vulkan heap hard cap.\n");
+        out.append(asConfigFileLines(SAFETY_KEYS));
+        out.append(asConfigFileLines(memoryPart));
+        return out.toString();
+    }
+
+    public static boolean isGeneratedRamFixConf(File file) {
+        if (!isValidCustomConfFile(file)) return false;
+        String content = FileUtils.readString(file);
+        return content.startsWith(GENERATED_CONF_MARKER);
+    }
+
+    /** Seeds a replaceable per-container template as soon as the container exists. */
+    public static boolean ensureDefaultContainerConfig(Context context, File containerRoot,
+            KeyValueSet config) {
+        File containerConf = getContainerDxvkConfFile(containerRoot);
+        if (containerConf == null) return false;
+        if (containerConf.isFile() && containerConf.length() > 0) return true;
+        KeyValueSet safeConfig = config != null ? config : parseConfig(null);
+        int poolMb = resolveRamFixPoolMb(safeConfig);
+        String memoryPart = tierMemoryPart(context, 0, true);
+        if (poolMb > 0) memoryPart = applyPoolOverride(memoryPart, poolMb, 0);
+        return FileUtils.writeStringAtomic(containerConf,
+                buildManagedRamFixConfig(memoryPart));
+    }
+
+    private static boolean installGuestVisibleConfig(File rootDir, String content, EnvVars envVars) {
+        File managedConf = getManagedConfFile(rootDir);
+        if (!FileUtils.writeStringAtomic(managedConf, content)) return false;
+        envVars.put("DXVK_CONFIG_FILE", MANAGED_CONF_GUEST_PATH);
+        envVars.remove("DXVK_CONFIG");
+        return true;
+    }
+
+    private static File resolveGuestVisibleFile(File rootDir, String path) {
+        if (path == null || path.trim().isEmpty()) return null;
+        String value = path.trim();
+        if (value.regionMatches(true, 0, "Z:/", 0, 3)
+                || value.regionMatches(true, 0, "Z:\\", 0, 3)) {
+            String child = value.substring(3).replace('\\', '/');
+            return new File(rootDir, child);
+        }
+        return new File(value);
     }
     public static final String[] VKD3D_FEATURE_LEVELS = {"12_0", "12_1", "12_2", "11_1", "11_0", "10_1", "10_0", "9_3", "9_2", "9_1"};
     public static final int DXVK_TYPE_NONE = 0;
@@ -427,7 +447,7 @@ public class DXVKConfigDialog extends ContentDialog {
         setEnvVars(context, config, envVars, containerRoot, explicitCapMb, null);
     }
 
-    /** Precedencia do conf custom: atalho > container > global legado. */
+    /** Precedencia do conf custom: atalho > container > pasta do jogo > global legado. */
     public static void setEnvVars(Context context, KeyValueSet config, EnvVars envVars, File containerRoot,
                                   int explicitCapMb, File shortcutConf) {
         setEnvVars(context, config, envVars, containerRoot, explicitCapMb, shortcutConf, null);
@@ -447,9 +467,9 @@ public class DXVKConfigDialog extends ContentDialog {
     }
 
     /**
-     * Versao completa: gameDirDxvkConf e o dxvk.conf ao lado do .exe, se existir.
-     * As chaves de memoria dele sobrevivem (o arquivo governa a memoria dele);
-     * as chaves de seguranca do env sempre valem.
+     * Versao completa: com RAM Fix ligado, gera um arquivo real dentro do
+     * rootfs e aponta o Wine para Z:/usr/dxvk.conf. Um conf importado, manual
+     * ou colocado ao lado do jogo/container substitui o template gerado.
      */
     public static void setEnvVars(Context context, KeyValueSet config, EnvVars envVars, File containerRoot,
                                   int explicitCapMb, File shortcutConf, File diagnosticLogDirectory,
@@ -490,49 +510,76 @@ public class DXVKConfigDialog extends ContentDialog {
         File rootDir = ImageFs.find(context).getRootDir();
         File globalConf = new File(rootDir, ImageFs.CONFIG_PATH+"/dxvk.conf");
         File containerConf = getContainerDxvkConfFile(containerRoot);
+        boolean generatedContainerConf = isGeneratedRamFixConf(containerConf);
         File activeConf = isValidCustomConfFile(shortcutConf) ? shortcutConf
-                : (isValidCustomConfFile(containerConf) ? containerConf
-                : (isValidCustomConfFile(globalConf) ? globalConf : null));
-        if (activeConf != null) {
-            envVars.put("DXVK_CONFIG_FILE", activeConf.getAbsolutePath());
+                : (isValidCustomConfFile(containerConf) && !generatedContainerConf
+                ? containerConf
+                : (isValidCustomConfFile(gameDirDxvkConf) ? gameDirDxvkConf
+                : (isValidCustomConfFile(globalConf) ? globalConf : null)));
+        boolean ramFixOn = config != null && config.getBoolean("ramFix", true);
+        int poolMb = ramFixOn ? resolveRamFixPoolMb(config) : 0;
+        String manualInline = envVars.get("DXVK_CONFIG");
+        String manualPath = envVars.get("DXVK_CONFIG_FILE");
+        boolean managedGuestPath = MANAGED_CONF_GUEST_PATH.equalsIgnoreCase(
+                manualPath == null ? "" : manualPath.replace('\\', '/'));
+        File manualFile = resolveGuestVisibleFile(rootDir, manualPath);
+        boolean manualFileOverride = !managedGuestPath
+                && manualFile != null && manualFile.isFile();
+
+        if (manualInline != null && !manualInline.trim().isEmpty()) {
+            // The advanced Env Vars page is the highest-priority escape hatch.
+            envVars.remove("DXVK_CONFIG_FILE");
+            Log.i("DXVKConfigDialog", "Using manual DXVK_CONFIG override");
+        } else if (manualFileOverride) {
             envVars.remove("DXVK_CONFIG");
-            Log.i("DXVKConfigDialog", "Using custom dxvk.conf: " + activeConf.getAbsolutePath());
-        } else {
-            // No managed conf: keep a manual DXVK_CONFIG_FILE override if it
-            // still points at a real file, otherwise drop stale state so an
-            // old import can't leak into a container that removed it.
-            String manual = envVars.get("DXVK_CONFIG_FILE");
-            boolean keepManual = manual != null && !manual.isEmpty() && new File(manual).isFile();
-            if (!keepManual) {
-                try { if (globalConf.isFile()) globalConf.delete(); } catch (Exception ignored) {}
-                envVars.remove("DXVK_CONFIG_FILE");
-                // Sem conf importado, fixa os defaults seguros por cima de um
-                // eventual dxvk.conf que o repack colocou ao lado do .exe.
-                // O env tem precedencia no DXVK, entao o merge e por chave: as
-                // de seguranca sempre valem; as de memoria do arquivo sobrevivem
-                // (igual ao Ludashi/vanilla: o arquivo governa a memoria dele,
-                // o env nunca pisa). Respeita um DXVK_CONFIG manual
-                // da aba EnvVars, se houver.
-                if (!envVars.has("DXVK_CONFIG")) {
-                    boolean ramFixOn = config != null && config.getBoolean("ramFix", true);
-                    int poolMb = ramFixOn ? resolveRamFixPoolMb(config) : 0;
-                    String memoryPart = rageSmallPool ? rageMemoryPart()
-                            : tierMemoryPart(context, explicitCapMb, ramFixOn);
-                    if (poolMb > 0) memoryPart = applyPoolOverride(memoryPart, poolMb, explicitCapMb);
-                    envVars.put("DXVK_CONFIG", mergeGameDirConf(
-                            memoryPart, gameDirConfKeys(gameDirDxvkConf)));
-                    if (rageSmallPool) {
-                        Log.i("DXVKConfigDialog", "RAGE small-pool overrides: device="
-                                + (poolMb > 0 ? poolMb : RAGE_SMALL_POOL_MB) + " shared=" + RAGE_SMALL_SHARED_MB
-                                + " (game-dir memory keys kept)");
-                    } else if (ramFixOn) {
-                        Log.i("DXVKConfigDialog", "RAM Fix conservative pool overrides"
-                                + " (game-dir memory keys kept): " + memoryPart);
-                    } else {
-                        Log.i("DXVKConfigDialog", "No custom dxvk.conf, applying safe fallback overrides");
-                    }
-                }
+            Log.i("DXVKConfigDialog", "Using manual DXVK_CONFIG_FILE override: " + manualPath);
+        } else if (activeConf != null) {
+            // A file imported in the DXVK dialog or placed beside the
+            // container/game replaces the generated template completely.
+            if (installGuestVisibleConfig(rootDir, FileUtils.readString(activeConf), envVars)) {
+                Log.i("DXVKConfigDialog", "Using guest-visible custom dxvk.conf from: "
+                        + activeConf.getAbsolutePath());
+            } else {
+                envVars.put("DXVK_CONFIG_FILE", activeConf.getAbsolutePath());
+                envVars.remove("DXVK_CONFIG");
+                Log.w("DXVKConfigDialog", "Could not stage custom dxvk.conf; using source path: "
+                        + activeConf.getAbsolutePath());
             }
+        } else if (ramFixOn) {
+            String memoryPart;
+            if (rageSmallPool) {
+                int ragePool = explicitCapMb > 0
+                        ? Math.min(RAGE_SMALL_POOL_MB, explicitCapMb)
+                        : RAGE_SMALL_POOL_MB;
+                memoryPart = formatMemoryPart(ragePool, ragePool, ragePool);
+            } else {
+                memoryPart = tierMemoryPart(context, explicitCapMb, true);
+            }
+            if (poolMb > 0) memoryPart = applyPoolOverride(memoryPart, poolMb, explicitCapMb);
+
+            // DXVK_CONFIG is not implemented by every bundled/legacy DXVK.
+            // A guest-visible file matches the proven Ludashi/Mali launch path.
+            String managedContent = buildManagedRamFixConfig(memoryPart);
+            if (containerConf != null && (!containerConf.isFile() || generatedContainerConf)
+                    && !FileUtils.writeStringAtomic(containerConf, managedContent)) {
+                Log.w("DXVKConfigDialog", "Could not refresh replaceable container dxvk.conf");
+            }
+            if (installGuestVisibleConfig(rootDir, managedContent, envVars)) {
+                Log.i("DXVKConfigDialog", "RAM Fix config installed at "
+                        + MANAGED_CONF_GUEST_PATH + ": " + memoryPart);
+            } else {
+                // Keep startup functional if storage is full/read-only. The env
+                // form works on newer DXVK and is safer than loading stale data.
+                envVars.remove("DXVK_CONFIG_FILE");
+                envVars.put("DXVK_CONFIG", SAFETY_KEYS + "; " + memoryPart);
+                Log.e("DXVKConfigDialog", "Could not install " + MANAGED_CONF_GUEST_PATH
+                        + "; falling back to DXVK_CONFIG");
+            }
+        } else {
+            // RAM Fix really disabled and no replacement provided.
+            if (managedGuestPath || manualFile == null || !manualFile.isFile())
+                envVars.remove("DXVK_CONFIG_FILE");
+            envVars.put("DXVK_CONFIG", SAFETY_KEYS);
         }
 
         String framerate = config.get("framerate");

@@ -77,6 +77,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
     private volatile float requestedApexStability = 0.6f;
     private volatile int requestedApexBackend = LSFGManager.BACKEND_GLES;
     private volatile boolean requestedApexLowLatency;
+    private volatile Runnable apexFailureListener;
     private WinlatorHUD winlatorHUD;
     private long apexStatsStartNanos;
     private volatile boolean apexChoreographerRunning;
@@ -691,7 +692,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
         requestedApexEnabled = enabled;
         requestedApexQuality = Math.max(0, Math.min(2, quality));
         requestedApexMultiplier = multiplier >= 1.5f
-                ? Math.min(5.0f, multiplier) : 0.0f;
+                ? Math.min(4.0f, multiplier) : 0.0f;
         requestedApexTargetFPS = Math.max(15, Math.min(240, targetFPS));
         requestedApexStability = Math.max(0.0f, Math.min(1.0f, stability));
         requestedApexBackend = Math.max(LSFGManager.BACKEND_GLES,
@@ -702,7 +703,10 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
                     requestedApexQuality, requestedApexMultiplier,
                     requestedApexTargetFPS, requestedApexStability,
                     requestedApexBackend, requestedApexLowLatency);
-            if (!applied) requestedApexEnabled = false;
+            if (!applied) {
+                requestedApexEnabled = false;
+                notifyApexFailure();
+            }
             lastApexFrameNanos = 0;
             apexStatsStartNanos = 0;
             WinlatorHUD hud = winlatorHUD;
@@ -729,6 +733,15 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
      */
     public boolean isApexRequestedEnabled() {
         return requestedApexEnabled;
+    }
+
+    public void setApexFailureListener(Runnable listener) {
+        apexFailureListener = listener;
+    }
+
+    private void notifyApexFailure() {
+        Runnable listener = apexFailureListener;
+        if (listener != null) xServerView.post(listener);
     }
 
     public int getApexQuality() {
@@ -829,6 +842,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
                 lsfgManager.getEstimatedLatencyMs(), lsfgManager.getBackendName(),
                 lsfgManager.getBackendState(), lsfgManager.getBackendFailure(),
                 requestedApexLowLatency);
+        notifyApexFailure();
     }
 
 

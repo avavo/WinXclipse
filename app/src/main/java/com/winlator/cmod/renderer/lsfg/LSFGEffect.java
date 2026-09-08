@@ -119,7 +119,7 @@ public final class LSFGEffect extends Effect {
 
         currentFrameIndex = 1 - currentFrameIndex;
         copyToBuffer(readBuffer, frameBuffers[currentFrameIndex], width, height);
-        manager.onFrameCaptured();
+        if (manager.onFrameCaptured()) discardMotionVectorHistory();
 
         int current = getCurrentTextureId();
         int previous = getPreviousTextureId();
@@ -261,9 +261,13 @@ public final class LSFGEffect extends Effect {
         GLES31.glUniform1i(GLES31.glGetUniformLocation(computeMaterial.programId,
                 "mvHistoryTexture"), 6);
         GLES31.glBindImageTexture(0, motionVectorTexture, 0, false, 0,
-                GLES31.GL_WRITE_ONLY, GLES31.GL_RGBA16F);
+                GLES31.GL_WRITE_ONLY, GLES31.GL_RGBA8);
         GLES31.glDispatchCompute((mvWidth + 15) / 16, (mvHeight + 7) / 8, 1);
-        GLES31.glMemoryBarrier(GLES31.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+        // The result is sampled as a texture by the fragment pass immediately
+        // afterwards. IMAGE_ACCESS alone does not make those writes visible to
+        // texture fetches on every vendor driver.
+        GLES31.glMemoryBarrier(GLES31.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT
+                | GLES31.GL_TEXTURE_FETCH_BARRIER_BIT);
         if (validateDispatch) {
             int error = GLES20.glGetError();
             if (error != GLES20.GL_NO_ERROR) {
@@ -271,7 +275,7 @@ public final class LSFGEffect extends Effect {
                 manager.reportBackendFailure(reason);
                 throw new IllegalStateException(reason);
             }
-            fallbackValidationCountdown = 120;
+            fallbackValidationCountdown = 30;
         }
         else fallbackValidationCountdown--;
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
@@ -290,6 +294,10 @@ public final class LSFGEffect extends Effect {
         }
         if (motionVectorTexture != 0) return;
 
+        // Allocation errors must describe this allocation, not a stale error
+        // left by an unrelated compositor operation.
+        while (GLES20.glGetError() != GLES20.GL_NO_ERROR) {
+        }
         int[] textures = new int[2];
         GLES20.glGenTextures(2, textures, 0);
         int[] framebuffer = new int[1];
@@ -297,7 +305,7 @@ public final class LSFGEffect extends Effect {
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, framebuffer[0]);
         for (int texture : textures) {
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texture);
-            GLES31.glTexStorage2D(GLES20.GL_TEXTURE_2D, 1, GLES31.GL_RGBA16F, width, height);
+            GLES31.glTexStorage2D(GLES20.GL_TEXTURE_2D, 1, GLES31.GL_RGBA8, width, height);
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D,
                     GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR);
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D,
@@ -308,9 +316,20 @@ public final class LSFGEffect extends Effect {
                     GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE);
             GLES20.glFramebufferTexture2D(GLES20.GL_FRAMEBUFFER, GLES20.GL_COLOR_ATTACHMENT0,
                     GLES20.GL_TEXTURE_2D, texture, 0);
-            GLES20.glClearColor(0, 0, 0, 0);
+            // Encoded zero motion is (0.5, 0.5), not black.
+            GLES20.glClearColor(0.5f, 0.5f, 0, 1);
+            if (GLES20.glCheckFramebufferStatus(GLES20.GL_FRAMEBUFFER)
+                    != GLES20.GL_FRAMEBUFFER_COMPLETE) {
+                GLES20.glClearColor(0, 0, 0, 0);
+                GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0);
+                GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
+                GLES20.glDeleteFramebuffers(1, framebuffer, 0);
+                GLES20.glDeleteTextures(2, textures, 0);
+                throw new IllegalStateException("Apex motion framebuffer is incomplete");
+            }
             GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
         }
+        GLES20.glClearColor(0, 0, 0, 0);
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, 0);
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
         GLES20.glDeleteFramebuffers(1, framebuffer, 0);
@@ -326,6 +345,22 @@ public final class LSFGEffect extends Effect {
             manager.reportBackendFailure(reason);
             throw new IllegalStateException(reason);
         }
+    }
+
+    private void discardMotionVectorHistory() {
+        if (motionVectorOwnedByNative) {
+            destroyNativeEngine();
+        }
+        else if (motionVectorTexture != 0 || motionVectorHistoryTexture != 0) {
+            GLES20.glDeleteTextures(2,
+                    new int[]{motionVectorTexture, motionVectorHistoryTexture}, 0);
+        }
+        motionVectorTexture = 0;
+        motionVectorHistoryTexture = 0;
+        motionVectorWidth = 0;
+        motionVectorHeight = 0;
+        motionVectorOwnedByNative = false;
+        fallbackValidationCountdown = 0;
     }
 
     public void resetGLResources() {

@@ -545,27 +545,51 @@ public class EffectComposer {
                 effect.destroy();
                 renderer.xServerView.requestRender();
             }
+            else renderer.getLSFGManager().setEnabled(false);
             return true;
         }
 
         if (!supportsGLES31()) {
             Log.e(TAG, "GLES 3.1 is required for experimental frame generation");
+            renderer.getLSFGManager().reportBackendFailure(
+                    "GLES 3.1 is unavailable on the compositor context");
             return false;
         }
-        if (effect == null) {
-            effect = new LSFGEffect(renderer, renderer.getLSFGManager());
-            addEffect(effect);
+        try {
+            if (effect == null) {
+                effect = new LSFGEffect(renderer, renderer.getLSFGManager());
+                addEffect(effect);
+            }
+            effect.setBackend(backend);
+            // APK 0.9.5 parity: low-latency extrapolation did not exist there.
+            // Force the interpolation-only path regardless of stored options.
+            effect.setLowLatencyMode(false);
+            effect.setQuality(quality);
+            effect.setStability(stability);
+            effect.setMultiplier(multiplier);
+            effect.setTargetFPS(targetFPS);
+            effect.getManager().setEnabled(true);
+            return true;
         }
-        effect.setBackend(backend);
-        // APK 0.9.5 parity: low-latency extrapolation did not exist there.
-        // Force the interpolation-only path regardless of stored options.
-        effect.setLowLatencyMode(false);
-        effect.setQuality(quality);
-        effect.setStability(stability);
-        effect.setMultiplier(multiplier);
-        effect.setTargetFPS(targetFPS);
-        effect.getManager().setEnabled(true);
-        return true;
+        catch (Throwable error) {
+            String message = error.getMessage();
+            if (message == null || message.trim().isEmpty())
+                message = error.getClass().getSimpleName();
+            Log.e(TAG, "Could not enable experimental frame generation", error);
+            renderer.getLSFGManager().reportBackendFailure(message);
+            if (effect != null) {
+                effects.remove(effect);
+                try {
+                    effect.destroy();
+                }
+                catch (Throwable cleanupError) {
+                    Log.w(TAG, "Could not clean up failed frame generation", cleanupError);
+                }
+            }
+            renderer.getLSFGManager().setEnabled(false);
+            renderer.xServerView.requestRender();
+            return false;
+        }
     }
 
     private boolean supportsGLES31() {

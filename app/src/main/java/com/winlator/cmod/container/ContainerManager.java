@@ -16,6 +16,7 @@ import com.winlator.cmod.core.MSLink;
 import com.winlator.cmod.core.OnExtractFileListener;
 import com.winlator.cmod.core.TarCompressorUtils;
 import com.winlator.cmod.core.WineInfo;
+import com.winlator.cmod.contentdialog.DXVKConfigDialog;
 import com.winlator.cmod.xenvironment.ImageFs;
 
 import java.io.FilenameFilter;
@@ -247,6 +248,12 @@ public class ContainerManager {
             if (!extractContainerPatternFile(container, container.getWineVersion(), contentsManager, containerDir, null)) {
                 FileUtils.delete(containerDir);
                 return null;
+            }
+
+            if ("dxvk".equals(container.getDXWrapper())
+                    && !DXVKConfigDialog.ensureDefaultContainerConfig(context, containerDir,
+                    DXVKConfigDialog.parseConfig(container.getDXWrapperConfig()))) {
+                Log.w("ContainerManager", "Could not seed replaceable dxvk.conf for container " + id);
             }
 
 //            // Extract the selected graphics driver files

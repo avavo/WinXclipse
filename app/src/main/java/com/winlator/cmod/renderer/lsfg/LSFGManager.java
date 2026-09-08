@@ -21,6 +21,7 @@ public final class LSFGManager {
     private volatile boolean active;
     private volatile boolean pendingRealFrame;
     private volatile boolean pendingGameFrame;
+    private volatile boolean historyInvalidated;
     /** 0 means automatic mode driven by targetFPS; otherwise fixed 1.5x-4x. */
     private float requestedMultiplier;
     private volatile float effectiveMultiplier = 2.0f;
@@ -77,6 +78,7 @@ public final class LSFGManager {
         historyIndex = 0;
         pendingRealFrame = false;
         pendingGameFrame = false;
+        historyInvalidated = false;
         renderingGeneratedFrame = false;
         Arrays.fill(deltaHistory, DEFAULT_DELTA_NANOS);
     }
@@ -95,7 +97,7 @@ public final class LSFGManager {
 
     public void setMultiplier(float multiplier) {
         requestedMultiplier = multiplier >= 1.5f
-                ? Math.min(5.0f, multiplier) : 0.0f;
+                ? Math.min(4.0f, multiplier) : 0.0f;
         effectiveMultiplier = requestedMultiplier > 0.0f
                 ? requestedMultiplier : Math.max(1.0f, effectiveMultiplier);
     }
@@ -126,6 +128,8 @@ public final class LSFGManager {
      * notifications otherwise inflate the source FPS shown by telemetry.
      */
     public void notifySceneChangePending() {
+        historyInvalidated = true;
+        generatedFrameBudget = 0;
         markFramePending(false);
     }
 
@@ -174,10 +178,29 @@ public final class LSFGManager {
         return lowLatencyMode ? 1.0f + phase : phase;
     }
 
-    public void onFrameCaptured() {
+    /** Returns true when the GPU-side temporal history must also be discarded. */
+    public boolean onFrameCaptured() {
         boolean submittedByGame = pendingGameFrame;
         pendingRealFrame = false;
         pendingGameFrame = false;
+        long now = System.nanoTime();
+        long gap = submittedByGame && lastRealFrameTimeNanos > 0
+                ? now - lastRealFrameTimeNanos : 0;
+        long discontinuityThreshold = Math.max(250_000_000L,
+                (long)(typicalDeltaNanos * 3.5f));
+        boolean historyReset = historyInvalidated || gap > discontinuityThreshold;
+        if (historyReset) {
+            // Never interpolate across a window rebuild, pause, loading stall,
+            // or other discontinuity. Two fresh real frames must be captured.
+            realFramesCaptured = 0;
+            framesSinceReal = 0;
+            generatedFrameBudget = 0;
+            historyIndex = 0;
+            typicalDeltaNanos = DEFAULT_DELTA_NANOS;
+            lastRealFrameTimeNanos = 0;
+            Arrays.fill(deltaHistory, DEFAULT_DELTA_NANOS);
+            historyInvalidated = false;
+        }
         if (submittedByGame) {
             actualRealFrameCount.incrementAndGet();
             presentedRealFrame = true;
@@ -200,7 +223,6 @@ public final class LSFGManager {
         realFramesCaptured++;
         framesSinceReal = 0;
 
-        long now = System.nanoTime();
         if (submittedByGame && lastRealFrameTimeNanos > 0) {
             deltaHistory[historyIndex] = now - lastRealFrameTimeNanos;
             historyIndex = (historyIndex + 1) % deltaHistory.length;
@@ -212,6 +234,7 @@ public final class LSFGManager {
             updateMultiplier();
         }
         if (submittedByGame) lastRealFrameTimeNanos = now;
+        return historyReset;
     }
 
     private void updateMultiplier() {

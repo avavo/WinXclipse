@@ -2379,6 +2379,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 applyTranslationTurbo(envVars);
         }
 
+        // Apply these after container/shortcut/one-shot env merges and after
+        // xperf parsing. Otherwise saved variables can silently reintroduce a
+        // hard heap cap and the selected xperf cap is not known yet.
+        applyWrapperMemoryCapEnv();
+        applyDxvkRuntimeEnv();
+
         // NRAMV unified-memory manager runs in our process for every session;
         // its baseline trim level follows device RAM while live escalation is
         // driven by the HUD RAM alert through RamOptimizerXclipse.escalate().
@@ -2628,6 +2634,13 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         FrameLayout rootView = findViewById(R.id.FLXServerDisplay);
         xServerView = new XServerView(this, xServer);
         final GLRenderer renderer = xServerView.getRenderer();
+        renderer.setApexFailureListener(() -> {
+            if (isFinishing() || isDestroyed()) return;
+            persistRuntimeVideoOption("frameGenerationEnabled", "0");
+            updateSidebarFrameGenerationState(renderer);
+            Toast.makeText(this, R.string.frame_generation_unavailable,
+                    Toast.LENGTH_LONG).show();
+        });
         renderer.setCursorVisible(false);
         setFpsLimit(renderer, getStoredFpsLimit(), false);
 
@@ -3609,7 +3622,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         try {
             float parsed = Float.parseFloat(value);
             if (parsed < 1.5f) return 0.0f;
-            return Math.min(5.0f, Math.round(parsed * 2.0f) / 2.0f);
+            return Math.min(4.0f, Math.round(parsed * 2.0f) / 2.0f);
         }
         catch (Exception ignored) {
             return 0.0f;
@@ -3634,12 +3647,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     private static int frameGenerationMultiplierIndex(float multiplier) {
         if (multiplier < 1.5f) return 0;
-        return Math.max(1, Math.min(8, Math.round((multiplier - 1.0f) * 2.0f)));
+        return Math.max(1, Math.min(6, Math.round((multiplier - 1.0f) * 2.0f)));
     }
 
     private static float frameGenerationMultiplierValue(int index) {
         if (index <= 0) return 0.0f;
-        return 1.0f + Math.max(1, Math.min(8, index)) * 0.5f;
+        return 1.0f + Math.max(1, Math.min(6, index)) * 0.5f;
     }
 
     private static String frameGenerationMultiplierStorageValue(float multiplier) {
@@ -3673,12 +3686,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         if (safeEnabled && sidebarFrameGenerationView != null) {
             sidebarFrameGenerationView.postDelayed(() -> {
-                boolean active = renderer.isApexEnabled();
                 updateSidebarFrameGenerationState(renderer);
-                if (!active) {
-                    Toast.makeText(this, R.string.frame_generation_unavailable,
-                            Toast.LENGTH_LONG).show();
-                }
             }, 1000);
         }
     }
@@ -4375,33 +4383,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                     "graphics_driver/extra_libs.tzst", rootDir);
         }
 
-        if (dxwrapper.equals("dxvk")) {
-            java.io.File containerRoot = container != null ? container.getRootDir() : null;
-            java.io.File shortcutConf = shortcut != null ? shortcut.getDxvkConfFile() : null;
-            int effectiveVramCapMb = resolveEffectiveVramCapMb();
-            // RAGE com RAM Fix e sem hard cap do usuario: pool pequeno reportado
-            // (512 MB). Conf custom, DXVK_CONFIG manual e hard cap passam na frente
-            // dentro do setEnvVars; sem RAM Fix fica o fallback normal por tier.
-            boolean rageSmallPool = isRageShortcut(shortcut)
-                    && effectiveVramCapMb <= 0
-                    && this.dxwrapperConfig != null
-                    && this.dxwrapperConfig.getBoolean("ramFix", true);
-            // dxvk.conf ao lado do exe (CR/repack): as chaves de memoria dele
-            // sobrevivem ao env, como nos outros Winlator.
-            java.io.File gameDirDxvkConf = null;
-            if (shortcut != null) {
-                try {
-                    java.io.File exe = shortcut.resolveExecutableFile();
-                    if (exe != null && exe.getParentFile() != null) {
-                        java.io.File cand = new java.io.File(exe.getParentFile(), "dxvk.conf");
-                        if (cand.isFile()) gameDirDxvkConf = cand;
-                    }
-                } catch (Exception ignored) {}
-            }
-            DXVKConfigDialog.setEnvVars(this, dxwrapperConfig, envVars, containerRoot,
-                    effectiveVramCapMb, shortcutConf, wineLogDirectory, rageSmallPool, gameDirDxvkConf);
-        }
-
         boolean showFps = container != null && container.isShowFPS();
         String hudMode = getRuntimeHudMode();
         boolean useDxvkHud = showFps && "dxvk".equals(hudMode);
@@ -4579,24 +4560,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         String gpuName = graphicsDriverConfig.getOrDefault("gpuName", "Device");
         if (!"Device".equals(gpuName)) envVars.put("WRAPPER_DEVICE_NAME", gpuName);
-
-        String maxDeviceMemory = graphicsDriverConfig.getOrDefault("maxDeviceMemory", "0");
-        try {
-            int driverMax = Integer.parseInt(maxDeviceMemory);
-            int xperfCap = resolveXperfVramCapMb();
-            int hardCap = driverMax > 0 ? driverMax : xperfCap;
-            if (hardCap > 0) {
-                envVars.put("WRAPPER_VMEM_MAX_SIZE", String.valueOf(hardCap));
-                envVars.put("UTIL_LAYER_VMEM_MAX_SIZE", String.valueOf(hardCap));
-                if (driverMax <= 0) {
-                    Log.i("GraphicsDriverExtraction",
-                            "Unified-memory VRAM cap: " + hardCap + " MB");
-                }
-            }
-        }
-        catch (NumberFormatException e) {
-            Log.w("GraphicsDriverExtraction", "Invalid max device memory: " + maxDeviceMemory);
-        }
 
         // Do not derive the swapchain mode from the FPS/VSync limiter. Mailbox
         // is the high-throughput tear-free path: Wine may render above the
@@ -5009,6 +4972,75 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         int xperfCap = resolveXperfVramCapMb();
         if (driverMax > 0 && xperfCap > 0) return Math.min(driverMax, xperfCap);
         return Math.max(driverMax, xperfCap);
+    }
+
+    private void applyWrapperMemoryCapEnv() {
+        int driverMax = 0;
+        String configured = graphicsDriverConfig != null
+                ? graphicsDriverConfig.getOrDefault("maxDeviceMemory", "0") : "0";
+        try {
+            driverMax = Math.max(0, Integer.parseInt(configured));
+        }
+        catch (NumberFormatException error) {
+            Log.w("GraphicsDriverExtraction", "Invalid max device memory: " + configured);
+        }
+
+        int xperfCap = resolveXperfVramCapMb();
+        boolean dxvkRamFix = "dxvk".equals(dxwrapper)
+                && dxwrapperConfig != null
+                && dxwrapperConfig.getBoolean("ramFix", true);
+        if (dxvkRamFix) {
+            // RAM Fix limits what DXVK reports to the game. These variables
+            // limit the real Vulkan heap and made GTA V fail during startup.
+            envVars.remove("WRAPPER_VMEM_MAX_SIZE");
+            envVars.remove("UTIL_LAYER_VMEM_MAX_SIZE");
+            if (driverMax > 0 || xperfCap > 0) {
+                Log.i("GraphicsDriverExtraction", "RAM Fix active: treating selected "
+                        + "VRAM cap as reported DXVK memory only");
+            }
+            return;
+        }
+
+        int hardCap = driverMax > 0 && xperfCap > 0
+                ? Math.min(driverMax, xperfCap) : Math.max(driverMax, xperfCap);
+        if (hardCap > 0) {
+            envVars.put("WRAPPER_VMEM_MAX_SIZE", String.valueOf(hardCap));
+            envVars.put("UTIL_LAYER_VMEM_MAX_SIZE", String.valueOf(hardCap));
+            Log.i("GraphicsDriverExtraction", "Unified-memory VRAM hard cap: "
+                    + hardCap + " MB");
+        }
+        else {
+            envVars.remove("WRAPPER_VMEM_MAX_SIZE");
+            envVars.remove("UTIL_LAYER_VMEM_MAX_SIZE");
+        }
+    }
+
+    private void applyDxvkRuntimeEnv() {
+        if (!"dxvk".equals(dxwrapper)) return;
+
+        File containerRoot = container != null ? container.getRootDir() : null;
+        File shortcutConf = shortcut != null ? shortcut.getDxvkConfFile() : null;
+        int effectiveVramCapMb = resolveEffectiveVramCapMb();
+        boolean ramFixOn = dxwrapperConfig != null
+                && dxwrapperConfig.getBoolean("ramFix", true);
+        boolean rageSmallPool = isRageShortcut(shortcut) && ramFixOn;
+
+        File gameDirDxvkConf = null;
+        if (shortcut != null) {
+            try {
+                File exe = shortcut.resolveExecutableFile();
+                if (exe != null && exe.getParentFile() != null) {
+                    File candidate = new File(exe.getParentFile(), "dxvk.conf");
+                    if (candidate.isFile()) gameDirDxvkConf = candidate;
+                }
+            }
+            catch (Exception ignored) {
+            }
+        }
+
+        DXVKConfigDialog.setEnvVars(this, dxwrapperConfig, envVars, containerRoot,
+                effectiveVramCapMb, shortcutConf, wineLogDirectory,
+                rageSmallPool, gameDirDxvkConf);
     }
 
     private void copyFile(File sourceFile, File destFile) throws IOException {
@@ -5869,8 +5901,24 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                         ? "Session stopped while non-standard guest processes were active."
                         : lifecycleCloseReason).append('\n')
                 .append("Observed game/application process: ")
-                .append(observedShortcutApplication).append("\n\n")
-                .append("Processes that were about to be closed:\n");
+                .append(observedShortcutApplication).append('\n')
+                .append("DXVK_CONFIG_FILE: ").append(envVars.get("DXVK_CONFIG_FILE")).append('\n')
+                .append("DXVK_CONFIG: ").append(envVars.get("DXVK_CONFIG")).append('\n')
+                .append("WRAPPER_VMEM_MAX_SIZE: ")
+                .append(envVars.get("WRAPPER_VMEM_MAX_SIZE")).append('\n');
+        if (xServerView != null) {
+            GLRenderer diagnosticRenderer = xServerView.getRenderer();
+            com.winlator.cmod.renderer.lsfg.LSFGManager manager =
+                    diagnosticRenderer.getLSFGManager();
+            report.append("Frame generation requested: ")
+                    .append(diagnosticRenderer.isApexRequestedEnabled()).append('\n')
+                    .append("Frame generation active: ").append(manager.isActive()).append('\n')
+                    .append("Frame generation backend: ").append(manager.getBackendName())
+                    .append(" / ").append(manager.getBackendState()).append('\n')
+                    .append("Frame generation failure: ").append(manager.getBackendFailure())
+                    .append('\n');
+        }
+        report.append("\nProcesses that were about to be closed:\n");
         if (processes.isEmpty()) report.append("(none)\n");
         else for (String process : processes) report.append("- ").append(process).append('\n');
         report.append("\nNon-standard processes:\n");
