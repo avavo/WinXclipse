@@ -13,14 +13,14 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
   - Balanced uses a larger motion search for a middle ground.
   - Quality reduces warped edges with more conservative blending, but costs more GPU time and may introduce blur or double images.
   - Existing Ultra Quality presets are migrated automatically to Quality.
-- Added fixed 1.5x through 5x modes in 0.5x steps.
+- Added fixed 1.5x through 4x modes in 0.5x steps; the unstable 4.5x/5x modes are no longer exposed.
 - Automatic mode targets a user-entered output FPS.
 - Long explanations now live behind dedicated `?` buttons for Frame Generation and Profile instead of occupying the main screen.
 - The in-session sidebar tile remains locked until Frame Generation is enabled in Video Configuration and the renderer is Vulkan.
 - Persisted Frame Generation starts only after the Android EGL surface is stable, avoiding the shortcut crash loop seen when enabling it, exiting and reopening the game.
 - Fixed Frame Generation incorrectly reporting that GLES 3.1 was unavailable on capable Samsung devices: the compositor now requests an explicit EGL 3.1 context, logs the returned version, and does not cache a capability check made before a current surface exists.
 - Fixed the Xclipse compute compiler rejecting Apex with `image2D: No precision specified` after confirming the live Display dialog. Sampler/image precision is now explicit and unused uniforms no longer generate misleading warnings.
-- Runtime Apex/shader failures disable the active state instead of leaving a false enabled indicator.
+- Runtime Apex/shader/FBO failures disable and persist the inactive state, notify the sidebar, and immediately return to direct rendering instead of taking the Wine session down.
 - Restored the stable fixed GLES Compute path from the older APK. Backend selection and native/automatic `libapex` activation were removed to avoid the vendor-driver `SIGSEGV` route. The Low Latency extrapolation mode was removed as well; frame generation always interpolates.
 - Low Latency controls were removed from the sidebar and Video Configuration; saved values are ignored.
 - The sidebar places FPS Limiter beside Frame Gen and HUD beside Display.
@@ -28,6 +28,7 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
 - Optional HUD rows expose the measured Frame Generation latency estimate, Apex/shader failure state and actual `GEN FPS`. `GEN 0 FPS (no output)` clearly reports when Apex is enabled but is not producing synthetic frames; `ApexTelemetry` exposes the same counters in logcat.
 - Generated draws now consume a finite budget earned by actual game Presents, including the correct fractional cadence for 1.5x. Apex stops scheduling when the budget is empty instead of redrawing a stale texture indefinitely and starving the game/BCN pipeline. GLES errors are sampled instead of synchronously queried after every game frame, avoiding an unnecessary GPU-queue stall.
 - Apex keeps a finite synthetic-frame budget earned only from actual game Presents. Its display-clock scheduling follows the proven 0.9.5 path, avoiding the phase-sensitive headroom gate that could incorrectly reject every generated frame.
+- Motion-vector storage now uses broadly supported RGBA8 image load/store with the required texture-fetch memory barrier. Motion is encoded and clamped, low-confidence/disoccluded pixels fall back to an unwarped blend, and temporal history is discarded after loading stalls, pauses, surface/window changes, or long frame gaps to prevent sudden full-screen artifacts.
 
 ### Wrappers, ASTC and ETC2
 
@@ -133,12 +134,12 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
 - First-boot progress now advances through imagefs extraction, runtime installation, and finalization instead of appearing frozen.
 - Native X11 2D operations process full 32-bit pixels, reducing byte-loop overhead on shared LPDDR memory.
 - HUD RAM warnings use consistent 90% blink and 93% dialog thresholds across device memory tiers.
-- The DXVK + VKD3D gear includes `RAM Fix`, enabled by default. GTA V receives the tested memory-streaming limits that prevent missing textures and shared-RAM/VRAM OOM freezes; disabling it removes only WinXclipse's exact managed values and preserves custom tuning.
-- RAM Fix now covers the whole RAGE launch chain (`GTAVLauncher.exe`, `Language Selector.exe`): the default repack shortcut no longer skips protection. RAGE sessions also report a 512 MB VRAM pool unless a custom `dxvk.conf`, manual `DXVK_CONFIG`, hard cap, or disabled RAM Fix says otherwise — community-tested to hold total RAM around 80% instead of the 85-90% band where Android reaps the game.
+- The DXVK + VKD3D gear includes `RAM Fix`, enabled by default. New containers start with `DXVK_CONFIG_FILE=Z:/usr/dxvk.conf`; launch writes a real, marked and replaceable config there instead of depending only on the newer `DXVK_CONFIG` variable. GTA V also receives the tested memory-streaming limits that prevent missing textures and shared-RAM/VRAM OOM freezes.
+- RAM Fix covers the whole RAGE launch chain (`GTAVLauncher.exe`, `Language Selector.exe`): the default repack shortcut no longer skips protection. RAGE Auto reports 512 MB through all four DXVK/D3D9 memory keys, while the Vulkan heap remains uncapped — community-tested to hold total RAM around 80% instead of the 85-90% band where Android reaps the game.
 - The xidi controller fix installs only with DirectInput enabled and never for RAGE targets; older prefixes are migrated back to Wine's builtin DLLs automatically.
 - Confirmed container, shortcut and imported `dxvk.conf` settings are flushed to disk and atomically replaced. Cross-process locks and merge preserve newer settings when an older live instance saves runtime metadata; latest-state recovery mirrors restore missing/malformed indexes, and existing Wine-prefix data is made visible again with safe defaults if an older build lost its index.
 - CPU-affinity checkboxes are centered in true rows of four on octa-core devices and five on deca-core devices in both container and shortcut settings.
-- `RAM Fix pool` selector in the DXVK + VKD3D gear (Auto/512–4096 MB, per container and per shortcut): overrides only the reported device memory for every game, shared/d3d9 stay conservative, and a hard cap still clamps it. A `dxvk.conf` beside the game `.exe` keeps governing its own memory keys, and 512 MB imported caps are accepted.
+- `RAM Fix pool` selector in the DXVK + VKD3D gear (Auto/512–4096 MB, per container and per shortcut): an explicit pool is written uniformly to `dxgi.maxDeviceMemory`, `dxgi.maxSharedMemory`, `d3d9.maxDeviceMemory`, and `d3d9.maxAvailableMemory`. With RAM Fix active, Wrapper/Experimental VRAM limits only upper-bound the reported value and never become `WRAPPER_VMEM_MAX_SIZE`/`UTIL_LAYER_VMEM_MAX_SIZE`; this fixes GTA V failing at the DXVK allocator's 80% threshold even with a 2 GB heap cap. An imported, per-shortcut, per-container, or game-folder `dxvk.conf` completely replaces the generated template, while manual `DXVK_CONFIG`/`DXVK_CONFIG_FILE` values have highest priority.
 - Wine prefixes re-sync with the active runtime at boot (file operations only, 20 s budget, fail-open, versioned per container): missing system DLLs are restored and diverged builtins refreshed after a runtime swap unless natively overridden — games no longer "stop opening out of nowhere", no runtime reinstall needed, saves untouched. Broken runtimes are reported in logcat instead of killing the boot silently.
 - Missing shortcut executables Toast the absent path immediately instead of hanging on the 2-minute stub timeout.
 - Fixed two-stick drift (touchpad deltas were dispatched once per unclaimed pointer) plus unconditional gamepad release and touch cancellation on detach/profile switch, so axes cannot latch and spin the view.
