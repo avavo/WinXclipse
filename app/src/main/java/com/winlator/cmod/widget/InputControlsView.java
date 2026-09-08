@@ -342,6 +342,7 @@ public class InputControlsView extends View {
     }
 
     public synchronized void setProfile(ControlsProfile profile) {
+        if (this.profile != null && this.profile != profile) cancelAllTouches();
         if (profile != null) {
             this.profile = profile;
             deselectAllElements();
@@ -409,6 +410,9 @@ public class InputControlsView extends View {
 
     @Override
     protected void onDetachedFromWindow() {
+        // Android may detach the view while a multi-pointer gesture is still
+        // active. Release controls before the fake-input view disappears.
+        cancelAllTouches();
         if (mouseMoveTimer != null) {
             mouseMoveTimer.cancel();
             mouseMoveTimer = null;   // allow createMouseMoveTimer() to run again on re-attach
@@ -623,17 +627,21 @@ public class InputControlsView extends View {
                     break;
                 }
                 case MotionEvent.ACTION_MOVE: {
+                    boolean touchpadNeedsDispatch = false;
                     for (int i = 0, count = event.getPointerCount(); i < count; i++) {
                         float x = event.getX(i);
                         float y = event.getY(i);
                         int movePointerId = event.getPointerId(i);
 
-                        handled = false;
+                        boolean pointerHandled = false;
                         for (ControlElement element : profile.getElements()) {
-                            if (element.handleTouchMove(movePointerId, x, y)) handled = true;
+                            if (element.handleTouchMove(movePointerId, x, y)) pointerHandled = true;
                         }
-                        if (!handled) touchpadView.onTouchEvent(event);
+                        if (!pointerHandled) touchpadNeedsDispatch = true;
                     }
+                    // Dispatch the complete MotionEvent once. Sending it once
+                    // per unclaimed pointer duplicates deltas during two-stick input.
+                    if (touchpadNeedsDispatch) touchpadView.onTouchEvent(event);
                     break;
                 }
                 case MotionEvent.ACTION_UP:

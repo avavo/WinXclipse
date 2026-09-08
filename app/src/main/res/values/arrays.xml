@@ -82,6 +82,15 @@
         <item>10240 MB</item>
         <item>12288 MB</item>
     </string-array>
+    <string-array name="ram_fix_pool_entries">
+        <item>0 (Auto)</item>
+        <item>512 MB</item>
+        <item>1024 MB</item>
+        <item>1536 MB</item>
+        <item>2048 MB</item>
+        <item>3072 MB</item>
+        <item>4096 MB</item>
+    </string-array>
     <string-array name="shortcut_artwork_mode_entries">
         <item>@string/shortcut_artwork_browser</item>
         <item>@string/shortcut_artwork_exe</item>

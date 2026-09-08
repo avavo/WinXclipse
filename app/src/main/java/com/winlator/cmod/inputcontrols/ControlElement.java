@@ -1117,7 +1117,11 @@ public class ControlElement {
         /* ========= D-PAD / STICK / TRACKPAD ========= */
         else if (type == Type.D_PAD || type == Type.STICK || type == Type.TRACKPAD) {
             for (byte i = 0; i < states.length; i++) {
-                if (states[i]) inputControlsView.handleInputEvent(getBindingAt(i), false);
+                Binding binding = getBindingAt(i);
+                // Gamepad axes are continuous. Release all four bindings even
+                // if the last MOVE was neutral or Android lost pointer-up.
+                if (binding.isGamepad() || states[i])
+                    inputControlsView.handleInputEvent(binding, false);
                 states[i] = false;
             }
 
@@ -1155,7 +1159,9 @@ public class ControlElement {
         }
         else if (type == Type.D_PAD || type == Type.STICK || type == Type.TRACKPAD) {
             for (byte i = 0; i < states.length; i++) {
-                if (states[i]) inputControlsView.handleInputEvent(getBindingAt(i), false);
+                Binding binding = getBindingAt(i);
+                if (binding.isGamepad() || states[i])
+                    inputControlsView.handleInputEvent(binding, false);
                 states[i] = false;
             }
             currentPosition = null;

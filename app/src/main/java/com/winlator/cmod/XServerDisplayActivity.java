@@ -97,6 +97,7 @@ import com.winlator.cmod.core.RamOptimizerXclipse;
 import com.winlator.cmod.core.KeyValueSet;
 import com.winlator.cmod.core.OnExtractFileListener;
 import com.winlator.cmod.core.PreloaderDialog;
+import com.winlator.cmod.core.PrefixDllResync;
 import com.winlator.cmod.core.ContentOperationRegistry;
 import com.winlator.cmod.core.Callback;
 import com.winlator.cmod.core.ProcessHelper;
@@ -114,7 +115,6 @@ import com.winlator.cmod.fexcore.FEXCoreManager;
 import com.winlator.cmod.inputcontrols.ControllerManager;
 import com.winlator.cmod.inputcontrols.ControlsProfile;
 import com.winlator.cmod.inputcontrols.ExternalController;
-import com.winlator.cmod.inputcontrols.GamepadState;
 import com.winlator.cmod.inputcontrols.InputControlsManager;
 import com.winlator.cmod.inputcontrols.MotionControls;
 import com.winlator.cmod.math.Mathf;
@@ -1347,6 +1347,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         sidebarHandler.removeCallbacks(aggressiveWineTrimProbe);
         ProcessHelper.removeDebugCallback(bcnTelemetryCallback);
         if (xServerView != null) xServerView.getRenderer().stopApexChoreographer();
+        if (inputControlsView != null) inputControlsView.cancelAllTouches();
         if (launchBlockedByContentOperation) {
             super.onDestroy();
             return;
@@ -1415,6 +1416,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     protected void onStop() {
         super.onStop();
         if (launchBlockedByContentOperation) return;
+        if (inputControlsView != null) inputControlsView.cancelAllTouches();
         savePlaytimeData();
         handler.removeCallbacks(savePlaytimeRunnable);
 
@@ -2093,6 +2095,21 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             container.putExtra("wincomponents", wincomponents);
             containerDataChanged = true;
         }
+
+        // Resync do prefix com o runtime ativo (só file ops, nunca wineboot).
+        // Fecha o buraco da troca/reinstalação de runtime: DLLs dessincronizadas
+        // matavam o jogo no boot sem dizer nada. Fail-open: nunca bloqueia o boot.
+        // Versionado por container via lastPrefixRuntimeId dentro do próprio resync.
+        try {
+            PrefixDllResync.resync(container, wineInfo, imageFs);
+        } catch (Throwable t) {
+            Log.w("PrefixDllResync", "Resync failed; boot continues normally", t);
+        }
+
+        // Fail-fast: atalho apontando pra exe que não existe mais (pasta
+        // renomeada/movida, case diferente no ext4). Antes disso era 2min de
+        // timeout silencioso até o watchdog fechar a sessão.
+        validateShortcutExecutable();
 
         String desktopTheme = container.getDesktopTheme();
         WineThemeManager.ThemeInfo desktopThemeInfo = new WineThemeManager.ThemeInfo(desktopTheme);
@@ -4278,6 +4295,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     }
 
     private void showInputControls(ControlsProfile profile) {
+        // Switching profiles can invalidate the old pointer stream without an
+        // ACTION_UP. Clear it before assigning the new profile.
+        inputControlsView.cancelAllTouches();
         inputControlsView.setVisibility(View.VISIBLE);
         inputControlsView.requestFocus();
         inputControlsView.setProfile(profile);
@@ -4306,9 +4326,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     private void hideInputControls() {
         ControlsProfile hiddenProfile = inputControlsView.getProfile();
-        if (hiddenProfile != null && hiddenProfile.isVirtualGamepad() && winHandler != null) {
-            winHandler.sendVirtualGamepadState(new GamepadState());
-        }
+        // This also resets FakeInputWriter, not just the shared-memory copy.
+        // Sending a new GamepadState alone leaves Linux evdev axes latched.
+        inputControlsView.cancelAllTouches();
         inputControlsView.setShowTouchscreenControls(true);
         inputControlsView.setVisibility(View.GONE);
         inputControlsView.setProfile(null);
@@ -4366,8 +4386,20 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                     && effectiveVramCapMb <= 0
                     && this.dxwrapperConfig != null
                     && this.dxwrapperConfig.getBoolean("ramFix", true);
+            // dxvk.conf ao lado do exe (CR/repack): as chaves de memoria dele
+            // sobrevivem ao env, como nos outros Winlator.
+            java.io.File gameDirDxvkConf = null;
+            if (shortcut != null) {
+                try {
+                    java.io.File exe = shortcut.resolveExecutableFile();
+                    if (exe != null && exe.getParentFile() != null) {
+                        java.io.File cand = new java.io.File(exe.getParentFile(), "dxvk.conf");
+                        if (cand.isFile()) gameDirDxvkConf = cand;
+                    }
+                } catch (Exception ignored) {}
+            }
             DXVKConfigDialog.setEnvVars(this, dxwrapperConfig, envVars, containerRoot,
-                    effectiveVramCapMb, shortcutConf, wineLogDirectory, rageSmallPool);
+                    effectiveVramCapMb, shortcutConf, wineLogDirectory, rageSmallPool, gameDirDxvkConf);
         }
 
         boolean showFps = container != null && container.isShowFPS();
@@ -5353,6 +5385,30 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     private boolean isGenerateWineprefix() {
         return getIntent().getBooleanExtra("generate_wineprefix", false);
+    }
+
+    /** Fail-fast pra atalho com exe inexistente (pasta renomeada/movida, case
+     *  diferente no ext4): avisa na hora em vez de 2min de timeout silencioso
+     *  até o watchdog fechar a sessão. Só leitura; nunca bloqueia o boot. */
+    private void validateShortcutExecutable() {
+        try {
+            if (shortcut == null || shortcut.path == null) return;
+            if (shortcut.path.endsWith(".lnk")) return;
+            java.io.File exe = shortcut.resolveExecutableFile();
+            if (exe != null && exe.isFile()) return;
+            Log.w("WineStartCommand", "Shortcut target missing: " + shortcut.path
+                    + " resolved=" + exe);
+            final String target = shortcut.path;
+            sidebarHandler.post(() -> {
+                try {
+                    Toast.makeText(XServerDisplayActivity.this,
+                            getString(R.string.shortcut_exe_missing, target),
+                            Toast.LENGTH_LONG).show();
+                } catch (Exception ignored) {}
+            });
+        } catch (Exception e) {
+            Log.w("WineStartCommand", "Could not validate shortcut target", e);
+        }
     }
 
     private String getWineStartCommand() {

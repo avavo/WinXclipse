@@ -244,6 +244,19 @@
 
         </LinearLayout>
 
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/ram_fix_pool" />
+
+        <Spinner
+            style="@style/ComboBox"
+            android:layout_width="match_parent"
+            android:id="@+id/SRamFixPool"
+            android:entries="@array/ram_fix_pool_entries"
+            android:spinnerMode="dialog"/>
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="match_parent"

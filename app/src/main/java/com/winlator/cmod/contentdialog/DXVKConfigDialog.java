@@ -28,7 +28,7 @@ import java.util.Locale;
 import java.util.List;
 
 public class DXVKConfigDialog extends ContentDialog {
-    public static final String DEFAULT_CONFIG = "version="+DefaultVersion.DXVK+",framerate=0,async=1,asyncCache=0,vkd3dVersion="+DefaultVersion.VKD3D+",vkd3dLevel=12_1,ddrawrapper=,noTimeline=1,vk3d66=1,ramFix=1";
+    public static final String DEFAULT_CONFIG = "version="+DefaultVersion.DXVK+",framerate=0,async=1,asyncCache=0,vkd3dVersion="+DefaultVersion.VKD3D+",vkd3dLevel=12_1,ddrawrapper=,noTimeline=1,vk3d66=1,ramFix=1,ramFixPool=0";
     public static final String CUSTOM_CONF_FILENAME = "dxvk.conf";
     public static final long MAX_CUSTOM_CONF_BYTES = 64 * 1024;
     // Neutraliza as chaves que quebram RE Engine/RAGE em GPU movel quando um
@@ -37,22 +37,125 @@ public class DXVKConfigDialog extends ContentDialog {
     // streaming pelo heap inteiro e morre de OOM andando de carro (GTA V).
     // explicitCapMb e o menor hard cap ativo (driver/xperf): o reportado nunca
     // passa do real, senao o jogo planeja alem do que existe e perde textura.
-    public static String buildSafeFallbackConfig(Context context, int explicitCapMb) {
+    // Chaves de seguranca: sempre valem (neutralizam repack quebrado). Chaves de
+    // memoria cedem para um dxvk.conf ao lado do .exe (CR/repack): o arquivo
+    // governa a memoria dele, como nos outros Winlator — o env nao pisa nele.
+    private static final String SAFETY_KEYS =
+            "d3d11.relaxedBarriers = False; dxvk.useRawSsbo = Auto";
+    private static final String[] MEMORY_KEYS =
+            {"dxgi.maxdevicememory", "dxgi.maxsharedmemory", "d3d9.maxavailablememory"};
+
+    /** Chaves (lowercase) definidas num dxvk.conf ao lado do exe, se existir. */
+    public static java.util.Set<String> gameDirConfKeys(File gameDirDxvkConf) {
+        java.util.Set<String> keys = new java.util.HashSet<>();
+        if (gameDirDxvkConf == null || !gameDirDxvkConf.isFile()) return keys;
+        try {
+            String content = new String(java.nio.file.Files.readAllBytes(gameDirDxvkConf.toPath()),
+                    java.nio.charset.StandardCharsets.UTF_8);
+            for (String line : content.split("\r?\n")) {
+                String t = line.trim();
+                int hash = t.indexOf('#');
+                if (hash >= 0) t = t.substring(0, hash).trim();
+                int eq = t.indexOf('=');
+                if (eq > 0) keys.add(t.substring(0, eq).trim().toLowerCase(java.util.Locale.ENGLISH));
+            }
+        } catch (Exception ignored) {}
+        return keys;
+    }
+
+    /** Monta o env final: seguranca sempre + memoria so nas chaves que o arquivo nao definiu. */
+    public static String mergeGameDirConf(String memoryPart, java.util.Set<String> fileKeys) {
+        StringBuilder out = new StringBuilder(SAFETY_KEYS);
+        if (memoryPart != null) {
+            for (String entry : memoryPart.split(";")) {
+                String t = entry.trim();
+                if (t.isEmpty()) continue;
+                int eq = t.indexOf('=');
+                String key = eq > 0 ? t.substring(0, eq).trim().toLowerCase(java.util.Locale.ENGLISH) : "";
+                boolean isMemory = false;
+                for (String mk : MEMORY_KEYS) if (mk.equals(key)) { isMemory = true; break; }
+                if (isMemory && fileKeys.contains(key)) continue;
+                out.append("; ").append(t);
+            }
+        }
+        return out.toString();
+    }
+
+    /** Pool configurado pelo usuario no dialogo (0 = Auto). So vale com RAM Fix ligado. */
+    public static int resolveRamFixPoolMb(KeyValueSet config) {
+        if (config == null) return 0;
+        try {
+            int v = Integer.parseInt(config.get("ramFixPool", "0").trim());
+            if (v <= 0) return 0;
+            return Math.min(Math.max(v, 256), 12288);
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    /** Valores {device, shared, d3d9} do fallback por tier. */
+    private static int[] tierMemoryValues(Context context, int explicitCapMb, boolean ramFixOn) {
         int dev;
         int shared;
+        int d3d9;
         if (explicitCapMb > 0) {
             dev = explicitCapMb;
             shared = explicitCapMb;
-        } else if (getTotalMemMb(context) <= 6144) {
-            dev = 2048;
-            shared = 2048;
+            // Reportado nunca passa do hard cap real: senao o jogo planeja
+            // alem do que existe e perde textura. Teto de 4096 no d3d9.
+            d3d9 = Math.min(explicitCapMb, 4096);
+        } else if (ramFixOn) {
+            // RAM Fix geral (todos os jogos, nao so RAGE): teto conservador para
+            // memoria unificada nao empurrar a RAM total para 85-90% (faixa do
+            // lmkd) nem derrubar o celular inteiro em aparelho curto. Como nos
+            // outros Winlator, o dxvk.conf ao lado do .exe governa a memoria
+            // dele (merge por chave no setEnvVars) — aqui e so o fallback.
+            if (getTotalMemMb(context) <= 6144) {
+                dev = 1024;
+                shared = 1024;
+                d3d9 = 2048;
+            } else {
+                dev = 1536;
+                shared = 1024;
+                d3d9 = 2048;
+            }
         } else {
-            dev = 3072;
-            shared = 2048;
+            if (getTotalMemMb(context) <= 6144) {
+                dev = 2048;
+                shared = 2048;
+            } else {
+                dev = 3072;
+                shared = 2048;
+            }
+            d3d9 = 4096;
         }
-        return "d3d11.relaxedBarriers = False; dxvk.useRawSsbo = Auto; " +
-                "dxgi.maxDeviceMemory = " + dev + "; dxgi.maxSharedMemory = " + shared +
-                "; d3d9.maxAvailableMemory = 4096";
+        return new int[]{dev, shared, d3d9};
+    }
+
+    private static String formatMemoryPart(int dev, int shared, int d3d9) {
+        return "dxgi.maxDeviceMemory = " + dev + "; dxgi.maxSharedMemory = " + shared
+                + "; d3d9.maxAvailableMemory = " + d3d9;
+    }
+
+    private static String tierMemoryPart(Context context, int explicitCapMb, boolean ramFixOn) {
+        int[] v = tierMemoryValues(context, explicitCapMb, ramFixOn);
+        return formatMemoryPart(v[0], v[1], v[2]);
+    }
+
+    private static String tierMemoryPart(Context context, int explicitCapMb) {
+        return tierMemoryPart(context, explicitCapMb, true);
+    }
+
+    /** Aplica o override do seletor de pool: troca so o device, shared/d3d9 seguem o auto. */
+    private static String applyPoolOverride(String memoryPart, int poolMb, int explicitCapMb) {
+        if (poolMb <= 0) return memoryPart;
+        int dev = explicitCapMb > 0 ? Math.min(poolMb, explicitCapMb) : poolMb;
+        try {
+            String rest = memoryPart.replaceFirst("(?i)dxgi\\.maxDeviceMemory\\s*=\\s*\\d+",
+                    "dxgi.maxDeviceMemory = " + dev);
+            if (!rest.equals(memoryPart)) return rest;
+        } catch (Exception ignored) {}
+        return "dxgi.maxDeviceMemory = " + dev + "; " + memoryPart;
     }
 
     private static long getTotalMemMb(Context context) {
@@ -67,14 +170,26 @@ public class DXVKConfigDialog extends ContentDialog {
         }
     }
     // Pool pequeno para RAGE (GTA V): a comunidade confirmou que reportar pouca
-    // VRAM (512 MB) mantem a RAM total em ~80% em vez de 85-90% (faixa do lmkd),
-    // junto das flags de streaming do RAM Fix. So faz sentido com ramFix ligado
-    // e sem conf custom/hard cap do usuario, que sempre tem precedencia.
+    // VRAM (512 MB device) mantem a RAM total em ~80% em vez de 85-90% (faixa do lmkd),
+    // junto das flags de streaming do RAM Fix. Shared/d3d9 tambem baixos: o total
+    // reportado (512+1024) segura o sistema — 512+2048+4096 ainda derrubava o
+    // celular inteiro em teste. So faz sentido com ramFix ligado e sem conf
+    // custom/hard cap do usuario, que sempre tem precedencia.
     public static final int RAGE_SMALL_POOL_MB = 512;
+    public static final int RAGE_SMALL_SHARED_MB = 1024;
+    public static final int RAGE_SMALL_D3D9_MB = 2048;
+    private static String rageMemoryPart() {
+        return "dxgi.maxDeviceMemory = " + RAGE_SMALL_POOL_MB + "; dxgi.maxSharedMemory = " + RAGE_SMALL_SHARED_MB
+                + "; d3d9.maxAvailableMemory = " + RAGE_SMALL_D3D9_MB;
+    }
     public static String buildRageFallbackConfig() {
-        return "d3d11.relaxedBarriers = False; dxvk.useRawSsbo = Auto; " +
-                "dxgi.maxDeviceMemory = " + RAGE_SMALL_POOL_MB + "; dxgi.maxSharedMemory = 2048" +
-                "; d3d9.maxAvailableMemory = 4096";
+        return SAFETY_KEYS + "; " + rageMemoryPart();
+    }
+    public static String buildSafeFallbackConfig(Context context, int explicitCapMb) {
+        return SAFETY_KEYS + "; " + tierMemoryPart(context, explicitCapMb, true);
+    }
+    public static String buildSafeFallbackConfig(Context context, int explicitCapMb, boolean ramFixOn) {
+        return SAFETY_KEYS + "; " + tierMemoryPart(context, explicitCapMb, ramFixOn);
     }
     public static final String[] VKD3D_FEATURE_LEVELS = {"12_0", "12_1", "12_2", "11_1", "11_0", "10_1", "10_0", "9_3", "9_2", "9_1"};
     public static final int DXVK_TYPE_NONE = 0;
@@ -134,6 +249,7 @@ public class DXVKConfigDialog extends ContentDialog {
         swAsyncCache = findViewById(R.id.SWAsyncCache);
         swRamFix = findViewById(R.id.SWRamFix);
         swGtaOpt = findViewById(R.id.SWGtaOpt);
+        final Spinner sRamFixPool = findViewById(R.id.SRamFixPool);
         findViewById(R.id.BTRamFixHelp).setOnClickListener(v ->
                 AppUtils.showHelpBox(getContext(), v, R.string.ram_fix_help));
         findViewById(R.id.BTGtaOptHelp).setOnClickListener(v ->
@@ -180,6 +296,9 @@ public class DXVKConfigDialog extends ContentDialog {
         swAsyncCache.setChecked(config.get("asyncCache").equals("1"));
         swRamFix.setChecked(config.getBoolean("ramFix", true));
         swGtaOpt.setChecked(config.get("gtaOpt").equals("1"));
+        AppUtils.setSpinnerSelectionFromNumber(sRamFixPool, config.get("ramFixPool", "0"));
+        sRamFixPool.setEnabled(swRamFix.isChecked());
+        swRamFix.setOnCheckedChangeListener((v, checked) -> sRamFixPool.setEnabled(checked));
         cbNoTimeline.setChecked(config.get("noTimeline").equals("1"));
         cbVk3d66.setChecked(config.get("vk3d66").equals("1"));
 
@@ -217,6 +336,7 @@ public class DXVKConfigDialog extends ContentDialog {
             config.put("noTimeline", cbNoTimeline.isChecked() ? "1" : "0");
             config.put("vk3d66", cbVk3d66.isChecked() ? "1" : "0");
             config.put("ramFix", swRamFix.isChecked() ? "1" : "0");
+            config.put("ramFixPool", StringUtils.parseNumber(sRamFixPool.getSelectedItem()));
             config.put("gtaOpt", swGtaOpt.isChecked() ? "1" : "0");
             anchor.setTag(config.toString());
         });
@@ -322,6 +442,18 @@ public class DXVKConfigDialog extends ContentDialog {
     /** Mesmo que acima, com pool pequeno reportado para alvos RAGE (GTA V). */
     public static void setEnvVars(Context context, KeyValueSet config, EnvVars envVars, File containerRoot,
                                   int explicitCapMb, File shortcutConf, File diagnosticLogDirectory, boolean rageSmallPool) {
+        setEnvVars(context, config, envVars, containerRoot, explicitCapMb, shortcutConf,
+                diagnosticLogDirectory, rageSmallPool, null);
+    }
+
+    /**
+     * Versao completa: gameDirDxvkConf e o dxvk.conf ao lado do .exe, se existir.
+     * As chaves de memoria dele sobrevivem (o arquivo governa a memoria dele);
+     * as chaves de seguranca do env sempre valem.
+     */
+    public static void setEnvVars(Context context, KeyValueSet config, EnvVars envVars, File containerRoot,
+                                  int explicitCapMb, File shortcutConf, File diagnosticLogDirectory,
+                                  boolean rageSmallPool, File gameDirDxvkConf) {
         // Keep every D3D shader cache on fast internal storage. DXVK 1.x uses
         // STATE_CACHE_PATH while modern DXVK and VKD3D-Proton use their shader
         // cache variables, so set all three for both ARM64EC and x86 runtimes.
@@ -375,15 +507,31 @@ public class DXVKConfigDialog extends ContentDialog {
                 try { if (globalConf.isFile()) globalConf.delete(); } catch (Exception ignored) {}
                 envVars.remove("DXVK_CONFIG_FILE");
                 // Sem conf importado, fixa os defaults seguros por cima de um
-                // eventual dxvk.conf que o repack colocou ao lado do .exe
-                // (o DXVK le esse arquivo sozinho; o env tem precedencia).
-                // Respeita um DXVK_CONFIG manual da aba EnvVars, se houver.
-                if (!envVars.has("DXVK_CONFIG"))
-                    envVars.put("DXVK_CONFIG", rageSmallPool ? buildRageFallbackConfig()
-                            : buildSafeFallbackConfig(context, explicitCapMb));
-                Log.i("DXVKConfigDialog", rageSmallPool
-                        ? "No custom dxvk.conf, applying RAGE small-pool overrides (512MB device)"
-                        : "No custom dxvk.conf, applying safe fallback overrides");
+                // eventual dxvk.conf que o repack colocou ao lado do .exe.
+                // O env tem precedencia no DXVK, entao o merge e por chave: as
+                // de seguranca sempre valem; as de memoria do arquivo sobrevivem
+                // (igual ao Ludashi/vanilla: o arquivo governa a memoria dele,
+                // o env nunca pisa). Respeita um DXVK_CONFIG manual
+                // da aba EnvVars, se houver.
+                if (!envVars.has("DXVK_CONFIG")) {
+                    boolean ramFixOn = config != null && config.getBoolean("ramFix", true);
+                    int poolMb = ramFixOn ? resolveRamFixPoolMb(config) : 0;
+                    String memoryPart = rageSmallPool ? rageMemoryPart()
+                            : tierMemoryPart(context, explicitCapMb, ramFixOn);
+                    if (poolMb > 0) memoryPart = applyPoolOverride(memoryPart, poolMb, explicitCapMb);
+                    envVars.put("DXVK_CONFIG", mergeGameDirConf(
+                            memoryPart, gameDirConfKeys(gameDirDxvkConf)));
+                    if (rageSmallPool) {
+                        Log.i("DXVKConfigDialog", "RAGE small-pool overrides: device="
+                                + (poolMb > 0 ? poolMb : RAGE_SMALL_POOL_MB) + " shared=" + RAGE_SMALL_SHARED_MB
+                                + " (game-dir memory keys kept)");
+                    } else if (ramFixOn) {
+                        Log.i("DXVKConfigDialog", "RAM Fix conservative pool overrides"
+                                + " (game-dir memory keys kept): " + memoryPart);
+                    } else {
+                        Log.i("DXVKConfigDialog", "No custom dxvk.conf, applying safe fallback overrides");
+                    }
+                }
             }
         }
 

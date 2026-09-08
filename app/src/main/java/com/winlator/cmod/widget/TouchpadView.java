@@ -399,6 +399,10 @@ public class TouchpadView extends View {
                 }
                 break;
             case MotionEvent.ACTION_CANCEL:
+                continueClick = false;
+                fingerPointerButtonLeft = null;
+                fingerPointerButtonRight = null;
+                externalPrimaryDown = false;
                 if (xServer.isRelativeMouseMovement()) {
                     xServer.getWinHandler().mouseEvent(MouseEventFlags.LEFTUP, 0, 0, 0);
                     xServer.getWinHandler().mouseEvent(MouseEventFlags.RIGHTUP, 0, 0, 0);

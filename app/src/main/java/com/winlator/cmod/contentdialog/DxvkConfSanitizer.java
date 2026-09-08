@@ -45,8 +45,11 @@ public final class DxvkConfSanitizer {
             "d3d11.allowmapflagnowait"));
 
     private static final Pattern ASSIGN = Pattern.compile("^([A-Za-z0-9_.]+)\\s*=\\s*(.*?)\\s*$");
-    private static final long MIN_SAFE_VRAM_MB = 1024;
-    private static final long SANITIZED_VRAM_MB = 2048;
+    // 512 MB e valido: e o pool que segura GTA V em ~80% de RAM (flufduck, A55)
+    // em vez de 85-90% (faixa do lmkd). So abaixo disso quebra (0x80070057,
+    // perda de textura). Sanitiza para 1024, nao 2048, para nao reintroduzir OOM.
+    private static final long MIN_SAFE_VRAM_MB = 512;
+    private static final long SANITIZED_VRAM_MB = 1024;
     private static final int MAX_COMPILER_THREADS = 4;
     private static final int SANITIZED_COMPILER_THREADS = 3;
 

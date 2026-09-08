@@ -138,6 +138,10 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
 - The xidi controller fix installs only with DirectInput enabled and never for RAGE targets; older prefixes are migrated back to Wine's builtin DLLs automatically.
 - Confirmed container, shortcut and imported `dxvk.conf` settings are flushed to disk and atomically replaced. Cross-process locks and merge preserve newer settings when an older live instance saves runtime metadata; latest-state recovery mirrors restore missing/malformed indexes, and existing Wine-prefix data is made visible again with safe defaults if an older build lost its index.
 - CPU-affinity checkboxes are centered in true rows of four on octa-core devices and five on deca-core devices in both container and shortcut settings.
+- `RAM Fix pool` selector in the DXVK + VKD3D gear (Auto/512–4096 MB, per container and per shortcut): overrides only the reported device memory for every game, shared/d3d9 stay conservative, and a hard cap still clamps it. A `dxvk.conf` beside the game `.exe` keeps governing its own memory keys, and 512 MB imported caps are accepted.
+- Wine prefixes re-sync with the active runtime at boot (file operations only, 20 s budget, fail-open, versioned per container): missing system DLLs are restored and diverged builtins refreshed after a runtime swap unless natively overridden — games no longer "stop opening out of nowhere", no runtime reinstall needed, saves untouched. Broken runtimes are reported in logcat instead of killing the boot silently.
+- Missing shortcut executables Toast the absent path immediately instead of hanging on the 2-minute stub timeout.
+- Fixed two-stick drift (touchpad deltas were dispatched once per unclaimed pointer) plus unconditional gamepad release and touch cancellation on detach/profile switch, so axes cannot latch and spin the view.
 
 ## Status
 
