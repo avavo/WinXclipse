@@ -58,9 +58,12 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class ContentsFragment extends Fragment {
+    public static final String ARG_INITIAL_CATEGORY = "initial_category";
+    public static final String ARG_EMBEDDED = "embedded";
+    public static final String ARG_LOCK_CATEGORY = "lock_category";
     private static final long REMOTE_REFRESH_INTERVAL_MS = 15L * 60L * 1000L;
-    private static final int CATEGORY_XCLIPSE_DRIVERS = 100;
-    private static final int CATEGORY_WRAPPERS = 101;
+    public static final int CATEGORY_XCLIPSE_DRIVERS = 100;
+    public static final int CATEGORY_WRAPPERS = 101;
     private static final int IMPORT_CONTENT = 0;
     private static final int IMPORT_DRIVER = 1;
     private static final int IMPORT_WRAPPER = 2;
@@ -99,11 +102,34 @@ public class ContentsFragment extends Fragment {
     }
 
     private boolean isDarkMode;
+    private boolean embedded;
+    private boolean lockCategory;
+
+    public static ContentsFragment newInstance(int initialCategory, boolean embedded) {
+        return newInstance(initialCategory, embedded, false);
+    }
+
+    public static ContentsFragment newInstance(int initialCategory, boolean embedded,
+                                               boolean lockCategory) {
+        ContentsFragment fragment = new ContentsFragment();
+        Bundle args = new Bundle();
+        args.putInt(ARG_INITIAL_CATEGORY, initialCategory);
+        args.putBoolean(ARG_EMBEDDED, embedded);
+        args.putBoolean(ARG_LOCK_CATEGORY, lockCategory);
+        fragment.setArguments(args);
+        return fragment;
+    }
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setHasOptionsMenu(false);
+        Bundle args = getArguments();
+        if (args != null) {
+            selectedCategory = args.getInt(ARG_INITIAL_CATEGORY, 0);
+            embedded = args.getBoolean(ARG_EMBEDDED, false);
+            lockCategory = args.getBoolean(ARG_LOCK_CATEGORY, false);
+        }
         manager = new ContentsManager(getContext());
         String bundledJson = FileUtils.readString(requireContext(), ContentsManager.REMOTE_PROFILES);
         manager.setRemoteProfiles(manager.getCachedRemoteProfiles(bundledJson));
@@ -175,7 +201,9 @@ public class ContentsFragment extends Fragment {
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
-        ((AppCompatActivity) getActivity()).getSupportActionBar().setTitle(R.string.contents);
+        if (!embedded && getActivity() instanceof AppCompatActivity) {
+            ((AppCompatActivity) getActivity()).getSupportActionBar().setTitle(R.string.contents);
+        }
     }
 
     @Nullable
@@ -183,8 +211,16 @@ public class ContentsFragment extends Fragment {
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         ViewGroup layout = (ViewGroup) inflater.inflate(R.layout.contents_fragment, container, false);
 
+        int requestedCategory = selectedCategory;
         sContentType = layout.findViewById(R.id.SContentType);
         updateContentTypeSpinner(sContentType);
+        int contentTypeCount = ContentProfile.ContentType.values().length;
+        int initialPosition = requestedCategory == CATEGORY_XCLIPSE_DRIVERS
+                ? contentTypeCount : requestedCategory == CATEGORY_WRAPPERS
+                ? contentTypeCount + 1 : Math.max(0, Math.min(requestedCategory, contentTypeCount - 1));
+        if (requestedCategory >= 0 && requestedCategory < contentTypeCount) {
+            currentContentType = ContentProfile.ContentType.values()[requestedCategory];
+        }
         emptyText = layout.findViewById(R.id.TVEmptyText);
 
         installButton = layout.findViewById(R.id.BTInstallContent);
@@ -193,6 +229,12 @@ public class ContentsFragment extends Fragment {
         recyclerView = layout.findViewById(R.id.RecyclerView);
         recyclerView.setLayoutManager(new LinearLayoutManager(recyclerView.getContext()));
         recyclerView.addItemDecoration(new DividerItemDecoration(recyclerView.getContext(), DividerItemDecoration.VERTICAL));
+        sContentType.setSelection(initialPosition);
+        if (lockCategory) {
+            sContentType.setEnabled(false);
+            layout.findViewById(R.id.TVContentType).setVisibility(View.GONE);
+            layout.findViewById(R.id.LLContentType).setVisibility(View.GONE);
+        }
         loadContentList();
 
         return layout;
@@ -420,6 +462,14 @@ public class ContentsFragment extends Fragment {
         openDocument(new String[]{"application/octet-stream", "application/x-xz",
                 "application/x-zstd", "application/zstd",
                 "application/x-zstd-compressed-tar", "application/x-compressed-tar"});
+    }
+
+    public static String getCategoryTitle(Context context, int category) {
+        if (category == CATEGORY_XCLIPSE_DRIVERS) return context.getString(R.string.xclipse_drivers);
+        if (category == CATEGORY_WRAPPERS) return context.getString(R.string.wrappers);
+        ContentProfile.ContentType[] values = ContentProfile.ContentType.values();
+        if (category >= 0 && category < values.length) return values[category].toString();
+        return context.getString(R.string.contents);
     }
 
     private void openDocument(String[] mimeTypes) {
@@ -750,6 +800,7 @@ public class ContentsFragment extends Fragment {
         public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
             ExternalDownloadCatalog.Item item = data.get(position);
             boolean installed = item.url == null;
+            holder.itemView.setAlpha(installed ? 1.0f : 0.58f);
             holder.icon.setBackground(null);
             holder.icon.setImageResource(selectedCategory == CATEGORY_WRAPPERS
                     ? R.drawable.icon_settings : R.drawable.icon_debug);
@@ -868,6 +919,8 @@ public class ContentsFragment extends Fragment {
         @Override
         public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
             final ContentProfile profile = data.get(position);
+            boolean installed = manager.isInstalledProfile(profile);
+            holder.itemView.setAlpha(installed ? 1.0f : 0.58f);
 
             int iconId = switch (profile.type) {
                 case CONTENT_TYPE_WINE -> R.drawable.icon_wine;

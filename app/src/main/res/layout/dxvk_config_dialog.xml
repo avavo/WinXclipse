@@ -3,6 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="wrap_content"
     android:layout_height="200dp"
+    android:theme="@style/WinXclipseToggleControlsTheme"
     android:gravity="center_horizontal">
 
     <LinearLayout
@@ -16,12 +17,24 @@
             android:layout_height="wrap_content"
             android:text="@string/dxvk_version" />
 
-        <Spinner
-            style="@style/ComboBox"
+        <LinearLayout
             android:layout_width="match_parent"
-            android:id="@+id/SVersion"
-            android:entries="@array/dxvk_version_entries"
-            android:spinnerMode="dialog"/>
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+            <Spinner
+                android:id="@+id/SVersion"
+                style="@style/ComboBox"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:entries="@array/dxvk_version_entries"
+                android:spinnerMode="dialog" />
+            <ImageButton
+                android:id="@+id/BTDownloadDXVKContent"
+                style="@style/DownloadIconButton"
+                android:contentDescription="@string/download_dxvk"
+                android:src="@drawable/icon_popup_menu_download" />
+        </LinearLayout>
 
         <TextView
             android:layout_width="wrap_content"
@@ -29,11 +42,23 @@
             android:layout_marginTop="8dp"
             android:text="@string/vkd3d_version" />
 
-        <Spinner
-            android:id="@+id/SVKD3DVersion"
-            style="@style/ComboBox"
+        <LinearLayout
             android:layout_width="match_parent"
-            android:spinnerMode="dialog" />
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+            <Spinner
+                android:id="@+id/SVKD3DVersion"
+                style="@style/ComboBox"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:spinnerMode="dialog" />
+            <ImageButton
+                android:id="@+id/BTDownloadVKD3DContent"
+                style="@style/DownloadIconButton"
+                android:contentDescription="@string/download_vkd3d"
+                android:src="@drawable/icon_popup_menu_download" />
+        </LinearLayout>
 
         <TextView
             android:layout_width="wrap_content"
@@ -119,9 +144,9 @@
 
             <ToggleButton
                 android:id="@+id/SWAsync"
-                android:layout_width="64dp"
-                android:layout_height="32dp"
-                android:background="@drawable/toggle_button_selector"
+                android:layout_width="48dp"
+                android:layout_height="26dp"
+                android:background="@drawable/compact_toggle_selector"
                 android:textOn=""
                 android:textOff="" />
 
@@ -144,9 +169,9 @@
 
             <ToggleButton
                 android:id="@+id/SWAsyncCache"
-                android:layout_width="64dp"
-                android:layout_height="32dp"
-                android:background="@drawable/toggle_button_selector"
+                android:layout_width="48dp"
+                android:layout_height="26dp"
+                android:background="@drawable/compact_toggle_selector"
                 android:textOn=""
                 android:textOff="" />
 
@@ -236,9 +261,9 @@
 
             <ToggleButton
                 android:id="@+id/SWRamFix"
-                android:layout_width="64dp"
-                android:layout_height="32dp"
-                android:background="@drawable/toggle_button_selector"
+                android:layout_width="48dp"
+                android:layout_height="26dp"
+                android:background="@drawable/compact_toggle_selector"
                 android:textOn=""
                 android:textOff="" />
 
@@ -282,9 +307,9 @@
 
             <ToggleButton
                 android:id="@+id/SWGtaOpt"
-                android:layout_width="64dp"
-                android:layout_height="32dp"
-                android:background="@drawable/toggle_button_selector"
+                android:layout_width="48dp"
+                android:layout_height="26dp"
+                android:background="@drawable/compact_toggle_selector"
                 android:textOn=""
                 android:textOff="" />
 

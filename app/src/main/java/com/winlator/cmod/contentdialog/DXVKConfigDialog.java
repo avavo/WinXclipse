@@ -1,6 +1,7 @@
 package com.winlator.cmod.contentdialog;
 
 import android.content.Context;
+import android.content.ContextWrapper;
 import android.util.Log;
 import android.view.View;
 import android.widget.AdapterView;
@@ -10,7 +11,11 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.ToggleButton;
 
+import androidx.fragment.app.FragmentActivity;
+
 import com.winlator.cmod.R;
+import com.winlator.cmod.ContentDownloadsDialogFragment;
+import com.winlator.cmod.contents.ContentProfile;
 import com.winlator.cmod.contents.ContentProfile;
 import com.winlator.cmod.contents.ContentsManager;
 import com.winlator.cmod.core.AppUtils;
@@ -312,6 +317,33 @@ public class DXVKConfigDialog extends ContentDialog {
         setVkd3dSelectionByIdentifier(sVkd3dVersion, config.get("vkd3dVersion"));
         updateVkd3dControls(sVkd3dVersion, sVkd3dFeatureLevel);
         AppUtils.setSpinnerSelectionFromIdentifier(sVkd3dFeatureLevel, config.get("vkd3dLevel"));
+        findViewById(R.id.BTDownloadDXVKContent).setOnClickListener(v -> {
+            FragmentActivity activity = findFragmentActivity(context);
+            if (activity == null) return;
+            final String selected = String.valueOf(sVersion.getSelectedItem());
+            ContentDownloadsDialogFragment.showFixed(
+                    activity.getSupportFragmentManager(),
+                    ContentProfile.ContentType.CONTENT_TYPE_DXVK.ordinal(), () -> {
+                        contentsManager.syncContents();
+                        loadDxvkVersionSpinner(contentsManager, sVersion);
+                        AppUtils.setSpinnerSelectionFromIdentifier(sVersion, selected);
+                    });
+        });
+        findViewById(R.id.BTDownloadVKD3DContent).setOnClickListener(v -> {
+            FragmentActivity activity = findFragmentActivity(context);
+            if (activity == null) return;
+            Object current = sVkd3dVersion.getSelectedItem();
+            final String selected = current instanceof VKD3DVersionItem
+                    ? ((VKD3DVersionItem) current).getIdentifier() : "none";
+            ContentDownloadsDialogFragment.showFixed(
+                    activity.getSupportFragmentManager(),
+                    ContentProfile.ContentType.CONTENT_TYPE_VKD3D.ordinal(), () -> {
+                        contentsManager.syncContents();
+                        loadVkd3dVersionSpinner(contentsManager, sVkd3dVersion);
+                        setVkd3dSelectionByIdentifier(sVkd3dVersion, selected);
+                        updateVkd3dControls(sVkd3dVersion, sVkd3dFeatureLevel);
+                    });
+        });
         swAsync.setChecked(config.get("async").equals("1"));
         swAsyncCache.setChecked(config.get("asyncCache").equals("1"));
         swRamFix.setChecked(config.getBoolean("ramFix", true));
@@ -451,6 +483,17 @@ public class DXVKConfigDialog extends ContentDialog {
     public static void setEnvVars(Context context, KeyValueSet config, EnvVars envVars, File containerRoot,
                                   int explicitCapMb, File shortcutConf) {
         setEnvVars(context, config, envVars, containerRoot, explicitCapMb, shortcutConf, null);
+    }
+
+    private static FragmentActivity findFragmentActivity(Context candidate) {
+        Context current = candidate;
+        while (current instanceof ContextWrapper) {
+            if (current instanceof FragmentActivity) return (FragmentActivity) current;
+            Context base = ((ContextWrapper) current).getBaseContext();
+            if (base == current) break;
+            current = base;
+        }
+        return current instanceof FragmentActivity ? (FragmentActivity) current : null;
     }
 
     /** Applies DXVK/VKD3D settings and optionally routes graphics diagnostics to a container log directory. */

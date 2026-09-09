@@ -450,6 +450,10 @@ public class SettingsFragment extends Fragment {
                 R.id.CBEnableWineLifecycleLogs);
         cbEnableWineLifecycleLogs.setChecked(
                 preferences.getBoolean("enable_wine_lifecycle_logs", false));
+        final CheckBox swShowBackendLogsSidebar =
+                view.findViewById(R.id.SWShowBackendLogsSidebar);
+        swShowBackendLogsSidebar.setChecked(
+                preferences.getBoolean("show_backend_logs_sidebar", false));
 
         MainActivity mainActivity = (MainActivity) requireActivity();
         view.findViewById(R.id.BTOpenSaves).setOnClickListener(v -> mainActivity.openSaves());
@@ -507,6 +511,8 @@ public class SettingsFragment extends Fragment {
             editor.putBoolean("enable_peb_logs", CBEnablePebLogs.isChecked());
             editor.putBoolean("enable_wine_lifecycle_logs",
                     cbEnableWineLifecycleLogs.isChecked());
+            editor.putBoolean("show_backend_logs_sidebar",
+                    swShowBackendLogsSidebar.isChecked());
 
 
             // Save gyro settings

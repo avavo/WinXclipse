@@ -860,6 +860,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         graphicsDriver = Container.normalizeGraphicsDriver(graphicsDriver);
         wineRenderer = resolveWineRenderer();
+        persistWineRendererForLaunch(wineRenderer);
 
         this.graphicsDriverConfig = GraphicsDriverConfigDialog.parseGraphicsDriverConfig(graphicsDriverConfig);
         applyPreferredRefreshRate();
@@ -2118,17 +2119,19 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         String themeKey = WineThemeManager.DESKTOP_THEME_REVISION+","+desktopTheme
                 +","+WineThemeManager.getResolvedTheme(this, desktopThemeInfo.theme)
                 +","+xServer.screenInfo;
-        String storedTheme = container.getExtra("desktopTheme");
-        if (!themeKey.equals(storedTheme)) {
-            if (WineThemeManager.apply(this, desktopThemeInfo, xServer.screenInfo)) {
+        // Reapply the complete palette before every Wine startup. A previous
+        // session/runtime can rewrite user.reg during shutdown, and caching the
+        // result made only the generated wallpaper look current on next boot.
+        if (WineThemeManager.apply(this, desktopThemeInfo, xServer.screenInfo)) {
+            if (!themeKey.equals(container.getExtra("desktopTheme"))) {
                 container.putExtra("desktopTheme", themeKey);
                 containerDataChanged = true;
             }
-            else {
-                // Do not cache a failed render. The next launch must retry
-                // instead of keeping Wine on its plain-color fallback forever.
-                Log.w("WineThemeManager", "Could not generate Wine desktop wallpaper");
-            }
+        }
+        else {
+            // Do not cache a failed render. The next launch must retry instead
+            // of keeping Wine on its plain-color fallback forever.
+            Log.w("WineThemeManager", "Could not generate Wine desktop wallpaper");
         }
 
         WineStartMenuCreator.create(this, container);
@@ -2680,11 +2683,11 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         rootView.addView(xServerView);
 
         int frameGenerationProfile = parseFrameGenerationProfile(
-                getRuntimeVideoOption("frameGenerationProfile", "balanced"));
+                getRuntimeVideoOption("frameGenerationProfile", "fast"));
         int frameGenerationTarget = parseFrameGenerationTarget(
                 getRuntimeVideoOption("frameGenerationTargetFPS", "60"));
         float frameGenerationMultiplier = parseFrameGenerationMultiplier(
-                getRuntimeVideoOption("frameGenerationMultiplier", "auto"));
+                getRuntimeVideoOption("frameGenerationMultiplier", "2"));
         int frameGenerationBackend = parseFrameGenerationBackend(
                 getRuntimeVideoOption("frameGenerationBackend", "gles"));
         // APK 0.9.5 parity: no low-latency extrapolation mode; always interpolate.
@@ -2880,6 +2883,16 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             openTerminal();
             drawerLayout.closeDrawers();
         });
+        View backendLogs = sidebar.findViewById(R.id.BTSidebarBackendLogs);
+        backendLogs.setVisibility(preferences.getBoolean("show_backend_logs_sidebar", false)
+                ? View.VISIBLE : View.GONE);
+        backendLogs.setOnClickListener(v -> {
+            new DebugDialog(this, () -> {
+                preferences.edit().putBoolean("show_backend_logs_sidebar", false).apply();
+                backendLogs.setVisibility(View.GONE);
+            }).show();
+            drawerLayout.closeDrawers();
+        });
         sidebar.findViewById(R.id.BTSidebarExit).setOnClickListener(v -> exitApp());
         sidebarPauseButton.setOnClickListener(v -> toggleSidebarPause());
         sidebar.findViewById(R.id.BTSidebarHelp).setOnClickListener(v -> showTouchpadHelpDialog());
@@ -3046,9 +3059,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 Arrays.asList(getResources().getStringArray(
                         R.array.frame_generation_multiplier_entries))));
         int storedFrameGenerationProfile = parseFrameGenerationProfile(
-                getRuntimeVideoOption("frameGenerationProfile", "balanced"));
+                getRuntimeVideoOption("frameGenerationProfile", "fast"));
         float storedFrameGenerationMultiplier = parseFrameGenerationMultiplier(
-                getRuntimeVideoOption("frameGenerationMultiplier", "auto"));
+                getRuntimeVideoOption("frameGenerationMultiplier", "2"));
         int storedFrameGenerationTarget = parseFrameGenerationTarget(
                 getRuntimeVideoOption("frameGenerationTargetFPS", "60"));
         sFrameGenerationProfile.setSelection(storedFrameGenerationProfile);
@@ -3567,9 +3580,19 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         }
         String normalized = StringUtils.parseIdentifier(configured);
         if ("opengl".equals(normalized)) normalized = "gl";
-        if (!"gl".equals(normalized) && !"gdi".equals(normalized)
-                && !"vulkan".equals(normalized)) normalized = "vulkan";
+        if (!"gl".equals(normalized) && !"vulkan".equals(normalized)) normalized = "vulkan";
         return normalized;
+    }
+
+    private void persistWineRendererForLaunch(String renderer) {
+        if (container == null) return;
+        File userRegistry = new File(container.getRootDir(), ".wine/user.reg");
+        try (WineRegistryEditor editor = new WineRegistryEditor(userRegistry)) {
+            editor.setStringValue("Software\\Wine\\Direct3D", "renderer", renderer);
+        }
+        catch (Throwable error) {
+            Log.w("XServerDisplayActivity", "Unable to persist Wine renderer", error);
+        }
     }
 
     private boolean isFrameGenerationCompatible() {
@@ -3577,7 +3600,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     }
 
     private static int parseFrameGenerationProfile(String value) {
-        if (value == null) return 1;
+        if (value == null) return 0;
         switch (value.trim().toLowerCase(Locale.US)) {
             case "fast": return 0;
             case "balanced": return 1;
@@ -3596,7 +3619,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             return 2;
         }
         catch (Exception ignored) {
-            return 1;
+            return 0;
         }
     }
 
@@ -3692,13 +3715,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     }
 
     private void toggleSidebarFrameGeneration(GLRenderer renderer) {
-        boolean configured = "1".equals(
-                getRuntimeVideoOption("frameGenerationEnabled", "0"))
-                && isFrameGenerationCompatible();
-        if (!configured) {
-            Toast.makeText(this, isFrameGenerationCompatible()
-                            ? R.string.frame_generation_configure_first
-                            : R.string.frame_generation_vulkan_only,
+        if (!isFrameGenerationCompatible()) {
+            Toast.makeText(this, R.string.frame_generation_vulkan_only,
                     Toast.LENGTH_LONG).show();
             updateSidebarFrameGenerationState(renderer);
             return;
@@ -3708,25 +3726,25 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         // made while the initial enable request was still queued.
         boolean enable = !renderer.isApexRequestedEnabled();
         int profile = parseFrameGenerationProfile(
-                getRuntimeVideoOption("frameGenerationProfile", "balanced"));
+                getRuntimeVideoOption("frameGenerationProfile", "fast"));
         float multiplier = parseFrameGenerationMultiplier(
-                getRuntimeVideoOption("frameGenerationMultiplier", "auto"));
+                getRuntimeVideoOption("frameGenerationMultiplier", "2"));
         int targetFPS = parseFrameGenerationTarget(
                 getRuntimeVideoOption("frameGenerationTargetFPS", "60"));
-        applyFrameGenerationSetting(renderer, enable, profile, multiplier, targetFPS, false);
+        // The sidebar is a real setting, not a temporary session override.  In
+        // particular, disabling Apex here must survive closing and reopening Wine.
+        applyFrameGenerationSetting(renderer, enable, profile, multiplier, targetFPS, true);
     }
 
     private void updateSidebarFrameGenerationState(GLRenderer renderer) {
-        boolean configured = "1".equals(
-                getRuntimeVideoOption("frameGenerationEnabled", "0"))
-                && isFrameGenerationCompatible();
+        boolean available = isFrameGenerationCompatible();
         if (sidebarFrameGenerationButton != null) {
-            sidebarFrameGenerationButton.setEnabled(configured);
-            sidebarFrameGenerationButton.setClickable(configured);
-            sidebarFrameGenerationButton.setAlpha(configured ? 1.0f : 0.45f);
+            sidebarFrameGenerationButton.setEnabled(available);
+            sidebarFrameGenerationButton.setClickable(available);
+            sidebarFrameGenerationButton.setAlpha(available ? 1.0f : 0.45f);
         }
         if (sidebarFrameGenerationView != null) {
-            sidebarFrameGenerationView.setText(!configured
+            sidebarFrameGenerationView.setText(!available
                     ? R.string.frame_generation_locked
                     : renderer.isApexRequestedEnabled() ? R.string.on : R.string.off);
         }
@@ -5853,6 +5871,10 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     private void prepareWineDiagnosticLogs() {
         wineLogDirectory = null;
         wineLogStamp = "";
+        // Rotate the in-memory output buffer for every launch, not only when
+        // saving files is enabled. This also keeps the live backend-log viewer
+        // free from late lines emitted by the previous Wine session.
+        ProcessHelper.beginDebugSession();
         if (preferences == null || !preferences.getBoolean("enable_wine_lifecycle_logs", false)) return;
 
         wineLogDirectory = getWineLogDirectory();
@@ -5927,6 +5949,43 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         List<String> recentLines = ProcessHelper.getRecentDebugLines();
         int first = Math.max(0, recentLines.size() - 2000);
+        boolean explicitCrashSignature = false;
+        for (int index = first; index < recentLines.size(); index++) {
+            String lower = recentLines.get(index).toLowerCase(Locale.US);
+            if (lower.contains("vk_error_device_lost")
+                    || lower.contains("device lost")
+                    || lower.contains("unhandled exception")
+                    || lower.contains("segmentation fault")
+                    || lower.contains("sigsegv")
+                    || lower.contains("sigbus")
+                    || lower.contains("out of memory")
+                    || lower.contains("page fault")) {
+                explicitCrashSignature = true;
+                break;
+            }
+        }
+        report.append("\nDiagnostic summary:\n")
+                .append("- Current-session output lines: ").append(recentLines.size()).append('\n')
+                .append("- Explicit guest/GPU crash signature: ")
+                .append(explicitCrashSignature ? "detected" : "not captured").append('\n');
+        try {
+            android.app.ActivityManager activityManager = (android.app.ActivityManager)
+                    getSystemService(ACTIVITY_SERVICE);
+            if (activityManager != null) {
+                android.app.ActivityManager.MemoryInfo memoryInfo =
+                        new android.app.ActivityManager.MemoryInfo();
+                activityManager.getMemoryInfo(memoryInfo);
+                report.append("- Android available memory: ")
+                        .append(memoryInfo.availMem / (1024L * 1024L)).append(" MB / ")
+                        .append(memoryInfo.totalMem / (1024L * 1024L)).append(" MB\n")
+                        .append("- Android low-memory state: ").append(memoryInfo.lowMemory)
+                        .append(" (threshold ")
+                        .append(memoryInfo.threshold / (1024L * 1024L)).append(" MB)\n");
+            }
+        }
+        catch (RuntimeException error) {
+            Log.w("WineLifecycle", "Could not capture Android memory state", error);
+        }
         report.append("\nLast guest output lines:\n");
         if (first == recentLines.size()) report.append("(none)\n");
         else for (int index = first; index < recentLines.size(); index++)

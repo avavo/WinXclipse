@@ -3,6 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="350dp"
     android:layout_height="260dp"
+    android:theme="@style/WinXclipseToggleControlsTheme"
     android:orientation="vertical">
 
     <ScrollView

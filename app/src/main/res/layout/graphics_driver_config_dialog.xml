@@ -3,6 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    android:theme="@style/WinXclipseToggleControlsTheme"
     android:fillViewport="true"
     android:gravity="center_horizontal">
 
@@ -182,8 +183,21 @@
             <Spinner android:id="@+id/SGraphicsDriverBCnEmulation" style="@style/ComboBox" android:layout_width="match_parent" android:layout_height="48dp" android:entries="@array/bcn_emulation_entries" />
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/bcn_emulation_type" />
             <Spinner android:id="@+id/SGraphicsDriverBCnEmulationType" style="@style/ComboBox" android:layout_width="match_parent" android:layout_height="48dp" android:entries="@array/bcn_emulation_type_entries" />
-            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/bcn_emulation_cache" />
-            <Spinner android:id="@+id/SGraphicsDriverBCnEmulationCache" style="@style/ComboBox" android:layout_width="match_parent" android:layout_height="48dp" android:entries="@array/bcn_emulation_cache_entries" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+                <CheckBox
+                    android:id="@+id/SWGraphicsDriverBCnEmulationCache"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/bcn_emulation_cache" />
+                <Space
+                    android:layout_width="30dp"
+                    android:layout_height="1dp" />
+            </LinearLayout>
 
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal">
                 <CheckBox android:id="@+id/CBASTCTranscode" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/astc_transcode" />
@@ -220,6 +234,7 @@
 
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal">
                 <CheckBox android:id="@+id/CBAstcAutoDefault" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/gdc_astc_auto_default" />
+                <Space android:layout_width="30dp" android:layout_height="1dp" />
             </LinearLayout>
         </LinearLayout>
 

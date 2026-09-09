@@ -302,7 +302,7 @@ public class VideoConfigDialog extends ContentDialog {
     }
 
     private static int frameGenerationProfileIndex(String value) {
-        if (value == null) return 1;
+        if (value == null) return 0;
         switch (value.trim().toLowerCase(java.util.Locale.US)) {
             case "fast": return 0;
             case "quality":
@@ -315,7 +315,7 @@ public class VideoConfigDialog extends ContentDialog {
                     int legacy = Integer.parseInt(value);
                     return legacy <= 1 ? 0 : legacy <= 3 ? 1 : 2;
                 }
-                catch (Exception ignored) { return 1; }
+                catch (Exception ignored) { return 0; }
         }
     }
 
@@ -324,12 +324,13 @@ public class VideoConfigDialog extends ContentDialog {
     }
 
     private static int frameGenerationMultiplierIndex(String value) {
-        if (value == null || "auto".equalsIgnoreCase(value)) return 0;
+        if (value == null || value.trim().isEmpty()) return 2;
+        if ("auto".equalsIgnoreCase(value)) return 0;
         try {
             return Math.max(1, Math.min(8,
                     Math.round((Float.parseFloat(value) - 1.0f) * 2.0f)));
         }
-        catch (Exception ignored) { return 0; }
+        catch (Exception ignored) { return 2; }
     }
 
     private static String frameGenerationMultiplierValue(int index) {

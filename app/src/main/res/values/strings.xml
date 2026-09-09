@@ -122,6 +122,7 @@
     <string name="credits_and_third_party_apps">Credits and Third-party apps</string>
     <string name="external_controllers">External Controllers</string>
     <string name="graphics_driver">Graphics Driver</string>
+    <string name="wrapper">Wrapper</string>
     <string name="audio_driver">Audio Driver</string>
     <string name="audio_configuration">Audio Configuration</string>
     <string name="audio_volume">Volume</string>
@@ -824,6 +825,17 @@ E.g. <b>META</b> for <i>META key</i>, \n
 
 
     <string name="backend_logs">Backend Logs</string>
+    <string name="show_backend_logs_sidebar">Show backend log collector in the Wine sidebar</string>
+    <string name="log_collector">Logs</string>
+    <string name="download_wine">Download Wine</string>
+    <string name="download_proton">Download Proton</string>
+    <string name="download_wrappers">Download Wrappers</string>
+    <string name="download_drivers">Download Drivers</string>
+    <string name="download_dxvk">Download DXVK</string>
+    <string name="download_vkd3d">Download VKD3D</string>
+    <string name="download_box64">Download Box64</string>
+    <string name="download_wowbox64">Download WOWBox64</string>
+    <string name="download_fexcore">Download FEXCore</string>
     <string name="app_name_winxclipse">WinXclipse</string>
     <string name="winxclipse_credits">WinXclipse based on Winlator and CMOD. Exynos/Xclipse adaptation by Álvaro. ExynosTools by Soula.</string>
     <string name="xclipse_driver_download_hint">Download compatible drivers from the MdiEx releases page: https://github.com/avavo/MdiEx/releases</string>

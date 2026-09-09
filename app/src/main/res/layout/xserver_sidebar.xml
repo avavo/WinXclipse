@@ -212,7 +212,7 @@
                     android:id="@+id/TVSidebarFrameGeneration"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/frame_generation_locked"
+                    android:text="@string/off"
                     android:textColor="@color/colorAccent"
                     android:textSize="12sp" />
             </LinearLayout>
@@ -315,30 +315,64 @@
         </LinearLayout>
 
         <LinearLayout
-            android:id="@+id/BTSidebarTerminal"
             android:layout_width="match_parent"
             android:layout_height="58dp"
             android:layout_marginTop="8dp"
-            android:background="?attr/winxPanelBackground"
-            android:clickable="true"
-            android:focusable="true"
-            android:gravity="center_vertical"
-            android:paddingStart="14dp">
-            <ImageView
-                android:layout_width="28dp"
-                android:layout_height="28dp"
-                android:contentDescription="@null"
-                android:src="@drawable/icon_env_var"
-                app:tint="@color/colorAccent" />
-            <TextView
-                android:layout_width="wrap_content"
+            android:orientation="horizontal">
+            <LinearLayout
+                android:id="@+id/BTSidebarTerminal"
+                android:layout_width="0dp"
                 android:layout_height="match_parent"
-                android:layout_marginStart="14dp"
+                android:layout_weight="1"
+                android:background="?attr/winxPanelBackground"
+                android:clickable="true"
+                android:focusable="true"
                 android:gravity="center_vertical"
-                android:text="@string/debug_terminal"
-                android:textColor="?attr/winxOnSurfaceColor"
-                android:textSize="17sp"
-                android:textStyle="bold" />
+                android:paddingStart="12dp">
+                <ImageView
+                    android:layout_width="26dp"
+                    android:layout_height="26dp"
+                    android:contentDescription="@null"
+                    android:src="@drawable/icon_env_var"
+                    app:tint="@color/colorAccent" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="match_parent"
+                    android:layout_marginStart="8dp"
+                    android:gravity="center_vertical"
+                    android:text="@string/debug_terminal"
+                    android:textColor="?attr/winxOnSurfaceColor"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+            <LinearLayout
+                android:id="@+id/BTSidebarBackendLogs"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:background="?attr/winxPanelBackground"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_vertical"
+                android:paddingStart="12dp"
+                android:visibility="gone">
+                <ImageView
+                    android:layout_width="26dp"
+                    android:layout_height="26dp"
+                    android:contentDescription="@null"
+                    android:src="@drawable/icon_debug"
+                    app:tint="@color/colorAccent" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="match_parent"
+                    android:layout_marginStart="8dp"
+                    android:gravity="center_vertical"
+                    android:text="@string/log_collector"
+                    android:textColor="?attr/winxOnSurfaceColor"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
         </LinearLayout>
     </LinearLayout>
 
@@ -368,8 +402,8 @@
             android:layout_weight="1"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/exit"
-            android:padding="14dp"
-            android:src="@drawable/icon_exit"
+            android:padding="6dp"
+            android:src="@drawable/icon_power"
             app:tint="#EF5350" />
         <ImageButton
             android:id="@+id/BTSidebarPause"

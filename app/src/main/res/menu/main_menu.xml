@@ -5,7 +5,6 @@
         <item android:icon="@drawable/icon_shortcut" android:id="@+id/main_menu_shortcuts" android:title="@string/shortcuts" />
         <item android:icon="@drawable/icon_container" android:id="@+id/main_menu_containers" android:title="@string/containers" />
         <item android:icon="@drawable/icon_gamepad" android:id="@+id/main_menu_controller_assignment" android:title="@string/controller_manager" />
-        <item android:icon="@drawable/icon_open" android:id="@+id/main_menu_contents" android:title="@string/contents" />
         <item android:icon="@drawable/icon_shortcut" android:id="@+id/main_menu_community_configs" android:title="Community Configs" />
         <item android:icon="@drawable/icon_menu_file_manager" android:id="@+id/main_menu_file_manager" android:title="@string/file_manager" />
         <item android:icon="@drawable/icon_settings" android:id="@+id/main_menu_settings" android:title="@string/settings" />

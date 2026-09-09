@@ -16,7 +16,7 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
 - Added fixed 1.5x through 4x modes in 0.5x steps; the unstable 4.5x/5x modes are no longer exposed.
 - Automatic mode targets a user-entered output FPS.
 - Long explanations now live behind dedicated `?` buttons for Frame Generation and Profile instead of occupying the main screen.
-- The in-session sidebar tile remains locked until Frame Generation is enabled in Video Configuration and the renderer is Vulkan.
+- Frame Generation remains off by default and starts with the Fast/2x preset when first enabled. Its in-session sidebar tile is available whenever the Wine renderer is Vulkan, and enabling or disabling it there persists across Wine restarts for the active container or shortcut.
 - Persisted Frame Generation starts only after the Android EGL surface is stable, avoiding the shortcut crash loop seen when enabling it, exiting and reopening the game.
 - Fixed Frame Generation incorrectly reporting that GLES 3.1 was unavailable on capable Samsung devices: the compositor now requests an explicit EGL 3.1 context, logs the returned version, and does not cache a capability check made before a current surface exists.
 - Fixed the Xclipse compute compiler rejecting Apex with `image2D: No precision specified` after confirming the live Display dialog. Sampler/image precision is now explicit and unused uniforms no longer generate misleading warnings.
@@ -32,6 +32,8 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
 
 ### Wrappers, ASTC and ETC2
 
+- Downloads is integrated directly into both container and shortcut editors. Wine/Proton, driver/wrapper, DXVK/VKD3D, Box64/WOWBox64 and FEXCore have separate compact download icons beside their selectors, and each opens a category-locked catalog with install, import and remove actions; remote entries remain faded until installed. Graphics Driver precedes Wrapper and both use separate rows so their selected names remain readable.
+- Boolean controls in container and shortcut Input, Display, DXVK, Video, driver/wrapper/BCN, Performance and HUD configuration use compact aligned, non-animated switches with a purple enabled state, while CPU-affinity cores retain their original checkbox layout. Supported devices can select Vulkan 1.4 from wrapper configuration.
 - The new hybrid stack is `Wrapper-Default` and is selected for new containers; normal (non-transcode) sessions use this hybrid pair. ASTC/ETC2 transcode sessions, including RE3 Remake, use the proven Winlator Mali wrapper/layer pair instead, verified on Xclipse 940 with hundreds of ETC2 and 106 ASTC transcodes at ~1.2-2.2 GB/s.
 - Old `Wrapper-BCN` and `Wrapper-Xclipse` selections migrate to `Wrapper-Default`.
 - The previous generic `wrapper` selection migrates to `Wrapper-CMOD-V1`; the V2 path has its own stable `Wrapper-CMOD-V2` identity.
@@ -99,6 +101,9 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
 
 ### Devices, Rotation and Interface
 
+- The standalone Downloads drawer entry has moved into container configuration, where every content family remains reachable without losing unsaved edits.
+- Wine wallpaper configuration now shows the actual light, dark or custom wallpaper in a full-width live preview with replace/remove controls, and the session Exit action uses a larger power icon matching Pause and Help.
+- Settings can add a backend-log tile beside Debug Terminal in the Wine sidebar. It streams the app's own logcat and Wine output without ADB and offers pause, clear, save-to-Downloads and disable controls.
 - Added Galaxy Tab S10 FE SM-X520 and SM-X526B detection.
 - Added Galaxy Tab S10 FE+ SM-X620 and SM-X626B detection.
 - All four models receive Exynos 1580 / Xclipse 540 handling even when early Android startup exposes only a generic GLES renderer.
@@ -107,7 +112,8 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
 - The Community Config install dialog shows a rounded portrait cover banner in a slightly narrower popup, and missing DXVK/Box64/FEXCore/VKD3D content is downloaded and installed automatically during import.
 - Container pickers act directly when only one container exists; the About and backend Logs dialogs follow the same bordered style, and logs can be saved to Downloads besides being shared.
 - All memory selectors now include 6, 8, 10 and 12 GB options, and the old 4092 MB value migrates to 4096 MB. Spinner and popup surfaces use the same purple outline in light and dark modes.
-- Wine Light/Dark mode follows the effective Android app theme by default, still allows a per-container Light or Dark override, and selects the matching bundled WinXclipse wallpaper whenever Background is set to Image; manually imported wallpapers remain supported.
+- Wine Light/Dark mode follows the effective WinXclipse app theme by default, still allows a per-container Light or Dark override, and resolves its palette and bundled wallpaper from the same mode; manually imported wallpapers remain supported.
+- Fixed Wine theme changes affecting only the wallpaper while Explorer/file-manager workspaces remained black. Stale visual-theme overrides are cleared and the complete light/dark workspace palette is reapplied to existing containers.
 - Wine wallpapers fill the complete container desktop at every supported resolution instead of leaving a solid-color frame around a centered 480p image; non-16:9 modes use an aspect-preserving center crop.
 - Wine sessions support normal and reverse landscape, allowing either long edge of the phone or tablet to face upward without enabling portrait rotation.
 - Replaced the old update alert with a WinXclipse-styled AMOLED dialog that clearly shows installed and available versions.
@@ -116,6 +122,7 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
 
 ### Stability and Rendering
 
+- Removed GDI from the renderer selector and migrate old GDI values to Vulkan. Vulkan/OpenGL selections are persisted both in container metadata and the Wine registry immediately before launch, preventing the old GDI value from returning after a session.
 - OpenGL/GDI startup keeps the required system GL libraries available instead of depending on the experimental BCN extraction path.
 - Frame Generation is restricted to compatible Vulkan sessions and is rearmed after surface initialization.
 - VSync, present mode and the FPS limiter remain independent settings.
@@ -130,6 +137,7 @@ WinXclipse v0.9.5 is a major experimental update for Exynos/Xclipse devices. It 
 - D8VK 1.0 and the selected DXVK 1.10.3 async/ARM64EC payloads are bundled again, matching the visible defaults.
 - Shortcut sessions wait for all non-base guest processes to disappear and then close after five continuous idle seconds; Wine services and crash-defender/reporting processes cannot keep an exited or failed game session open. An optional Wine lifecycle diagnostic records the reason, process snapshot, non-standard processes and recent guest output in `Downloads/WinXclipse/logs`.
 - When lifecycle diagnostics are enabled, each container receives its own log directory with a general `wine_lifecycle` report plus separate timestamped DXVK and VKD3D logs. The feature remains disabled by default.
+- Lifecycle reports now contain only the current launch: delayed output and forced-cleanup exit codes from older sessions are rejected. Each report also summarizes explicit crash signatures and Android memory pressure at shutdown.
 - Out-of-spec X11 PutImage requests no longer terminate Wine sessions through a fatal BadMatch path; packed cursor and mask uploads use their correct size.
 - First-boot progress now advances through imagefs extraction, runtime installation, and finalization instead of appearing frozen.
 - Native X11 2D operations process full 32-bit pixels, reducing byte-loop overhead on shared LPDDR memory.

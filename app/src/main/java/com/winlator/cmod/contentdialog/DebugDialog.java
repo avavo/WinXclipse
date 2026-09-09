@@ -41,9 +41,17 @@ public class DebugDialog extends ContentDialog implements Callback<String> {
     private BufferedWriter writer;
     private File logFile;
     private int pendingLines;
+    private final Runnable disableCallback;
+    private volatile java.lang.Process liveLogcatProcess;
+    private volatile boolean captureActive;
 
     public DebugDialog(@NonNull Context context) {
+        this(context, null);
+    }
+
+    public DebugDialog(@NonNull Context context, Runnable disableCallback) {
         super(context, R.layout.debug_dialog);
+        this.disableCallback = disableCallback;
         setIcon(R.drawable.icon_debug);
         setTitle(context.getString(R.string.logs));
         if (getWindow() != null && AppUtils.isDarkMode(context)) {
@@ -64,8 +72,10 @@ public class DebugDialog extends ContentDialog implements Callback<String> {
         View toolbar = LayoutInflater.from(context).inflate(R.layout.debug_toolbar, bottomBar, false);
         tintToolbarButton(toolbar, R.id.BTClear, accent);
         tintToolbarButton(toolbar, R.id.BTPause, accent);
-        toolbar.findViewById(R.id.BTClear).setOnClickListener(v -> logView.clear());
-        toolbar.findViewById(R.id.BTPause).setOnClickListener(v -> {
+        toolbar.findViewById(R.id.BTClear).setOnClickListener(v -> clearLog());
+        ImageButton pauseButton = toolbar.findViewById(R.id.BTPause);
+        pauseButton.setImageResource(paused ? R.drawable.icon_play : R.drawable.icon_pause);
+        pauseButton.setOnClickListener(v -> {
             setPaused(!paused);
             ((ImageButton) v).setImageResource(paused ? R.drawable.icon_play : R.drawable.icon_pause);
         });
@@ -78,6 +88,16 @@ public class DebugDialog extends ContentDialog implements Callback<String> {
         if (downloadButton != null) {
             ((ImageButton) downloadButton).setColorFilter(accent);
             downloadButton.setOnClickListener(v -> saveLogToDownloads(context));
+        }
+        View disablePanel = toolbar.findViewById(R.id.LLDisableLogs);
+        View disableButton = toolbar.findViewById(R.id.BTDisableLogs);
+        if (disableCallback != null && disablePanel != null && disableButton != null) {
+            disablePanel.setVisibility(View.VISIBLE);
+            ((ImageButton) disableButton).setColorFilter(accent);
+            disableButton.setOnClickListener(v -> {
+                disableCallback.run();
+                dismiss();
+            });
         }
         bottomBar.addView(toolbar);
 
@@ -98,6 +118,8 @@ public class DebugDialog extends ContentDialog implements Callback<String> {
     public void show() {
         if (writer == null) openLogWriter(true);
         ProcessHelper.addDebugCallback(this);
+        captureActive = true;
+        startLiveLogcat();
         super.show();
     }
 
@@ -121,6 +143,36 @@ public class DebugDialog extends ContentDialog implements Callback<String> {
                 call("[logcat] read failed: " + e.getMessage());
             }
         }, "WinXclipseLogcatLoader").start();
+    }
+
+    private void startLiveLogcat() {
+        if (liveLogcatProcess != null) return;
+        new Thread(() -> {
+            try {
+                java.lang.Process process = new ProcessBuilder("logcat", "-T", "1",
+                        "--pid=" + android.os.Process.myPid(), "-v", "threadtime")
+                        .redirectErrorStream(true).start();
+                if (!captureActive) {
+                    process.destroy();
+                    return;
+                }
+                liveLogcatProcess = process;
+                try (BufferedReader reader = new BufferedReader(
+                        new InputStreamReader(process.getInputStream()))) {
+                    String line;
+                    while (captureActive && (line = reader.readLine()) != null
+                            && liveLogcatProcess == process) {
+                        call("[live] " + line);
+                    }
+                }
+            }
+            catch (Exception e) {
+                if (liveLogcatProcess != null) call("[logcat] live capture failed: " + e.getMessage());
+            }
+            finally {
+                liveLogcatProcess = null;
+            }
+        }, "WinXclipseLiveLogcat").start();
     }
 
     @Override
@@ -159,6 +211,14 @@ public class DebugDialog extends ContentDialog implements Callback<String> {
                 writer = null;
                 logView.post(() -> logView.append("Log file disabled: " + e.getMessage()));
             }
+        }
+    }
+
+    private void clearLog() {
+        logView.clear();
+        synchronized (writerLock) {
+            closeWriter();
+            openLogWriter(false);
         }
     }
 
@@ -242,6 +302,10 @@ public class DebugDialog extends ContentDialog implements Callback<String> {
     @Override
     public void dismiss() {
         ProcessHelper.removeDebugCallback(this);
+        captureActive = false;
+        java.lang.Process process = liveLogcatProcess;
+        liveLogcatProcess = null;
+        if (process != null) process.destroy();
         synchronized (writerLock) {
             closeWriter();
         }

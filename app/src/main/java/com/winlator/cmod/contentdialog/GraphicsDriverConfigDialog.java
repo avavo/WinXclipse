@@ -1,11 +1,14 @@
 package com.winlator.cmod.contentdialog;
 
 import android.content.Context;
+import android.content.pm.FeatureInfo;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.util.Log;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.CheckBox;
+import android.widget.CompoundButton;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.LinearLayout;
@@ -41,11 +44,11 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
     private final MultiSelectionComboBox extensionsSpinner;
     private final Spinner maxDeviceMemorySpinner;
     private final Spinner resourceTypeSpinner;
-    private final CheckBox syncFrameCheckBox;
-    private final CheckBox disablePresentWaitCheckBox;
+    private final CompoundButton syncFrameCheckBox;
+    private final CompoundButton disablePresentWaitCheckBox;
     private final Spinner bcnEmulationSpinner;
     private final Spinner bcnTypeSpinner;
-    private final Spinner bcnCacheSpinner;
+    private final CompoundButton bcnCacheSwitch;
     private final CheckBox astcTranscodeCheckBox;
     private final CheckBox etc2TranscodeCheckBox;
     private final CheckBox bcnSoftwareSwitchCheckBox;
@@ -79,7 +82,7 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
         disablePresentWaitCheckBox = findViewById(R.id.CBDisablePresentWait);
         bcnEmulationSpinner = findViewById(R.id.SGraphicsDriverBCnEmulation);
         bcnTypeSpinner = findViewById(R.id.SGraphicsDriverBCnEmulationType);
-        bcnCacheSpinner = findViewById(R.id.SGraphicsDriverBCnEmulationCache);
+        bcnCacheSwitch = findViewById(R.id.SWGraphicsDriverBCnEmulationCache);
         astcTranscodeCheckBox = findViewById(R.id.CBASTCTranscode);
         etc2TranscodeCheckBox = findViewById(R.id.CBETC2Transcode);
         bcnSoftwareSwitchCheckBox = findViewById(R.id.CBBCnSoftwareSwitch);
@@ -104,6 +107,7 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
         });
 
         applyTheme(anchor.getContext());
+        loadSupportedVulkanVersions(anchor.getContext());
         loadDriverVersions(anchor.getContext(), graphicsDriver);
         restoreValues(initialConfig);
         configureListeners();
@@ -257,8 +261,8 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
         AppUtils.setSpinnerSelectionFromValue(bcnTypeSpinner,
                 config.getOrDefault("bcnEmulationType",
                         GPUInformation.defaultBcnEmulationType()));
-        AppUtils.setSpinnerSelectionFromValue(bcnCacheSpinner,
-                config.getOrDefault("bcnEmulationCache", experimentalBcn ? "1" : "0"));
+        bcnCacheSwitch.setChecked("1".equals(config.getOrDefault(
+                "bcnEmulationCache", experimentalBcn ? "1" : "0")));
         astcTranscodeCheckBox.setChecked("1".equals(config.getOrDefault("astcTranscode", "0")));
         etc2TranscodeCheckBox.setChecked("1".equals(config.getOrDefault("etc2Transcode", "0")));
         bcnSoftwareSwitchCheckBox.setChecked("1".equals(config.getOrDefault("bcnSoftwareSwitch", "0")));
@@ -286,7 +290,7 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
                 && graphicsDriver.toLowerCase(Locale.ENGLISH).contains("kirimu");
 
         bcnTypeSpinner.setEnabled(!kirimuBcn);
-        bcnCacheSpinner.setEnabled(!kirimuBcn);
+        bcnCacheSwitch.setEnabled(!kirimuBcn);
         bcnOptimizationCheckBox.setEnabled(!kirimuBcn);
         bcnSoftwareSwitchCheckBox.setEnabled(!kirimuBcn);
         astcAutoDefaultCheckBox.setEnabled(!kirimuBcn);
@@ -301,7 +305,7 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
          * those values enabled produced a configuration the runtime could not
          * actually honor.  Only its native WRAPPER_EMULATE_BCN mode remains. */
         AppUtils.setSpinnerSelectionFromValue(bcnTypeSpinner, "software");
-        AppUtils.setSpinnerSelectionFromValue(bcnCacheSpinner, "0");
+        bcnCacheSwitch.setChecked(false);
         bcnOptimizationCheckBox.setChecked(false);
         bcnSoftwareSwitchCheckBox.setChecked(false);
         astcAutoDefaultCheckBox.setChecked(false);
@@ -366,7 +370,7 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
         result.put("bcnXclipseOptimized", boolValue(bcnOptimizationCheckBox));
         result.put("bcnEmulation", selectedValue(bcnEmulationSpinner));
         result.put("bcnEmulationType", selectedValue(bcnTypeSpinner));
-        result.put("bcnEmulationCache", selectedValue(bcnCacheSpinner));
+        result.put("bcnEmulationCache", boolValue(bcnCacheSwitch));
         // Transcode só existe no backend compute; nunca persiste software+transcode.
         boolean saveSoftware = "software".equalsIgnoreCase(selectedValue(bcnTypeSpinner));
         result.put("astcTranscode", saveSoftware ? "0" : boolValue(astcTranscodeCheckBox));
@@ -380,8 +384,8 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
         return toGraphicsDriverConfig(result);
     }
 
-    private static String boolValue(CheckBox checkBox) {
-        return checkBox.isChecked() ? "1" : "0";
+    private static String boolValue(CompoundButton button) {
+        return button.isChecked() ? "1" : "0";
     }
 
     private static String selectedValue(Spinner spinner) {
@@ -408,11 +412,29 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
         int textColor = dark ? Color.WHITE : Color.BLACK;
         Spinner[] spinners = {versionSpinner, vulkanVersionSpinner,
                 maxDeviceMemorySpinner, resourceTypeSpinner, bcnEmulationSpinner,
-                bcnTypeSpinner, bcnCacheSpinner};
+                bcnTypeSpinner};
         for (Spinner spinner : spinners) {
             spinner.setBackgroundResource(background);
         }
         extensionsSpinner.setBackgroundResource(background);
         extensionsSpinner.setTextColor(textColor);
+    }
+
+    private void loadSupportedVulkanVersions(Context context) {
+        ArrayList<String> versions = new ArrayList<>(Arrays.asList("1.1", "1.2", "1.3"));
+        if (supportsVulkan14(context)) versions.add("1.4");
+        vulkanVersionSpinner.setAdapter(new ThemedSpinnerAdapter<>(context, versions));
+    }
+
+    private static boolean supportsVulkan14(Context context) {
+        final int vulkan14 = (1 << 22) | (4 << 12);
+        FeatureInfo[] features = context.getPackageManager().getSystemAvailableFeatures();
+        if (features == null) return false;
+        for (FeatureInfo feature : features) {
+            if (PackageManager.FEATURE_VULKAN_HARDWARE_VERSION.equals(feature.name)) {
+                return feature.version >= vulkan14;
+            }
+        }
+        return false;
     }
 }

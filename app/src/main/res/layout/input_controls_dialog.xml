@@ -2,7 +2,8 @@
 <HorizontalScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="wrap_content"
-    android:layout_height="wrap_content">
+    android:layout_height="wrap_content"
+    android:theme="@style/WinXclipseToggleControlsTheme">
 
     <LinearLayout
         android:layout_width="wrap_content"
@@ -34,7 +35,7 @@
 
         <CheckBox
             android:id="@+id/CBShowTouchscreenControls"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:checked="true"
             android:text="@string/show_touchscreen_controls" />
@@ -42,21 +43,21 @@
 
         <CheckBox
             android:id="@+id/CBEnableTimeout"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/enable_touchscreen_timeout"
             android:checked="false" />
 
         <CheckBox
             android:id="@+id/CBAutoGrabController"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Auto-grab controller (plug &amp; play)"
             android:checked="true" />
 
         <CheckBox
             android:id="@+id/CBMasterVibration"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/vibrate"
             android:checked="true" />
@@ -72,13 +73,13 @@
 
         <CheckBox
             android:id="@+id/CBSimulateTouchScreen"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/simulate_touch_screen" />
 
         <CheckBox
             android:id="@+id/CBDisableTouchscreenMouse"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/disable_touchscreen_mouse"
             android:checked="false" />

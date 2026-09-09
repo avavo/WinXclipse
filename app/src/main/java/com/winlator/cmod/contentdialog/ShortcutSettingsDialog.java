@@ -27,7 +27,9 @@ import androidx.appcompat.app.AlertDialog;
 
 import com.google.android.material.tabs.TabLayout;
 import com.winlator.cmod.BuildConfig;
+import com.winlator.cmod.ContentDownloadsDialogFragment;
 import com.winlator.cmod.ContainerDetailFragment;
+import com.winlator.cmod.ContentsFragment;
 import com.winlator.cmod.R;
 import com.winlator.cmod.ShortcutsFragment;
 import com.winlator.cmod.box86_64.Box86_64PresetManager;
@@ -148,6 +150,8 @@ public class ShortcutSettingsDialog extends ContentDialog {
 
 
         final Spinner sGraphicsDriver = findViewById(R.id.SGraphicsDriver);
+        final Spinner sGraphicsDriverVersionExternal = findViewById(
+                R.id.SGraphicsDriverVersionExternal);
         
         final Spinner sDXWrapper = findViewById(R.id.SDXWrapper);
 
@@ -184,6 +188,22 @@ public class ShortcutSettingsDialog extends ContentDialog {
         loadGraphicsDriverSpinner(sGraphicsDriver, sDXWrapper, vGraphicsDriverConfig,
                 Container.normalizeGraphicsDriver(shortcut.getExtra("graphicsDriver", shortcut.container.getGraphicsDriver())),
             shortcut.getExtra("dxwrapper", shortcut.container.getDXWrapper()));
+
+        findViewById(R.id.BTManageGraphicsContentShortcut).setOnClickListener(v -> {
+            final String selected = StringUtils.parseIdentifier(sGraphicsDriver.getSelectedItem());
+            ContentDownloadsDialogFragment.showFixed(fragment.getParentFragmentManager(),
+                    ContentsFragment.CATEGORY_WRAPPERS, () -> {
+                        ContainerDetailFragment.updateGraphicsDriverSpinner(context, sGraphicsDriver);
+                        AppUtils.setSpinnerSelectionFromIdentifier(sGraphicsDriver, selected);
+                    });
+        });
+        findViewById(R.id.BTManageDriverContentShortcut).setOnClickListener(v ->
+                ContentDownloadsDialogFragment.showFixed(fragment.getParentFragmentManager(),
+                        ContentsFragment.CATEGORY_XCLIPSE_DRIVERS, () ->
+                                GraphicsDriverConfigDialog.bindExternalDriverSpinner(context,
+                                        sGraphicsDriverVersionExternal, vGraphicsDriverConfig,
+                                        StringUtils.parseIdentifier(
+                                                sGraphicsDriver.getSelectedItem()))));
 
         final Spinner sRenderer = findViewById(R.id.SRenderer);
         sRenderer.setAdapter(new ThemedSpinnerAdapter<>(context,
@@ -225,9 +245,9 @@ public class ShortcutSettingsDialog extends ContentDialog {
         final String containerFrameGenerationEnabled = shortcut.container.getExtra(
                 "frameGenerationEnabled", "0");
         final String containerFrameGenerationProfile = shortcut.container.getExtra(
-                "frameGenerationProfile", "balanced");
+                "frameGenerationProfile", "fast");
         final String containerFrameGenerationMultiplier = shortcut.container.getExtra(
-                "frameGenerationMultiplier", "auto");
+                "frameGenerationMultiplier", "2");
         final String containerFrameGenerationTargetFPS = shortcut.container.getExtra(
                 "frameGenerationTargetFPS", "60");
         final String containerFrameGenerationBackend = shortcut.container.getExtra(
@@ -503,6 +523,22 @@ public class ShortcutSettingsDialog extends ContentDialog {
             }
         });
 
+        findViewById(R.id.BTManageBox64ContentShortcut).setOnClickListener(v -> {
+            Object item = sBox64Version.getSelectedItem();
+            final String selected = item != null ? item.toString() : DefaultVersion.BOX64;
+            ContentDownloadsDialogFragment.showFixed(fragment.getParentFragmentManager(),
+                    ContentProfile.ContentType.CONTENT_TYPE_BOX64.ordinal(), () -> {
+                        contentsManager.syncContents();
+                        loadBox64VersionSpinner(context, contentsManager, sBox64Version,
+                                wineInfo.isArm64EC());
+                        AppUtils.setSpinnerSelectionFromValue(sBox64Version, selected);
+                    });
+        });
+        findViewById(R.id.BTManageWowBox64ContentShortcut).setOnClickListener(v ->
+                ContentDownloadsDialogFragment.showFixed(fragment.getParentFragmentManager(),
+                        ContentProfile.ContentType.CONTENT_TYPE_WOWBOX64.ordinal(),
+                        contentsManager::syncContents));
+
         final CheckBox cbUseSecondaryExec = findViewById(R.id.CBUseSecondaryExec);
         final LinearLayout llSecondaryExecOptions = findViewById(R.id.LLSecondaryExecOptions);
         final EditText etSecondaryExec = findViewById(R.id.ETSecondaryExec);
@@ -571,6 +607,17 @@ public class ShortcutSettingsDialog extends ContentDialog {
 
         final Spinner sFEXCoreVersion = findViewById(R.id.SFEXCoreVersion);
         FEXCoreManager.loadFEXCoreVersion(context, contentsManager, sFEXCoreVersion, shortcut);
+        findViewById(R.id.BTManageFEXCoreContentShortcut).setOnClickListener(v -> {
+            Object item = sFEXCoreVersion.getSelectedItem();
+            final String selected = item != null ? item.toString() : "";
+            ContentDownloadsDialogFragment.showFixed(fragment.getParentFragmentManager(),
+                    ContentProfile.ContentType.CONTENT_TYPE_FEXCORE.ordinal(), () -> {
+                        contentsManager.syncContents();
+                        FEXCoreManager.loadFEXCoreVersion(context, contentsManager,
+                                sFEXCoreVersion, shortcut);
+                        AppUtils.setSpinnerSelectionFromValue(sFEXCoreVersion, selected);
+                    });
+        });
         final Spinner sFEXCorePreset = findViewById(R.id.SFEXCorePreset);
         FEXCorePresetManager.loadSpinner(sFEXCorePreset, shortcut.getExtra("fexcorePreset", shortcut.container.getFEXCorePreset()));
 

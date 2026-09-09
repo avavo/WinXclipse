@@ -28,6 +28,7 @@ public abstract class ProcessHelper {
     private static final CopyOnWriteArrayList<Callback<String>> debugCallbacks = new CopyOnWriteArrayList<>();
     private static final ArrayDeque<String> recentDebugLines = new ArrayDeque<>();
     private static final Object recentDebugLock = new Object();
+    private static long debugSessionGeneration = 0;
     private static final Object diagnosticLogLock = new Object();
     private static BufferedWriter dxvkDiagnosticWriter;
     private static BufferedWriter vkd3dDiagnosticWriter;
@@ -104,6 +105,11 @@ public abstract class ProcessHelper {
             pb.environment().putAll(EnvironmentManager.getEnvVars());
             java.lang.Process process = pb.start();
 
+            // Associate every reader/waiter with the Wine session that created
+            // it. A process from the previous container session can finish a
+            // little later and must not pollute the next crash report.
+            final long processDebugSession = getDebugSessionGeneration();
+
             // Accessing hidden field
             Log.d("ProcessHelper", "Accessing hidden field to get PID");
             Field pidField = process.getClass().getDeclaredField("pid");
@@ -112,20 +118,22 @@ public abstract class ProcessHelper {
             pidField.setAccessible(false);
             Log.d("ProcessHelper", "Process started with pid: " + pid);
 
-            createDebugThread(process.getInputStream(), "stdout", pid);
-            createDebugThread(process.getErrorStream(), "stderr", pid);
+            createDebugThread(process.getInputStream(), "stdout", pid, processDebugSession);
+            createDebugThread(process.getErrorStream(), "stderr", pid, processDebugSession);
 
             final int processPid = pid;
             debugExecutor.execute(() -> {
                 try {
                     int exitCode = process.waitFor();
                     Log.w("WineProc", "[pid=" + processPid + "][exit] code=" + exitCode);
-                    emitDebugLine("[pid=" + processPid + "][exit] code=" + exitCode);
+                    emitDebugLine("[pid=" + processPid + "][exit] code=" + exitCode,
+                            processDebugSession);
                     if (terminationCallback != null) terminationCallback.call(exitCode);
                 }
                 catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    emitDebugLine("[pid=" + processPid + "][exit] wait interrupted");
+                    emitDebugLine("[pid=" + processPid + "][exit] wait interrupted",
+                            processDebugSession);
                 }
             });
 
@@ -136,7 +144,8 @@ public abstract class ProcessHelper {
         return pid;
     }
 
-    private static void createDebugThread(final InputStream inputStream, String streamName, int pid) {
+    private static void createDebugThread(final InputStream inputStream, String streamName, int pid,
+                                          long processDebugSession) {
         debugExecutor.execute(() -> {
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
                 String line;
@@ -145,7 +154,8 @@ public abstract class ProcessHelper {
                     // dying words are invisible unless the wine-debug setting is on.
                     Log.i("WineProc", "[pid=" + pid + "][" + streamName + "] " + line);
                     if (PRINT_DEBUG) System.out.println(line);
-                    emitDebugLine("[pid=" + pid + "][" + streamName + "] " + line);
+                    emitDebugLine("[pid=" + pid + "][" + streamName + "] " + line,
+                            processDebugSession);
                 }
             }
             catch (IOException e) {
@@ -154,8 +164,15 @@ public abstract class ProcessHelper {
         });
     }
 
-    private static void emitDebugLine(String line) {
+    private static long getDebugSessionGeneration() {
         synchronized (recentDebugLock) {
+            return debugSessionGeneration;
+        }
+    }
+
+    private static void emitDebugLine(String line, long processDebugSession) {
+        synchronized (recentDebugLock) {
+            if (processDebugSession != debugSessionGeneration) return;
             recentDebugLines.addLast(line);
             while (recentDebugLines.size() > MAX_RECENT_DEBUG_LINES) recentDebugLines.removeFirst();
         }
@@ -173,6 +190,14 @@ public abstract class ProcessHelper {
     public static List<String> getRecentDebugLines() {
         synchronized (recentDebugLock) {
             return new ArrayList<>(recentDebugLines);
+        }
+    }
+
+    /** Starts a clean process-output generation, even when file logging is disabled. */
+    public static void beginDebugSession() {
+        synchronized (recentDebugLock) {
+            debugSessionGeneration++;
+            recentDebugLines.clear();
         }
     }
 

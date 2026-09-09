@@ -3,6 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    android:theme="@style/WinXclipseToggleControlsTheme"
     android:fillViewport="true">
 
     <LinearLayout
@@ -270,7 +271,7 @@
         </LinearLayout>
         <CheckBox
             android:id="@+id/CBVideoSwapRedBlue"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:text="@string/swap_red_blue_channels" />

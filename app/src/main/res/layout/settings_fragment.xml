@@ -651,6 +651,16 @@
                         android:layout_marginTop="8dp"
                         android:text="@string/enable_wine_lifecycle_logs" />
 
+                    <View style="@style/FieldSeparator" />
+
+                    <CheckBox
+                        android:id="@+id/SWShowBackendLogsSidebar"
+                        style="@style/WinXclipseToggleCheckBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/show_backend_logs_sidebar" />
+
                 </LinearLayout>
 
                 <TextView

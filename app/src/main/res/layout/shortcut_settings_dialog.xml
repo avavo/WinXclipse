@@ -3,6 +3,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:gravity="center_horizontal"
+    android:theme="@style/WinXclipseToggleControlsTheme"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <LinearLayout
@@ -116,11 +117,42 @@
             android:gravity="center_vertical">
 
             <Spinner
+                android:id="@+id/SGraphicsDriverVersionExternal"
+                style="@style/ComboBox"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1" />
+
+            <ImageButton
+                android:id="@+id/BTManageDriverContentShortcut"
+                style="@style/DownloadIconButton"
+                android:contentDescription="@string/download_drivers"
+                android:src="@drawable/icon_popup_menu_download" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/wrapper" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <Spinner
                 style="@style/ComboBox"
                 android:layout_width="0dp"
                 android:layout_weight="1"
                 android:id="@+id/SGraphicsDriver"
                 android:entries="@array/graphics_driver_entries" />
+
+            <ImageButton
+                android:id="@+id/BTManageGraphicsContentShortcut"
+                style="@style/DownloadIconButton"
+                android:contentDescription="@string/download_wrappers"
+                android:src="@drawable/icon_popup_menu_download" />
 
             <ImageButton
                 style="@style/ListMenuButton"
@@ -139,13 +171,6 @@
                 android:src="@drawable/icon_help"
                 app:tint="?colorAccent" />
         </LinearLayout>
-
-        <Spinner
-            android:id="@+id/SGraphicsDriverVersionExternal"
-            style="@style/ComboBox"
-            android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:layout_marginTop="4dp" />
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -327,7 +352,7 @@
 
         <CheckBox
             android:id="@+id/CBUseSecondaryExec"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/use_secondary_executable" />
 
@@ -493,12 +518,32 @@
                         android:layout_height="wrap_content"
                         android:text="@string/box64_version" />
 
-                    <Spinner
-                        style="@style/ComboBox"
-                        android:id="@+id/SBox64Version"
+                    <LinearLayout
                         android:layout_width="match_parent"
-                        android:entries="@array/box64_version_entries"
-                        android:spinnerMode="dialog" />
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <Spinner
+                            style="@style/ComboBox"
+                            android:id="@+id/SBox64Version"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:entries="@array/box64_version_entries"
+                            android:spinnerMode="dialog" />
+
+                        <ImageButton
+                            android:id="@+id/BTManageBox64ContentShortcut"
+                            style="@style/DownloadIconButton"
+                            android:contentDescription="@string/download_box64"
+                            android:src="@drawable/icon_popup_menu_download" />
+
+                        <ImageButton
+                            android:id="@+id/BTManageWowBox64ContentShortcut"
+                            style="@style/DownloadIconButton"
+                            android:contentDescription="@string/download_wowbox64"
+                            android:src="@drawable/icon_popup_menu_download" />
+                    </LinearLayout>
 
                     <TextView
                         android:layout_width="wrap_content"
@@ -539,10 +584,24 @@
                         android:layout_height="wrap_content"
                         android:text="@string/fexcore_version" />
 
-                    <Spinner
-                        style="@style/ComboBox"
-                        android:id="@+id/SFEXCoreVersion"
-                        android:layout_width="match_parent" />
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <Spinner
+                            style="@style/ComboBox"
+                            android:id="@+id/SFEXCoreVersion"
+                            android:layout_width="0dp"
+                            android:layout_weight="1" />
+
+                        <ImageButton
+                            android:id="@+id/BTManageFEXCoreContentShortcut"
+                            style="@style/DownloadIconButton"
+                            android:contentDescription="@string/download_fexcore"
+                            android:src="@drawable/icon_popup_menu_download" />
+                    </LinearLayout>
 
                     <TextView
                         android:layout_width="wrap_content"
@@ -620,7 +679,7 @@
 
                     <CheckBox
                         android:id="@+id/CBGStreamerWorkaroundToggle"
-                        android:layout_width="wrap_content"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="@string/enable_gstreamer_workaround" />
 
@@ -702,7 +761,7 @@
 
                     <CheckBox
                         android:id="@+id/CBDisabledXInput"
-                        android:layout_width="wrap_content"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="@string/disable_xinput_for_shortcut" />
 
@@ -714,7 +773,7 @@
 
                     <CheckBox
                         android:id="@+id/CBTouchscreenMode"
-                        android:layout_width="wrap_content"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="@string/simulate_touch_screen" />
 
@@ -740,8 +799,9 @@
                         android:orientation="horizontal">
                         <CheckBox
                             android:id="@+id/CBEnableXInput"
-                            android:layout_width="wrap_content"
+                            android:layout_width="0dp"
                             android:layout_height="wrap_content"
+                            android:layout_weight="1"
                             android:text="@string/enable_xinput_for_wine_game" />
                         <ImageView
                             android:id="@+id/BTXInputHelp"
@@ -754,8 +814,9 @@
                         android:orientation="horizontal">
                         <CheckBox
                             android:id="@+id/CBEnableDInput"
-                            android:layout_width="wrap_content"
+                            android:layout_width="0dp"
                             android:layout_height="wrap_content"
+                            android:layout_weight="1"
                             android:text="@string/enable_dinput_for_wine_game" />
                         <ImageView
                             android:id="@+id/BTDInputHelp"
@@ -768,8 +829,9 @@
                         android:orientation="horizontal">
                         <CheckBox
                             android:id="@+id/CBExclusiveXInput"
-                            android:layout_width="wrap_content"
+                            android:layout_width="0dp"
                             android:layout_height="wrap_content"
+                            android:layout_weight="1"
                             android:text="@string/exclusive_input" />
                         <ImageView
                             android:id="@+id/BTExclusiveInputHelp"
@@ -813,13 +875,13 @@
 
                     <CheckBox
                         android:id="@+id/CBFullscreenStretched"
-                        android:layout_width="wrap_content"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="@string/fullscreen_stretched" />
 
                     <CheckBox
                         android:id="@+id/CBForceFullscreen"
-                        android:layout_width="wrap_content"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="@string/force_fullscreen"
                         android:layout_marginTop="4dp" />
@@ -928,6 +990,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="center_horizontal"
+                android:theme="@style/WinXclipseOriginalCheckboxControlsTheme"
                 android:layout_marginTop="4dp" />
 
             <TextView
@@ -941,6 +1004,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="center_horizontal"
+                android:theme="@style/WinXclipseOriginalCheckboxControlsTheme"
                 android:layout_marginTop="4dp" />
 
         </LinearLayout>

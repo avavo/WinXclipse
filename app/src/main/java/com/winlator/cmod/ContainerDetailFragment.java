@@ -406,6 +406,21 @@ public class ContainerDetailFragment extends Fragment {
 
         loadWineVersionSpinner(view, sWineVersion, sBox64Version);
 
+        view.findViewById(R.id.BTManageWineContent).setOnClickListener(v ->
+                openContentDownloads(ContentProfile.ContentType.CONTENT_TYPE_WINE.ordinal()));
+        view.findViewById(R.id.BTManageProtonContent).setOnClickListener(v ->
+                openContentDownloads(ContentProfile.ContentType.CONTENT_TYPE_PROTON.ordinal()));
+        view.findViewById(R.id.BTManageGraphicsContent).setOnClickListener(v ->
+                openContentDownloads(ContentsFragment.CATEGORY_WRAPPERS));
+        view.findViewById(R.id.BTManageDriverContent).setOnClickListener(v ->
+                openContentDownloads(ContentsFragment.CATEGORY_XCLIPSE_DRIVERS));
+        view.findViewById(R.id.BTManageBox64Content).setOnClickListener(v ->
+                openContentDownloads(ContentProfile.ContentType.CONTENT_TYPE_BOX64.ordinal()));
+        view.findViewById(R.id.BTManageWowBox64Content).setOnClickListener(v ->
+                openContentDownloads(ContentProfile.ContentType.CONTENT_TYPE_WOWBOX64.ordinal()));
+        view.findViewById(R.id.BTManageFEXCoreContent).setOnClickListener(v ->
+                openContentDownloads(ContentProfile.ContentType.CONTENT_TYPE_FEXCORE.ordinal()));
+
         loadScreenSizeSpinner(view, isEditMode() ? container.getScreenSize() : Container.DEFAULT_SCREEN_SIZE);
 
         final Spinner sGraphicsDriver = view.findViewById(R.id.SGraphicsDriver);
@@ -436,9 +451,9 @@ public class ContainerDetailFragment extends Fragment {
         final String[] pendingFrameGenerationEnabled = {isEditMode() && container != null
                 ? container.getExtra("frameGenerationEnabled", "0") : "0"};
         final String[] pendingFrameGenerationProfile = {isEditMode() && container != null
-                ? container.getExtra("frameGenerationProfile", "balanced") : "balanced"};
+                ? container.getExtra("frameGenerationProfile", "fast") : "fast"};
         final String[] pendingFrameGenerationMultiplier = {isEditMode() && container != null
-                ? container.getExtra("frameGenerationMultiplier", "auto") : "auto"};
+                ? container.getExtra("frameGenerationMultiplier", "2") : "2"};
         final String[] pendingFrameGenerationTargetFPS = {isEditMode() && container != null
                 ? container.getExtra("frameGenerationTargetFPS", "60") : "60"};
         final String[] pendingFrameGenerationBackend = {isEditMode() && container != null
@@ -1148,6 +1163,19 @@ public class ContainerDetailFragment extends Fragment {
         sDesktopTheme.setSelection(desktopTheme.theme.ordinal());
         sDesktopTheme.setEnabled(true);
         final ImagePickerView ipvDesktopBackgroundImage = view.findViewById(R.id.IPVDesktopBackgroundImage);
+        ipvDesktopBackgroundImage.setPreviewTheme(desktopTheme.theme);
+        sDesktopTheme.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View selectedView,
+                                       int position, long id) {
+                WineThemeManager.Theme[] themes = WineThemeManager.Theme.values();
+                ipvDesktopBackgroundImage.setPreviewTheme(
+                        themes[Math.max(0, Math.min(position, themes.length - 1))]);
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {}
+        });
         final ColorPickerView cpvDesktopBackgroundColor = view.findViewById(R.id.CPVDesktopBackgroundColor);
         cpvDesktopBackgroundColor.setColor(desktopTheme.backgroundColor);
 
@@ -1177,10 +1205,18 @@ public class ContainerDetailFragment extends Fragment {
 
         try (WineRegistryEditor registryEditor = new WineRegistryEditor(userRegFile)) {
 
-            List<String> rendererList = Arrays.asList(context.getString(R.string.gl), context.getString(R.string.vulkan), context.getString(R.string.gdi));
+            // GDI was removed from the UI: once selected it could be restored by
+            // wineserver over a newer Vulkan/OpenGL choice.  The container extra
+            // is now authoritative and old GDI values migrate safely to Vulkan.
+            List<String> rendererList = Arrays.asList(context.getString(R.string.gl), context.getString(R.string.vulkan));
             Spinner sRenderer = view.findViewById(R.id.SRenderer);
             sRenderer.setAdapter(new ThemedSpinnerAdapter<>(context, rendererList));
-            AppUtils.setSpinnerSelectionFromValue(sRenderer, registryEditor.getStringValue("Software\\Wine\\Direct3D", "renderer", "vulkan"));
+            String renderer = isEditMode()
+                    ? container.getExtra("renderer", registryEditor.getStringValue(
+                            "Software\\Wine\\Direct3D", "renderer", "vulkan"))
+                    : "vulkan";
+            if ("gdi".equalsIgnoreCase(renderer)) renderer = "vulkan";
+            AppUtils.setSpinnerSelectionFromValue(sRenderer, renderer);
 
             List<String> stateList = Arrays.asList(context.getString(R.string.disable), context.getString(R.string.enable));
             Spinner sCSMT = view.findViewById(R.id.SCSMT);
@@ -1808,6 +1844,41 @@ public class ContainerDetailFragment extends Fragment {
         // Set the adapter with the combined list
         spinner.setAdapter(new ThemedSpinnerAdapter<>(spinner.getContext(), itemList));
         if (!previousId.isEmpty()) AppUtils.setSpinnerSelectionFromIdentifier(spinner, previousId);
+    }
+
+    private void openContentDownloads(int category) {
+        ContentDownloadsDialogFragment.newInstance(category)
+                .show(getChildFragmentManager(), "container-content-downloads");
+    }
+
+    /** Refreshes every selector affected by the inline Downloads catalog. */
+    public void refreshDownloadedContent() {
+        View view = getView();
+        Context context = getContext();
+        if (view == null || context == null || contentsManager == null) return;
+        contentsManager.syncContents();
+
+        Spinner wine = view.findViewById(R.id.SWineVersion);
+        Spinner box64 = view.findViewById(R.id.SBox64Version);
+        Spinner fex = view.findViewById(R.id.SFEXCoreVersion);
+        Spinner graphics = view.findViewById(R.id.SGraphicsDriver);
+        String wineValue = selectedText(wine);
+        String boxValue = selectedText(box64);
+        String fexValue = selectedText(fex);
+        String graphicsValue = selectedText(graphics);
+
+        loadWineVersionSpinner(view, wine, box64);
+        AppUtils.setSpinnerSelectionFromValue(wine, wineValue);
+        AppUtils.setSpinnerSelectionFromValue(box64, boxValue);
+        FEXCoreManager.loadFEXCoreVersion(context, contentsManager, fex, container);
+        AppUtils.setSpinnerSelectionFromValue(fex, fexValue);
+        updateGraphicsDriverSpinner(context, graphics);
+        AppUtils.setSpinnerSelectionFromValue(graphics, graphicsValue);
+    }
+
+    private static String selectedText(Spinner spinner) {
+        Object selected = spinner.getSelectedItem();
+        return selected == null ? "" : selected.toString();
     }
 
     public static void loadBox64VersionSpinner(Context context, Container container, ContentsManager manager, Spinner spinner, boolean isArm64EC) {

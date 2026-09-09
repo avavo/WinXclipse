@@ -15,7 +15,7 @@ import com.winlator.cmod.xserver.ScreenInfo;
 import java.io.File;
 
 public abstract class WineThemeManager {
-    public static final int DESKTOP_THEME_REVISION = 3;
+    public static final int DESKTOP_THEME_REVISION = 6;
     public enum Theme {SYSTEM, LIGHT, DARK}
     public enum BackgroundType {IMAGE, COLOR}
     public static final String DEFAULT_DESKTOP_THEME = Theme.SYSTEM+","+BackgroundType.IMAGE+",#0277bd";
@@ -84,6 +84,7 @@ public abstract class WineThemeManager {
             if (resolvedTheme == Theme.LIGHT) {
                 registryEditor.setStringValue("Control Panel\\Colors", "ActiveBorder", "245 245 245");
                 registryEditor.setStringValue("Control Panel\\Colors", "ActiveTitle", "96 125 139");
+                registryEditor.setStringValue("Control Panel\\Colors", "AppWorkSpace", "245 245 245");
                 registryEditor.setStringValue("Control Panel\\Colors", "Background", background);
                 registryEditor.setStringValue("Control Panel\\Colors", "ButtonAlternateFace", "245 245 245");
                 registryEditor.setStringValue("Control Panel\\Colors", "ButtonDkShadow", "158 158 158");
@@ -116,6 +117,7 @@ public abstract class WineThemeManager {
             else {
                 registryEditor.setStringValue("Control Panel\\Colors", "ActiveBorder", "48 48 48");
                 registryEditor.setStringValue("Control Panel\\Colors", "ActiveTitle", "33 33 33");
+                registryEditor.setStringValue("Control Panel\\Colors", "AppWorkSpace", "33 33 33");
                 registryEditor.setStringValue("Control Panel\\Colors", "Background", background);
                 registryEditor.setStringValue("Control Panel\\Colors", "ButtonAlternateFace", "33 33 33");
                 registryEditor.setStringValue("Control Panel\\Colors", "ButtonDkShadow", "0 0 0");
@@ -149,17 +151,13 @@ public abstract class WineThemeManager {
         return wallpaperReady;
     }
 
-    /** Resolves Follow Android while preserving an explicit Light/Dark override. */
+    /** Resolves the automatic theme against the same effective mode as WinXclipse. */
     public static Theme getResolvedTheme(Context context, Theme configuredTheme) {
         if (configuredTheme == Theme.LIGHT || configuredTheme == Theme.DARK) {
             return configuredTheme;
         }
-        // Follow Android must follow the device configuration itself, even if
-        // WinXclipse's own interface has a manual Light/Dark override.
-        int nightMode = android.content.res.Resources.getSystem().getConfiguration().uiMode
-                & android.content.res.Configuration.UI_MODE_NIGHT_MASK;
-        if (nightMode == android.content.res.Configuration.UI_MODE_NIGHT_YES) return Theme.DARK;
-        if (nightMode == android.content.res.Configuration.UI_MODE_NIGHT_NO) return Theme.LIGHT;
+        // AppUtils includes WinXclipse's manual override.  Using Resources.getSystem()
+        // here could produce a light wallpaper while the Wine palette was dark.
         return AppUtils.isDarkMode(context) ? Theme.DARK : Theme.LIGHT;
     }
 

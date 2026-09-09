@@ -6,6 +6,7 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Paint;
+import android.graphics.Path;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.util.AttributeSet;
@@ -28,6 +29,8 @@ import java.io.File;
 
 public class ImagePickerView extends View implements View.OnClickListener {
     private final Bitmap icon;
+    private Bitmap preview;
+    private WineThemeManager.Theme previewTheme = WineThemeManager.Theme.SYSTEM;
 
     public ImagePickerView(Context context) {
         this(context, null);
@@ -41,6 +44,7 @@ public class ImagePickerView extends View implements View.OnClickListener {
         super(context, attrs, defStyleAttr);
 
         icon = BitmapFactory.decodeResource(context.getResources(), R.drawable.icon_image_picker);
+        reloadPreview();
 
         setBackgroundResource(R.drawable.combo_box);
         setClickable(true);
@@ -56,14 +60,39 @@ public class ImagePickerView extends View implements View.OnClickListener {
         int height = getHeight();
         if (width == 0 || height == 0) return;
 
-        float rectSize = height - UnitUtils.dpToPx(12);
-        float startX = (width - rectSize) * 0.5f - UnitUtils.dpToPx(16);
-        float startY = (height - rectSize) * 0.5f;
-
         Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        float inset = UnitUtils.dpToPx(2);
+        float radius = UnitUtils.dpToPx(7);
+        int saveCount = canvas.save();
+        Path clip = new Path();
+        clip.addRoundRect(new RectF(inset, inset, width - inset, height - inset),
+                radius, radius, Path.Direction.CW);
+        canvas.clipPath(clip);
+        if (preview != null) {
+            float sourceRatio = (float) preview.getWidth() / preview.getHeight();
+            float targetRatio = (float) width / height;
+            int cropWidth = preview.getWidth();
+            int cropHeight = preview.getHeight();
+            if (sourceRatio > targetRatio) cropWidth = Math.round(cropHeight * targetRatio);
+            else cropHeight = Math.round(cropWidth / targetRatio);
+            int left = (preview.getWidth() - cropWidth) / 2;
+            int top = (preview.getHeight() - cropHeight) / 2;
+            canvas.drawBitmap(preview, new Rect(left, top, left + cropWidth, top + cropHeight),
+                    new RectF(inset, inset, width - inset, height - inset), paint);
+        }
+
+        // Keep the picker affordance visible without hiding the wallpaper preview.
+        float iconSize = UnitUtils.dpToPx(30);
+        float padding = UnitUtils.dpToPx(8);
+        paint.setColor(0x99000000);
+        canvas.drawRoundRect(width - iconSize - padding * 2, height - iconSize - padding * 2,
+                width - padding / 2, height - padding / 2, padding, padding, paint);
+        paint.setColor(0xFFFFFFFF);
         Rect srcRect = new Rect(0, 0, icon.getWidth(), icon.getHeight());
-        RectF dstRect = new RectF(startX, startY, startX + rectSize, startY + rectSize);
+        RectF dstRect = new RectF(width - iconSize - padding, height - iconSize - padding,
+                width - padding, height - padding);
         canvas.drawBitmap(icon, srcRect, dstRect, paint);
+        canvas.restoreToCount(saveCount);
     }
 
     @Override
@@ -73,11 +102,10 @@ public class ImagePickerView extends View implements View.OnClickListener {
 
         View view = LayoutInflater.from(context).inflate(R.layout.image_picker_view, null);
         ImageView imageView = view.findViewById(R.id.ImageView);
-
-        if (userWallpaperFile.isFile()) {
-            imageView.setImageBitmap(BitmapFactory.decodeFile(userWallpaperFile.getPath()));
-        }
-        else imageView.setImageResource(R.drawable.wallpaper);
+        // The popup must show the same resolved light/dark/custom image as the
+        // inline preview instead of falling back to the old blue wallpaper.
+        reloadPreview();
+        imageView.setImageBitmap(preview);
 
         final PopupWindow[] popupWindow = {null};
         View browseButton = view.findViewById(R.id.BTBrowse);
@@ -91,6 +119,8 @@ public class ImagePickerView extends View implements View.OnClickListener {
 
                 ImageUtils.save(bitmap, userWallpaperFile, Bitmap.CompressFormat.PNG, 100);
                 popupWindow[0].dismiss();
+                reloadPreview();
+                invalidate();
             });
             activity.startActivityForResult(intent, MainActivity.OPEN_FILE_REQUEST_CODE);
         });
@@ -101,9 +131,29 @@ public class ImagePickerView extends View implements View.OnClickListener {
             removeButton.setOnClickListener((v) -> {
                 FileUtils.delete(userWallpaperFile);
                 popupWindow[0].dismiss();
+                reloadPreview();
+                invalidate();
             });
         }
 
         popupWindow[0] = AppUtils.showPopupWindow(anchor, view, 200, 240);
+    }
+
+    private void reloadPreview() {
+        File wallpaperFile = WineThemeManager.getUserWallpaperFile(getContext());
+        WineThemeManager.Theme resolvedTheme = WineThemeManager.getResolvedTheme(
+                getContext(), previewTheme);
+        preview = wallpaperFile.isFile()
+                ? BitmapFactory.decodeFile(wallpaperFile.getPath())
+                : BitmapFactory.decodeResource(getResources(),
+                        resolvedTheme == WineThemeManager.Theme.DARK
+                                ? R.drawable.wine_wallpaper_dark
+                                : R.drawable.wine_wallpaper_light);
+    }
+
+    public void setPreviewTheme(WineThemeManager.Theme theme) {
+        previewTheme = theme != null ? theme : WineThemeManager.Theme.SYSTEM;
+        reloadPreview();
+        invalidate();
     }
 }
