@@ -892,6 +892,10 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="new_folder">New Folder</string>
     <string name="copying_file">Copying file…</string>
     <string name="moving_file">Moving file…</string>
+    <string name="replace">Replace</string>
+    <string name="replace_existing_title">Replace existing item?</string>
+    <string name="replace_existing_single">%1$s already exists. Replace it? The existing file or folder will be deleted first.</string>
+    <string name="replace_existing_multiple">%1$d items already exist. Replace them? Existing files and folders will be deleted first.</string>
     <string name="deleting_file">Deleting file…</string>
     <string name="xclipse_drivers">Xclipse Drivers</string>
     <string name="wrappers">Wrappers</string>

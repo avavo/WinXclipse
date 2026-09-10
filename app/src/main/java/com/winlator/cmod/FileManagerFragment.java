@@ -42,11 +42,12 @@ import com.winlator.cmod.core.FileUtils;
 import com.winlator.cmod.core.ShortcutArtworkManager;
 import com.winlator.cmod.widget.FileProgressDialog;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.channels.FileChannel;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -847,12 +848,36 @@ public class FileManagerFragment extends Fragment {
             return;
         }
 
-        executePaste(currentDir);
+        int conflictCount = 0;
+        String singleConflictName = null;
+        for (File source : new ArrayList<>(clipboardFiles)) {
+            File destination = new File(currentDir, source.getName());
+            if (pathExists(destination) && !sameCanonicalPath(source, destination)) {
+                conflictCount++;
+                singleConflictName = source.getName();
+            }
+        }
+
+        if (conflictCount == 0) {
+            executePaste(currentDir, false);
+            return;
+        }
+
+        ContentDialog dialog = new ContentDialog(requireContext());
+        dialog.setTitle(R.string.replace_existing_title);
+        dialog.setMessage(conflictCount == 1
+                ? getString(R.string.replace_existing_single, singleConflictName)
+                : getString(R.string.replace_existing_multiple, conflictCount));
+        ((TextView) dialog.findViewById(R.id.BTConfirm)).setText(R.string.replace);
+        dialog.setOnConfirmCallback(() -> executePaste(currentDir, true));
+        dialog.show();
     }
 
-    private void executePaste(File destinationDir) {
-        fileProgressDialog.show(isCutOperation ? R.string.moving_file : R.string.copying_file);
+    private void executePaste(File destinationDir, boolean replaceExisting) {
+        final boolean moveOperation = isCutOperation;
+        fileProgressDialog.show(moveOperation ? R.string.moving_file : R.string.copying_file);
         isCancelled.set(false);
+        lastUIUpdateTime = 0;
         if (getActivity() != null) AppUtils.keepScreenOn(getActivity());
 
         new Thread(() -> {
@@ -861,7 +886,11 @@ public class FileManagerFragment extends Fragment {
 
             List<File> sources = new ArrayList<>(clipboardFiles);
             for (File file : sources) {
-                if (file.isDirectory()) {
+                if (FileUtils.isSymlink(file)) {
+                    // A symbolic link has no payload to copy. Its target must not be
+                    // included here or a Wine drive link can make the scan enormous.
+                    continue;
+                } else if (file.isDirectory()) {
                     totalSize.addAndGet(getDirectoryInfo(file, new java.util.HashSet<>())[0]);
                 } else {
                     totalSize.addAndGet(file.length());
@@ -872,18 +901,39 @@ public class FileManagerFragment extends Fragment {
             for (File file : sources) {
                 if (isCancelled.get()) break;
                 File destination = new File(destinationDir, file.getName());
-                
-                // Simple conflict handling: rename if exists
-                if (destination.exists()) {
-                    destination = new File(destinationDir, "Copy_of_" + file.getName());
+
+                if (sameCanonicalPath(file, destination)) continue;
+                if (!FileUtils.isSymlink(file) && file.isDirectory() && isInsideDirectory(file, destinationDir)) {
+                    allSuccess = false;
+                    continue;
                 }
 
-                boolean success = copyWithProgress(file, destination, copiedSize, totalSize.get());
-                if (success && isCutOperation && !isCancelled.get()) {
+                // Conflicts are only replaced after the explicit confirmation shown
+                // by pasteFiles(). A late conflict never creates a silent duplicate.
+                if (pathExists(destination)) {
+                    if (!replaceExisting || !FileUtils.delete(destination)) {
+                        allSuccess = false;
+                        continue;
+                    }
+                }
+
+                boolean copySuccess = copyWithProgress(file, destination, copiedSize, totalSize.get(), moveOperation,
+                        new java.util.HashSet<>());
+                boolean success = copySuccess;
+                if (copySuccess && moveOperation && !isCancelled.get()) {
                     // If fast rename succeeded the source no longer exists – don't re-delete
-                    if (file.exists()) deleteRecursiveSafe(file, new AtomicLong(0), 1);
+                    if (pathExists(file) && !deleteRecursiveSafe(file, new AtomicLong(0), 1)) success = false;
+                }
+                if (!copySuccess && pathExists(destination)) {
+                    // A failed/cancelled fallback copy must not leave a misleading,
+                    // incomplete destination behind. The source is still preserved.
+                    FileUtils.delete(destination);
                 }
                 if (!success) allSuccess = false;
+            }
+
+            if (!isCancelled.get() && allSuccess) {
+                fileProgressDialog.update("", totalSize.get(), totalSize.get());
             }
 
             final boolean finalSuccess = allSuccess;
@@ -895,7 +945,7 @@ public class FileManagerFragment extends Fragment {
                     if (finalCancelled) {
                         Toast.makeText(getContext(), "Operation cancelled", Toast.LENGTH_SHORT).show();
                     } else if (finalSuccess) {
-                        if (isCutOperation) {
+                        if (moveOperation) {
                             clipboardFiles.clear();
                             fabPaste.setVisibility(View.GONE);
                         }
@@ -985,7 +1035,7 @@ public class FileManagerFragment extends Fragment {
     /** Fast move via rename when source and destination are on the same filesystem (Drive C). */
     private boolean tryFastMove(File src, File dst) {
         try {
-            if (dst.exists()) return false;
+            if (pathExists(dst)) return false;
             File parent = dst.getParentFile();
             if (parent != null && !parent.exists() && !parent.mkdirs()) return false;
             // File.renameTo is atomic and instant on same mount (Drive C -> Drive C)
@@ -996,12 +1046,35 @@ public class FileManagerFragment extends Fragment {
         } catch (Exception ignored) { return false; }
     }
 
-    private boolean copyWithProgress(File src, File dst, AtomicLong copiedSize, long totalSize) {
+    private boolean pathExists(File file) {
+        return java.nio.file.Files.exists(file.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS);
+    }
+
+    private boolean sameCanonicalPath(File first, File second) {
+        try {
+            return first.getCanonicalFile().equals(second.getCanonicalFile());
+        } catch (IOException e) {
+            return first.getAbsoluteFile().equals(second.getAbsoluteFile());
+        }
+    }
+
+    private boolean isInsideDirectory(File directory, File candidate) {
+        try {
+            String directoryPath = directory.getCanonicalPath();
+            String candidatePath = candidate.getCanonicalPath();
+            return candidatePath.startsWith(directoryPath + File.separator);
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    private boolean copyWithProgress(File src, File dst, AtomicLong copiedSize, long totalSize,
+                                     boolean allowFastMove, Set<String> visitedDirectories) {
         if (isCancelled.get()) return false;
-        // Fast path for Cut/Move on same filesystem (e.g. moving a huge game inside Drive C)
-        if (isCutOperation) {
-            // Only try fast rename at top level for files/dirs that share the same filesystem.
-            // We detect this by trying renameTo; if it fails we fall back to byte copy.
+
+        // Fast move is only safe at the selected item's root. Retrying it for each
+        // child can split the source tree when a later child fails or is cancelled.
+        if (allowFastMove) {
             long srcSize = src.isFile() ? src.length() : -1;
             if (tryFastMove(src, dst)) {
                 long inc = srcSize >= 0 ? srcSize : dst.isFile() ? dst.length() : 0;
@@ -1018,32 +1091,46 @@ public class FileManagerFragment extends Fragment {
                 return true;
             }
         }
-        if (src.isDirectory()) {
+
+        if (FileUtils.isSymlink(src)) {
+            try {
+                java.nio.file.Path target = java.nio.file.Files.readSymbolicLink(src.toPath());
+                java.nio.file.Files.createSymbolicLink(dst.toPath(), target);
+                return true;
+            } catch (IOException | UnsupportedOperationException | SecurityException e) {
+                android.util.Log.e("FileManager", "Unable to copy symbolic link " + src + " to " + dst, e);
+                return false;
+            }
+        } else if (src.isDirectory()) {
+            try {
+                if (!visitedDirectories.add(src.getCanonicalPath())) return true;
+            } catch (IOException e) {
+                return false;
+            }
             if (!dst.exists() && !dst.mkdirs()) return false;
             File[] files = src.listFiles();
-            if (files != null) {
-                for (File file : files) {
-                    if (!copyWithProgress(file, new File(dst, file.getName()), copiedSize, totalSize)) return false;
-                }
+            if (files == null) return false;
+            for (File file : files) {
+                if (!copyWithProgress(file, new File(dst, file.getName()), copiedSize, totalSize,
+                        false, visitedDirectories)) return false;
             }
+            dst.setLastModified(src.lastModified());
             return true;
         } else {
-            try (FileInputStream in = new FileInputStream(src);
-                 FileOutputStream out = new FileOutputStream(dst)) {
-                FileChannel inChannel = in.getChannel();
-                FileChannel outChannel = out.getChannel();
-                long size = inChannel.size();
-                long position = 0;
-                long bufferSize = 8L * 1024 * 1024;
+            File parent = dst.getParentFile();
+            if (!src.isFile() || (parent != null && !parent.exists() && !parent.mkdirs())) return false;
 
-                while (position < size) {
+            long expectedSize = src.length();
+            long written = 0;
+            byte[] buffer = new byte[1024 * 1024];
+            try (BufferedInputStream in = new BufferedInputStream(new FileInputStream(src), buffer.length);
+                 BufferedOutputStream out = new BufferedOutputStream(new FileOutputStream(dst), buffer.length)) {
+                int count;
+                while ((count = in.read(buffer)) != -1) {
                     if (isCancelled.get()) return false;
-                    long remain = size - position;
-                    long count = Math.min(remain, bufferSize);
-                    long transferred = inChannel.transferTo(position, count, outChannel);
-                    if (transferred <= 0) break;
-                    position += transferred;
-                    copiedSize.addAndGet(transferred);
+                    out.write(buffer, 0, count);
+                    written += count;
+                    copiedSize.addAndGet(count);
 
                     long currentTime = System.currentTimeMillis();
                     if (currentTime - lastUIUpdateTime > 100) {
@@ -1051,9 +1138,13 @@ public class FileManagerFragment extends Fragment {
                         lastUIUpdateTime = currentTime;
                     }
                 }
+                out.flush();
+                if (written != expectedSize) return false;
                 fileProgressDialog.update(src.getName(), copiedSize.get(), totalSize);
-                return true;
+                dst.setLastModified(src.lastModified());
+                return dst.isFile() && dst.length() == expectedSize;
             } catch (IOException e) {
+                android.util.Log.e("FileManager", "Unable to copy " + src + " to " + dst, e);
                 return false;
             }
         }
@@ -1200,7 +1291,9 @@ public class FileManagerFragment extends Fragment {
         File[] files = directory.listFiles();
         if (files != null) {
             for (File file : files) {
-                if (file.isDirectory()) {
+                if (FileUtils.isSymlink(file)) {
+                    totalFiles++;
+                } else if (file.isDirectory()) {
                     totalDirs++;
                     long[] subDirInfo = getDirectoryInfo(file, visited);
                     totalSize += subDirInfo[0];

@@ -83,9 +83,12 @@ public class FileProgressDialog {
         activity.runOnUiThread(() -> {
             if (dialog == null || !dialog.isShowing()) return;
             tvFileName.setText(fileName);
-            int progress = total > 0 ? (int) ((current * 100) / total) : 0;
+            double exactProgress = total > 0 ? Math.min(100.0, (current * 100.0) / total) : 0.0;
+            int progress = current > 0 && total > 0 ? Math.max(1, (int) exactProgress) : 0;
             progressBar.setProgress(progress);
-            tvProgressPercentage.setText(progress + "%");
+            tvProgressPercentage.setText(exactProgress > 0.0 && exactProgress < 10.0
+                    ? String.format(java.util.Locale.getDefault(), "%.1f%%", exactProgress)
+                    : progress + "%");
             tvProgressSize.setText(customProgressText);
         });
     }
