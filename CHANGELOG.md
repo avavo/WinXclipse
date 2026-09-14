@@ -2,6 +2,23 @@
 
 All notable changes between WinXclipse releases, newest first.
 
+## 0.9.6
+
+### Fixed
+
+- File Manager now treats a move/copy onto an existing file as a real replacement instead of creating a suffixed duplicate. Symlink-aware size accounting keeps the progress dialog accurate for large saves and game folders.
+- Shortcut lifecycle detection no longer mistakes the normal exit of `start.exe` for the game process. Slow launcher-to-game hand-offs are allowed to continue for 30 seconds, while shortcuts that never start still use the separate stale-launch backstop.
+- Wine/Proton, FEXCore, Box64, DXVK and VKD3D selectors and launchers now resolve only installed content. Failed FEXCore extraction cannot leave a false version marker, and an installed fallback is selected when an old container points at missing content.
+- Prefix compatibility repair was narrowed to a one-time cleanup of legacy runtime copies; it no longer replaces broad sets of Wine DLLs and cannot mix Proton generations in an existing prefix.
+- Proton/FEX catalog entries now use the published archive names and manifest version codes, removing dead downloads and repeated install prompts.
+- Normal and Essential startup keep `RpcSs` available for COM-based games and installers, and X server multi-locks acquire resources in a stable order.
+- Imported Vulkan settings are validated against the device and clamp unsupported Vulkan 1.4 requests to 1.3. Missing or empty runtime identifiers are handled without aborting launch.
+
+### Changed
+
+- RAM Fix remains enabled by default. NRAMV's intrusive Android-process memory paging is now limited to the explicit Experimental Performance option, preventing background refault stalls in ordinary sessions.
+- Release version is now `0.9.6` (version code `27`). This build publishes only the main WinXclipse package.
+
 ## 0.9.5
 
 ### New

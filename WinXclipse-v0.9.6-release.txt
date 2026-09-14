@@ -1,0 +1,61 @@
+# WinXclipse v0.9.6
+
+WinXclipse v0.9.6 is a focused compatibility and reliability update for Exynos/Xclipse devices. It fixes duplicate file moves, slow shortcut launches, stale runtime selection, and several paths that could close or crash a game before its real process started.
+
+# Highlights
+
+### File Manager
+
+- Moving or copying onto an existing file now performs a true replacement instead of creating a second file with a suffix in its name.
+- Large-file progress uses symlink-aware accounting and remains accurate for saves and game folders.
+
+### Wine, Proton and FEXCore
+
+- Runtime and content selectors resolve only installed packages, so a catalog entry cannot be passed to Wine as if it were already available.
+- FEXCore extraction updates the saved version only after a successful install and bridge-DLL check, with a safe installed fallback for old containers.
+- Prefix repair no longer copies an entire runtime over a working prefix. It only removes byte-identical legacy copies that are safe to fall back to Wine builtins, avoiding mixed Proton generations.
+- Published Proton/FEX archive names and manifest version codes are synchronized with the runtime catalog, preventing dead downloads and repeated install prompts.
+- Empty or missing runtime identifiers are handled as a recoverable configuration state instead of aborting startup.
+
+### Launch and compatibility
+
+- `start.exe` finishing is no longer counted as proof that the game was observed. Launcher-to-game hand-offs receive a 30-second idle window, while genuinely dead shortcuts retain the independent stale-launch timeout.
+- `RpcSs` remains available in Normal and Essential startup profiles for COM-dependent games and installers.
+- X server multi-locks use a deterministic order, avoiding lock inversion during concurrent rendering and input work.
+- Imported Vulkan 1.4 requests are clamped to Vulkan 1.3 when the device does not expose 1.4.
+
+### Memory behavior
+
+- RAM Fix remains enabled by default.
+- NRAMV paging is no longer applied to every session; it runs only when the user explicitly enables its Experimental Performance option.
+
+# Compatibility note
+
+Existing prefixes are never bulk-rewritten with another Proton generation. When changing Proton major versions, create a fresh prefix if the runtime package requires it.
+
+# Package
+
+- Main WinXclipse APK: `com.win.xclipse`, version `0.9.6`, version code `27`, arm64-v8a.
+- This release publishes one APK only.
+
+# Status
+
+WinXclipse remains experimental. Results vary with the device, Android firmware, runtime, wrapper, driver, container and game. Include the device, configuration and logs when reporting a regression.
+
+# Credits
+
+- Winlator by Brunodev85
+- Winlator CMOD by coffincolors and Pipetto-crypto
+- Winlator Glibc by longjunyu2
+- Winlator OpenXR by lvonasek
+- FEX-Emu
+- AMD FidelityFX Super Resolution
+- Winlator Mali and Winlator Ludashi references
+- ExynosTools
+- WinXclipse adaptation by Álvaro
+
+# Support
+
+Discord: https://discord.gg/u2nDTXRxyx
+
+Email: avavosim@gmail.com

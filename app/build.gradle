@@ -57,8 +57,8 @@ android {
         // causing "error=13, Permission denied" at container startup.
         targetSdkVersion 28
 
-        versionCode 26
-        versionName "0.9.5"
+        versionCode 27
+        versionName "0.9.6"
 
         // Native build from Winlator sources
         externalNativeBuild {

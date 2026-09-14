@@ -92,8 +92,9 @@ public final class FEXCorePresetManager {
                 envVars.put("FEX_HALFBARRIERTSOENABLED", "0");
                 envVars.put("FEX_X87REDUCEDPRECISION", "1");
                 envVars.put("FEX_MULTIBLOCK", "1");
-                envVars.put("FEX_DYNAMICL1CACHE", "1");
-                envVars.put("FEX_DISABLEL2CACHE", "1");
+                // DYNAMICL1/DISABLEL2 ficam só no TURBO: no Performance eles
+                // aumentam recompile/stutter e quebram jogo sensível a tempo.
+                // Semântica igual ao Ludashi; Turbo segue como teto opt-in.
                 break;
             case FEXCorePreset.TURBO:
                 envVars.put("FEX_TSOENABLED", "0");

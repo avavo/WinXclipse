@@ -824,8 +824,25 @@ public class Container {
                 if (dxwrapper.equals("original-wined3d")) {
                     data.put("dxwrapper", DEFAULT_DXWRAPPER);
                 }
+                else if (dxwrapper.equals("dxvk+vkd3d")) {
+                    // Valor legado do Ludashi: no WinXclipse VKD3D vai via
+                    // vkd3dVersion, o dxwrapper fica só "dxvk". Sem isso o
+                    // launch cai só no branch VKD3D e nunca extrai o DXVK.
+                    data.put("dxwrapper", DEFAULT_DXWRAPPER);
+                }
                 else if (dxwrapper.startsWith("d8vk-") || dxwrapper.startsWith("dxvk-")) {
                     data.put("dxwrapper", dxwrapper);
+                }
+            }
+
+            // dxwrapperConfig antigo salvava "ddrawrapper=" vazio. Normaliza
+            // para "none" (builtin) para não tentar extrair arquivo inexistente.
+            if (data.has("dxwrapperConfig")) {
+                String dxConfig = data.optString("dxwrapperConfig", "");
+                if (dxConfig.contains("ddrawrapper=,") || dxConfig.endsWith("ddrawrapper=")) {
+                    dxConfig = dxConfig.replace("ddrawrapper=,", "ddrawrapper=none,");
+                    if (dxConfig.endsWith("ddrawrapper=")) dxConfig += "none";
+                    data.put("dxwrapperConfig", dxConfig);
                 }
             }
 

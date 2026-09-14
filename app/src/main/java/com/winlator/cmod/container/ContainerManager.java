@@ -490,6 +490,15 @@ public class ContainerManager {
         int skipped = 0;
         for (File file : srcfiles) {
             String dllName = file.getName();
+            // These modules are intentionally not materialized in the prefix
+            // by the reference ARM64EC Winlator implementations. Wine resolves
+            // builtins from the active runtime; copying them here can mix a
+            // prefix with a different Proton generation after a runtime switch.
+            if (dllName.equalsIgnoreCase("tabtip.exe")
+                    || dllName.equalsIgnoreCase("icu.dll")) {
+                skipped++;
+                continue;
+            }
             if (dllName.equals("iexplore.exe") && wineInfo.isArm64EC() && srcName.equals("aarch64-windows")) {
                 File fallbackFile = new File(wineLibDir, "i386-windows/iexplore.exe");
                 if (fallbackFile.isFile()) file = fallbackFile;
@@ -511,7 +520,7 @@ public class ContainerManager {
 
     public boolean extractContainerPatternFile(Container container, String wineVersion, ContentsManager contentsManager, File containerDir, OnExtractFileListener onExtractFileListener) {
         WineInfo wineInfo = WineInfo.fromIdentifier(context, contentsManager, wineVersion);
-        ContentProfile runtimeProfile = contentsManager.getProfileByEntryName(wineVersion);
+        ContentProfile runtimeProfile = WineInfo.findInstalledRuntimeProfile(contentsManager, wineVersion);
         File runtimeRoot = wineInfo.path != null ? new File(wineInfo.path) : null;
         File wineLibDir = runtimeProfile != null
                 ? ContentsManager.getSourceFile(context, runtimeProfile, runtimeProfile.wineLibPath)

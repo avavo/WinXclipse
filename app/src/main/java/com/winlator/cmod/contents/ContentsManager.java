@@ -953,6 +953,7 @@ public class ContentsManager {
     }
 
     public ContentProfile getProfileByEntryName(String entryName) {
+        if (entryName == null || entryName.trim().isEmpty()) return null;
         int firstDashIndex = entryName.indexOf('-');
         int lastDashIndex = entryName.lastIndexOf('-');
 
@@ -971,11 +972,13 @@ public class ContentsManager {
         return null;
     }
 
-    /**
-     * Finds an installed profile by its content type and visible version name.
-     * This is intentionally independent from the entry-name version code so a
-     * runtime such as FEXCore can be selected as "2608" in every screen.
-     */
+    /** Resolves an exact content entry only when its package is installed. */
+    public ContentProfile getInstalledProfileByEntryName(String entryName) {
+        ContentProfile profile = getProfileByEntryName(entryName);
+        return isInstalledProfile(profile) ? profile : null;
+    }
+
+    /** Finds any catalog profile by type and visible version name. */
     public ContentProfile getProfile(ContentProfile.ContentType type, String versionName) {
         ContentProfile bestMatch = null;
         List<ContentProfile> profiles = profilesMap.get(type);
@@ -983,6 +986,26 @@ public class ContentsManager {
 
         for (ContentProfile profile : profiles) {
             if (versionName.equalsIgnoreCase(profile.verName)
+                    && (bestMatch == null || profile.verCode > bestMatch.verCode)) {
+                bestMatch = profile;
+            }
+        }
+        return bestMatch;
+    }
+
+    /**
+     * Finds only a profile whose package is present in private storage. Remote
+     * catalog entries live in the same list and must never be passed directly
+     * to {@link #applyContent(ContentProfile)} by a launcher.
+     */
+    public ContentProfile getInstalledProfile(ContentProfile.ContentType type, String versionName) {
+        ContentProfile bestMatch = null;
+        List<ContentProfile> profiles = profilesMap.get(type);
+        if (profiles == null || versionName == null) return null;
+
+        for (ContentProfile profile : profiles) {
+            if (versionName.equalsIgnoreCase(profile.verName)
+                    && isInstalledProfile(profile)
                     && (bestMatch == null || profile.verCode > bestMatch.verCode)) {
                 bestMatch = profile;
             }

@@ -252,7 +252,10 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     private volatile boolean sawShortcutProcess;
     private volatile boolean observedShortcutApplication;
     private long shortcutIdleSinceMs;
-    private static final long SHORTCUT_IDLE_CLOSE_DELAY_MS = 5000L;
+    // Launchers commonly exit before the real game (or a second-stage helper)
+    // appears. Five seconds was short enough to tear down valid Proton launch
+    // chains during that hand-off, so only close after a sustained idle gap.
+    private static final long SHORTCUT_IDLE_CLOSE_DELAY_MS = 30000L;
     // Backstop para launch que nunca gera processo (stub travado, path obsoleto):
     // sem app por 2 min apos o start.exe aparecer, fecha em vez de prender a sessao.
     private static final long SHORTCUT_NEVER_STARTED_CLOSE_DELAY_MS = 120000L;
@@ -304,8 +307,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 else if (now - shortcutIdleSinceMs >= SHORTCUT_IDLE_CLOSE_DELAY_MS) {
                     automaticLifecycleClose = true;
                     lifecycleCloseReason = observedShortcutApplication
-                            ? "The game exited or crashed; only Wine base/crash-defender processes remained for 5 seconds."
-                            : "The game did not start; only Wine base/crash-defender processes remained for 5 seconds.";
+                            ? "The game exited or crashed; only Wine base/crash-defender processes remained for 30 seconds."
+                            : "The game did not start; only Wine base/crash-defender processes remained for 30 seconds.";
                     Log.i("WineLifecycle", lifecycleCloseReason);
                     finishSession();
                     return;
@@ -2097,10 +2100,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             containerDataChanged = true;
         }
 
-        // Resync do prefix com o runtime ativo (só file ops, nunca wineboot).
-        // Fecha o buraco da troca/reinstalação de runtime: DLLs dessincronizadas
-        // matavam o jogo no boot sem dizer nada. Fail-open: nunca bloqueia o boot.
-        // Versionado por container via lastPrefixRuntimeId dentro do próprio resync.
+        // One-time repair for prefixes touched by the former broad DLL resync.
+        // It only removes byte-identical icu/tabtip runtime copies and never
+        // replaces Wine/Proton modules in a working prefix.
         try {
             PrefixDllResync.resync(container, wineInfo, imageFs);
         } catch (Throwable t) {
@@ -2171,7 +2173,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         String appliedSelection = container.getExtra("startupSelectionApplied");
         // Bump the revision so existing prefixes also receive the corrected
         // Aggressive idle-service policy instead of keeping stale registry data.
-        String startupPolicyRevision = selection + ":lean-3";
+        String startupPolicyRevision = selection + ":compat-4";
         if (prefixMetadataChanged || !startupPolicyRevision.equals(appliedSelection)) {
             WineUtils.changeServicesStatus(container, selection);
             container.putExtra("startupSelectionApplied", startupPolicyRevision);
@@ -2284,7 +2286,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         bionicLauncher = new BionicProgramLauncherComponent(
                 contentsManager,
-                contentsManager.getProfileByEntryName(container.getWineVersion()),
+                WineInfo.findInstalledRuntimeProfile(contentsManager, container.getWineVersion()),
                 shortcut
         );
         guestProgramLauncherComponent = bionicLauncher;
@@ -2388,9 +2390,10 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         applyWrapperMemoryCapEnv();
         applyDxvkRuntimeEnv();
 
-        // NRAMV unified-memory manager runs in our process for every session;
-        // its baseline trim level follows device RAM while live escalation is
-        // driven by the HUD RAM alert through RamOptimizerXclipse.escalate().
+        // NRAMV scans and PAGEOUTs anonymous mappings of this Android process,
+        // not the separate Wine process. Keep that intrusive behavior behind
+        // its explicit experimental switch; running it for every game can
+        // introduce refault stalls absent from the reference Winlators.
         // Video tab choices apply regardless of the Experimental master switch.
         // vblank_mode=0 is only valid for an explicitly immediate swapchain.
         // Applying it merely because the independent FPS pacing control is Off
@@ -2400,7 +2403,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             envVars.put("vblank_mode", "0");
         if ("1".equals(graphicsDriverConfig.getOrDefault("unlimitedImages", "0")))
             envVars.put("WRAPPER_MAX_IMAGE_COUNT", "0");
-        applyRamOptimizerProfile();
+        if (experimentalPerformance && "1".equals(xperfConfig.get("ramAggro"))) {
+            applyRamOptimizerProfile();
+        }
 
         // Create our overall XEnvironment with various components
         environment = new XEnvironment(this, imageFs);
@@ -2478,7 +2483,11 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             // the process probe decide when the shortcut has really become
             // idle instead of tearing down a still-running child immediately.
             sidebarHandler.post(() -> {
-                sawShortcutProcess = true;
+                // The launcher stub finishing proves only that start.exe ran;
+                // it must not count as observing the actual application. If a
+                // game never appears, the separate two-minute backstop handles
+                // the stale shortcut without killing a slow launch after 5s.
+                sawStartExe = true;
                 shortcutIdleSinceMs = 0L;
                 sidebarHandler.removeCallbacks(shortcutExitProbe);
                 sidebarHandler.post(shortcutExitProbe);
@@ -2501,8 +2510,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         }
 
         // A Wine desktop is intentionally persistent. A shortcut, however,
-        // should leave as soon as its application (and any launcher children)
-        // has been gone for five continuous seconds. Base Wine services and
+        // should leave after its application (and any launcher children) has
+        // been gone for a sustained idle period. Base Wine services and
         // crash reporters do not keep the session alive. A stale shortcut_path
         // that failed to resolve still counts as a shortcut launch so a dead
         // session cannot linger forever either.
@@ -2555,7 +2564,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         String usrLocalBin = imageFs.getRootDir().getPath() + "/usr/local/bin";
 
         // Determine if the container is using a contents profile Wine version
-        ContentProfile profile = contentsManager.getProfileByEntryName(container.getWineVersion());
+        ContentProfile profile = WineInfo.findInstalledRuntimeProfile(
+                contentsManager, container.getWineVersion());
         if (profile != null && (profile.type == ContentProfile.ContentType.CONTENT_TYPE_WINE
                 || profile.type == ContentProfile.ContentType.CONTENT_TYPE_PROTON)) {
             File profileInstallDir = contentsManager.getInstallDir(this, profile);
@@ -4572,8 +4582,18 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             driverManager.setDriverById(envVars, imageFs, xclipseDriverId);
         }
 
-        envVars.put("WRAPPER_VK_VERSION",
-                graphicsDriverConfig.getOrDefault("vulkanVersion", "1.3"));
+        String requestedVulkanVersion = graphicsDriverConfig.getOrDefault(
+                "vulkanVersion", "1.3");
+        if (!requestedVulkanVersion.matches("1\\.[1-4]")) {
+            requestedVulkanVersion = "1.3";
+        }
+        if ("1.4".equals(requestedVulkanVersion)
+                && !GraphicsDriverConfigDialog.supportsVulkan14(this)) {
+            Log.w("GraphicsDriverExtraction",
+                    "Vulkan 1.4 is not exposed by this device; clamping imported config to 1.3");
+            requestedVulkanVersion = "1.3";
+        }
+        envVars.put("WRAPPER_VK_VERSION", requestedVulkanVersion);
         envVars.put("WRAPPER_EXTENSION_BLACKLIST", graphicsDriverConfig.getOrDefault("blacklistedExtensions", ""));
 
         String gpuName = graphicsDriverConfig.getOrDefault("gpuName", "Device");
@@ -5278,7 +5298,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         File windowsDir = new File(rootDir, ImageFs.WINEPREFIX + "/drive_c/windows");
 
         if (dxwrapper.contains("vkd3d")) {
-            ContentProfile profile = contentsManager.getProfileByEntryName(dxwrapper);
+            ContentProfile profile = contentsManager.getInstalledProfileByEntryName(dxwrapper);
             if (profile != null) {
                 Log.d(TAG, "Applying user-defined VKD3D content profile: " + dxwrapper);
                 contentsManager.applyContent(profile);
@@ -5292,12 +5312,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         } else if (dxwrapper.contains("dxvk")) {
             Log.d(TAG, "Extracting DXVK wrapper files, version: " + dxwrapper);
 
-            ContentProfile profile = contentsManager.getProfileByEntryName(dxwrapper);
+            ContentProfile profile = contentsManager.getInstalledProfileByEntryName(dxwrapper);
             if (profile == null) {
                 // Clean selector entries carry no "-<verCode>" suffix (e.g.
                 // "dxvk-1.7.2"), which the entry-name parser cannot split;
                 // fall back to matching by version name alone.
-                profile = contentsManager.getProfile(ContentProfile.ContentType.CONTENT_TYPE_DXVK,
+                profile = contentsManager.getInstalledProfile(ContentProfile.ContentType.CONTENT_TYPE_DXVK,
                         dxwrapper.substring(dxwrapper.indexOf('-') + 1));
             }
             if (profile != null) {
@@ -5330,6 +5350,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             FileUtils.delete(new File(windowsDir + "/syswow64/" + glideDLL));
         }
 
+        // Configs antigas salvavam ddrawrapper vazio (""). Trata como "none"
+        // (builtin) em vez de tentar extrair "ddrawrapper/.tzst" inexistente.
+        if (ddrawrapper == null || ddrawrapper.trim().isEmpty()) ddrawrapper = "none";
         if (ddrawrapper.equals("wined3d") || ddrawrapper.equals("none")) {
             Log.d("XserverDisplayActivity", "Restoring original dlls for WineD3D/None");
             restoreOriginalDllFiles(dlls);

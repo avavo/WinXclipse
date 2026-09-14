@@ -426,7 +426,7 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
         vulkanVersionSpinner.setAdapter(new ThemedSpinnerAdapter<>(context, versions));
     }
 
-    private static boolean supportsVulkan14(Context context) {
+    public static boolean supportsVulkan14(Context context) {
         final int vulkan14 = (1 << 22) | (4 << 12);
         FeatureInfo[] features = context.getPackageManager().getSystemAvailableFeatures();
         if (features == null) return false;

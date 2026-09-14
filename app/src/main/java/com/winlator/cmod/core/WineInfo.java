@@ -119,6 +119,9 @@ public class WineInfo implements Parcelable {
     @NonNull
     public static WineInfo fromIdentifier(Context context, ContentsManager contentsManager, String identifier) {
         ImageFs imageFs = ImageFs.find(context);
+        if (identifier == null || identifier.trim().isEmpty()) {
+            identifier = MAIN_WINE_VERSION.identifier();
+        }
         String path = "";
 
         Log.d("WineInfo", "Creating WineInfo from identifier " + identifier);
@@ -240,7 +243,9 @@ public class WineInfo implements Parcelable {
                 : ContentProfile.ContentType.CONTENT_TYPE_WINE;
 
         ContentProfile best = null;
-        for (ContentProfile profile : contentsManager.getProfiles(profileType)) {
+        List<ContentProfile> profiles = contentsManager.getProfiles(profileType);
+        if (profiles == null) return null;
+        for (ContentProfile profile : profiles) {
             if (profileVersion.equalsIgnoreCase(profile.verName)
                     && contentsManager.isInstalledProfile(profile)
                     && (best == null || profile.verCode > best.verCode)) {

@@ -13,6 +13,7 @@ import com.winlator.cmod.xserver.extensions.PresentExtension;
 import com.winlator.cmod.xserver.extensions.SyncExtension;
 
 import java.nio.charset.Charset;
+import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -128,8 +129,9 @@ public class XServer {
         private final Lockable[] lockables;
 
         private MultiXLock(Lockable[] lockables) {
-            this.lockables = lockables;
-            for (Lockable lockable : lockables) locks.get(lockable).lock();
+            this.lockables = lockables.clone();
+            Arrays.sort(this.lockables);
+            for (Lockable lockable : this.lockables) locks.get(lockable).lock();
         }
 
         @Override
@@ -190,17 +192,18 @@ public class XServer {
         private final boolean[] acquired;
 
         private TimedMultiXLock(Lockable[] lockables, long timeoutMs) {
-            this.lockables = lockables;
-            this.acquired = new boolean[lockables.length];
+            this.lockables = lockables.clone();
+            Arrays.sort(this.lockables);
+            this.acquired = new boolean[this.lockables.length];
             boolean allAcquired = true;
             long startTime = System.currentTimeMillis();
-            for (int i = 0; i < lockables.length; i++) {
+            for (int i = 0; i < this.lockables.length; i++) {
                 long remaining = timeoutMs - (System.currentTimeMillis() - startTime);
                 if (remaining <= 0) {
                     allAcquired = false;
                     break;
                 }
-                ReentrantLock lock = locks.get(lockables[i]);
+                ReentrantLock lock = locks.get(this.lockables[i]);
                 try {
                     acquired[i] = lock.tryLock(remaining, java.util.concurrent.TimeUnit.MILLISECONDS);
                 } catch (InterruptedException e) {
@@ -213,8 +216,8 @@ public class XServer {
                 }
             }
             if (!allAcquired) {
-                for (int i = 0; i < lockables.length; i++) {
-                    if (acquired[i]) locks.get(lockables[i]).unlock();
+                for (int i = 0; i < this.lockables.length; i++) {
+                    if (acquired[i]) locks.get(this.lockables[i]).unlock();
                 }
                 throw new IllegalStateException("Failed to acquire all locks within " + timeoutMs + "ms");
             }

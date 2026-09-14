@@ -34,7 +34,7 @@ import java.util.Locale;
 import java.util.List;
 
 public class DXVKConfigDialog extends ContentDialog {
-    public static final String DEFAULT_CONFIG = "version="+DefaultVersion.DXVK+",framerate=0,async=1,asyncCache=0,vkd3dVersion="+DefaultVersion.VKD3D+",vkd3dLevel=12_1,ddrawrapper=,noTimeline=1,vk3d66=1,ramFix=1,ramFixPool=0";
+    public static final String DEFAULT_CONFIG = "version="+DefaultVersion.DXVK+",framerate=0,async=1,asyncCache=0,vkd3dVersion="+DefaultVersion.VKD3D+",vkd3dLevel=12_1,ddrawrapper=none,noTimeline=1,vk3d66=1,ramFix=1,ramFixPool=0";
     public static final String CUSTOM_CONF_FILENAME = "dxvk.conf";
     public static final String MANAGED_CONF_GUEST_PATH = "Z:/usr/dxvk.conf";
     private static final String MANAGED_CONF_RELATIVE_PATH = "usr/dxvk.conf";
@@ -654,6 +654,7 @@ public class DXVKConfigDialog extends ContentDialog {
          * the raw "name-<verCode>" entry form, and duplicates are suppressed so
          * a bundled .wcp never shows up twice next to its array entry. */
         for (ContentProfile profile : manager.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_DXVK)) {
+            if (!manager.isInstalledProfile(profile)) continue;
             String verName = profile.verName;
             if (verName != null && !verName.isEmpty()
                     && (arm64EC || !verName.toLowerCase(Locale.ENGLISH).contains("arm64ec"))
@@ -672,6 +673,7 @@ public class DXVKConfigDialog extends ContentDialog {
             items.add(new VKD3DVersionItem(version, 0));
         }
         for (ContentProfile profile : manager.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_VKD3D)) {
+            if (!manager.isInstalledProfile(profile)) continue;
             items.add(new VKD3DVersionItem(profile.verName, profile.verCode));
         }
         spinner.setAdapter(new ThemedSpinnerAdapter<>(context, items));

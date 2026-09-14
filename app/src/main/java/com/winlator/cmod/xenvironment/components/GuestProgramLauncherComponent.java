@@ -196,10 +196,10 @@ public abstract class GuestProgramLauncherComponent extends EnvironmentComponent
         if (!box64Version.equals(currentBox64Version)) {
             ContentsManager contentsManager = new ContentsManager(context);
             contentsManager.syncContents();
-            ContentProfile profile = contentsManager.getProfileByEntryName("box64-" + box64Version);
+            ContentProfile profile = contentsManager.getInstalledProfileByEntryName("box64-" + box64Version);
             if (profile == null && !DefaultVersion.BOX64.equals(box64Version)) {
                 box64Version = DefaultVersion.BOX64;
-                profile = contentsManager.getProfileByEntryName("box64-" + box64Version);
+                profile = contentsManager.getInstalledProfileByEntryName("box64-" + box64Version);
             }
             if (profile != null) {
                 contentsManager.applyContent(profile);

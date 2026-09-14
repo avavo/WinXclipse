@@ -104,6 +104,14 @@ public abstract class WineUtils {
         try (WineRegistryEditor registryEditor = new WineRegistryEditor(userRegFile)) {
             for (String name : direct3dLibs) registryEditor.setStringValue(dllOverridesKey, name, "native,builtin");
             for (String name : xinputLibs) registryEditor.setStringValue(dllOverridesKey, name, "builtin,native");
+            // Match the reference ARM64EC launcher outside Mali: prefer the
+            // runtime opengl32 module while retaining Wine's builtin fallback.
+            try {
+                if (wineInfo != null && wineInfo.isArm64EC()
+                        && !GPUInformation.getRendererName().contains("Mali"))
+                    registryEditor.setStringValue(dllOverridesKey, "opengl32", "native,builtin");
+            }
+            catch (Throwable ignored) {}
             setWindowMetrics(registryEditor);
         }
     }
@@ -242,9 +250,9 @@ public abstract class WineUtils {
         final String[] services = {
                 "BITS:3", "Eventlog:2", "FontCache:3", "FontCache3.0.0.0:3", "HTTP:3",
                 "LanmanServer:3", "MountMgr:2", "MSIServer:3", "NDIS:2", "nsiproxy:3",
-                // RpcSs and TabletInput stay disabled in every optimized
-                // policy. Together they account for rpcss.exe and tabtip.exe,
-                // the two avoidable idle processes above Ludashi's baseline.
+                // RpcSs remains available in Normal/Essential: launchers and
+                // installers that use COM otherwise fail with RPC unavailable.
+                // TabletInput stays disabled to avoid the idle tabtip process.
                 "PlugPlay:2", "RpcSs:3", "TabletInputService:4", "scardsvr:3",
                 "Schedule:3", "SharedGpuResources:2",
                 "Spooler:3", "StiSvc:3", "TermService:3", "TrkWks:3", "W32Time:3",
@@ -274,7 +282,7 @@ public abstract class WineUtils {
                         && !containsService(essentialServices, name)) {
                     value = protectedService ? defaultValue : 4;
                 }
-                if (name.equals("RpcSs") || name.equals("TabletInputService")) value = 4;
+                if (name.equals("TabletInputService")) value = 4;
 
                 // Wine registers the NIC service as "Ndis"; writing "NDIS" would
                 // silently do nothing because keys are not created here.

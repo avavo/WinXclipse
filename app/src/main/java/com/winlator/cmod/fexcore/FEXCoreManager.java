@@ -288,6 +288,7 @@ public final class FEXCoreManager {
         String[] originalItems = context.getResources().getStringArray(R.array.fexcore_version_entries);
         LinkedHashSet<String> versions = new LinkedHashSet<>(Arrays.asList(originalItems));
         for (ContentProfile profile : contentsManager.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_FEXCORE)) {
+            if (!contentsManager.isInstalledProfile(profile)) continue;
             versions.add(profile.verName);
         }
         List<String> itemList = new ArrayList<>(versions);
@@ -302,6 +303,7 @@ public final class FEXCoreManager {
         String[] originalItems = context.getResources().getStringArray(R.array.fexcore_version_entries);
         LinkedHashSet<String> versions = new LinkedHashSet<>(Arrays.asList(originalItems));
         for (ContentProfile profile : contentsManager.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_FEXCORE)) {
+            if (!contentsManager.isInstalledProfile(profile)) continue;
             versions.add(profile.verName);
         }
         List<String> itemList = new ArrayList<>(versions);

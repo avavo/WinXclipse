@@ -98,16 +98,16 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
 
         // Prefer the exact content entry (versionName-versionCode). Older
         // containers can contain only versionName, so resolve that form too.
-        ContentProfile profile = contentsManager.getProfileByEntryName("box64-" + box64Version);
+        ContentProfile profile = contentsManager.getInstalledProfileByEntryName("box64-" + box64Version);
         if (profile == null) {
-            profile = contentsManager.getProfile(
+            profile = contentsManager.getInstalledProfile(
                     ContentProfile.ContentType.CONTENT_TYPE_BOX64, box64Version);
             if (profile != null) box64Version = profile.verName + "-" + profile.verCode;
         }
         if (profile == null && !DefaultVersion.BOX64.equals(box64Version)) {
             Log.w("BionicProgramLauncherComponent", "Selected Box64 is no longer bundled; migrating to " + DefaultVersion.BOX64);
             box64Version = DefaultVersion.BOX64;
-            profile = contentsManager.getProfileByEntryName("box64-" + box64Version);
+            profile = contentsManager.getInstalledProfileByEntryName("box64-" + box64Version);
         }
 
         String installedVersion = PreferenceManager.getDefaultSharedPreferences(context)
@@ -163,16 +163,21 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
 
 
 
-    private void extractEmulatorsDlls() {;
+    private void extractEmulatorsDlls() {
         Context context = environment.getContext();
         File rootDir = environment.getImageFs().getRootDir();
         File system32dir = new File(rootDir + "/home/xuser/.wine/drive_c/windows/system32");
-        boolean containerDataChanged = false;
 
         String fexcoreVersion = container.getFEXCoreVersion();
 
+        boolean shortcutOverridesVersion = shortcut != null
+                && shortcut.hasExtra("fexcoreVersion");
         if (shortcut != null) {
             fexcoreVersion = shortcut.getExtra("fexcoreVersion", shortcut.container.getFEXCoreVersion());
+        }
+
+        if (fexcoreVersion == null || fexcoreVersion.trim().isEmpty()) {
+            fexcoreVersion = DefaultVersion.FEXCORE;
         }
 
         String fexcorePreset = container.getFEXCorePreset();
@@ -183,17 +188,63 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         Log.d("BionicProgramLauncherComponent", "fexcorePreset in use: " + fexcorePreset);
 
         File fexDll = new File(system32dir, "libwow64fex.dll");
-        if (!fexcoreVersion.equals(container.getExtra("fexcoreVersion")) || !fexDll.isFile()) {
-            ContentProfile profile = contentsManager.getProfile(
+        File legacyFexDll = new File(system32dir, "libarm64ecfex.dll");
+        if (!fexcoreVersion.equals(container.getExtra("fexcoreVersion"))
+                || (!fexDll.isFile() && !legacyFexDll.isFile())) {
+            String effectiveVersion = fexcoreVersion;
+            ContentProfile profile = contentsManager.getInstalledProfile(
                     ContentProfile.ContentType.CONTENT_TYPE_FEXCORE, fexcoreVersion);
-            if (profile != null)
-                contentsManager.applyContent(profile);
-            else
-                TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, environment.getContext(), "fexcore/fexcore-" + fexcoreVersion + ".tzst", system32dir);
-            container.putExtra("fexcoreVersion", fexcoreVersion);
-            containerDataChanged = true;
+            if (profile == null && !DefaultVersion.FEXCORE.equals(fexcoreVersion)) {
+                profile = contentsManager.getInstalledProfile(
+                        ContentProfile.ContentType.CONTENT_TYPE_FEXCORE, DefaultVersion.FEXCORE);
+                if (profile != null) {
+                    effectiveVersion = DefaultVersion.FEXCORE;
+                    Log.w("BionicProgramLauncherComponent", "FEXCore " + fexcoreVersion
+                            + " is not installed; falling back to " + effectiveVersion);
+                }
+            }
+            if (profile == null) {
+                java.util.List<ContentProfile> candidates = contentsManager.getProfiles(
+                        ContentProfile.ContentType.CONTENT_TYPE_FEXCORE);
+                if (candidates != null) {
+                    for (ContentProfile candidate : candidates) {
+                        if (contentsManager.isInstalledProfile(candidate)) {
+                            profile = candidate;
+                            effectiveVersion = candidate.verName;
+                            Log.w("BionicProgramLauncherComponent", "FEXCore " + fexcoreVersion
+                                    + " is not installed; using available " + effectiveVersion);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            boolean applied = profile != null && contentsManager.applyContent(profile);
+            if (!applied && profile == null) {
+                // Compatibility path for older APKs that bundled .tzst files
+                // instead of installing a WCP during MainActivity startup.
+                applied = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context,
+                        "fexcore/fexcore-" + effectiveVersion + ".tzst", system32dir);
+            }
+
+            if (applied && (fexDll.isFile() || legacyFexDll.isFile())) {
+                if (!shortcutOverridesVersion
+                        && !effectiveVersion.equals(container.getFEXCoreVersion())) {
+                    container.setFEXCoreVersion(effectiveVersion);
+                }
+                container.putExtra("fexcoreVersion", effectiveVersion);
+                container.saveData();
+                if (shortcutOverridesVersion && shortcut != null
+                        && !effectiveVersion.equals(fexcoreVersion)) {
+                    shortcut.putExtra("fexcoreVersion", effectiveVersion);
+                    shortcut.saveData();
+                }
+            }
+            else {
+                Log.e("BionicProgramLauncherComponent", "Cannot apply installed FEXCore "
+                        + effectiveVersion + "; keeping the previous bridge/version marker");
+            }
         }
-        if (containerDataChanged) container.saveData();
     }
 
     private void populateSysWow64() {
@@ -226,6 +277,7 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
             if (dlls == null) return;
             int copied = 0;
             for (File dll : dlls) {
+                if (dll.getName().equalsIgnoreCase("icu.dll")) continue;
                 File target = new File(sysWow64, dll.getName());
                 if (!target.isFile() && FileUtils.copy(dll, target)) copied++;
             }

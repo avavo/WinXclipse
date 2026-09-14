@@ -27,7 +27,7 @@
     "type": "FEXCore",
     "verName": "2601-aabdded",
     "verCode": 0,
-    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-fexcore-v0.8/FEXCore-2601-aabdded.wcp"
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-fexcore-v0.8/2601.wcp"
   },
   {
     "type": "FEXCore",
@@ -45,19 +45,13 @@
     "type": "FEXCore",
     "verName": "2605",
     "verCode": 0,
-    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-fexcore-v0.8/FEX-2605.wcp"
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-fexcore-v0.8/2605.wcp"
   },
   {
     "type": "FEXCore",
     "verName": "2607",
     "verCode": 0,
     "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-fexcore-v0.8/2607.1.wcp"
-  },
-  {
-    "type": "FEXCore",
-    "verName": "2608",
-    "verCode": 0,
-    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-fexcore-v0.8/2608.1.wcp"
   },
   {
     "type": "Proton",
@@ -68,13 +62,13 @@
   {
     "type": "Proton",
     "verName": "11.0-2-arm64ec",
-    "verCode": 2,
+    "verCode": 1,
     "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-wine-proton-v0.8/proton-11.0-2-arm64ec-sdk35.wcp"
   },
   {
     "type": "Proton",
     "verName": "11.0-2-x86_64",
-    "verCode": 2,
+    "verCode": 1,
     "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-wine-proton-v0.8/proton-11.0-2-x86_64-sdk35.wcp"
   },
   {
@@ -91,15 +85,9 @@
   },
   {
     "type": "Proton",
-    "verName": "10-arm64ec",
-    "verCode": 1000,
-    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-wine-proton-v0.8/proton-10-arm64ec.wcp.xz"
-  },
-  {
-    "type": "Proton",
-    "verName": "bleeding-edge-20260408-arm64ec",
-    "verCode": 20260408,
-    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-wine-proton-v0.8/proton-proton-bleeding-edge-20260408-8de17ab-arm64ec.wcp"
+    "verName": "10.0-4-arm64ec",
+    "verCode": 2,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-wine-proton-v0.8/proton-10.0-4-arm64ec.wcp"
   },
   {
     "type": "Wine",
