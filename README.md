@@ -32,7 +32,6 @@ WinXclipse builds upon the work of:
 - [Winlator Mali](https://github.com/GunaCharanTeja/WinlatorMali) for ports and implementation references  
 - [Winlator Ludashi](https://github.com/StevenMXZ/Winlator-Ludashi) for ports and implementation references  
 - [ExynosTools](https://github.com/WearyConcern1165/ExynosTools) for Exynos/Xclipse driver resources  
-- [MdiEx](https://github.com/avavo/MdiEx) for Xclipse driver resources  
 - Wrappers from [Leegao](https://github.com/leegao/bionic-vulkan-wrapper), [GameNative](https://github.com/utkarshdalal/GameNative), [Ref4ik-v6](https://github.com/REF4IK/CronyX-), and Kirimu  
   
 Winlator Xclipse adaptation by Álvaro
