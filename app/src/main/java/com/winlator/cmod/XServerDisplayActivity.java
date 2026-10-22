@@ -4773,6 +4773,11 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                         "0".equals(bcnEmulationCache) ? "1" : "0");
             }
         }
+        if (isQuasarDriver(xclipseDriverId)) {
+            applyQuasarProfile(envVars);
+            // Quasar decodes BCn itself: no layer transcode is active.
+            effectiveBcnTranscodeMode = "";
+        }
         bcnTranscodeBaseMode = effectiveBcnTranscodeMode;
         bcnTelemetryRequested = effectiveBcnTranscodeMode.startsWith("BCN→");
         bcnTelemetryState = bcnTelemetryRequested ? "ARMED" : "";
@@ -4798,6 +4803,54 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             envVars.put("ENABLE_VKBASALT", "1");
             envVars.put("VKBASALT_CONFIG", vkbasaltConfig);
         }
+    }
+
+    /** Quasar (RADV for the Xclipse 940) is recognised by its library or package name. */
+    private boolean isQuasarDriver(String driverId) {
+        if (driverId == null || DefaultVersion.WRAPPER.equals(driverId)) return false;
+        if (driverId.toLowerCase(Locale.ENGLISH).contains("quasar")) return true;
+        XclipseDriverManager manager = new XclipseDriverManager(this);
+        String library = manager.getLibraryName(driverId);
+        String name = manager.getDriverName(driverId);
+        return "vulkan.quasar.so".equals(library)
+                || (name != null && name.toLowerCase(Locale.ENGLISH).contains("quasar"));
+    }
+
+    /**
+     * Quasar decodes BC4-BC7 inside the driver and keeps BC1-BC3 native, so the Wrapper and the BCn
+     * compute layer must not emulate or transcode on top of it (Quasar docs/bcn-configuration.md:
+     * WRAPPER_EMULATE_BCN=0, DISABLE_BCN_COMPUTE=1, WRAPPER_ASTC_8x8=0 for the larger wrapper).
+     *
+     * D3D12 games (vkd3d-proton) ignore the dxvk.conf memory caps written by the RAM Fix and size
+     * their texture streaming from the Vulkan memory budget instead. On 8 GB class devices,
+     * RADV_XCLIPSE_MEMORY_RESERVE_MB lowers the budget Quasar reports, so those games stream less.
+     * A value already present in the container/shortcut environment is kept.
+     */
+    private void applyQuasarProfile(EnvVars envVars) {
+        envVars.put("WRAPPER_EMULATE_BCN", "0");
+        envVars.put("DISABLE_BCN_COMPUTE", "1");
+        envVars.put("WRAPPER_ASTC_8x8", "0");
+        for (String name : new String[]{"ENABLE_BCN_COMPUTE", "BCN_COMPUTE_AUTO", "BCN_TRANSCODE_TO_ASTC",
+                "BCN_TRANSCODE_TO_ETC2", "WRAPPER_BCN_ASTC", "WRAPPER_BCN_GPU"}) {
+            envVars.remove(name);
+        }
+
+        long totalMemMb = 0;
+        try {
+            ActivityManager am = (ActivityManager) getSystemService(ACTIVITY_SERVICE);
+            ActivityManager.MemoryInfo memoryInfo = new ActivityManager.MemoryInfo();
+            am.getMemoryInfo(memoryInfo);
+            totalMemMb = memoryInfo.totalMem / (1024 * 1024);
+        } catch (Exception e) {
+            Log.w("QuasarProfile", "Unable to read the device memory size", e);
+        }
+        boolean memoryClass8Gb = totalMemMb > 0 && totalMemMb <= 9216;
+        if (memoryClass8Gb && !envVars.has("RADV_XCLIPSE_MEMORY_RESERVE_MB")) {
+            envVars.put("RADV_XCLIPSE_MEMORY_RESERVE_MB", "2048");
+        }
+        Log.i("QuasarProfile", "Quasar driver: Wrapper/layer BCn off, RAM " + totalMemMb + " MB, budget reserve "
+                + (envVars.has("RADV_XCLIPSE_MEMORY_RESERVE_MB")
+                        ? envVars.get("RADV_XCLIPSE_MEMORY_RESERVE_MB") + " MB" : "driver default"));
     }
 
     private static boolean isNativeBcnWrapper(String wrapper) {
