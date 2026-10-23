@@ -887,6 +887,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             // the combined DXVK + VKD3D pipeline without changing their JSON.
             if (dxwrapper.equals("vkd3d")) this.dxwrapper = "dxvk";
         }
+        this.ddrawrapper = resolveEffectiveDDrawWrapper(this.ddrawrapper);
 
 
 
@@ -3603,6 +3604,30 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         catch (Throwable error) {
             Log.w("XServerDisplayActivity", "Unable to persist Wine renderer", error);
         }
+    }
+
+    /**
+     * Wine's builtin ddraw renders through wined3d, and the wined3d Vulkan
+     * renderer cannot present on this X server. Its only visual is 32-bit, so
+     * the WSI offers no VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR and wined3d gives up
+     * on the swapchain ("Unsupported alpha mode, 0xa"). Wine 9's wined3d also
+     * keeps the VkSurfaceKHR it has just destroyed (fixed upstream in Wine
+     * 10.3, commit 946f2c1a) and destroys it a second time when the swapchain
+     * is released on the wined3d CS thread. The double free aborts the game
+     * with only a seh "invalid frame" line, because the abort is raised on the
+     * thread's unix stack. Far Cry 2 hits this while it probes DirectDraw 7.
+     * When DXVK provides d3d9, the default "none" goes through Dd7To9
+     * (DirectDraw/D3D7 to d3d9 to DXVK) instead. An explicit WineD3D choice or
+     * the OpenGL renderer keeps the builtin ddraw.
+     */
+    private String resolveEffectiveDDrawWrapper(String selected) {
+        if (selected == null || selected.trim().isEmpty()) selected = "none";
+        if ("none".equals(selected) && "vulkan".equals(wineRenderer) && "dxvk".equals(dxwrapper)) {
+            Log.i("XServerDisplayActivity", "DDraw wrapper none -> dd7to9: builtin wined3d"
+                    + " cannot present with the Vulkan renderer on this X server");
+            return "dd7to9";
+        }
+        return selected;
     }
 
     private boolean isFrameGenerationCompatible() {
