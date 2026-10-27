@@ -24,4 +24,37 @@
     <string name="home_hint_select">Seleccionar</string>
     <string name="home_hint_back">Atrás</string>
     <string name="home_hint_options">Opciones</string>
+    <string name="home_details">Detalles</string>
+    <string name="home_recent">Recientes</string>
+    <plurals name="home_games">
+        <item quantity="one">%1$d juego</item>
+        <item quantity="other">%1$d juegos</item>
+    </plurals>
+    <string name="home_tab_games">Juegos</string>
+    <string name="home_continue">Continuar · %1$s</string>
+    <string name="home_new">Nuevo</string>
+    <string name="home_hint_play">Jugar</string>
+    <string name="home_hint_details">Detalles</string>
+    <string name="home_hint_library">Biblioteca</string>
+    <string name="home_more">Más</string>
+    <string name="game_back_home">Inicio</string>
+    <string name="game_tab_summary">Resumen</string>
+    <string name="game_tab_container">Contenedor</string>
+    <string name="game_card_progress">Tu partida</string>
+    <string name="game_playtime">Tiempo jugado</string>
+    <string name="game_sessions">Sesiones</string>
+    <string name="game_last">Última vez</string>
+    <string name="game_card_runs">Cómo se ejecuta</string>
+    <string name="game_container">Contenedor</string>
+    <string name="game_driver">Driver</string>
+    <string name="game_directx">DirectX</string>
+    <string name="game_card_files">Ubicación</string>
+    <string name="game_exe">Ejecutable</string>
+    <string name="game_folder">Carpeta</string>
+    <string name="game_wine">Wine</string>
+    <string name="game_emulator">Emulador</string>
+    <string name="game_resolution">Resolución</string>
+    <string name="game_edit_container">Editar contenedor</string>
+    <string name="game_refresh_art">Buscar arte de nuevo</string>
+    <string name="game_never">Nunca</string>
 </resources>

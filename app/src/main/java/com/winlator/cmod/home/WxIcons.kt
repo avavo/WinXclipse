@@ -1,0 +1,63 @@
+package com.winlator.cmod.home
+
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.PathBuilder
+import androidx.compose.ui.graphics.vector.path
+import androidx.compose.ui.unit.dp
+
+/** Stroke icons from the design that material-icons-core does not have. Tinted by Icon(). */
+object WxIcons {
+    private fun stroke(name: String, block: PathBuilder.() -> Unit): ImageVector =
+        ImageVector.Builder(name, 24.dp, 24.dp, 24f, 24f)
+            .path(
+                fill = null,
+                stroke = SolidColor(Color.White),
+                strokeLineWidth = 2f,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
+                pathBuilder = block,
+            )
+            .build()
+
+    /** Container. */
+    val Cube: ImageVector by lazy {
+        stroke("cube") {
+            moveTo(3f, 7f); lineTo(12f, 3f); lineTo(21f, 7f); lineTo(12f, 11f); close()
+            moveTo(3f, 7f); lineTo(3f, 17f); lineTo(12f, 21f); lineTo(21f, 17f); lineTo(21f, 7f)
+            moveTo(12f, 11f); lineTo(12f, 21f)
+        }
+    }
+
+    /** Library. */
+    val Grid: ImageVector by lazy {
+        stroke("grid") {
+            for ((x, y) in listOf(3.5f to 3.5f, 13.5f to 3.5f, 3.5f to 13.5f, 13.5f to 13.5f)) {
+                moveTo(x + 1.5f, y); lineTo(x + 5.5f, y); arcToRelative(1.5f, 1.5f, 0f, false, true, 1.5f, 1.5f)
+                lineTo(x + 7f, y + 5.5f); arcToRelative(1.5f, 1.5f, 0f, false, true, -1.5f, 1.5f)
+                lineTo(x + 1.5f, y + 7f); arcToRelative(1.5f, 1.5f, 0f, false, true, -1.5f, -1.5f)
+                lineTo(x, y + 1.5f); arcToRelative(1.5f, 1.5f, 0f, false, true, 1.5f, -1.5f); close()
+            }
+        }
+    }
+
+    /** Details / settings of one game. */
+    val Sliders: ImageVector by lazy {
+        stroke("sliders") {
+            moveTo(4f, 6f); lineTo(13f, 6f); moveTo(17f, 6f); lineTo(20f, 6f)
+            moveTo(4f, 12f); lineTo(7f, 12f); moveTo(11f, 12f); lineTo(20f, 12f)
+            moveTo(4f, 18f); lineTo(15f, 18f); moveTo(19f, 18f); lineTo(20f, 18f)
+            moveTo(17f, 6f); arcToRelative(2f, 2f, 0f, true, true, -4f, 0f); arcToRelative(2f, 2f, 0f, true, true, 4f, 0f)
+            moveTo(11f, 12f); arcToRelative(2f, 2f, 0f, true, true, -4f, 0f); arcToRelative(2f, 2f, 0f, true, true, 4f, 0f)
+            moveTo(19f, 18f); arcToRelative(2f, 2f, 0f, true, true, -4f, 0f); arcToRelative(2f, 2f, 0f, true, true, 4f, 0f)
+        }
+    }
+
+    /** Back chevron. */
+    val Back: ImageVector by lazy {
+        stroke("back") { moveTo(15f, 5f); lineTo(8f, 12f); lineTo(15f, 19f) }
+    }
+}

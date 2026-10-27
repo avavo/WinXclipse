@@ -966,4 +966,37 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="home_hint_select">Select</string>
     <string name="home_hint_back">Back</string>
     <string name="home_hint_options">Options</string>
+    <string name="home_details">Details</string>
+    <string name="home_recent">Recent</string>
+    <plurals name="home_games">
+        <item quantity="one">%1$d game</item>
+        <item quantity="other">%1$d games</item>
+    </plurals>
+    <string name="home_tab_games">Games</string>
+    <string name="home_continue">Continue · %1$s</string>
+    <string name="home_new">New</string>
+    <string name="home_hint_play">Play</string>
+    <string name="home_hint_details">Details</string>
+    <string name="home_hint_library">Library</string>
+    <string name="home_more">More</string>
+    <string name="game_back_home">Home</string>
+    <string name="game_tab_summary">Summary</string>
+    <string name="game_tab_container">Container</string>
+    <string name="game_card_progress">Your progress</string>
+    <string name="game_playtime">Time played</string>
+    <string name="game_sessions">Sessions</string>
+    <string name="game_last">Last played</string>
+    <string name="game_card_runs">How it runs</string>
+    <string name="game_container">Container</string>
+    <string name="game_driver">Driver</string>
+    <string name="game_directx">DirectX</string>
+    <string name="game_card_files">Location</string>
+    <string name="game_exe">Executable</string>
+    <string name="game_folder">Folder</string>
+    <string name="game_wine">Wine</string>
+    <string name="game_emulator">Emulator</string>
+    <string name="game_resolution">Resolution</string>
+    <string name="game_edit_container">Edit container</string>
+    <string name="game_refresh_art">Find artwork again</string>
+    <string name="game_never">Never</string>
 </resources>

@@ -3,6 +3,7 @@ package com.winlator.cmod.home
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.WindowManager
@@ -10,6 +11,13 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.addCallback
 import androidx.activity.compose.setContent
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.togetherWith
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -29,12 +37,18 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Console-style home screen (Xbox / PS5 / Steam Deck inspired): a game row with the
- * selected game's art filling the background, and quick tiles into the classic UI.
- * MainActivity stays underneath and still owns first-boot installation.
+ * Console-style front end (Xbox / PS5 / Steam Deck inspired): home with the game row and
+ * the selected game's art, and a page per game. MainActivity stays underneath and still
+ * owns first-boot installation; the classic screens open from here.
  */
 class HomeActivity : ComponentActivity() {
+    private sealed interface Route {
+        data object Home : Route
+        data class Game(val key: String) : Route
+    }
+
     private var games by mutableStateOf<List<HomeGame>?>(null)
+    private var route by mutableStateOf<Route>(Route.Home)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -43,15 +57,43 @@ class HomeActivity : ComponentActivity() {
         onBackPressedDispatcher.addCallback(this) { moveTaskToBack(true) }
 
         setContent {
-            HomeScreen(
-                games = games,
-                onPlay = ::launchGame,
-                onOpenClassic = ::openClassic,
-                onOpenStores = {
-                    Toast.makeText(this, R.string.home_stores_coming_soon, Toast.LENGTH_SHORT).show()
-                },
-                onOpenControllers = { ControllerAssignmentDialog.show(this) },
-            )
+            WxTheme {
+                AnimatedContent(
+                    targetState = route,
+                    transitionSpec = {
+                        (fadeIn(tween(240)) + scaleIn(tween(240), initialScale = 0.98f)) togetherWith fadeOut(tween(160))
+                    },
+                    label = "route",
+                ) { current ->
+                    when (current) {
+                        Route.Home -> HomeScreen(
+                            games = games,
+                            onPlay = ::launchGame,
+                            onOpenGame = { route = Route.Game(it.key) },
+                            onOpenClassic = ::openClassic,
+                            onOpenStores = {
+                                Toast.makeText(this@HomeActivity, R.string.home_stores_coming_soon, Toast.LENGTH_SHORT).show()
+                            },
+                            onOpenControllers = { ControllerAssignmentDialog.show(this@HomeActivity) },
+                        )
+                        is Route.Game -> {
+                            val game = games?.firstOrNull { it.key == current.key }
+                            if (game == null) {
+                                LaunchedEffect(current) { route = Route.Home }
+                            } else {
+                                GameScreen(
+                                    game = game,
+                                    onBack = { route = Route.Home },
+                                    onPlay = { launchGame(game) },
+                                    onGameSettings = { openClassic(R.id.main_menu_shortcuts) },
+                                    onEditContainer = { openClassic(R.id.main_menu_containers) },
+                                    onRefreshArt = { refreshArtwork(game) },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -71,24 +113,42 @@ class HomeActivity : ComponentActivity() {
     }
 
     /**
-     * Same artwork policy as the classic shortcut list (SteamGridDB, then the EXE icon).
-     * ShortcutArtworkManager skips titles that already failed this session, so a reload
-     * after one success does not retry the others.
+     * Covers use the classic shortcut policy (SteamGridDB, then the EXE icon); the home also
+     * wants the wide hero and the title logo. ShortcutArtworkManager skips titles that already
+     * failed this session, so a reload after one success does not retry the others.
      */
     private fun fetchMissingArtwork(list: List<HomeGame>) {
         for (game in list) {
-            if (game.cover != null) continue
-            val mode = ShortcutArtworkManager.getMode(this, game.shortcut)
-            ShortcutArtworkManager.ensure(applicationContext, game.shortcut, false) { success ->
-                Log.i(TAG, "Artwork for ${game.name} (mode $mode): ${if (success) "found" else "not found"}")
-                if (success && !isFinishing) reloadGames()
+            if (game.cover == null) {
+                val mode = ShortcutArtworkManager.getMode(this, game.shortcut)
+                ShortcutArtworkManager.ensure(applicationContext, game.shortcut, false) { success ->
+                    Log.i(TAG, "Cover for ${game.name} (mode $mode): ${if (success) "found" else "not found"}")
+                    if (success && !isFinishing) reloadGames()
+                }
+            }
+            if (game.heroFile == null || game.logoFile == null) {
+                ShortcutArtworkManager.ensureHomeArt(applicationContext, game.shortcut) { saved ->
+                    Log.i(TAG, "Hero/logo for ${game.name}: ${if (saved) "saved" else "unchanged"}")
+                    if (saved && !isFinishing) reloadGames()
+                }
             }
         }
     }
 
+    private fun refreshArtwork(game: HomeGame) {
+        ShortcutArtworkManager.resetHomeArt(game.shortcut)
+        ShortcutArtworkManager.deleteGeneratedArtwork(game.shortcut)
+        ShortcutArtworkManager.ensure(applicationContext, game.shortcut, true) { if (!isFinishing) reloadGames() }
+        ShortcutArtworkManager.ensureHomeArt(applicationContext, game.shortcut) { if (!isFinishing) reloadGames() }
+    }
+
     private fun enterImmersiveMode() {
+        // Draw the backdrop behind the camera hole too (content is padded by displayCutout).
         window.attributes = window.attributes.apply {
-            layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            layoutInDisplayCutoutMode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+            else
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
         }
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).apply {
