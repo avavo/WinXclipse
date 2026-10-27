@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Console-style home screen (com.winlator.cmod.home) -->
+    <string name="home_play">Jugar</string>
+    <string name="home_options">Opciones</string>
+    <string name="home_game_settings">Ajustes del juego</string>
+    <string name="home_library">Biblioteca</string>
+    <string name="home_see_all">Ver todo</string>
+    <string name="home_stores">Tiendas</string>
+    <string name="home_stores_coming_soon">La integración con GOG, Steam y Epic llegará pronto</string>
+    <string name="home_containers">Contenedores</string>
+    <string name="home_controllers">Mandos</string>
+    <string name="home_settings">Ajustes</string>
+    <string name="home_classic_view">Vista clásica</string>
+    <string name="home_console_home">Inicio consola</string>
+    <string name="home_search">Buscar juegos</string>
+    <string name="home_never_played">Sin jugar todavía</string>
+    <string name="home_playtime">%1$s jugado</string>
+    <string name="home_last_played">Última vez %1$s</string>
+    <string name="home_just_now">ahora mismo</string>
+    <string name="home_empty_title">Tu biblioteca está vacía</string>
+    <string name="home_empty_body">Crea un acceso directo al .exe de un juego desde un contenedor y aparecerá aquí.</string>
+    <string name="home_open_containers">Abrir contenedores</string>
+    <string name="home_hint_select">Seleccionar</string>
+    <string name="home_hint_back">Atrás</string>
+    <string name="home_hint_options">Opciones</string>
+</resources>

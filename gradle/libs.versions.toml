@@ -14,6 +14,9 @@ fragmentKtx = "1.8.0"
 recyclerview = "1.3.2"
 xz = "1.7"
 zstdJni = "1.5.2-3"
+kotlin = "2.0.21"
+composeBom = "2024.10.01"
+activityCompose = "1.9.3"
 
 [libraries]
 commons-compress = { module = "org.apache.commons:commons-compress", version.ref = "commonsCompress" }
@@ -33,4 +36,6 @@ zstd-jni = { module = "com.github.luben:zstd-jni", version.ref = "zstdJni" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 

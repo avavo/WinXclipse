@@ -42,6 +42,7 @@ import com.winlator.cmod.R;
 import com.winlator.cmod.contentdialog.ContentDialog;
 import com.winlator.cmod.contentdialog.DebugDialog;
 import com.winlator.cmod.contentdialog.ControllerAssignmentDialog;
+import com.winlator.cmod.home.HomeActivity;
 import com.winlator.cmod.contentdialog.SaveEditDialog;
 import com.winlator.cmod.contentdialog.SaveSettingsDialog;
 import com.winlator.cmod.contents.ContentProfile;
@@ -541,7 +542,20 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         ImageFsInstaller.installIfNeeded(this, () ->
                 checkForAndInstallAssetContents(() -> {
                     requestStorageAccessAfterInstallation();
+                    openConsoleHomeIfEnabled();
                 }));
+    }
+
+    /**
+     * The console-style home is the default front end. It opens once the runtime
+     * is installed, unless this launch asked for a specific classic section.
+     */
+    private void openConsoleHomeIfEnabled() {
+        Intent intent = getIntent();
+        if (intent.getBooleanExtra(HomeActivity.EXTRA_SKIP_HOME, false)) return;
+        if (intent.getIntExtra("selected_menu_item_id", 0) > 0) return;
+        if (!HomeActivity.isEnabled(this)) return;
+        HomeActivity.open(this);
     }
 
     private void requestStorageAccessAfterInstallation() {
@@ -701,6 +715,10 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         }
 
         switch (item.getItemId()) {
+            case R.id.main_menu_console_home:
+                drawerLayout.closeDrawers();
+                HomeActivity.open(this);
+                return false;
             case R.id.main_menu_shortcuts:
                 show(new ShortcutsFragment(), false);  // Forward animation
                 break;

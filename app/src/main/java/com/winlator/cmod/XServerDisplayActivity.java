@@ -75,6 +75,7 @@ import com.winlator.cmod.container.ContainerManager;
 import com.winlator.cmod.container.Shortcut;
 import com.winlator.cmod.contentdialog.ContentDialog;
 import com.winlator.cmod.contentdialog.ControllerAssignmentDialog;
+import com.winlator.cmod.home.HomeActivity;
 import com.winlator.cmod.contentdialog.DXVKConfigDialog;
 import com.winlator.cmod.contentdialog.ExperimentalPerformanceDialog;
 import com.winlator.cmod.contentdialog.DebugDialog;
@@ -1340,6 +1341,10 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         String playCountKey = shortcutName + "_play_count";
         int playCount = playtimePrefs.getInt(playCountKey, 0) + 1;
         editor.putInt(playCountKey, playCount);
+        // The console home orders its game row by this.
+        if (shortcutName != null && !shortcutName.isEmpty()) {
+            editor.putLong(shortcutName + "_last_played", System.currentTimeMillis());
+        }
         editor.apply();
     }
 
@@ -1383,7 +1388,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             // also works when the Wine session was launched by an Android shortcut.
             runOnUiThread(() -> {
                 preloaderDialog.close();
-                Intent intent = new Intent(this, MainActivity.class);
+                Intent intent = new Intent(this, HomeActivity.isEnabled(this)
+                        ? HomeActivity.class : MainActivity.class);
                 intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
                 startActivity(intent);
                 finish();

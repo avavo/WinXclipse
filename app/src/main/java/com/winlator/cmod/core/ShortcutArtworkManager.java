@@ -250,6 +250,8 @@ public final class ShortcutArtworkManager {
         String clean = name.replace('_', ' ').replace('-', ' ')
                 .replaceAll("(?<=[a-z0-9])(?=[A-Z])", " ")
                 .replaceAll("(?i)\\.(exe|msi|lnk)$", "")
+                // GOG and other installers name their links "Launch <game>".
+                .replaceAll("(?i)^\\s*(?:launch|play)\\s+", "")
                 .replaceAll("\\([^)]*\\)", " ")
                 .replaceAll("\\[[^]]*\\]", " ")
                 .replaceAll("(?i)\\bv?\\d+(?:\\.\\d+)+[a-z]*\\b", " ")
