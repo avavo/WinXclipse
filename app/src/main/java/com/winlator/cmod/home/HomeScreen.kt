@@ -100,6 +100,7 @@ fun HomeScreen(
     onPlay: (HomeGame) -> Unit,
     onOpenGame: (HomeGame) -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenContainers: () -> Unit,
     onOpenClassic: (Int) -> Unit,
     onOpenStores: () -> Unit,
     onOpenControllers: () -> Unit,
@@ -147,14 +148,14 @@ fun HomeScreen(
                 gameCount = list.size,
                 onLibrary = { showLibrary = true },
                 onStores = onOpenStores,
-                onContainers = { onOpenClassic(R.id.main_menu_containers) },
+                onContainers = onOpenContainers,
                 onSettings = onOpenSettings,
                 onControllers = onOpenControllers,
                 onClassic = { onOpenClassic(R.id.main_menu_shortcuts) },
             )
             when {
                 games == null -> Spacer(Modifier.weight(1f))
-                list.isEmpty() -> EmptyLibrary(Modifier.weight(1f)) { onOpenClassic(R.id.main_menu_containers) }
+                list.isEmpty() -> EmptyLibrary(Modifier.weight(1f), onOpenContainers)
                 else -> {
                     if (game != null) {
                         GameHeadline(

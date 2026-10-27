@@ -90,6 +90,9 @@ object WxIcons {
         svg("storage", "M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3zM4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3")
     }
     val Info: ImageVector by lazy { svg("info", "M12 21a9 9 0 1 0 0 -18a9 9 0 0 0 0 18zM12 11v5M12 8h.01") }
+    val Speaker: ImageVector by lazy { svg("speaker", "M4 9h4l5-4v14l-5-4H4zM17 9a4 4 0 0 1 0 6M19.5 6.5a8 8 0 0 1 0 11") }
+    val Layers3d: ImageVector by lazy { svg("layers3d", "M12 3l8 4.5v9L12 21l-8-4.5v-9zM12 12l8-4.5M12 12v9M12 12L4 7.5") }
+    val Lines: ImageVector by lazy { svg("lines", "M4 6h16M4 12h10M4 18h7M17 15l3 3-3 3") }
     val ChevronLeft: ImageVector by lazy { svg("chevronLeft", "M15 5l-7 7 7 7") }
     val ChevronRight: ImageVector by lazy { svg("chevronRight", "M9 5l7 7-7 7") }
 }

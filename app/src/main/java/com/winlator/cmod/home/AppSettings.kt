@@ -33,7 +33,12 @@ import com.winlator.cmod.inputcontrols.PreferenceKeys
 import kotlin.math.roundToInt
 
 /** Tools that only exist in the classic UI; MainActivity opens them from HomeActivity.EXTRA_TOOL. */
-enum class ClassicTool(val id: String) { SAVES("saves"), BOX64_RC("box64rc"), BACKEND_LOGS("backend_logs"), ABOUT("about") }
+enum class ClassicTool(val id: String) {
+    SAVES("saves"), BOX64_RC("box64rc"), BACKEND_LOGS("backend_logs"), ABOUT("about"),
+    NEW_CONTAINER("new_container"),
+    /** Followed by ":<container id>". */
+    EDIT_CONTAINER("edit_container"),
+}
 
 /**
  * Global settings for the console UI. Same SharedPreferences keys and side effects as the

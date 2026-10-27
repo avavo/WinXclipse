@@ -29,7 +29,10 @@ import androidx.lifecycle.lifecycleScope
 import androidx.preference.PreferenceManager
 import com.winlator.cmod.MainActivity
 import com.winlator.cmod.R
+import com.winlator.cmod.ShortcutsFragment
 import com.winlator.cmod.XServerDisplayActivity
+import com.winlator.cmod.container.Container
+import com.winlator.cmod.container.ContainerManager
 import com.winlator.cmod.XrActivity
 import com.winlator.cmod.contentdialog.ControllerAssignmentDialog
 import com.winlator.cmod.core.ShortcutArtworkManager
@@ -47,10 +50,15 @@ class HomeActivity : ComponentActivity() {
         data object Home : Route
         data class Game(val key: String) : Route
         data object Settings : Route
+        data object Containers : Route
+        data class ContainerEdit(val id: Int) : Route
     }
 
     private var games by mutableStateOf<List<HomeGame>?>(null)
     private var route by mutableStateOf<Route>(Route.Home)
+    private var containerManager: ContainerManager? = null
+    private var containerCards by mutableStateOf<List<ContainerCard>?>(null)
+    private var busy by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -72,14 +80,54 @@ class HomeActivity : ComponentActivity() {
                             title = stringResource(R.string.home_settings),
                             subtitle = null,
                             backLabel = stringResource(R.string.game_back_home),
-                            sections = appSettingsSections(onOpenClassic = ::openClassic, onOpenTool = ::openTool),
+                            sections = appSettingsSections(onOpenClassic = ::openClassic, onOpenTool = { openTool(it.id) }),
                             onBack = { route = Route.Home },
                         )
+                        Route.Containers -> ContainersScreen(
+                            cards = containerCards,
+                            busy = busy,
+                            onBack = { route = Route.Home },
+                            onNew = { openTool(ClassicTool.NEW_CONTAINER.id) },
+                            onEdit = { route = Route.ContainerEdit(it.id) },
+                            onRunDesktop = ::runDesktop,
+                            onDuplicate = ::duplicateContainer,
+                            onDelete = ::deleteContainer,
+                            onClassicEditor = { openTool(ClassicTool.EDIT_CONTAINER.id + ":" + it.id) },
+                        )
+                        is Route.ContainerEdit -> {
+                            val cards = containerCards
+                            val container = cards?.firstOrNull { it.container.id == current.id }?.container
+                            if (container == null) {
+                                // Cards still loading: wait; container gone: back to the list.
+                                if (cards != null) LaunchedEffect(current) { route = Route.Containers }
+                            } else {
+                                ContainerEditorScreen(
+                                    container = container,
+                                    onBack = { route = Route.Containers },
+                                    onSaved = {
+                                        reloadContainers()
+                                        reloadGames()
+                                        route = Route.Containers
+                                    },
+                                    onOpenClassicEditor = { openTool(ClassicTool.EDIT_CONTAINER.id + ":" + container.id) },
+                                    onRunDesktop = { runDesktop(container) },
+                                    onDuplicate = {
+                                        route = Route.Containers
+                                        duplicateContainer(container)
+                                    },
+                                    onDelete = {
+                                        route = Route.Containers
+                                        deleteContainer(container)
+                                    },
+                                )
+                            }
+                        }
                         Route.Home -> HomeScreen(
                             games = games,
                             onPlay = ::launchGame,
                             onOpenGame = { route = Route.Game(it.key) },
                             onOpenSettings = { route = Route.Settings },
+                            onOpenContainers = { openContainers() },
                             onOpenClassic = ::openClassic,
                             onOpenStores = {
                                 Toast.makeText(this@HomeActivity, R.string.home_stores_coming_soon, Toast.LENGTH_SHORT).show()
@@ -96,7 +144,7 @@ class HomeActivity : ComponentActivity() {
                                     onBack = { route = Route.Home },
                                     onPlay = { launchGame(game) },
                                     onGameSettings = { openClassic(R.id.main_menu_shortcuts) },
-                                    onEditContainer = { openClassic(R.id.main_menu_containers) },
+                                    onEditContainer = { openContainers(editId = game.shortcut.container.id) },
                                     onRefreshArt = { refreshArtwork(game) },
                                 )
                             }
@@ -112,6 +160,59 @@ class HomeActivity : ComponentActivity() {
         enterImmersiveMode()
         // Reload on every return so playtime and "last played" follow the session that just ended.
         reloadGames()
+    }
+
+    private fun openContainers(editId: Int? = null) {
+        reloadContainers()
+        route = if (editId != null) Route.ContainerEdit(editId) else Route.Containers
+    }
+
+    private fun reloadContainers() {
+        lifecycleScope.launch {
+            val (manager, cards) = withContext(Dispatchers.IO) {
+                val manager = ContainerManager(this@HomeActivity)
+                manager to loadContainerCards(this@HomeActivity, manager)
+            }
+            containerManager = manager
+            containerCards = cards
+        }
+    }
+
+    /** Same launch as ContainersFragment.proceedWithLaunch: the container's Wine desktop. */
+    private fun runDesktop(container: Container) {
+        if (XrActivity.isEnabled(this)) {
+            XrActivity.openIntent(this, container.id, null)
+            return
+        }
+        startActivity(Intent(this, XServerDisplayActivity::class.java).putExtra("container_id", container.id))
+    }
+
+    private fun duplicateContainer(container: Container) {
+        val manager = containerManager ?: return
+        busy = true
+        manager.duplicateContainerAsync(container) {
+            runOnUiThread {
+                busy = false
+                reloadContainers()
+            }
+        }
+    }
+
+    /** Same as the classic list: also disables the container's pinned Android shortcuts. */
+    private fun deleteContainer(container: Container) {
+        val manager = containerManager ?: return
+        busy = true
+        manager.removeContainerAsync(container, {
+            for (shortcut in manager.loadShortcutsForContainer(container)) {
+                ShortcutsFragment.disableShortcutOnScreen(this, shortcut)
+            }
+        }) {
+            runOnUiThread {
+                busy = false
+                reloadContainers()
+                reloadGames()
+            }
+        }
     }
 
     private fun reloadGames() {
@@ -183,11 +284,13 @@ class HomeActivity : ComponentActivity() {
         )
     }
 
-    /** Opens a classic-only tool (saves, Box64 RC file, backend logs, about). */
-    private fun openTool(tool: ClassicTool) {
+    /** Opens a classic-only tool (saves, Box64 RC file, backend logs, about, container editor). */
+    private fun openTool(toolId: String) {
+        val containerTool = toolId.startsWith(ClassicTool.NEW_CONTAINER.id) || toolId.startsWith(ClassicTool.EDIT_CONTAINER.id)
         startActivity(
             Intent(this, MainActivity::class.java)
-                .putExtra(EXTRA_TOOL, tool.id)
+                .putExtra(EXTRA_TOOL, toolId)
+                .apply { if (containerTool) putExtra("selected_menu_item_id", R.id.main_menu_containers) }
                 .putExtra(EXTRA_SKIP_HOME, true)
                 .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
         )

@@ -109,6 +109,7 @@ fun WxPrimaryButton(
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
     height: Dp = 46.dp,
+    horizontalPadding: Dp = 26.dp,
 ) {
     var focused by remember { mutableStateOf(false) }
     Row(
@@ -119,7 +120,7 @@ fun WxPrimaryButton(
             .background(Wx.Gradient)
             .then(if (focused) Modifier.border(2.5.dp, Color.White, PillShape) else Modifier)
             .wxClickable(onClick) { focused = it }
-            .padding(horizontal = 26.dp),
+            .padding(horizontal = horizontalPadding),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
     ) {
@@ -127,7 +128,7 @@ fun WxPrimaryButton(
             Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(8.dp))
         }
-        Text(text, style = WxType.Button.copy(fontSize = 17.sp, color = Color.White))
+        Text(text, style = WxType.Button.copy(fontSize = 17.sp, color = Color.White), maxLines = 1, softWrap = false)
     }
 }
 
@@ -139,6 +140,7 @@ fun WxTonalButton(
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
     height: Dp = 46.dp,
+    horizontalPadding: Dp = 18.dp,
 ) {
     var focused by remember { mutableStateOf(false) }
     Row(
@@ -149,7 +151,7 @@ fun WxTonalButton(
             .background(if (focused) Wx.TintStrong else Wx.Tint)
             .then(if (focused) Modifier else Modifier.border(1.dp, Wx.TintBorder, PillShape))
             .wxClickable(onClick) { focused = it }
-            .padding(horizontal = 18.dp),
+            .padding(horizontal = horizontalPadding),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
     ) {
@@ -157,7 +159,7 @@ fun WxTonalButton(
             Icon(icon, contentDescription = null, tint = Wx.Text, modifier = Modifier.size(19.dp))
             Spacer(Modifier.width(8.dp))
         }
-        Text(text, style = WxType.Button.copy(fontSize = 15.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold))
+        Text(text, style = WxType.Button.copy(fontSize = 15.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold), maxLines = 1, softWrap = false)
     }
 }
 

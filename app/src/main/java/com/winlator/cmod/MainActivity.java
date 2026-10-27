@@ -550,6 +550,15 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     /** Classic-only tools the console settings link to (see home.ClassicTool). */
     private void openToolFromIntent(String tool) {
         if (tool == null) return;
+        if (tool.equals("new_container") || tool.startsWith("edit_container:")) {
+            // Pushed over the containers list so Save/Back return to it, as from the classic list.
+            int id = tool.startsWith("edit_container:") ? Integer.parseInt(tool.substring("edit_container:".length())) : -1;
+            getSupportFragmentManager().beginTransaction()
+                    .addToBackStack(null)
+                    .replace(R.id.FLFragmentContainer, id >= 0 ? new ContainerDetailFragment(id) : new ContainerDetailFragment())
+                    .commit();
+            return;
+        }
         switch (tool) {
             case "saves": openSaves(); break;
             case "box64rc": openBox64RCFile(); break;

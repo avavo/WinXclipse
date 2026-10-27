@@ -88,7 +88,7 @@ object HomeGames {
     fun displayName(shortcutName: String): String =
         shortcutName.replaceFirst(LAUNCH_PREFIX, "").ifBlank { shortcutName }
 
-    private fun driverLabel(drivers: XclipseDriverManager, graphicsDriverConfig: String?): String {
+    fun driverLabel(drivers: XclipseDriverManager, graphicsDriverConfig: String?): String {
         val id = GraphicsDriverConfigDialog.getVersion(graphicsDriverConfig ?: "")
         if (id.isNullOrEmpty() || id == DefaultVersion.WRAPPER) return "Samsung"
         val name = runCatching { drivers.getDriverName(id) }.getOrNull()
@@ -96,7 +96,7 @@ object HomeGames {
     }
 
     /** "dxvk" + "version=1.10.3-arm64ec-async,…" -> "DXVK 1.10.3". */
-    private fun dxLabel(wrapper: String?, config: String?): String {
+    fun dxLabel(wrapper: String?, config: String?): String {
         val kind = (wrapper ?: "").lowercase(Locale.ROOT)
         if (kind.contains("wined3d")) return "WineD3D"
         val version = DXVKConfigDialog.parseConfig(config ?: "").get("version", DefaultVersion.DXVK)
