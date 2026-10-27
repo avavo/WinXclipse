@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Primary round button (pause): gradient disc, white ring when pressed or focused. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_pressed="true" android:drawable="@drawable/wx_circle_gradient_active" />
+    <item android:state_focused="true" android:drawable="@drawable/wx_circle_gradient_active" />
+    <item>
+        <shape android:shape="oval">
+            <gradient
+                android:angle="315"
+                android:startColor="@color/wx_blue"
+                android:centerColor="@color/wx_violet"
+                android:endColor="@color/wx_purple" />
+        </shape>
+    </item>
+</selector>

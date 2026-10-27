@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- WinXclipse console palette, shared with the Compose UI (home/WxTheme.kt). -->
+<resources>
+    <color name="wx_ground">#FF0A0817</color>
+    <color name="wx_surface">#FF141128</color>
+    <color name="wx_surface_focused">#FF221B45</color>
+    <color name="wx_border">#FF2C2752</color>
+    <color name="wx_text">#FFF4F2FF</color>
+    <color name="wx_text_secondary">#FFA9A3C9</color>
+    <color name="wx_lilac">#FFB9A8FF</color>
+    <color name="wx_blue">#FF3D8BFF</color>
+    <color name="wx_violet">#FF7B5CFF</color>
+    <color name="wx_purple">#FFB44CFF</color>
+    <color name="wx_tint">#337B5CFF</color>
+    <color name="wx_tint_border">#59A08CFF</color>
+    <color name="wx_danger">#FFFF6B7D</color>
+</resources>

@@ -76,6 +76,7 @@ import com.winlator.cmod.container.Shortcut;
 import com.winlator.cmod.contentdialog.ContentDialog;
 import com.winlator.cmod.contentdialog.ControllerAssignmentDialog;
 import com.winlator.cmod.home.HomeActivity;
+import com.winlator.cmod.home.HomeGames;
 import com.winlator.cmod.contentdialog.DXVKConfigDialog;
 import com.winlator.cmod.contentdialog.ExperimentalPerformanceDialog;
 import com.winlator.cmod.contentdialog.DebugDialog;
@@ -2851,6 +2852,16 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         sidebarFrameGenerationView = sidebar.findViewById(R.id.TVSidebarFrameGeneration);
         sidebarFrameGenerationButton = sidebar.findViewById(R.id.BTSidebarFrameGeneration);
         sidebarPauseButton = sidebar.findViewById(R.id.BTSidebarPause);
+
+        // "Far Cry 2 Fortune's Edition · Container-1" under the clock (console UI header).
+        TextView sidebarGameName = sidebar.findViewById(R.id.TVSidebarGameName);
+        if (sidebarGameName != null) {
+            String title = shortcutName != null && !shortcutName.isEmpty()
+                    ? HomeGames.INSTANCE.displayName(shortcutName) : null;
+            String containerName = container != null ? container.getName() : null;
+            sidebarGameName.setText(title == null ? containerName
+                    : containerName == null ? title : title + "  ·  " + containerName);
+        }
 
         updateSidebarFpsLabel(renderer.getFpsLimit());
         updateSidebarFrameGenerationState(renderer);

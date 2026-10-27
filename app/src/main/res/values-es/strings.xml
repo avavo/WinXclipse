@@ -298,4 +298,13 @@
         <item quantity="other">%1$d contenedores</item>
     </plurals>
     <string name="ce_quasar_banner">Perfil Quasar activo: el driver decodifica las texturas BCn y deja 2 GB libres en móviles de 8 GB.</string>
+    <string name="sb_controller">Mando</string>
+    <string name="sb_fps_limit">Límite de FPS</string>
+    <string name="sb_frame_gen">Gen. de frames</string>
+    <string name="sb_hud">HUD</string>
+    <string name="menu_section_input">Entrada</string>
+    <string name="menu_section_display">Pantalla</string>
+    <string name="task_manager">Administrador de tareas</string>
+    <string name="debug_terminal">Terminal de depuración</string>
+    <string name="log_collector">Recolector de registros</string>
 </resources>

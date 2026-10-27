@@ -1240,4 +1240,8 @@ E.g. <b>META</b> for <i>META key</i>, \n
         <item quantity="other">%1$d containers</item>
     </plurals>
     <string name="ce_quasar_banner">Quasar profile active: the driver decodes BCn textures and keeps 2 GB free on 8 GB phones.</string>
+    <string name="sb_controller">Controller</string>
+    <string name="sb_fps_limit">FPS limit</string>
+    <string name="sb_frame_gen">Frame gen</string>
+    <string name="sb_hud">HUD</string>
 </resources>
