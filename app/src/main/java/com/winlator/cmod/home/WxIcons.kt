@@ -6,6 +6,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.PathBuilder
+import androidx.compose.ui.graphics.vector.addPathNodes
 import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.unit.dp
 
@@ -60,4 +61,35 @@ object WxIcons {
     val Back: ImageVector by lazy {
         stroke("back") { moveTo(15f, 5f); lineTo(8f, 12f); lineTo(15f, 19f) }
     }
+
+    /** Same stroke style from an SVG path string. Arc flags must be space-separated ("0 0 1", not "01"). */
+    private fun svg(name: String, d: String): ImageVector =
+        ImageVector.Builder(name, 24.dp, 24.dp, 24f, 24f)
+            .addPath(
+                pathData = addPathNodes(d),
+                fill = null,
+                stroke = SolidColor(Color.White),
+                strokeLineWidth = 2f,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
+            )
+            .build()
+
+    val Home: ImageVector by lazy { svg("home", "M3 11l9-7 9 7M5 10v10h14V10") }
+    val Pad: ImageVector by lazy {
+        svg("pad", "M6 9h12a4 4 0 0 1 4 4v1a3 3 0 0 1 -5.2 2L15 14H9l-1.8 2A3 3 0 0 1 2 14v-1a4 4 0 0 1 4 -4zM8 11v3M6.5 12.5h3M16 12h.01M18 13.5h.01")
+    }
+    val Screen: ImageVector by lazy { svg("screen", "M4 5h16v11H4zM9 20h6M12 16v4") }
+    val Chip: ImageVector by lazy {
+        svg("chip", "M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3M6 6h12v12H6zM10 10h4v4h-4z")
+    }
+    val Bug: ImageVector by lazy {
+        svg("bug", "M9 9h6v8a3 3 0 0 1 -6 0zM12 4v5M5 13h4M15 13h4M6 8l3 2M18 8l-3 2M6 19l3-2M18 19l-3-2")
+    }
+    val Storage: ImageVector by lazy {
+        svg("storage", "M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3zM4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3")
+    }
+    val Info: ImageVector by lazy { svg("info", "M12 21a9 9 0 1 0 0 -18a9 9 0 0 0 0 18zM12 11v5M12 8h.01") }
+    val ChevronLeft: ImageVector by lazy { svg("chevronLeft", "M15 5l-7 7 7 7") }
+    val ChevronRight: ImageVector by lazy { svg("chevronRight", "M9 5l7 7-7 7") }
 }

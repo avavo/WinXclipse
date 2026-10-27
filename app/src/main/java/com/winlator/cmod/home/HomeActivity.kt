@@ -21,6 +21,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -45,6 +46,7 @@ class HomeActivity : ComponentActivity() {
     private sealed interface Route {
         data object Home : Route
         data class Game(val key: String) : Route
+        data object Settings : Route
     }
 
     private var games by mutableStateOf<List<HomeGame>?>(null)
@@ -66,10 +68,18 @@ class HomeActivity : ComponentActivity() {
                     label = "route",
                 ) { current ->
                     when (current) {
+                        Route.Settings -> RailSettingsScreen(
+                            title = stringResource(R.string.home_settings),
+                            subtitle = null,
+                            backLabel = stringResource(R.string.game_back_home),
+                            sections = appSettingsSections(onOpenClassic = ::openClassic, onOpenTool = ::openTool),
+                            onBack = { route = Route.Home },
+                        )
                         Route.Home -> HomeScreen(
                             games = games,
                             onPlay = ::launchGame,
                             onOpenGame = { route = Route.Game(it.key) },
+                            onOpenSettings = { route = Route.Settings },
                             onOpenClassic = ::openClassic,
                             onOpenStores = {
                                 Toast.makeText(this@HomeActivity, R.string.home_stores_coming_soon, Toast.LENGTH_SHORT).show()
@@ -173,6 +183,17 @@ class HomeActivity : ComponentActivity() {
         )
     }
 
+    /** Opens a classic-only tool (saves, Box64 RC file, backend logs, about). */
+    private fun openTool(tool: ClassicTool) {
+        startActivity(
+            Intent(this, MainActivity::class.java)
+                .putExtra(EXTRA_TOOL, tool.id)
+                .putExtra(EXTRA_SKIP_HOME, true)
+                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        )
+        finish()
+    }
+
     /** Opens a section of the classic drawer UI (R.id.main_menu_*). */
     private fun openClassic(menuItemId: Int) {
         startActivity(
@@ -189,6 +210,9 @@ class HomeActivity : ComponentActivity() {
 
         /** MainActivity extra: open the classic UI without bouncing back to this screen. */
         const val EXTRA_SKIP_HOME = "skip_console_home"
+
+        /** MainActivity extra: a ClassicTool id to open after the classic UI starts. */
+        const val EXTRA_TOOL = "open_classic_tool"
         const val PREF_CONSOLE_HOME = "console_home"
 
         /** The console home is the default front end unless Big Picture mode or the classic UI is chosen. */

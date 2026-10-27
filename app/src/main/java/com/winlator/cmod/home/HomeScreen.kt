@@ -99,6 +99,7 @@ fun HomeScreen(
     games: List<HomeGame>?,
     onPlay: (HomeGame) -> Unit,
     onOpenGame: (HomeGame) -> Unit,
+    onOpenSettings: () -> Unit,
     onOpenClassic: (Int) -> Unit,
     onOpenStores: () -> Unit,
     onOpenControllers: () -> Unit,
@@ -130,7 +131,7 @@ fun HomeScreen(
             .homeButtons(
                 onDetails = { if (!showLibrary) game?.let(onOpenGame) },
                 onLibrary = { showLibrary = true },
-                onMenu = { onOpenClassic(R.id.main_menu_settings) },
+                onMenu = onOpenSettings,
             )
     ) {
         val compact = maxHeight < 480.dp
@@ -147,7 +148,7 @@ fun HomeScreen(
                 onLibrary = { showLibrary = true },
                 onStores = onOpenStores,
                 onContainers = { onOpenClassic(R.id.main_menu_containers) },
-                onSettings = { onOpenClassic(R.id.main_menu_settings) },
+                onSettings = onOpenSettings,
                 onControllers = onOpenControllers,
                 onClassic = { onOpenClassic(R.id.main_menu_shortcuts) },
             )

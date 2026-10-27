@@ -164,6 +164,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             actionBar.setHomeAsUpIndicator(R.drawable.icon_action_bar_menu);
             onNavigationItemSelected(navigationView.getMenu().findItem(menuItemId));
             navigationView.setCheckedItem(menuItemId);
+            openToolFromIntent(intent.getStringExtra(HomeActivity.EXTRA_TOOL));
 
             // The base runtime must be ready before Android presents any
             // storage permission UI. This keeps first boot deterministic and
@@ -546,6 +547,17 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 }));
     }
 
+    /** Classic-only tools the console settings link to (see home.ClassicTool). */
+    private void openToolFromIntent(String tool) {
+        if (tool == null) return;
+        switch (tool) {
+            case "saves": openSaves(); break;
+            case "box64rc": openBox64RCFile(); break;
+            case "backend_logs": openBackendLogs(); break;
+            case "about": showAboutDialog(); break;
+        }
+    }
+
     /**
      * The console-style home is the default front end. It opens once the runtime
      * is installed, unless this launch asked for a specific classic section.
@@ -554,6 +566,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         Intent intent = getIntent();
         if (intent.getBooleanExtra(HomeActivity.EXTRA_SKIP_HOME, false)) return;
         if (intent.getIntExtra("selected_menu_item_id", 0) > 0) return;
+        if (intent.getStringExtra(HomeActivity.EXTRA_TOOL) != null) return;
         if (!HomeActivity.isEnabled(this)) return;
         HomeActivity.open(this);
     }
