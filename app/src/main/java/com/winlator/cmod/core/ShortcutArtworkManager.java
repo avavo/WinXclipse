@@ -127,6 +127,124 @@ public final class ShortcutArtworkManager {
         });
     }
 
+    /** Console home background art, stored beside the generated cover. */
+    public static File getHeroFile(Shortcut shortcut) {
+        File cover = shortcut.getGeneratedCoverArtFile();
+        return new File(cover.getParentFile(), shortcut.name + "_hero.img");
+    }
+
+    /** Console home title logo (transparent PNG), stored beside the generated cover. */
+    public static File getLogoFile(Shortcut shortcut) {
+        File cover = shortcut.getGeneratedCoverArtFile();
+        return new File(cover.getParentFile(), shortcut.name + "_logo.img");
+    }
+
+    /**
+     * Fetches the SteamGridDB hero and logo for the console home when either is missing.
+     * Uses the same API key, query cleanup and relevance threshold as covers. Calls back
+     * on the main thread with true when at least one new file was saved.
+     */
+    public static void ensureHomeArt(Context context, Shortcut shortcut, Callback callback) {
+        File hero = getHeroFile(shortcut);
+        File logo = getLogoFile(shortcut);
+        if (hero.isFile() && logo.isFile()) {
+            post(callback, false);
+            return;
+        }
+        final String pendingKey = homeKey(shortcut);
+        if (FAILED.contains(pendingKey) || !PENDING.add(pendingKey)) {
+            post(callback, false);
+            return;
+        }
+        final Context appContext = context.getApplicationContext();
+        EXECUTOR.execute(() -> {
+            boolean saved = false;
+            try {
+                String key = getApiKey(appContext);
+                SteamGridDBApi api = getSteamGridApi();
+                Integer gameId = findBestGameId(api, key, cleanSearchName(shortcut.name));
+                if (gameId != null) {
+                    if (!hero.isFile()) {
+                        retrofit2.Response<SteamGridGridsResponse> heroes = api.getHeroesByGameId(
+                                "Bearer " + key, gameId, "1920x620,3840x1240", "static").execute();
+                        if (heroes.isSuccessful() && heroes.body() != null && heroes.body().data != null) {
+                            saved |= downloadTo(firstImageUrl(heroes.body().data), hero);
+                        }
+                    }
+                    if (!logo.isFile()) {
+                        retrofit2.Response<SteamGridGridsResponse> logos = api.getLogosByGameId(
+                                "Bearer " + key, gameId, "static").execute();
+                        if (logos.isSuccessful() && logos.body() != null && logos.body().data != null) {
+                            saved |= downloadTo(firstImageUrl(logos.body().data), logo);
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "Home artwork failed for " + shortcut.name, e);
+            } finally {
+                if (!hero.isFile() && !logo.isFile()) FAILED.add(pendingKey);
+                PENDING.remove(pendingKey);
+            }
+            post(callback, saved);
+        });
+    }
+
+    /** Forgets the console home art so the next ensureHomeArt() downloads it again. */
+    public static void resetHomeArt(Shortcut shortcut) {
+        for (File file : new File[]{getHeroFile(shortcut), getLogoFile(shortcut)}) {
+            if (file.isFile() && !file.delete()) Log.w(TAG, "Could not delete " + file);
+        }
+        FAILED.remove(homeKey(shortcut));
+    }
+
+    private static String homeKey(Shortcut shortcut) {
+        return "home:" + shortcut.container.getRootDir().getPath() + File.separatorChar + shortcut.name;
+    }
+
+    private static boolean downloadTo(String url, File output) throws Exception {
+        if (url == null) return false;
+        File parent = output.getParentFile();
+        if (parent == null || (!parent.isDirectory() && !parent.mkdirs())) return false;
+        File partial = new File(parent, output.getName() + ".part");
+        try (Response response = HTTP_CLIENT.newCall(new Request.Builder().url(url).build()).execute()) {
+            if (!response.isSuccessful() || response.body() == null) return false;
+            try (InputStream input = response.body().byteStream();
+                 java.io.OutputStream out = new java.io.FileOutputStream(partial)) {
+                byte[] buffer = new byte[64 * 1024];
+                int read;
+                while ((read = input.read(buffer)) != -1) out.write(buffer, 0, read);
+            }
+        }
+        return partial.renameTo(output);
+    }
+
+    private static String getApiKey(Context context) {
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
+        if (prefs.getBoolean("enable_custom_api_key", false)) {
+            String custom = prefs.getString("custom_api_key", "");
+            if (custom != null && !custom.trim().isEmpty()) return custom.trim();
+        }
+        return BUILT_IN_API_KEY;
+    }
+
+    /** Highest-scoring search result that passes MIN_BROWSER_MATCH_SCORE, or null. */
+    private static Integer findBestGameId(SteamGridDBApi api, String key, String query) throws Exception {
+        retrofit2.Response<SteamGridSearchResponse> search =
+                api.searchGame("Bearer " + key, query).execute();
+        if (!search.isSuccessful() || search.body() == null || search.body().data == null) return null;
+        SteamGridSearchResponse.GameData best = null;
+        int bestScore = Integer.MIN_VALUE;
+        for (SteamGridSearchResponse.GameData candidate : search.body().data) {
+            if (candidate == null) continue;
+            int score = searchMatchScore(query, candidate.name);
+            if (score > bestScore) {
+                bestScore = score;
+                best = candidate;
+            }
+        }
+        return best != null && bestScore >= MIN_BROWSER_MATCH_SCORE ? best.id : null;
+    }
+
     /** Uses the same browser artwork policy for community-config cards. */
     public static void ensureForGame(Context context, String gameName, File output, Callback callback) {
         if (output.isFile()) {
@@ -190,13 +308,7 @@ public final class ShortcutArtworkManager {
     }
 
     private static Bitmap fetchBrowserArtwork(Context context, String gameName) throws Exception {
-        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
-        String key = BUILT_IN_API_KEY;
-        if (prefs.getBoolean("enable_custom_api_key", false)) {
-            String custom = prefs.getString("custom_api_key", "");
-            if (custom != null && !custom.trim().isEmpty()) key = custom.trim();
-        }
-
+        String key = getApiKey(context);
         SteamGridDBApi api = getSteamGridApi();
         String query = cleanSearchName(gameName);
         retrofit2.Response<SteamGridSearchResponse> search =
@@ -250,6 +362,8 @@ public final class ShortcutArtworkManager {
         String clean = name.replace('_', ' ').replace('-', ' ')
                 .replaceAll("(?<=[a-z0-9])(?=[A-Z])", " ")
                 .replaceAll("(?i)\\.(exe|msi|lnk)$", "")
+                // GOG and other installers name their links "Launch <game>".
+                .replaceAll("(?i)^\\s*(?:launch|play)\\s+", "")
                 .replaceAll("\\([^)]*\\)", " ")
                 .replaceAll("\\[[^]]*\\]", " ")
                 .replaceAll("(?i)\\bv?\\d+(?:\\.\\d+)+[a-z]*\\b", " ")
