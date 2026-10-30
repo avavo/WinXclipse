@@ -13,8 +13,8 @@ import java.util.concurrent.atomic.AtomicLong;
  * starting trim level. Escalation happens through {@link #escalate()},
  * which applies the AGGRESSIVE profile immediately - the native flush that
  * follows may still pick a lighter profile if thermal/major-fault guards
- * kick in. Used by the HUD RAM alert before the internal thresholds would
- * catch up.
+ * kick in. Gaming sessions only apply the explicitly enabled startup profile;
+ * the HUD must not drive these intrusive passes from global RAM percentages.
  */
 public final class RamOptimizerXclipse {
     public static final int PROFILE_LIGHT = 0;

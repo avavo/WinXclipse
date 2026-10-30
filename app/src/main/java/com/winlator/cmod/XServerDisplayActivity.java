@@ -75,8 +75,6 @@ import com.winlator.cmod.container.ContainerManager;
 import com.winlator.cmod.container.Shortcut;
 import com.winlator.cmod.contentdialog.ContentDialog;
 import com.winlator.cmod.contentdialog.ControllerAssignmentDialog;
-import com.winlator.cmod.home.HomeActivity;
-import com.winlator.cmod.home.HomeGames;
 import com.winlator.cmod.contentdialog.DXVKConfigDialog;
 import com.winlator.cmod.contentdialog.ExperimentalPerformanceDialog;
 import com.winlator.cmod.contentdialog.DebugDialog;
@@ -96,6 +94,7 @@ import com.winlator.cmod.core.FileUtils;
 import com.winlator.cmod.core.GPUInformation;
 import com.winlator.cmod.core.WinXclipsePolicy;
 import com.winlator.cmod.core.RamOptimizerXclipse;
+import com.winlator.cmod.core.DxvkMemoryConfig;
 import com.winlator.cmod.core.KeyValueSet;
 import com.winlator.cmod.core.OnExtractFileListener;
 import com.winlator.cmod.core.PreloaderDialog;
@@ -1342,10 +1341,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         String playCountKey = shortcutName + "_play_count";
         int playCount = playtimePrefs.getInt(playCountKey, 0) + 1;
         editor.putInt(playCountKey, playCount);
-        // The console home orders its game row by this.
-        if (shortcutName != null && !shortcutName.isEmpty()) {
-            editor.putLong(shortcutName + "_last_played", System.currentTimeMillis());
-        }
         editor.apply();
     }
 
@@ -1389,8 +1384,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             // also works when the Wine session was launched by an Android shortcut.
             runOnUiThread(() -> {
                 preloaderDialog.close();
-                Intent intent = new Intent(this, HomeActivity.isEnabled(this)
-                        ? HomeActivity.class : MainActivity.class);
+                Intent intent = new Intent(this, MainActivity.class);
                 intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
                 startActivity(intent);
                 finish();
@@ -2852,16 +2846,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         sidebarFrameGenerationView = sidebar.findViewById(R.id.TVSidebarFrameGeneration);
         sidebarFrameGenerationButton = sidebar.findViewById(R.id.BTSidebarFrameGeneration);
         sidebarPauseButton = sidebar.findViewById(R.id.BTSidebarPause);
-
-        // "Far Cry 2 Fortune's Edition · Container-1" under the clock (console UI header).
-        TextView sidebarGameName = sidebar.findViewById(R.id.TVSidebarGameName);
-        if (sidebarGameName != null) {
-            String title = shortcutName != null && !shortcutName.isEmpty()
-                    ? HomeGames.INSTANCE.displayName(shortcutName) : null;
-            String containerName = container != null ? container.getName() : null;
-            sidebarGameName.setText(title == null ? containerName
-                    : containerName == null ? title : title + "  ·  " + containerName);
-        }
 
         updateSidebarFpsLabel(renderer.getFpsLimit());
         updateSidebarFrameGenerationState(renderer);
@@ -5103,8 +5087,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 driverMax = Integer.parseInt(graphicsDriverConfig.getOrDefault("maxDeviceMemory", "0"));
         } catch (Exception ignored) {}
         int xperfCap = resolveXperfVramCapMb();
-        if (driverMax > 0 && xperfCap > 0) return Math.min(driverMax, xperfCap);
-        return Math.max(driverMax, xperfCap);
+        return DxvkMemoryConfig.effectiveCapMb(driverMax, xperfCap);
     }
 
     private void applyWrapperMemoryCapEnv() {
@@ -5119,23 +5102,10 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         }
 
         int xperfCap = resolveXperfVramCapMb();
-        boolean dxvkRamFix = "dxvk".equals(dxwrapper)
-                && dxwrapperConfig != null
-                && dxwrapperConfig.getBoolean("ramFix", true);
-        if (dxvkRamFix) {
-            // RAM Fix limits what DXVK reports to the game. These variables
-            // limit the real Vulkan heap and made GTA V fail during startup.
-            envVars.remove("WRAPPER_VMEM_MAX_SIZE");
-            envVars.remove("UTIL_LAYER_VMEM_MAX_SIZE");
-            if (driverMax > 0 || xperfCap > 0) {
-                Log.i("GraphicsDriverExtraction", "RAM Fix active: treating selected "
-                        + "VRAM cap as reported DXVK memory only");
-            }
-            return;
-        }
-
-        int hardCap = driverMax > 0 && xperfCap > 0
-                ? Math.min(driverMax, xperfCap) : Math.max(driverMax, xperfCap);
+        // Only an explicit Wrapper/xperf choice limits the real Vulkan heap.
+        // RAM Fix's reported pool (including RAGE's 512 MB) must neither
+        // become a hard cap nor silently remove one the user selected.
+        int hardCap = DxvkMemoryConfig.effectiveCapMb(driverMax, xperfCap);
         if (hardCap > 0) {
             envVars.put("WRAPPER_VMEM_MAX_SIZE", String.valueOf(hardCap));
             envVars.put("UTIL_LAYER_VMEM_MAX_SIZE", String.valueOf(hardCap));

@@ -58,14 +58,6 @@
             android:exported="true"
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|density|navigation" />
 
-        <!-- Console-style home screen (Kotlin/Compose); opened on top of MainActivity -->
-        <activity
-            android:name="com.winlator.cmod.home.HomeActivity"
-            android:theme="@style/AppThemeFullscreen.Dark"
-            android:screenOrientation="sensorLandscape"
-            android:exported="false"
-            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|density|navigation" />
-
         <activity-alias
             android:name="com.winlator.cmod.LauncherDefault"
             android:targetActivity="com.winlator.cmod.MainActivity"

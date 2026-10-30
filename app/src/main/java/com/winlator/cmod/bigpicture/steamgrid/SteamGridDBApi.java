@@ -24,20 +24,7 @@ public interface SteamGridDBApi {
             @Query("types") String types              // Example: "static"
     );
 
-    // Wide background art for the console home ("heroes", 1920x620).
-    @GET("heroes/game/{gameId}")
-    Call<SteamGridGridsResponse> getHeroesByGameId(
-            @Header("Authorization") String authToken,
-            @Path("gameId") int gameId,
-            @Query("dimensions") String dimensions,
-            @Query("types") String types
-    );
 
-    // Transparent title logos for the console home.
-    @GET("logos/game/{gameId}")
-    Call<SteamGridGridsResponse> getLogosByGameId(
-            @Header("Authorization") String authToken,
-            @Path("gameId") int gameId,
-            @Query("types") String types
-    );
+
+
 }

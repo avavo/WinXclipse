@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Clickable area inside a card: invisible until pressed or gamepad-focused. -->
-<selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:state_pressed="true" android:drawable="@drawable/wx_card_active" />
-    <item android:state_focused="true" android:drawable="@drawable/wx_card_active" />
-    <item android:drawable="@android:color/transparent" />
-</selector>

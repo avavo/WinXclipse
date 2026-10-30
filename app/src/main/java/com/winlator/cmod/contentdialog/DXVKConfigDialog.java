@@ -16,10 +16,10 @@ import androidx.fragment.app.FragmentActivity;
 import com.winlator.cmod.R;
 import com.winlator.cmod.ContentDownloadsDialogFragment;
 import com.winlator.cmod.contents.ContentProfile;
-import com.winlator.cmod.contents.ContentProfile;
 import com.winlator.cmod.contents.ContentsManager;
 import com.winlator.cmod.core.AppUtils;
 import com.winlator.cmod.core.DefaultVersion;
+import com.winlator.cmod.core.DxvkMemoryConfig;
 import com.winlator.cmod.core.EnvVars;
 import com.winlator.cmod.core.FileUtils;
 import com.winlator.cmod.core.KeyValueSet;
@@ -44,8 +44,8 @@ public class DXVKConfigDialog extends ContentDialog {
     // dxvk.conf embarcado no repack (OpJuegos/ADM/Mali) vaza para a sessao.
     // Inclui o cap de VRAM reportada: sem ele o jogo dimensiona os pools de
     // streaming pelo heap inteiro e morre de OOM andando de carro (GTA V).
-    // explicitCapMb e o menor limite selecionado (driver/xperf); com RAM Fix
-    // ele restringe apenas o valor reportado, sem estrangular o heap Vulkan.
+    // explicitCapMb e o menor limite selecionado (driver/xperf). O pool
+    // reportado fica separado do limite real do heap configurado no Wrapper.
     // Um arquivo custom substitui o template inteiro e continua sendo a saida
     // avancada para jogos que precisam de chaves proprias.
     private static final String SAFETY_KEYS =
@@ -56,71 +56,10 @@ public class DXVKConfigDialog extends ContentDialog {
         if (config == null) return 0;
         try {
             int v = Integer.parseInt(config.get("ramFixPool", "0").trim());
-            if (v <= 0) return 0;
-            return Math.min(Math.max(v, 256), 12288);
+            return DxvkMemoryConfig.normalizePoolMb(v);
         } catch (Exception e) {
             return 0;
         }
-    }
-
-    /** Valores {device, shared, d3d9} do fallback por tier. */
-    private static int[] tierMemoryValues(Context context, int explicitCapMb, boolean ramFixOn) {
-        int dev;
-        int shared;
-        int d3d9;
-        if (explicitCapMb > 0) {
-            dev = explicitCapMb;
-            shared = explicitCapMb;
-            // O valor escolhido limita toda a memoria reportada. Teto de 4096
-            // no d3d9 quando o RAM Fix nao aplica um pool explicito uniforme.
-            d3d9 = Math.min(explicitCapMb, 4096);
-        } else if (ramFixOn) {
-            // RAM Fix geral (todos os jogos, nao so RAGE): teto conservador para
-            // memoria unificada nao empurrar a RAM total para 85-90% (faixa do
-            // lmkd) nem derrubar o celular inteiro em aparelho curto. Como nos
-            // outros Winlator, um dxvk.conf custom substitui este fallback.
-            if (getTotalMemMb(context) <= 6144) {
-                dev = 1024;
-                shared = 1024;
-                d3d9 = 2048;
-            } else {
-                dev = 1536;
-                shared = 1024;
-                d3d9 = 2048;
-            }
-        } else {
-            if (getTotalMemMb(context) <= 6144) {
-                dev = 2048;
-                shared = 2048;
-            } else {
-                dev = 3072;
-                shared = 2048;
-            }
-            d3d9 = 4096;
-        }
-        return new int[]{dev, shared, d3d9};
-    }
-
-    private static String formatMemoryPart(int dev, int shared, int d3d9) {
-        return "dxgi.maxDeviceMemory = " + dev + "; dxgi.maxSharedMemory = " + shared
-                + "; d3d9.maxDeviceMemory = " + d3d9
-                + "; d3d9.maxAvailableMemory = " + d3d9;
-    }
-
-    private static String tierMemoryPart(Context context, int explicitCapMb, boolean ramFixOn) {
-        int[] v = tierMemoryValues(context, explicitCapMb, ramFixOn);
-        return formatMemoryPart(v[0], v[1], v[2]);
-    }
-
-    private static String tierMemoryPart(Context context, int explicitCapMb) {
-        return tierMemoryPart(context, explicitCapMb, true);
-    }
-
-    /** Aplica o seletor a todos os campos de memoria reportada, como no Winlator-Mali. */
-    private static String applyPoolOverride(String memoryPart, int poolMb, int explicitCapMb) {
-        if (poolMb <= 0) return memoryPart;
-        int reported = explicitCapMb > 0 ? Math.min(poolMb, explicitCapMb) : poolMb;
-        return formatMemoryPart(reported, reported, reported);
     }
 
     private static long getTotalMemMb(Context context) {
@@ -138,20 +77,21 @@ public class DXVKConfigDialog extends ContentDialog {
     // VRAM (512 MB) mantem a RAM total em ~80% em vez de 85-90% (faixa do lmkd),
     // junto das flags de streaming do RAM Fix. Device/shared/d3d9 recebem o
     // mesmo valor, seguindo a implementacao comprovada do Winlator-Mali.
-    public static final int RAGE_SMALL_POOL_MB = 512;
+    public static final int RAGE_SMALL_POOL_MB = DxvkMemoryConfig.RAGE_POOL_MB;
     public static final int RAGE_SMALL_SHARED_MB = 512;
     public static final int RAGE_SMALL_D3D9_MB = 512;
     private static String rageMemoryPart() {
-        return formatMemoryPart(RAGE_SMALL_POOL_MB, RAGE_SMALL_SHARED_MB, RAGE_SMALL_D3D9_MB);
+        return DxvkMemoryConfig.build(0, 0, 0, true, true);
     }
     public static String buildRageFallbackConfig() {
         return SAFETY_KEYS + "; " + rageMemoryPart();
     }
     public static String buildSafeFallbackConfig(Context context, int explicitCapMb) {
-        return SAFETY_KEYS + "; " + tierMemoryPart(context, explicitCapMb, true);
+        return buildSafeFallbackConfig(context, explicitCapMb, true);
     }
     public static String buildSafeFallbackConfig(Context context, int explicitCapMb, boolean ramFixOn) {
-        return SAFETY_KEYS + "; " + tierMemoryPart(context, explicitCapMb, ramFixOn);
+        return SAFETY_KEYS + "; " + DxvkMemoryConfig.build(getTotalMemMb(context),
+                explicitCapMb, 0, ramFixOn, false);
     }
 
     private static File getManagedConfFile(File rootDir) {
@@ -191,9 +131,10 @@ public class DXVKConfigDialog extends ContentDialog {
         if (containerConf == null) return false;
         if (containerConf.isFile() && containerConf.length() > 0) return true;
         KeyValueSet safeConfig = config != null ? config : parseConfig(null);
-        int poolMb = resolveRamFixPoolMb(safeConfig);
-        String memoryPart = tierMemoryPart(context, 0, true);
-        if (poolMb > 0) memoryPart = applyPoolOverride(memoryPart, poolMb, 0);
+        boolean ramFixOn = safeConfig.getBoolean("ramFix", true);
+        int poolMb = ramFixOn ? resolveRamFixPoolMb(safeConfig) : 0;
+        String memoryPart = DxvkMemoryConfig.build(getTotalMemMb(context),
+                0, poolMb, ramFixOn, false);
         return FileUtils.writeStringAtomic(containerConf,
                 buildManagedRamFixConfig(memoryPart));
     }
@@ -589,16 +530,8 @@ public class DXVKConfigDialog extends ContentDialog {
                         + activeConf.getAbsolutePath());
             }
         } else if (ramFixOn) {
-            String memoryPart;
-            if (rageSmallPool) {
-                int ragePool = explicitCapMb > 0
-                        ? Math.min(RAGE_SMALL_POOL_MB, explicitCapMb)
-                        : RAGE_SMALL_POOL_MB;
-                memoryPart = formatMemoryPart(ragePool, ragePool, ragePool);
-            } else {
-                memoryPart = tierMemoryPart(context, explicitCapMb, true);
-            }
-            if (poolMb > 0) memoryPart = applyPoolOverride(memoryPart, poolMb, explicitCapMb);
+            String memoryPart = DxvkMemoryConfig.build(getTotalMemMb(context),
+                    explicitCapMb, poolMb, ramFixOn, rageSmallPool);
 
             // DXVK_CONFIG is not implemented by every bundled/legacy DXVK.
             // A guest-visible file matches the proven Ludashi/Mali launch path.
