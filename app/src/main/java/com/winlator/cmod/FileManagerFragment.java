@@ -39,14 +39,12 @@ import com.winlator.cmod.core.AppUtils;
 import com.winlator.cmod.core.TarCompressorUtils;
 import com.winlator.cmod.core.ExeIconExtractor;
 import com.winlator.cmod.core.FileUtils;
+import com.winlator.cmod.core.FileTransfer;
+import com.winlator.cmod.core.StorageUsage;
 import com.winlator.cmod.core.ShortcutArtworkManager;
 import com.winlator.cmod.widget.FileProgressDialog;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -54,7 +52,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Objects;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -64,6 +61,11 @@ public class FileManagerFragment extends Fragment {
     private static final int REQUEST_ADD_STORAGE_FOLDER = 1042;
     private static final String PREF_ADDED_STORAGE_FOLDERS = "file_manager_added_storage_folders";
     private File currentDir;
+    private File currentRoot;
+    private String rootLabel;
+    private int rootIcon = R.drawable.ic_drive_storage;
+    private int listingGeneration;
+    private final AtomicBoolean transferActive = new AtomicBoolean(false);
     private RecyclerView recyclerViewFiles;
     private TextView tvCurrentPath;
     private TextView tvDriveName;
@@ -90,7 +92,12 @@ public class FileManagerFragment extends Fragment {
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         containerManager = new ContainerManager(getContext());
-        currentDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+        if (savedInstanceState != null && savedInstanceState.containsKey("directory")) {
+            currentDir = new File(savedInstanceState.getString("directory"));
+            currentRoot = new File(savedInstanceState.getString("root", currentDir.getAbsolutePath()));
+            rootLabel = savedInstanceState.getString("root_label");
+            rootIcon = savedInstanceState.getInt("root_icon", R.drawable.ic_drive_storage);
+        }
     }
 
     @Nullable
@@ -161,7 +168,7 @@ public class FileManagerFragment extends Fragment {
             Toast.makeText(getContext(), "Clipboard cleared", Toast.LENGTH_SHORT).show();
             return true;
         });
-        fabPaste.setVisibility(!clipboardFiles.isEmpty() ? View.VISIBLE : View.GONE);
+        fabPaste.setVisibility(currentDir != null && !clipboardFiles.isEmpty() ? View.VISIBLE : View.GONE);
 
         requireActivity().getOnBackPressedDispatcher().addCallback(getViewLifecycleOwner(), new OnBackPressedCallback(true) {
             @Override
@@ -176,18 +183,43 @@ public class FileManagerFragment extends Fragment {
             }
         });
 
-        updateDriveButtonLabel(currentDir);
-        loadFiles();
+        if (currentDir == null || !currentDir.isDirectory() || !currentDir.canRead()) showStorageHome();
+        else {
+            updateDriveButtonLabel(currentDir);
+            loadFiles();
+        }
+        refreshStorageUsage();
+    }
+
+    @Override
+    public void onSaveInstanceState(@NonNull Bundle out) {
+        super.onSaveInstanceState(out);
+        if (currentDir != null) {
+            out.putString("directory", currentDir.getAbsolutePath());
+            out.putString("root", currentRoot != null ? currentRoot.getAbsolutePath() : currentDir.getAbsolutePath());
+            out.putString("root_label", rootLabel);
+            out.putInt("root_icon", rootIcon);
+        }
+    }
+
+    @Override public void onResume() {
+        super.onResume();
+        if (getView() != null) refreshStorageUsage();
     }
 
     @Override
     public void onDestroyView() {
+        isCancelled.set(true);
+        if (fileProgressDialog != null) fileProgressDialog.dismiss();
+        if (getActivity() != null) getActivity().getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         super.onDestroyView();
         cancelSearch();
         searchHandler.removeCallbacksAndMessages(null);
     }
 
     private void loadFiles() {
+        if (getView() == null) return;
+        if (currentDir == null) { showStorageHome(); return; }
         if (!selectedFiles.isEmpty()) {
             selectedFiles.clear();
             updateSelectionUI();
@@ -196,8 +228,10 @@ public class FileManagerFragment extends Fragment {
         cancelSearch();
         pbSearch.setVisibility(View.VISIBLE);
         
+        final int generation = listingGeneration;
+        final View loadingView = getView();
         final File dirToLoad = currentDir;
-        final String query = searchQuery.trim().toLowerCase();
+        final String query = searchQuery.trim().toLowerCase(java.util.Locale.ROOT);
         final boolean finalShowHidden = showHiddenFiles;
         
         searchThread = new Thread(() -> {
@@ -214,12 +248,13 @@ public class FileManagerFragment extends Fragment {
                 searchDeep(dirToLoad, query, fileList, finalShowHidden, new java.util.HashSet<>());
             }
             
-            if (Thread.interrupted()) return;
+            if (Thread.currentThread().isInterrupted()) return;
             
             sortFiles(fileList);
             
             if (getActivity() != null) {
                 getActivity().runOnUiThread(() -> {
+                    if (generation != listingGeneration || getView() != loadingView) return;
                     pbSearch.setVisibility(View.GONE);
                     recyclerViewFiles.setAdapter(new FileAdapter(fileList, !query.isEmpty()));
                     tvNoItems.setVisibility(fileList.isEmpty() ? View.VISIBLE : View.GONE);
@@ -230,6 +265,7 @@ public class FileManagerFragment extends Fragment {
     }
 
     private void cancelSearch() {
+        listingGeneration++;
         if (searchThread != null) {
             searchThread.interrupt();
             searchThread = null;
@@ -237,17 +273,17 @@ public class FileManagerFragment extends Fragment {
     }
 
     private void searchDeep(File directory, String query, List<File> results, boolean showHidden, java.util.Set<String> visited) {
-        if (Thread.interrupted()) return;
+        if (Thread.currentThread().isInterrupted()) return;
         File[] files = directory.listFiles();
         if (files == null) return;
 
         // First pass: local directory items
         for (File file : files) {
-            if (Thread.interrupted()) return;
+            if (Thread.currentThread().isInterrupted()) return;
             String name = file.getName();
             if (!showHidden && name.startsWith(".")) continue;
             
-            if (name.toLowerCase().contains(query)) {
+            if (name.toLowerCase(java.util.Locale.ROOT).contains(query)) {
                 results.add(file);
             }
             if (results.size() >= 5000) return;
@@ -255,7 +291,7 @@ public class FileManagerFragment extends Fragment {
 
         // Second pass: recursion
         for (File file : files) {
-            if (Thread.interrupted()) return;
+            if (Thread.currentThread().isInterrupted()) return;
             if (file.isDirectory()) {
                 String name = file.getName();
                 if (!showHidden && name.startsWith(".")) continue;
@@ -306,90 +342,178 @@ public class FileManagerFragment extends Fragment {
         }
     }
 
-    private boolean isDriveRoot(File dir) {
-        if (dir == null) return true;
-        String path = dir.getAbsolutePath();
-        String downloadsPath = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).getAbsolutePath();
-        String internalStoragePath = Environment.getExternalStorageDirectory().getAbsolutePath();
-        String rootFsPath = com.winlator.cmod.xenvironment.ImageFs.find(requireContext()).getRootDir().getAbsolutePath();
-
-        if (path.equals(downloadsPath) || path.equals(internalStoragePath)
-                || path.equals(rootFsPath) || path.endsWith(".wine/drive_c") || path.equals("/"))
-            return true;
-        for (File root : getAdditionalStorageRoots().values())
-            if (path.equals(root.getAbsolutePath())) return true;
-        return false;
-    }
-
     private boolean navigateUp() {
-        if (isDriveRoot(currentDir)) return false;
-
-        File parent = currentDir.getParentFile();
-        if (parent != null && parent.canRead()) {
-            navigateTo(parent);
+        if (currentDir == null) return false;
+        if (currentRoot == null || currentDir.equals(currentRoot)) {
+            showStorageHome();
             return true;
         }
-        return false;
+        File parent = currentDir.getParentFile();
+        if (parent != null && parent.canRead()) navigateTo(parent);
+        else showStorageHome();
+        return true;
+    }
+
+    private static class StorageEntry {
+        final String title, detail;
+        final int icon;
+        final Runnable open;
+        StorageEntry(String title, String detail, int icon, Runnable open) {
+            this.title = title; this.detail = detail; this.icon = icon; this.open = open;
+        }
+    }
+
+    private List<StorageEntry> storageEntries() {
+        List<StorageEntry> entries = new ArrayList<>();
+        File downloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+        File internal = Environment.getExternalStorageDirectory();
+        File imagefs = com.winlator.cmod.xenvironment.ImageFs.find(requireContext()).getRootDir();
+        entries.add(new StorageEntry(getString(R.string.drive_d), getString(R.string.storage_downloads),
+                R.drawable.ic_drive_storage, () -> openStorage(downloads, getString(R.string.drive_d), R.drawable.ic_drive_storage)));
+        entries.add(new StorageEntry(getString(R.string.drive_c), getString(R.string.storage_wine),
+                R.drawable.ic_drive_wine, this::handleDriveCSelection));
+        entries.add(new StorageEntry(getString(R.string.drive_z), getString(R.string.storage_system),
+                R.drawable.ic_x11_icon, () -> openStorage(imagefs, getString(R.string.drive_z), R.drawable.ic_x11_icon)));
+        entries.add(new StorageEntry(getString(R.string.drive_e), getString(R.string.storage_container_drives),
+                R.drawable.ic_drive_storage, this::handleDriveESelection));
+        entries.add(new StorageEntry(getString(R.string.storage_internal), internal.getAbsolutePath(),
+                R.drawable.ic_drive_storage, () -> openStorage(internal, getString(R.string.storage_internal), R.drawable.ic_drive_storage)));
+        for (Map.Entry<String, File> entry : getAdditionalStorageRoots().entrySet()) {
+            entries.add(new StorageEntry(entry.getKey(), entry.getValue().getAbsolutePath(), R.drawable.ic_drive_storage,
+                    () -> openStorage(entry.getValue(), entry.getKey(), R.drawable.ic_drive_storage)));
+        }
+        entries.add(new StorageEntry(getString(R.string.storage_add), getString(R.string.storage_add_detail),
+                R.drawable.ic_nav_add_folder, this::addStorageFolder));
+        return entries;
+    }
+
+    private void showStorageHome() {
+        cancelSearch();
+        searchHandler.removeCallbacksAndMessages(null);
+        currentDir = null;
+        currentRoot = null;
+        rootLabel = null;
+        selectedFiles.clear();
+        updateSelectionUI();
+        View view = getView();
+        if (view == null) return;
+        view.findViewById(R.id.LLSearchArea).setVisibility(View.GONE);
+        view.findViewById(R.id.LLStorageUsage).setVisibility(View.VISIBLE);
+        view.findViewById(R.id.BTSearch).setVisibility(View.GONE);
+        view.findViewById(R.id.BTNewFolder).setVisibility(View.GONE);
+        view.findViewById(R.id.BTUpDir).setEnabled(false);
+        fabPaste.setVisibility(View.GONE);
+        pbSearch.setVisibility(View.GONE);
+        tvNoItems.setVisibility(View.GONE);
+        tvCurrentPath.setText("");
+        tvCurrentPath.setVisibility(View.GONE);
+        tvDriveName.setText(R.string.storage_locations);
+        ivDriveIcon.setImageResource(R.drawable.ic_drive_storage);
+        List<StorageEntry> entries = storageEntries();
+        recyclerViewFiles.setAdapter(new RecyclerView.Adapter<FileAdapter.ViewHolder>() {
+            @NonNull @Override public FileAdapter.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int type) {
+                return new FileAdapter.ViewHolder(LayoutInflater.from(parent.getContext()).inflate(R.layout.file_list_item, parent, false));
+            }
+            @Override public void onBindViewHolder(@NonNull FileAdapter.ViewHolder holder, int index) {
+                StorageEntry entry = entries.get(index);
+                holder.ivIcon.setImageResource(entry.icon);
+                holder.tvFileName.setText(entry.title);
+                holder.tvFileDetails.setText(entry.detail);
+                holder.btFileMenu.setVisibility(View.GONE);
+                holder.itemView.setOnClickListener(v -> entry.open.run());
+            }
+            @Override public int getItemCount() { return entries.size(); }
+        });
+        refreshStorageUsage();
+    }
+
+    private void openStorage(File root, String label, int icon) {
+        if (!root.isDirectory() || !root.canRead()) {
+            Toast.makeText(requireContext(), R.string.storage_unavailable, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        currentRoot = root;
+        rootLabel = label;
+        rootIcon = icon;
+        searchQuery = "";
+        ((EditText) requireView().findViewById(R.id.ETSearch)).setText("");
+        searchHandler.removeCallbacksAndMessages(null);
+        requireView().findViewById(R.id.LLSearchArea).setVisibility(View.GONE);
+        requireView().findViewById(R.id.LLStorageUsage).setVisibility(View.GONE);
+        requireView().findViewById(R.id.BTSearch).setVisibility(View.VISIBLE);
+        requireView().findViewById(R.id.BTNewFolder).setVisibility(View.VISIBLE);
+        requireView().findViewById(R.id.BTUpDir).setEnabled(true);
+        fabPaste.setVisibility(clipboardFiles.isEmpty() ? View.GONE : View.VISIBLE);
+        currentDir = root;
+        updateDriveButtonLabel(root);
+        loadFiles();
+    }
+
+    private void addStorageFolder() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION);
+        startActivityForResult(intent, REQUEST_ADD_STORAGE_FOLDER);
+    }
+
+    private void handleDriveESelection() {
+        LinkedHashMap<String, File> roots = new LinkedHashMap<>();
+        for (Container container : containerManager.getContainers()) {
+            for (String[] drive : container.drivesIterator()) {
+                File root = new File(drive[1]);
+                if ("E".equalsIgnoreCase(drive[0]) && root.isDirectory() && root.canRead())
+                    roots.put(container.getName() + " · " + root.getAbsolutePath(), root);
+            }
+        }
+        if (roots.isEmpty()) {
+            ContentDialog.alert(requireContext(), getString(R.string.storage_e_unavailable), null);
+            return;
+        }
+        List<File> paths = new ArrayList<>(roots.values());
+        ContentDialog.showSingleChoiceList(requireContext(), R.string.drive_e,
+                roots.keySet().toArray(new String[0]), index -> openStorage(paths.get(index), getString(R.string.drive_e), R.drawable.ic_drive_storage));
     }
 
     private void showDriveMenu() {
-        PopupMenu popupMenu = new PopupMenu(requireContext(), tvDriveName);
-        popupMenu.getMenu().add(0, 1, 0, "Drive D: (Downloads)");
-        popupMenu.getMenu().add(0, 6, 0, "Internal Storage");
-        popupMenu.getMenu().add(0, 2, 0, "Drive C: (Wine System)");
-        popupMenu.getMenu().add(0, 3, 0, "Drive Z: (RootFS)");
-        Map<Integer, File> extraStorageItems = new LinkedHashMap<>();
-        int extraId = 1000;
-        for (Map.Entry<String, File> entry : getAdditionalStorageRoots().entrySet()) {
-            popupMenu.getMenu().add(0, extraId, 0, entry.getKey());
-            extraStorageItems.put(extraId++, entry.getValue());
+        PopupMenu popup = new PopupMenu(requireContext(), tvDriveName);
+        popup.getMenu().add(0, 1, 0, R.string.storage_locations);
+        List<StorageEntry> entries = storageEntries();
+        for (int i = 0; i < entries.size(); i++) popup.getMenu().add(0, 100 + i, i + 1, entries.get(i).title);
+        if (currentDir != null) {
+            popup.getMenu().add(0, 2, entries.size() + 1, R.string.sort);
+            popup.getMenu().add(0, 3, entries.size() + 2, showHiddenFiles ? R.string.hide_hidden_files : R.string.show_hidden_files);
         }
-        popupMenu.getMenu().add(0, 7, 0, "Add storage folder…");
-        popupMenu.getMenu().add(0, 4, 0, R.string.sort);
-        popupMenu.getMenu().add(0, 5, 0, showHiddenFiles ? "Hide Hidden Files" : "Show Hidden Files");
-
-        popupMenu.setOnMenuItemClickListener(item -> {
-            int itemId = item.getItemId();
-            if (itemId == 1) {
-                navigateTo(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS));
-                updateDriveButtonLabel(currentDir);
-                return true;
-            } else if (itemId == 6) {
-                navigateTo(Environment.getExternalStorageDirectory());
-                updateDriveButtonLabel(currentDir);
-                return true;
-            } else if (itemId == 2) {
-                handleDriveCSelection();
-                return true;
-            } else if (itemId == 3) {
-                navigateTo(com.winlator.cmod.xenvironment.ImageFs.find(requireContext()).getRootDir());
-                updateDriveButtonLabel(currentDir);
-                return true;
-            } else if (itemId == 7) {
-                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
-                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
-                        | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                        | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
-                        | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION);
-                startActivityForResult(intent, REQUEST_ADD_STORAGE_FOLDER);
-                return true;
-            } else if (itemId == 4) {
-                showSortMenu();
-                return true;
-            } else if (itemId == 5) {
-                showHiddenFiles = !showHiddenFiles;
-                loadFiles();
-                return true;
-            }
-            File extraRoot = extraStorageItems.get(itemId);
-            if (extraRoot != null) {
-                navigateTo(extraRoot);
-                updateDriveButtonLabel(currentDir);
-                return true;
-            }
-            return false;
+        popup.setOnMenuItemClickListener(item -> {
+            int id = item.getItemId();
+            if (id == 1) showStorageHome();
+            else if (id == 2) showSortMenu();
+            else if (id == 3) { showHiddenFiles = !showHiddenFiles; loadFiles(); }
+            else if (id >= 100 && id < 100 + entries.size()) entries.get(id - 100).open.run();
+            return true;
         });
-        popupMenu.show();
+        popup.show();
+    }
+
+    private void refreshStorageUsage() {
+        View view = getView();
+        if (view == null) return;
+        TextView label = view.findViewById(R.id.TVStorageUsage);
+        try {
+            android.os.StatFs stat = new android.os.StatFs(Environment.getExternalStorageDirectory().getAbsolutePath());
+            StorageUsage usage = new StorageUsage(stat.getTotalBytes(), stat.getAvailableBytes());
+            boolean percent = "percent".equals(PreferenceManager.getDefaultSharedPreferences(requireContext())
+                    .getString(StorageUsage.PREFERENCE, "gb"));
+            java.util.Locale locale = getResources().getConfiguration().getLocales().get(0);
+            String used = String.format(locale, percent ? "%.1f%%" : "%.1f GB",
+                    percent ? usage.usedPercent() : StorageUsage.gigabytes(usage.used));
+            String free = String.format(locale, percent ? "%.1f%%" : "%.1f GB",
+                    percent ? usage.availablePercent() : StorageUsage.gigabytes(usage.available));
+            ((android.widget.ProgressBar) view.findViewById(R.id.PBStorageUsage)).setProgress(usage.progress());
+            label.setText(getString(R.string.storage_used_free, used, free));
+        } catch (RuntimeException error) {
+            ((android.widget.ProgressBar) view.findViewById(R.id.PBStorageUsage)).setProgress(0);
+            label.setText(R.string.storage_unavailable);
+        }
     }
 
     @Override
@@ -422,8 +546,7 @@ public class FileManagerFragment extends Fragment {
                 PREF_ADDED_STORAGE_FOLDERS, Collections.emptySet()));
         stored.add(folder.getAbsolutePath());
         preferences.edit().putStringSet(PREF_ADDED_STORAGE_FOLDERS, stored).apply();
-        navigateTo(folder);
-        updateDriveButtonLabel(folder);
+        openStorage(folder, folder.getName(), R.drawable.ic_drive_storage);
     }
 
     /** Physical SD/USB volumes plus readable paths already assigned to a
@@ -442,7 +565,7 @@ public class FileManagerFragment extends Fragment {
                                 ? volume.getDirectory()
                                 : volume.getUuid() != null ? new File("/storage", volume.getUuid()) : null;
                         if (directory != null && directory.isDirectory() && directory.canRead())
-                            roots.put("External Storage (" + volume.getDescription(context) + ")", directory);
+                            roots.put(getString(R.string.storage_external, volume.getDescription(context)), directory);
                     }
                 }
             }
@@ -455,7 +578,7 @@ public class FileManagerFragment extends Fragment {
                 if (directory.isDirectory() && directory.canRead()
                         && !directory.equals(Environment.getExternalStorageDirectory())
                         && !directory.equals(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)))
-                    roots.putIfAbsent("Storage " + drive[0] + ": (" + container.getName() + ")", directory);
+                    roots.putIfAbsent(getString(R.string.storage_mapped_drive, drive[0], container.getName()), directory);
             }
         }
         Context rootContext = getContext();
@@ -466,7 +589,7 @@ public class FileManagerFragment extends Fragment {
                 File directory = new File(path);
                 if (directory.isDirectory() && directory.canRead()) {
                     String name = directory.getName();
-                    roots.putIfAbsent("Added Storage (" + (name.isEmpty() ? path : name) + ")",
+                    roots.putIfAbsent(getString(R.string.storage_added, name.isEmpty() ? path : name),
                             directory);
                 }
             }
@@ -505,8 +628,7 @@ public class FileManagerFragment extends Fragment {
             Container container = containers.get(index);
             File driveC = new File(container.getRootDir(), ".wine/drive_c");
             if (driveC.exists()) {
-                navigateTo(driveC);
-                updateDriveButtonLabel(currentDir);
+                openStorage(driveC, getString(R.string.drive_c) + " · " + container.getName(), R.drawable.ic_drive_wine);
             } else {
                 ContentDialog.alert(getContext(), "The Wine system files for '" + container.getName() + "' have not been initialized yet.", null);
             }
@@ -514,28 +636,15 @@ public class FileManagerFragment extends Fragment {
     }
 
     private void updateDriveButtonLabel(File file) {
-        String path = file.getAbsolutePath();
-        if (path.contains(".wine/drive_c")) {
-            tvDriveName.setText(R.string.drive_c);
-            ivDriveIcon.setImageResource(R.drawable.ic_drive_wine);
-        } else if (Objects.equals(path, Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).getAbsolutePath())) {
-            tvDriveName.setText(R.string.drive_d);
-            ivDriveIcon.setImageResource(R.drawable.ic_drive_storage);
-        } else if (Objects.equals(path, Environment.getExternalStorageDirectory().getAbsolutePath())) {
-            tvDriveName.setText("Internal Storage");
-            ivDriveIcon.setImageResource(R.drawable.ic_drive_storage);
-        } else if (path.startsWith(com.winlator.cmod.xenvironment.ImageFs.find(requireContext()).getRootDir().getAbsolutePath())) {
-            tvDriveName.setText("Drive Z:");
-            ivDriveIcon.setImageResource(R.drawable.ic_x11_icon);
-        } else {
-            tvDriveName.setText(R.string.drives);
-            ivDriveIcon.setImageResource(R.drawable.ic_drive_storage);
-        }
+        requireView().findViewById(R.id.LLStorageUsage).setVisibility(View.GONE);
+        tvCurrentPath.setVisibility(View.VISIBLE);
+        tvDriveName.setText(rootLabel != null ? rootLabel : getString(R.string.drives));
+        ivDriveIcon.setImageResource(rootIcon);
     }
 
     private void showFileOptions(File file, View anchor) {
         PopupMenu popupMenu = new PopupMenu(requireContext(), anchor);
-        String nameLower = file.getName().toLowerCase();
+        String nameLower = file.getName().toLowerCase(java.util.Locale.ROOT);
         if (file.isDirectory()) {
             popupMenu.getMenu().add(0, 8, 0, R.string.new_folder);
         } else {
@@ -675,7 +784,7 @@ public class FileManagerFragment extends Fragment {
             }
             Toast.makeText(getContext(), "Shortcut created on container desktop!", Toast.LENGTH_SHORT).show();
 
-            if (file.getName().toLowerCase().endsWith(".exe")) {
+            if (file.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".exe")) {
                 File iconDir64 = container.getIconsDir(64);
                 if (!iconDir64.exists()) iconDir64.mkdirs();
                 File iconDest = new File(iconDir64, displayName + ".png");
@@ -748,7 +857,7 @@ public class FileManagerFragment extends Fragment {
         String parentPath = parent.getAbsolutePath();
 
         for (String[] drive : container.drivesIterator()) {
-            String driveLetter = drive[0].toLowerCase();
+            String driveLetter = drive[0].toLowerCase(java.util.Locale.ROOT);
             String drivePath = drive[1];
             if (parentPath.startsWith(drivePath)) {
                 String rel = parentPath.substring(drivePath.length());
@@ -843,6 +952,7 @@ public class FileManagerFragment extends Fragment {
     }
 
     private void pasteFiles() {
+        if (currentDir == null || transferActive.get()) return;
         if (clipboardFiles.isEmpty()) {
             fabPaste.setVisibility(View.GONE);
             return;
@@ -874,93 +984,67 @@ public class FileManagerFragment extends Fragment {
     }
 
     private void executePaste(File destinationDir, boolean replaceExisting) {
+        if (!transferActive.compareAndSet(false, true)) return;
         final boolean moveOperation = isCutOperation;
-        fileProgressDialog.show(moveOperation ? R.string.moving_file : R.string.copying_file);
+        final List<File> sources = new ArrayList<>(clipboardFiles);
+        final View operationView = getView();
+        final Activity owner = requireActivity();
+        final Context context = requireContext();
+        final FileProgressDialog progress = fileProgressDialog;
+        progress.show(moveOperation ? R.string.moving_file : R.string.copying_file);
         isCancelled.set(false);
-        lastUIUpdateTime = 0;
-        if (getActivity() != null) AppUtils.keepScreenOn(getActivity());
-
+        AppUtils.keepScreenOn(owner);
         new Thread(() -> {
-            AtomicLong totalSize = new AtomicLong(0);
-            AtomicLong copiedSize = new AtomicLong(0);
-
-            List<File> sources = new ArrayList<>(clipboardFiles);
-            for (File file : sources) {
-                if (FileUtils.isSymlink(file)) {
-                    // A symbolic link has no payload to copy. Its target must not be
-                    // included here or a Wine drive link can make the scan enormous.
-                    continue;
-                } else if (file.isDirectory()) {
-                    totalSize.addAndGet(getDirectoryInfo(file, new java.util.HashSet<>())[0]);
-                } else {
-                    totalSize.addAndGet(file.length());
+            List<File> completed = new ArrayList<>();
+            List<String> failures = new ArrayList<>();
+            long[] lastUpdate = {0};
+            int[] index = {0};
+            FileTransfer transfer = new FileTransfer(isCancelled, (name, bytes) -> {
+                long now = android.os.SystemClock.uptimeMillis();
+                if (now - lastUpdate[0] >= 100) {
+                    progress.updateIndeterminate(name, context.getString(R.string.file_transfer_progress,
+                            Formatter.formatFileSize(context, bytes), index[0] + 1, sources.size()));
+                    lastUpdate[0] = now;
                 }
-            }
-
-            boolean allSuccess = true;
-            for (File file : sources) {
-                if (isCancelled.get()) break;
-                File destination = new File(destinationDir, file.getName());
-
-                if (sameCanonicalPath(file, destination)) continue;
-                if (!FileUtils.isSymlink(file) && file.isDirectory() && isInsideDirectory(file, destinationDir)) {
-                    allSuccess = false;
-                    continue;
-                }
-
-                // Conflicts are only replaced after the explicit confirmation shown
-                // by pasteFiles(). A late conflict never creates a silent duplicate.
-                if (pathExists(destination)) {
-                    if (!replaceExisting || !FileUtils.delete(destination)) {
-                        allSuccess = false;
-                        continue;
+            });
+            try {
+                for (File source : sources) {
+                    if (isCancelled.get()) break;
+                    progress.updateIndeterminate(source.getName(), context.getString(R.string.file_transfer_item, index[0] + 1, sources.size()));
+                    try {
+                        FileTransfer.Result result = transfer.transfer(source, new File(destinationDir, source.getName()), moveOperation, replaceExisting);
+                        if (!moveOperation || result.sourceRemoved) completed.add(source);
+                        else if (pathExists(source)) failures.add(source.getName());
+                        if (result.retainedBackup != null) failures.add(result.retainedBackup.getAbsolutePath());
+                        if (result.retainedSource != null) failures.add(result.retainedSource.getAbsolutePath());
+                    } catch (IOException | RuntimeException error) {
+                        android.util.Log.e("FileManager", "Transfer failed: " + source, error);
+                        if (!isCancelled.get()) failures.add(source.getName());
                     }
+                    index[0]++;
                 }
-
-                boolean copySuccess = copyWithProgress(file, destination, copiedSize, totalSize.get(), moveOperation,
-                        new java.util.HashSet<>());
-                boolean success = copySuccess;
-                if (copySuccess && moveOperation && !isCancelled.get()) {
-                    // If fast rename succeeded the source no longer exists – don't re-delete
-                    if (pathExists(file) && !deleteRecursiveSafe(file, new AtomicLong(0), 1)) success = false;
-                }
-                if (!copySuccess && pathExists(destination)) {
-                    // A failed/cancelled fallback copy must not leave a misleading,
-                    // incomplete destination behind. The source is still preserved.
-                    FileUtils.delete(destination);
-                }
-                if (!success) allSuccess = false;
-            }
-
-            if (!isCancelled.get() && allSuccess) {
-                fileProgressDialog.update("", totalSize.get(), totalSize.get());
-            }
-
-            final boolean finalSuccess = allSuccess;
-            final boolean finalCancelled = isCancelled.get();
-            if (getActivity() != null) {
-                getActivity().runOnUiThread(() -> {
-                    if (getActivity() != null) getActivity().getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-                    fileProgressDialog.dismiss();
-                    if (finalCancelled) {
-                        Toast.makeText(getContext(), "Operation cancelled", Toast.LENGTH_SHORT).show();
-                    } else if (finalSuccess) {
-                        if (moveOperation) {
-                            clipboardFiles.clear();
-                            fabPaste.setVisibility(View.GONE);
-                        }
-                        loadFiles();
-                    } else {
-                        Toast.makeText(getContext(), "Paste completed with some errors", Toast.LENGTH_SHORT).show();
-                        loadFiles();
-                    }
+            } finally {
+                transferActive.set(false);
+                owner.runOnUiThread(() -> {
+                    owner.getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                    progress.dismiss();
+                    if (moveOperation) clipboardFiles.removeAll(completed);
+                    if (getView() != operationView || !isAdded()) return;
+                    fabPaste.setVisibility(currentDir != null && !clipboardFiles.isEmpty() ? View.VISIBLE : View.GONE);
+                    if (!failures.isEmpty()) ContentDialog.alert(context,
+                            (isCancelled.get() ? context.getString(R.string.file_operation_cancelled) + "\n\n" : "")
+                                    + context.getString(R.string.file_transfer_errors, String.join("\n", failures)), null);
+                    else if (isCancelled.get()) Toast.makeText(context, R.string.file_operation_cancelled, Toast.LENGTH_SHORT).show();
+                    loadFiles();
+                    refreshStorageUsage();
                 });
             }
-        }).start();
+        }, "FileTransfer").start();
     }
 
     private void removeFiles(java.util.Collection<File> files) {
         ContentDialog.confirm(getContext(), "Do you want to delete " + files.size() + " items?", () -> {
+            if (!transferActive.compareAndSet(false, true)) return;
             fileProgressDialog.show(R.string.deleting_file);
             isCancelled.set(false);
             if (getActivity() != null) AppUtils.keepScreenOn(getActivity());
@@ -990,6 +1074,7 @@ public class FileManagerFragment extends Fragment {
                 }
 
                 final boolean finalSuccess = allSuccess;
+                transferActive.set(false);
                 if (getActivity() != null) {
                     getActivity().runOnUiThread(() -> {
                         if (getActivity() != null) getActivity().getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -1032,122 +1117,15 @@ public class FileManagerFragment extends Fragment {
         popupMenu.show();
     }
 
-    /** Fast move via rename when source and destination are on the same filesystem (Drive C). */
-    private boolean tryFastMove(File src, File dst) {
-        try {
-            if (pathExists(dst)) return false;
-            File parent = dst.getParentFile();
-            if (parent != null && !parent.exists() && !parent.mkdirs()) return false;
-            // File.renameTo is atomic and instant on same mount (Drive C -> Drive C)
-            if (src.renameTo(dst)) return true;
-            // NIO fallback (covers more cases)
-            java.nio.file.Files.move(src.toPath(), dst.toPath());
-            return true;
-        } catch (Exception ignored) { return false; }
-    }
-
     private boolean pathExists(File file) {
         return java.nio.file.Files.exists(file.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS);
     }
 
     private boolean sameCanonicalPath(File first, File second) {
         try {
-            return first.getCanonicalFile().equals(second.getCanonicalFile());
-        } catch (IOException e) {
-            return first.getAbsoluteFile().equals(second.getAbsoluteFile());
-        }
-    }
-
-    private boolean isInsideDirectory(File directory, File candidate) {
-        try {
-            String directoryPath = directory.getCanonicalPath();
-            String candidatePath = candidate.getCanonicalPath();
-            return candidatePath.startsWith(directoryPath + File.separator);
-        } catch (IOException e) {
-            return false;
-        }
-    }
-
-    private boolean copyWithProgress(File src, File dst, AtomicLong copiedSize, long totalSize,
-                                     boolean allowFastMove, Set<String> visitedDirectories) {
-        if (isCancelled.get()) return false;
-
-        // Fast move is only safe at the selected item's root. Retrying it for each
-        // child can split the source tree when a later child fails or is cancelled.
-        if (allowFastMove) {
-            long srcSize = src.isFile() ? src.length() : -1;
-            if (tryFastMove(src, dst)) {
-                long inc = srcSize >= 0 ? srcSize : dst.isFile() ? dst.length() : 0;
-                // For directories the size wasn't known before move; estimate via dst after move
-                if (inc == 0 && dst.isDirectory()) {
-                    // Best effort: mark progress as advanced by the remaining amount for this src.
-                    // Since we already computed totalSize, jump copiedSize forward by at least 1 byte
-                    // so the dialog reaches 100% quickly.
-                    long remaining = totalSize - copiedSize.get();
-                    if (remaining > 0) inc = remaining;
-                }
-                if (inc > 0) copiedSize.addAndGet(inc);
-                fileProgressDialog.update(dst.getName(), copiedSize.get(), totalSize);
-                return true;
-            }
-        }
-
-        if (FileUtils.isSymlink(src)) {
-            try {
-                java.nio.file.Path target = java.nio.file.Files.readSymbolicLink(src.toPath());
-                java.nio.file.Files.createSymbolicLink(dst.toPath(), target);
-                return true;
-            } catch (IOException | UnsupportedOperationException | SecurityException e) {
-                android.util.Log.e("FileManager", "Unable to copy symbolic link " + src + " to " + dst, e);
-                return false;
-            }
-        } else if (src.isDirectory()) {
-            try {
-                if (!visitedDirectories.add(src.getCanonicalPath())) return true;
-            } catch (IOException e) {
-                return false;
-            }
-            if (!dst.exists() && !dst.mkdirs()) return false;
-            File[] files = src.listFiles();
-            if (files == null) return false;
-            for (File file : files) {
-                if (!copyWithProgress(file, new File(dst, file.getName()), copiedSize, totalSize,
-                        false, visitedDirectories)) return false;
-            }
-            dst.setLastModified(src.lastModified());
-            return true;
-        } else {
-            File parent = dst.getParentFile();
-            if (!src.isFile() || (parent != null && !parent.exists() && !parent.mkdirs())) return false;
-
-            long expectedSize = src.length();
-            long written = 0;
-            byte[] buffer = new byte[1024 * 1024];
-            try (BufferedInputStream in = new BufferedInputStream(new FileInputStream(src), buffer.length);
-                 BufferedOutputStream out = new BufferedOutputStream(new FileOutputStream(dst), buffer.length)) {
-                int count;
-                while ((count = in.read(buffer)) != -1) {
-                    if (isCancelled.get()) return false;
-                    out.write(buffer, 0, count);
-                    written += count;
-                    copiedSize.addAndGet(count);
-
-                    long currentTime = System.currentTimeMillis();
-                    if (currentTime - lastUIUpdateTime > 100) {
-                        fileProgressDialog.update(src.getName(), copiedSize.get(), totalSize);
-                        lastUIUpdateTime = currentTime;
-                    }
-                }
-                out.flush();
-                if (written != expectedSize) return false;
-                fileProgressDialog.update(src.getName(), copiedSize.get(), totalSize);
-                dst.setLastModified(src.lastModified());
-                return dst.isFile() && dst.length() == expectedSize;
-            } catch (IOException e) {
-                android.util.Log.e("FileManager", "Unable to copy " + src + " to " + dst, e);
-                return false;
-            }
-        }
+            return first.getAbsoluteFile().getParentFile().getCanonicalFile().equals(
+                    second.getAbsoluteFile().getParentFile().getCanonicalFile()) && first.getName().equals(second.getName());
+        } catch (IOException error) { return first.getAbsoluteFile().equals(second.getAbsoluteFile()); }
     }
 
     private void createNewFolder() {
@@ -1214,7 +1192,7 @@ public class FileManagerFragment extends Fragment {
     }
 
     private void extractArchive(File file) {
-        String nameLower = file.getName().toLowerCase();
+        String nameLower = file.getName().toLowerCase(java.util.Locale.ROOT);
         TarCompressorUtils.Type type = null;
         boolean isZip = nameLower.endsWith(".zip");
         if (nameLower.endsWith(".tar.xz") || nameLower.endsWith(".txz")) type = TarCompressorUtils.Type.XZ;
@@ -1332,7 +1310,7 @@ public class FileManagerFragment extends Fragment {
             File file = files.get(position);
             holder.tvFileName.setText(file.getName());
             
-            String nameLower = file.getName().toLowerCase();
+            String nameLower = file.getName().toLowerCase(java.util.Locale.ROOT);
             if (file.isDirectory()) {
                 holder.ivIcon.setImageResource(R.drawable.ic_folder);
                 if (isSearchMode) {

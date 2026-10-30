@@ -26,6 +26,7 @@ import com.winlator.cmod.contentdialog.ContentDialog;
 import com.winlator.cmod.core.StringUtils;
 import com.winlator.cmod.core.ExynosDevices;
 import com.winlator.cmod.core.HardwareLabel;
+import com.winlator.cmod.renderer.FrameRateSample;
 
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -142,7 +143,9 @@ public class WinlatorHUD extends View {
     private boolean apexActive = false;
     private float apexMultiplier = 2.0f;
     private float apexRealFps;
+    private float apexOutputFps;
     private float apexGeneratedFps;
+    private long apexSampleTimeNanos;
     private boolean apexFailure;
 
     private int snapGpu=-1, snapCpu=-1, snapMw=-1, snapTmp=-1, snapCTmp=-1, snapGTmp=-1, snapPct=-1, snapRam=-1;
@@ -331,25 +334,16 @@ public class WinlatorHUD extends View {
             snapFps = f * 1_000_000_000f / dt;
             lastFpsNs = now;
 
-            // Keep the primary HUD counter useful beyond the physical refresh
-            // limit: Apex reports the source rate multiplied by its effective
-            // factor. Measured compositor counters remain available to the
-            // diagnostic telemetry, but are not mixed into this headline.
-            float displayFps = apexActive ? snapFps * apexMultiplier : snapFps;
+            // FG can miss its requested factor or coalesce source Presents.
+            // Only completed compositor draws belong in its headline/graph.
+            float displayFps = getDisplayedFps(now);
             graph[gHead % GBUF] = displayFps;
             gHead++;
             cachedPath = null;
             float targetMax = Math.max(30f, displayFps * 1.2f);
             gMax = gMax + (targetMax - gMax) * 0.15f;
             
-            if (apexActive) {
-                String multiplier = Math.abs(apexMultiplier - Math.round(apexMultiplier)) < 0.01f
-                        ? String.format(Locale.US, "%.0f", apexMultiplier)
-                        : String.format(Locale.US, "%.1f", apexMultiplier);
-                strFps = String.format(Locale.US, "%.0f (%sx)", displayFps, multiplier);
-            } else {
-                strFps = String.format(Locale.US, "%.0f", displayFps);
-            }
+            strFps = String.format(Locale.US, "%.0f", displayFps);
         }
         if (dataSource != null) {
             int g  = dataSource.gpuLoad.get();
@@ -432,7 +426,7 @@ public class WinlatorHUD extends View {
     }
 
     private void updatePaintColors(boolean mono) {
-        float fps = apexActive ? snapFps * apexMultiplier : snapFps;
+        float fps = getDisplayedFps(System.nanoTime());
         int fpsColor = mono ? C_WHITE : (fps >= 55 ? C_FPS : (fps >= 25 ? C_REND : C_TEMP));
         pFps.setColor(fpsColor);
         pGraph.setColor(fpsColor);
@@ -442,6 +436,11 @@ public class WinlatorHUD extends View {
         pTmp.setColor(mono ? C_WHITE : C_TEMP);
         pRend.setColor(mono ? C_WHITE : C_REND);
         pRam.setColor(ramAlertActive ? C_TEMP : (mono ? C_WHITE : C_RAM));
+    }
+
+    private float getDisplayedFps(long nowNanos) {
+        return apexActive ? FrameRateSample.freshOutput(apexOutputFps,
+                apexSampleTimeNanos, nowNanos) : snapFps;
     }
 
     private Paint getRamValuePaint(boolean compact) {
@@ -1120,12 +1119,14 @@ public class WinlatorHUD extends View {
         });
     }
 
-    public void setFrameGenerationStats(boolean active, float realFps, float generatedFps,
+    public void setFrameGenerationStats(boolean active, float realFps, float outputFps, float generatedFps,
             float multiplier, float latencyMs, String backend, String state, String failure,
             boolean lowLatencyMode) {
         uiHandler.post(() -> {
             apexRealFps = Math.max(0, realFps);
+            apexOutputFps = Math.max(0, outputFps);
             apexGeneratedFps = Math.max(0, generatedFps);
+            apexSampleTimeNanos = System.nanoTime();
             apexMultiplier = Math.max(1.0f, Math.min(4.0f, multiplier));
             String safeBackend = backend == null || backend.trim().isEmpty()
                     ? "Unknown" : backend.trim();
@@ -1144,7 +1145,8 @@ public class WinlatorHUD extends View {
                 strFgStatus = "FG " + safeState + ": " + safeFailure;
             }
             else if (active && "Active".equalsIgnoreCase(safeState)) {
-                strFgStatus = "FG " + safeBackend + " Active · GEN "
+                strFgStatus = "FG " + safeBackend + " · SRC " + Math.round(apexRealFps)
+                        + " · GEN "
                         + Math.round(apexGeneratedFps) + " FPS"
                         + (apexGeneratedFps < 0.5f ? " (no output)" : "");
             }

@@ -10,6 +10,7 @@ import com.winlator.cmod.container.Shortcut;
 import com.winlator.cmod.container.ContainerManager;
 import com.winlator.cmod.core.DefaultVersion;
 import com.winlator.cmod.core.DirectoryInstall;
+import com.winlator.cmod.core.PackageIdentity;
 import com.winlator.cmod.core.EnvVars;
 import com.winlator.cmod.core.FileUtils;
 import com.winlator.cmod.contentdialog.GraphicsDriverConfigDialog;
@@ -209,6 +210,21 @@ public class XclipseDriverManager {
         return bestScore >= 82 ? bestId : "";
     }
 
+    /** Never silently substitute another build while importing a configuration. */
+    public String findExactInstalledDriverId(String requested, String version, String sha256) {
+        for (String id : enumerateInstalledDrivers()) {
+            File library = getDriverLibrary(id);
+            if (library == null) continue;
+            if (!(PackageIdentity.sameDriver(requested, id)
+                    || PackageIdentity.sameDriver(requested, getDriverName(id))
+                    || PackageIdentity.sameDriver(requested, getDriverName(id) + " " + getDriverVersion(id)))) continue;
+            if (version != null && !version.isEmpty()
+                    && !version.equalsIgnoreCase(getDriverVersion(id))) continue;
+            if (PackageIdentity.matchesSha256(library, sha256)) return id;
+        }
+        return "";
+    }
+
     public static int driverMatchScore(String requested, String candidate) {
         String left = driverIdentity(requested);
         String right = driverIdentity(candidate);
@@ -285,6 +301,11 @@ public class XclipseDriverManager {
     }
 
     public String installDriver(Uri driverUri, Downloader.ProgressCallback progressCallback) {
+        return installVerifiedDriver(driverUri, progressCallback, "", "", "");
+    }
+
+    public String installVerifiedDriver(Uri driverUri, Downloader.ProgressCallback progressCallback,
+                                        String requestedName, String version, String sha256) {
         File tmpDir = new File(driverContentDir, ".install-" + UUID.randomUUID());
         if (!tmpDir.mkdirs()) return "";
         File payload = new File(tmpDir, "payload");
@@ -317,6 +338,15 @@ public class XclipseDriverManager {
                     .replaceAll("-+", "-")
                     .replaceAll("^-|-$", "");
             if (id.isEmpty() || id.startsWith(".")) return "";
+            // Validate metadata and bytes before replacing any installed driver.
+            if (requestedName != null && !requestedName.isEmpty()
+                    && !(PackageIdentity.sameDriver(requestedName, id)
+                    || PackageIdentity.sameDriver(requestedName, displayName)
+                    || PackageIdentity.sameDriver(requestedName,
+                    displayName + " " + profile.optString("driverVersion", "")))) return "";
+            if (version != null && !version.isEmpty()
+                    && !version.equalsIgnoreCase(profile.optString("driverVersion", ""))) return "";
+            if (!PackageIdentity.matchesSha256(new File(packageDir, libraryName), sha256)) return "";
             File destination = new File(driverContentDir, id);
             // A matching name does not mean matching driver bytes. Re-import
             // the actual package instead of silently retaining an older build.

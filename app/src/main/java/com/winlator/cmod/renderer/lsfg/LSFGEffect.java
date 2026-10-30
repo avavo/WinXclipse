@@ -110,7 +110,7 @@ public final class LSFGEffect extends Effect {
 
     @Override
     public void onPreRender(RenderTarget readBuffer, RenderTarget ignored) {
-        if (!manager.isActive() || manager.isGeneratedFrame()) return;
+        if (!manager.shouldCaptureFrame()) return;
 
         int width = renderer.surfaceWidth;
         int height = renderer.surfaceHeight;

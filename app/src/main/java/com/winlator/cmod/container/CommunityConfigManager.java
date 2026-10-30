@@ -16,6 +16,7 @@ import com.winlator.cmod.contents.ContentsManager;
 import com.winlator.cmod.contents.CustomWrapperManager;
 import com.winlator.cmod.contents.Downloader;
 import com.winlator.cmod.core.ContentVersion;
+import com.winlator.cmod.core.PackageIdentity;
 import com.winlator.cmod.contents.ExternalDownloadCatalog;
 import com.winlator.cmod.contents.XclipseDriverManager;
 import com.winlator.cmod.core.FileUtils;
@@ -334,8 +335,6 @@ public final class CommunityConfigManager {
         // driver in graphicsDriverConfig, but did not create a ContentProfile
         // reference for it. Recover that existing information before the new
         // container is created, so old published ZIPs do not need re-exporting.
-        ensureGraphicsDriver(context, manifest);
-        ensureWrapper(context, manifest);
         ContentsManager manager = new ContentsManager(context);
         try {
             manager.syncContents();
@@ -362,7 +361,17 @@ public final class CommunityConfigManager {
         JSONArray refs = manifest.optJSONArray("contents");
         if (refs == null) refs = manifest.getJSONObject("container").optJSONArray("contentRefs");
         List<ContentResolution> result = new ArrayList<>();
-        if (refs == null) return result;
+        if (refs == null) refs = new JSONArray();
+        // Schema-v1 configs did not export driver/wrapper references. Recover
+        // those selections from container data without requiring re-export.
+        JSONObject driverRef = externalReference(manifest, refs, "graphicsDriver");
+        JSONObject wrapperRef = externalReference(manifest, refs, "wrapper");
+        if (driverRef != null && !ensureGraphicsDriver(context, manifest, driverRef)) {
+            result.add(new ContentResolution(driverRef, null, null, -1));
+        }
+        if (wrapperRef != null && !ensureWrapper(context, manifest, wrapperRef)) {
+            result.add(new ContentResolution(wrapperRef, null, null, -1));
+        }
 
         // The installed profiles on disk are authoritative. If an exact package
         // is missing, recover a matching WCP the user already downloaded before
@@ -392,7 +401,7 @@ public final class CommunityConfigManager {
         if (refs != null) {
             for (int i = 0; i < refs.length(); i++) {
                 JSONObject ref = refs.optJSONObject(i);
-                if (ref == null) continue;
+                if (ref == null || isExternalReference(ref)) continue;
                 if (findExactInstalled(manager, ref) != null) continue;
                 if (recoverRemoteContent(context, manager, ref)) recoveredRemote = true;
             }
@@ -409,7 +418,7 @@ public final class CommunityConfigManager {
 
         for (int i = 0; i < refs.length(); i++) {
             JSONObject ref = refs.optJSONObject(i);
-            if (ref == null) continue;
+            if (ref == null || isExternalReference(ref)) continue;
             String id = ref.optString("contentId", "");
             String type = ref.optString("type", "");
             String name = ref.optString("entryName", ref.optString("versionName", ""));
@@ -459,120 +468,110 @@ public final class CommunityConfigManager {
         return result;
     }
 
-    private static void ensureGraphicsDriver(Context context, JSONObject manifest) {
-        JSONObject data = manifest.optJSONObject("container");
-        if (data == null) return;
-        String driverConfig = data.optString("graphicsDriverConfig", "");
-        String requested = semicolonConfigValue(driverConfig, "version");
-        if (isDisabledValue(requested)
-                || DefaultVersion.WRAPPER.equalsIgnoreCase(requested)) return;
-
-        XclipseDriverManager driverManager = new XclipseDriverManager(context);
-        String installedId = driverManager.findInstalledDriverId(requested);
-        if (installedId.isEmpty()) {
-            File downloads = Environment.getExternalStoragePublicDirectory(
-                    Environment.DIRECTORY_DOWNLOADS);
-            List<File> archives = new ArrayList<>();
-            collectDriverPackages(downloads, 0, new int[]{0}, archives);
-            File best = bestDriverPackage(requested, archives);
-            if (best != null) {
-                installedId = driverManager.installDriver(Uri.fromFile(best));
-                if (installedId.isEmpty()) {
-                    installedId = driverManager.findInstalledDriverId(requested);
-                }
-            }
-        }
-
-        if (installedId.isEmpty()) {
-            ExternalDownloadCatalog catalog = new ExternalDownloadCatalog(context);
-            ExternalDownloadCatalog.Item best = bestRemoteDriver(
-                    requested, catalog.refreshDrivers());
-            if (best != null && best.url != null && !best.url.isEmpty()) {
-                File downloaded = new File(context.getCacheDir(),
-                        "community-driver-" + Integer.toHexString(best.url.hashCode()) + ".zip");
-                try {
-                    if ((downloaded.isFile() || Downloader.downloadFile(best.url, downloaded))) {
-                        installedId = driverManager.installDriver(Uri.fromFile(downloaded));
-                        if (installedId.isEmpty()) {
-                            installedId = driverManager.findInstalledDriverId(requested);
-                        }
-                    }
-                }
-                finally {
-                    FileUtils.delete(downloaded);
-                }
-            }
-        }
-
-        if (!installedId.isEmpty()) {
-            try {
-                data.put("graphicsDriverConfig", replaceSemicolonConfigValue(
-                        driverConfig, "version", installedId));
-                Log.i("CommunityConfig", "Recovered Xclipse driver " + requested
-                        + " as " + installedId);
-            }
-            catch (JSONException ignored) {}
-        }
-        else {
-            Log.w("CommunityConfig", "Could not automatically recover Xclipse driver "
-                    + requested);
-        }
+    private static boolean isExternalReference(JSONObject ref) {
+        String role = ref.optString("role", "");
+        return "graphicsDriver".equals(role) || "wrapper".equals(role);
     }
 
-    /**
-     * Restores a downloadable wrapper referenced by old community configs.
-     * The wrapper selection already lives in the container JSON, so installing
-     * its archive under the same stable id is enough; configs never need to be
-     * exported again just because a wrapper moved out of the APK selector.
-     */
-    private static void ensureWrapper(Context context, JSONObject manifest) {
+    private static JSONObject externalReference(JSONObject manifest, JSONArray refs, String role)
+            throws JSONException {
+        for (int i = 0; i < refs.length(); i++) {
+            JSONObject ref = refs.optJSONObject(i);
+            if (ref != null && role.equals(ref.optString("role"))) return ref;
+        }
+        JSONObject data = manifest.getJSONObject("container");
+        String selection = "graphicsDriver".equals(role)
+                ? semicolonConfigValue(data.optString("graphicsDriverConfig", ""), "version")
+                : Container.normalizeGraphicsDriver(data.optString("graphicsDriver", Container.DEFAULT_GRAPHICS_DRIVER));
+        if (isDisabledValue(selection) || ("graphicsDriver".equals(role)
+                ? DefaultVersion.WRAPPER.equalsIgnoreCase(selection)
+                : !selection.startsWith("wrapper-") || isBundledWrapper(selection))) return null;
+        return new JSONObject().put("role", role).put("versionName", selection)
+                .put("entryName", selection).put("required", true);
+    }
+
+    private static boolean ensureGraphicsDriver(Context context, JSONObject manifest, JSONObject ref) {
         JSONObject data = manifest.optJSONObject("container");
-        if (data == null) return;
-        String requested = Container.normalizeGraphicsDriver(
-                data.optString("graphicsDriver", Container.DEFAULT_GRAPHICS_DRIVER));
-        if (!requested.startsWith("wrapper-") || isBundledWrapper(requested)) return;
+        if (data == null) return false;
+        String driverConfig = data.optString("graphicsDriverConfig", "");
+        String requested = ref.optString("versionName", ref.optString("entryName", ""));
+        String version = ref.optString("driverVersion", "");
+        String sha256 = ref.optString("sha256", "");
+        XclipseDriverManager manager = new XclipseDriverManager(context);
+        String installedId = manager.findExactInstalledDriverId(requested, version, sha256);
+        if (installedId.isEmpty()) {
+            File downloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+            List<File> archives = new ArrayList<>();
+            collectDriverPackages(downloads, 0, new int[]{0}, archives);
+            for (File archive : archives) {
+                if (!archive.getName().toLowerCase(Locale.ENGLISH).endsWith(".zip")
+                        || !PackageIdentity.sameDriver(requested,
+                        ExternalDownloadCatalog.stripPackageSuffix(archive.getName()))) continue;
+                installedId = manager.installVerifiedDriver(Uri.fromFile(archive), null, requested, version, sha256);
+                if (!installedId.isEmpty()) break;
+            }
+        }
+        if (installedId.isEmpty()) {
+            ExternalDownloadCatalog catalog = new ExternalDownloadCatalog(context);
+            for (ExternalDownloadCatalog.Item item : catalog.refreshDrivers()) {
+                if (!PackageIdentity.sameDriver(requested, item.name)
+                        && !PackageIdentity.sameDriver(requested, packageNameFromUrl(item.url))) continue;
+                File downloaded = downloadedPackage(context, item.url, ".zip");
+                try {
+                    if (Downloader.downloadFile(item.url, downloaded)) {
+                        installedId = manager.installVerifiedDriver(Uri.fromFile(downloaded), null,
+                                requested, version, sha256);
+                    }
+                }
+                finally { FileUtils.delete(downloaded); }
+                if (!installedId.isEmpty()) break;
+            }
+        }
+        if (installedId.isEmpty()) return false;
+        try {
+            data.put("graphicsDriverConfig", replaceSemicolonConfigValue(driverConfig, "version", installedId));
+            return true;
+        }
+        catch (JSONException error) { return false; }
+    }
 
+    private static boolean ensureWrapper(Context context, JSONObject manifest, JSONObject ref) {
+        String requested = CustomWrapperManager.toIdentifier(ref.optString("entryName", ref.optString("versionName", "")));
+        if (isBundledWrapper(requested)) return true;
+        String sha256 = ref.optString("sha256", "");
         CustomWrapperManager manager = new CustomWrapperManager(context);
-        String requestedId = CustomWrapperManager.toIdentifier(requested);
-        if (manager.getInstalledIds().contains(requestedId)) return;
-
-        File downloads = Environment.getExternalStoragePublicDirectory(
-                Environment.DIRECTORY_DOWNLOADS);
+        if (manager.matchesInstalled(requested, sha256)) return true;
+        File downloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
         List<File> archives = new ArrayList<>();
         collectDriverPackages(downloads, 0, new int[]{0}, archives);
         for (File archive : archives) {
-            String lower = archive.getName().toLowerCase(Locale.ENGLISH);
-            if (!lower.endsWith(".tzst")) continue;
-            String candidate = CustomWrapperManager.toIdentifier(
-                    ExternalDownloadCatalog.stripPackageSuffix(archive.getName()));
-            if (!requestedId.equals(candidate)) continue;
-            if (manager.install(Uri.fromFile(archive), requested) != null) return;
+            if (!requested.equals(CustomWrapperManager.toIdentifier(
+                    ExternalDownloadCatalog.stripPackageSuffix(archive.getName())))) continue;
+            if (manager.install(Uri.fromFile(archive), requested, sha256) != null) return true;
         }
-
         ExternalDownloadCatalog catalog = new ExternalDownloadCatalog(context);
-        ExternalDownloadCatalog.Item match = null;
         for (ExternalDownloadCatalog.Item item : catalog.refreshWrappers()) {
-            if (requestedId.equals(CustomWrapperManager.toIdentifier(item.name))) {
-                match = item;
-                break;
+            if (!requested.equals(CustomWrapperManager.toIdentifier(item.name))
+                    && !requested.equals(CustomWrapperManager.toIdentifier(packageNameFromUrl(item.url)))) continue;
+            String extension = item.url != null && item.url.toLowerCase(Locale.ENGLISH).endsWith(".so") ? ".so" : ".tzst";
+            File downloaded = downloadedPackage(context, item.url, extension);
+            try {
+                if (Downloader.downloadFile(item.url, downloaded)
+                        && manager.install(Uri.fromFile(downloaded), requested, sha256) != null) return true;
             }
+            finally { FileUtils.delete(downloaded); }
         }
-        if (match == null || match.url == null || match.url.isEmpty()) {
-            Log.w("CommunityConfig", "Wrapper not available in catalog: " + requested);
-            return;
-        }
+        return false;
+    }
 
-        File downloaded = new File(context.getCacheDir(),
-                "community-wrapper-" + Integer.toHexString(match.url.hashCode()) + ".tzst");
-        try {
-            if ((downloaded.isFile() || Downloader.downloadFile(match.url, downloaded))
-                    && manager.install(Uri.fromFile(downloaded), requested) != null) {
-                Log.i("CommunityConfig", "Recovered wrapper " + requestedId);
-            }
-        }
-        finally {
-            FileUtils.delete(downloaded);
-        }
+    private static File downloadedPackage(Context context, String url, String extension) {
+        return new File(context.getCacheDir(), "community-" + java.util.UUID.randomUUID() + extension);
+    }
+
+    private static String packageNameFromUrl(String url) {
+        if (url == null) return "";
+        String path = Uri.parse(url).getLastPathSegment();
+        return ExternalDownloadCatalog.stripPackageSuffix(path == null ? "" : path);
     }
 
     private static boolean isBundledWrapper(String wrapper) {
@@ -596,36 +595,8 @@ public final class CommunityConfigManager {
             if (++visited[0] > 800 || output.size() >= 200) return;
             if (file.isDirectory()) collectDriverPackages(file, depth + 1, visited, output);
             else if (file.getName().toLowerCase(Locale.ENGLISH)
-                    .matches(".*\\.(?:zip|tzst)$")) output.add(file);
+                    .matches(".*\\.(?:zip|tzst|so)$")) output.add(file);
         }
-    }
-
-    private static File bestDriverPackage(String requested, List<File> packages) {
-        File best = null;
-        int bestScore = -1;
-        for (File candidate : packages) {
-            int score = XclipseDriverManager.driverMatchScore(requested,
-                    ExternalDownloadCatalog.stripPackageSuffix(candidate.getName()));
-            if (score > bestScore) {
-                bestScore = score;
-                best = candidate;
-            }
-        }
-        return bestScore >= 82 ? best : null;
-    }
-
-    private static ExternalDownloadCatalog.Item bestRemoteDriver(
-            String requested, List<ExternalDownloadCatalog.Item> items) {
-        ExternalDownloadCatalog.Item best = null;
-        int bestScore = -1;
-        for (ExternalDownloadCatalog.Item item : items) {
-            int score = XclipseDriverManager.driverMatchScore(requested, item.name);
-            if (score > bestScore) {
-                bestScore = score;
-                best = item;
-            }
-        }
-        return bestScore >= 82 ? best : null;
     }
 
     public static JSONObject applyResolution(Context context, JSONObject manifest,
@@ -640,7 +611,14 @@ public final class CommunityConfigManager {
             ContentProfile selected = choices.get(i);
             String role = resolution.reference.optString("role", "");
             if (selected == null) {
-                if ("wineRuntime".equals(role)) {
+                if ("graphicsDriver".equals(role)) {
+                    data.put("graphicsDriverConfig", replaceSemicolonConfigValue(
+                            data.optString("graphicsDriverConfig", ""), "version", DefaultVersion.WRAPPER));
+                }
+                else if ("wrapper".equals(role)) {
+                    data.put("graphicsDriver", Container.DEFAULT_GRAPHICS_DRIVER);
+                }
+                else if ("wineRuntime".equals(role)) {
                     data.put("wineVersion", WineInfo.MAIN_WINE_VERSION.identifier());
                 }
                 else if ("box64".equals(role)) {
@@ -744,7 +722,30 @@ public final class CommunityConfigManager {
                 configValue(config, "version")), false, configValue(config, "version"));
         addReference(context, refs, "vkd3d", findByName(manager, ContentProfile.ContentType.CONTENT_TYPE_VKD3D,
                 configValue(config, "vkd3dVersion")), false, configValue(config, "vkd3dVersion"));
+        String driverId = semicolonConfigValue(container.getGraphicsDriverConfig(), "version");
+        if (!isDisabledValue(driverId) && !DefaultVersion.WRAPPER.equalsIgnoreCase(driverId)) {
+            XclipseDriverManager drivers = new XclipseDriverManager(context);
+            String name = drivers.getDisplayName(driverId);
+            JSONObject ref = new JSONObject().put("role", "graphicsDriver").put("type", "VulkanDriver")
+                    .put("entryName", driverId).put("versionName", name).put("required", true)
+                    .put("driverVersion", drivers.getDriverVersion(driverId));
+            addPayloadDigest(ref, drivers.getDriverLibrary(driverId));
+            refs.put(ref);
+        }
+        String wrapperId = Container.normalizeGraphicsDriver(container.getGraphicsDriver());
+        if (wrapperId.startsWith("wrapper-") && !isBundledWrapper(wrapperId)) {
+            JSONObject ref = new JSONObject().put("role", "wrapper").put("type", "Wrapper")
+                    .put("entryName", wrapperId).put("versionName", wrapperId).put("required", true);
+            addPayloadDigest(ref, new CustomWrapperManager(context).getPackageFile(wrapperId));
+            refs.put(ref);
+        }
         return refs;
+    }
+
+    private static void addPayloadDigest(JSONObject ref, File payload) throws JSONException {
+        if (payload == null) return;
+        try { ref.put("sha256", PackageIdentity.sha256(payload)); }
+        catch (IOException error) { Log.w("CommunityConfig", "Cannot fingerprint exported dependency", error); }
     }
 
     private static void addReference(Context context, JSONArray refs, String role,
@@ -768,7 +769,7 @@ public final class CommunityConfigManager {
             ref.put("contentId", JSONObject.NULL);
             ref.put("type", "");
             ref.put("versionName", fallbackName);
-            ref.put("versionCode", 0);
+            ref.put("versionCode", JSONObject.NULL);
             ref.put("entryName", fallbackName);
         }
         refs.put(ref);
@@ -887,7 +888,7 @@ public final class CommunityConfigManager {
 
         for (int index = 0; index < refs.length(); index++) {
             JSONObject ref = refs.optJSONObject(index);
-            if (ref == null) continue;
+            if (ref == null || isExternalReference(ref)) continue;
             String role = ref.optString("role", "");
             String requested = ref.optString("entryName", ref.optString("versionName", ""));
             if (isDisabledValue(requested) || isBundledReference(context, role, requested)
@@ -1013,7 +1014,7 @@ public final class CommunityConfigManager {
                                 + Integer.toHexString(candidate.remoteUrl.hashCode()) + ".wcp");
                 try {
                     if (Downloader.downloadFile(candidate.remoteUrl, downloaded)
-                            && installMatchingPackage(context, manager, ref, downloaded)) {
+                            && installMatchingPackage(context, manager, ref, downloaded, candidate)) {
                         Log.i("CommunityConfig", "Recovered remote content "
                                 + ContentsManager.getEntryName(candidate));
                         return true;
@@ -1025,7 +1026,8 @@ public final class CommunityConfigManager {
                 finally {
                     FileUtils.delete(downloaded);
                 }
-                return false;
+                // Another exact-name asset may carry the requested build; one
+                // failed or mismatched download must not hide later candidates.
             }
         }
         return false;
@@ -1033,8 +1035,19 @@ public final class CommunityConfigManager {
 
     private static boolean installMatchingPackage(Context context, ContentsManager manager,
                                                   JSONObject ref, File packageFile) {
+        return installMatchingPackage(context, manager, ref, packageFile, null);
+    }
+
+    private static boolean installMatchingPackage(Context context, ContentsManager manager,
+                                                  JSONObject ref, File packageFile, ContentProfile catalog) {
         final boolean[] installed = {false};
-        manager.extraContentFile(Uri.fromFile(packageFile),
+        // Catalog verCode may be a GitHub asset id, while a WCP has its own build
+        // code. Normalize only when the export actually used that catalog identity;
+        // exports of manually imported WCPs keep their real manifest identity.
+        Integer code = ref.has("versionCode") && !ref.isNull("versionCode") ? ref.optInt("versionCode") : null;
+        ContentProfile expected = catalog != null && ContentVersion.matches(catalog.verName, catalog.verCode,
+                ref.optString("versionName", ""), ref.optString("entryName", ""), code, false) ? catalog : null;
+        manager.extraContentFile(Uri.fromFile(packageFile), expected,
                 new ContentsManager.OnInstallFinishedCallback() {
                     private boolean staged = true;
 

@@ -9,6 +9,9 @@ import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.Window;
+import android.view.WindowManager;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CheckBox;
@@ -26,6 +29,7 @@ import androidx.preference.PreferenceManager;
 import com.winlator.cmod.R;
 import com.winlator.cmod.core.AppUtils;
 import com.winlator.cmod.core.Callback;
+import com.winlator.cmod.core.InterfaceMotion;
 import com.winlator.cmod.inputcontrols.ControllerManager;
 
 import java.util.ArrayList;
@@ -78,7 +82,8 @@ public class ContentDialog extends AppCompatDialog {
             frameLayout.setVisibility(View.VISIBLE);
             View view = themedInflater.inflate(layoutResId, frameLayout, false);
             FrameLayout.LayoutParams layoutParams = (FrameLayout.LayoutParams) view.getLayoutParams();
-            layoutParams.gravity = Gravity.CENTER;
+            layoutParams.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+            layoutParams.width = ViewGroup.LayoutParams.MATCH_PARENT;
             view.setLayoutParams(layoutParams);
             frameLayout.addView(view);
             inflatedLayout = view;
@@ -97,6 +102,22 @@ public class ContentDialog extends AppCompatDialog {
         });
 
         setContentView(contentView);
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        Window window = getWindow();
+        if (window != null) {
+            float density = getContext().getResources().getDisplayMetrics().density;
+            int availableWidth = getContext().getResources().getDisplayMetrics().widthPixels;
+            // Leave an outer margin on phones, and avoid very wide controls on tablets.
+            int width = Math.min(Math.round(680 * density),
+                    Math.max(1, availableWidth - Math.round(32 * density)));
+            window.setLayout(width, ViewGroup.LayoutParams.WRAP_CONTENT);
+            window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+        }
+        InterfaceMotion.apply(contentView);
     }
 
     public View getInflatedLayout() {
@@ -159,14 +180,17 @@ public class ContentDialog extends AppCompatDialog {
 
     public void setMessage(String message) {
         TextView tvMessage = findViewById(R.id.TVMessage);
+        View messageScroll = findViewById(R.id.SVDialogMessage);
 
         if (message != null && !message.isEmpty()) {
             tvMessage.setText(message);
             tvMessage.setVisibility(View.VISIBLE);
+            messageScroll.setVisibility(View.VISIBLE);
         }
         else {
             tvMessage.setText("");
             tvMessage.setVisibility(View.GONE);
+            messageScroll.setVisibility(View.GONE);
         }
     }
 
@@ -237,7 +261,7 @@ public class ContentDialog extends AppCompatDialog {
         ContentDialog dialog = new ContentDialog(context);
 
         final ListView listView = dialog.findViewById(R.id.ListView);
-        listView.getLayoutParams().width = AppUtils.getPreferredDialogWidth(context);
+        listView.getLayoutParams().width = ViewGroup.LayoutParams.MATCH_PARENT;
         listView.setChoiceMode(ListView.CHOICE_MODE_MULTIPLE);
         listView.setAdapter(new ArrayAdapter<>(context, android.R.layout.simple_list_item_multiple_choice, items));
         listView.setVisibility(View.VISIBLE);
@@ -260,7 +284,7 @@ public class ContentDialog extends AppCompatDialog {
         dialog.getContentView().findViewById(R.id.BTConfirm).setVisibility(View.GONE);
 
         final ListView listView = dialog.findViewById(R.id.ListView);
-        listView.getLayoutParams().width = AppUtils.getPreferredDialogWidth(context);
+        listView.getLayoutParams().width = ViewGroup.LayoutParams.MATCH_PARENT;
         listView.setChoiceMode(ListView.CHOICE_MODE_NONE);
         listView.setAdapter(new ArrayAdapter<>(context, android.R.layout.simple_list_item_single_choice, items));
         listView.setVisibility(View.VISIBLE);

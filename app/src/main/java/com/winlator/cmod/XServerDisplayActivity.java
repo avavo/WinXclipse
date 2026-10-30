@@ -124,6 +124,7 @@ import com.winlator.cmod.midi.MidiHandler;
 import com.winlator.cmod.midi.MidiManager;
 import com.winlator.cmod.renderer.EffectComposer;
 import com.winlator.cmod.renderer.GLRenderer;
+import com.winlator.cmod.renderer.FsrSettings;
 import com.winlator.cmod.renderer.effects.CRTEffect;
 import com.winlator.cmod.renderer.effects.ColorEffect;
 import com.winlator.cmod.renderer.effects.FSREffect;
@@ -930,8 +931,9 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         if (!"off".equals(sessionStartFsrMode) && !"on".equals(sessionStartFsrMode)) {
             float factor = GraphicsDriverConfigDialog.fsrFactorForMode(sessionStartFsrMode);
             ScreenInfo configured = new ScreenInfo(screenSize);
-            int guestW = Math.max(64, (Math.round(configured.width / factor)) & ~1);
-            int guestH = Math.max(64, (Math.round(configured.height / factor)) & ~1);
+            int[] guestSize = FsrSettings.guestSize(configured.width, configured.height, sessionStartFsrMode);
+            int guestW = guestSize[0];
+            int guestH = guestSize[1];
             if (guestW < configured.width && guestH < configured.height) {
                 fsrGuestWidth = guestW;
                 fsrGuestHeight = guestH;
@@ -3414,7 +3416,6 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
      * Returns "off", "on" (sharpen only) or a quality token.
      */
     private String resolveFsrState() {
-        boolean fsrOn = resolveTextureFilterMode() == 2;
         String upscaleExtra = shortcut != null
                 ? shortcut.getExtra("fsrUpscale", container.getExtra("fsrUpscale", null))
                 : container.getExtra("fsrUpscale", null);
@@ -3433,25 +3434,9 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         boolean filterNeverPersisted = !(shortcut != null
                 ? shortcut.hasExtra("rendererFilterMode") || container.hasExtra("rendererFilterMode")
                 : container.hasExtra("rendererFilterMode"));
-        if (filterNeverPersisted && !legacyFsr.equals("off")) {
-            fsrOn = true;
-            if (!legacyFsr.equals("on")) {
-                // A legacy quality mode implies EASU upscale at that mode,
-                // mirroring the VideoConfigDialog migration; "on" maps to
-                // sharpen-only (fsrUpscale falls back to "0" below).
-                if (upscaleExtra == null) upscaleExtra = "0";
-                if (qualityExtra == null) qualityExtra = legacyFsr;
-            }
-        }
-        if (!fsrOn) return "off";
-        // FSR upscaling is opt-in; an unset value keeps native resolution.
-        boolean fsrUpscale = !"0".equals(
-                upscaleExtra != null ? upscaleExtra
-                        : graphicsDriverConfig.getOrDefault("fsrUpscale", "0"));
-        if (!fsrUpscale) return "on";
-        return GraphicsDriverConfigDialog.normalizeFsrValue(
-                qualityExtra != null ? qualityExtra
-                        : graphicsDriverConfig.getOrDefault("fsrQuality", "balanced"));
+        return FsrSettings.resolve(resolveTextureFilterMode(), !filterNeverPersisted,
+                legacyFsr, upscaleExtra, graphicsDriverConfig.getOrDefault("fsrUpscale", "0"),
+                qualityExtra, graphicsDriverConfig.getOrDefault("fsrQuality", "balanced"));
     }
 
     private int resolveTextureFilterMode() {
@@ -3471,18 +3456,12 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
      * resolution) or fidelity/quality/balanced/performance/ultraperformance
      * (EASU upscale at display/1.3, /1.5, /1.7, /2.0 or /2.5 plus RCAS).
      * Keeps the texture filter selection in sync and persists the choice.
-     */
-    /**
-     * Applies an FSR1 state live: "off", "on" (RCAS sharpening at native
-     * resolution) or fidelity/quality/balanced/performance/ultraperformance
-     * (EASU upscale at display/1.3, /1.5, /1.7, /2.0 or /2.5 plus RCAS).
-     * Keeps the texture filter selection in sync and persists the choice.
      * FIX: live mode now actually resizes the X desktop (xServer) so RE2 /
      * other GPU-bound games see a smaller swapchain and gain FPS without
      * requiring a full container restart.
      */
     private void applyFsrRuntime(GLRenderer renderer, String state) {
-        fsrRuntimeState = state == null ? "off" : state;
+        fsrRuntimeState = FsrSettings.normalize(state);
         EffectComposer composer = renderer.getEffectComposer();
         if ("on".equals(fsrRuntimeState)) {
             renderer.setTextureFilterMode(2);
@@ -3503,8 +3482,10 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
             float factor = GraphicsDriverConfigDialog.fsrFactorForMode(fsrRuntimeState);
             int targetW = 0, targetH = 0;
             if (originalScreenWidth > 0 && originalScreenHeight > 0) {
-                targetW = Math.max(64, (Math.round(originalScreenWidth / factor)) & ~1);
-                targetH = Math.max(64, (Math.round(originalScreenHeight / factor)) & ~1);
+                int[] size = FsrSettings.guestSize(originalScreenWidth, originalScreenHeight,
+                        fsrRuntimeState);
+                targetW = size[0];
+                targetH = size[1];
             } else if (fsrGuestWidth > 0 && fsrGuestHeight > 0) {
                 // Fallback when original not known (should not happen).
                 targetW = fsrGuestWidth; targetH = fsrGuestHeight;
@@ -3516,6 +3497,12 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
                         xServer.updateScreenSize(targetW, targetH);
                         Log.i("FSRDebug", "FSR live resize: " + originalScreenWidth + "x" + originalScreenHeight + " -> " + targetW + "x" + targetH + " factor=" + factor);
                     } catch (Exception e) { Log.w("FSRDebug", "Live resize failed", e); }
+                }
+                // A failed live resize must not be recorded as successful or
+                // make the composer downsample a still-native guest again.
+                if (xServer != null) {
+                    targetW = xServer.screenInfo.width;
+                    targetH = xServer.screenInfo.height;
                 }
                 fsrGuestWidth = targetW; fsrGuestHeight = targetH;
                 composer.setFsrEffects(new FSREasuEffect(), new FSREffect(stops), targetW, targetH);
@@ -3936,7 +3923,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
 
     private void openInlineTaskManager() {
         View sidebar = navigationView.getHeaderView(0);
-        LinearLayout main = sidebar.findViewById(R.id.LLSidebarMain);
+        View main = sidebar.findViewById(R.id.SVSidebarMain);
         FrameLayout host = sidebar.findViewById(R.id.FLSidebarTaskManager);
         ImageButton close = sidebar.findViewById(R.id.BTCloseTaskManager);
         main.setVisibility(View.GONE);
@@ -3954,7 +3941,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         if (inlineTaskManagerPanel != null) inlineTaskManagerPanel.stop();
         if (navigationView != null && navigationView.getHeaderCount() > 0) {
             View sidebar = navigationView.getHeaderView(0);
-            sidebar.findViewById(R.id.LLSidebarMain).setVisibility(View.VISIBLE);
+            sidebar.findViewById(R.id.SVSidebarMain).setVisibility(View.VISIBLE);
             sidebar.findViewById(R.id.FLSidebarTaskManager).setVisibility(View.GONE);
             sidebar.findViewById(R.id.BTCloseTaskManager).setVisibility(View.GONE);
             if (sidebarTimeView != null) sidebarTimeView.setVisibility(View.VISIBLE);

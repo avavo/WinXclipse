@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="runtime_required_by_config">Required by config: %1$s</string>
+    <string name="runtime_content_missing">Content not found</string>
+    <string name="runtime_exact_unavailable">The exact package could not be installed from Downloads or the catalog. Install it and retry, or explicitly use the built-in default.</string>
+    <string name="runtime_use_system_driver">Use system driver</string>
+    <string name="runtime_use_builtin_wrapper">Use built-in wrapper</string>
+    <string name="runtime_closest_installed">Closest compatible installed content: %1$s (%2$d%% match)</string>
+    <string name="runtime_use_closest">Use closest</string>
+    <string name="runtime_use_default">Use default</string>
+    <string name="runtime_closest_builtin">Compatible built-in runtime: %1$s</string>
+    <string name="runtime_no_compatible_installed">No compatible installed package was found. Install the exact package from Downloads and import again, or use the default.</string>
+</resources>

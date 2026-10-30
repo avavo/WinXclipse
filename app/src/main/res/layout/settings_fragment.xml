@@ -33,6 +33,23 @@
             <FrameLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
+                <LinearLayout style="@style/FieldSet">
+                    <Spinner
+                        android:id="@+id/SStorageUnits"
+                        style="@style/ComboBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:spinnerMode="dialog" />
+                </LinearLayout>
+                <TextView
+                    android:id="@+id/TVStorageUnits"
+                    style="@style/FieldSetLabel"
+                    android:text="@string/storage_units" />
+            </FrameLayout>
+
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
 
                 <LinearLayout style="@style/FieldSet">
                     <TextView

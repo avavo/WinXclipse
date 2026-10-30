@@ -117,8 +117,10 @@ public class EffectComposer {
         if (sceneTargetWidth > 0 && sceneTargetHeight > 0) {
             // Explicit guest-resolution mode: the guest already renders at
             // this size, so never downscale it again.
-            sceneW = Math.min(sceneTargetWidth, Math.max(1, surfaceWidth));
-            sceneH = Math.min(sceneTargetHeight, Math.max(1, surfaceHeight));
+            int[] size = FsrSettings.sceneSize(sceneTargetWidth, sceneTargetHeight,
+                    surfaceWidth, surfaceHeight);
+            sceneW = size[0];
+            sceneH = size[1];
         } else {
             float factor = sceneScale;
             if (factor <= 1.0001f) {

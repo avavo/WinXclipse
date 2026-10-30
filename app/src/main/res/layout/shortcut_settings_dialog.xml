@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<com.winlator.cmod.widget.GestureScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:gravity="center_horizontal"
@@ -8,7 +8,7 @@
 
     <LinearLayout
         android:id="@+id/LLContent"
-        android:layout_width="340dp"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="center_horizontal"
         android:orientation="vertical"
@@ -1009,4 +1009,4 @@
 
         </LinearLayout>
     </LinearLayout>
-</ScrollView>
+</com.winlator.cmod.widget.GestureScrollView>

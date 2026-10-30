@@ -34,17 +34,26 @@ def text(element):
     return "".join(element.itertext())
 
 
+def merged_resources(directory):
+    result = {}
+    for path in sorted(directory.glob("*.xml")):
+        for key, node in resources(path).items():
+            assert key not in result, f"{directory}: duplicate resource {key}"
+            result[key] = node
+    return result
+
+
 def placeholders(value):
     return Counter(token for token in FORMAT.findall(value) if token != "%%")
 
 
 def main():
-    base = resources(RES / "values/strings.xml")
+    base = merged_resources(RES / "values")
     required = {key for key, node in base.items()
                 if node.tag == "string" and node.get("translatable") != "false"}
     arrays = resources(RES / "values/arrays.xml")
     for language in ("pt", "es"):
-        translated = resources(RES / f"values-{language}/strings.xml")
+        translated = merged_resources(RES / f"values-{language}")
         assert required <= translated.keys(), f"{language}: missing {required - translated.keys()}"
         assert translated.keys() <= base.keys(), f"{language}: unknown string keys"
         for key, node in translated.items():
@@ -57,7 +66,8 @@ def main():
         for key, node in translated_arrays.items():
             assert key in arrays, f"{language}: unknown array {key}"
             assert len(node) == len(arrays[key]), f"{language}: changed array indices in {key}"
-        print(f"{language}: {len(translated)} strings, {len(translated_arrays)} display arrays OK")
+        count = sum(node.tag == "string" for node in translated.values())
+        print(f"{language}: {count} strings, {len(translated_arrays)} display arrays OK")
     locales = ET.parse(RES / "xml/locales_config.xml").getroot()
     assert [node.attrib["{http://schemas.android.com/apk/res/android}name"]
             for node in locales] == ["en", "pt", "es"]

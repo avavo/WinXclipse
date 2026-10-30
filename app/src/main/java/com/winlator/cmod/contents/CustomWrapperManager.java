@@ -6,6 +6,10 @@ import android.util.Log;
 
 import com.winlator.cmod.core.FileUtils;
 import com.winlator.cmod.core.StringUtils;
+import com.winlator.cmod.core.PackageIdentity;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
+import java.util.UUID;
 import com.winlator.cmod.core.TarCompressorUtils;
 
 import java.io.File;
@@ -33,7 +37,7 @@ public final class CustomWrapperManager {
         if (files == null) return result;
         for (File file : files) {
             String name = file.getName().toLowerCase(Locale.ENGLISH);
-            if (!file.isFile() || !name.startsWith(PREFIX)) continue;
+            if (!file.isFile() || file.length() == 0 || !name.startsWith(PREFIX)) continue;
             if (!(name.endsWith(".tzst") || name.endsWith(".so"))) continue;
             result.add(stripExtension(name));
         }
@@ -48,6 +52,11 @@ public final class CustomWrapperManager {
     }
 
     public String install(Uri source, String requestedName) {
+        return install(source, requestedName, "");
+    }
+
+    /** A digest from an export identifies the exact archive, not just its label. */
+    public String install(Uri source, String requestedName, String expectedSha256) {
         String id = toIdentifier(requestedName);
         if (id.isEmpty()) return null;
 
@@ -58,23 +67,26 @@ public final class CustomWrapperManager {
         if (extension == null) return null;
 
         File destination = new File(wrapperDir, id + extension);
-        File temporary = new File(wrapperDir, ".installing-" + id + extension);
+        File temporary = new File(wrapperDir, ".installing-" + UUID.randomUUID() + extension);
         FileUtils.delete(temporary);
         File directSource = source.getPath() == null ? null : new File(source.getPath());
         boolean copied = directSource != null && directSource.isFile()
                 ? FileUtils.copy(directSource, temporary)
                 : FileUtils.copy(context, source, temporary, null);
-        if (!copied) return null;
+        if (!copied || !PackageIdentity.matchesSha256(temporary, expectedSha256)) {
+            FileUtils.delete(temporary);
+            return null;
+        }
 
         boolean valid;
         if (".so".equals(extension)) {
-            valid = temporary.length() > 4096;
+            valid = PackageIdentity.isArm64SharedLibrary(temporary);
         }
         else {
-            File validationDir = new File(context.getCacheDir(), "wrapper-validation-" + id);
+            File validationDir = new File(context.getCacheDir(), "wrapper-validation-" + UUID.randomUUID());
             FileUtils.delete(validationDir);
             valid = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, temporary, validationDir)
-                    && new File(validationDir, "usr/lib/libvulkan_wrapper.so").isFile();
+                    && PackageIdentity.isArm64SharedLibrary(new File(validationDir, "usr/lib/libvulkan_wrapper.so"));
             FileUtils.delete(validationDir);
         }
 
@@ -83,30 +95,53 @@ public final class CustomWrapperManager {
             return null;
         }
 
-        remove(id);
-        if (!temporary.renameTo(destination)) {
-            valid = FileUtils.copy(temporary, destination);
-            FileUtils.delete(temporary);
-            if (!valid) return null;
+        try {
+            // Keep the working wrapper until the validated replacement is published.
+            // A failed rename/copy previously removed it before returning failure.
+            Files.move(temporary.toPath(), destination.toPath(),
+                    StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            FileUtils.delete(new File(wrapperDir, id + (".so".equals(extension) ? ".tzst" : ".so")));
+            return id;
         }
-        return id;
+        catch (java.io.IOException error) {
+            Log.w(TAG, "Could not replace wrapper " + id, error);
+            return null;
+        }
+        finally { FileUtils.delete(temporary); }
     }
 
     public boolean apply(String wrapperId, File imageFsRoot) {
         String id = toIdentifier(wrapperId);
         File archive = new File(wrapperDir, id + ".tzst");
         if (archive.isFile()) {
-            return TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, archive, imageFsRoot);
+            return TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, archive, imageFsRoot)
+                    && PackageIdentity.isArm64SharedLibrary(
+                    new File(imageFsRoot, "usr/lib/libvulkan_wrapper.so"));
         }
 
         File library = new File(wrapperDir, id + ".so");
-        if (library.isFile()) {
+        if (PackageIdentity.isArm64SharedLibrary(library)) {
             File target = new File(imageFsRoot, "usr/lib/libvulkan_wrapper.so");
             boolean copied = FileUtils.copy(library, target);
             if (copied) FileUtils.chmod(target, 0755);
             return copied;
         }
         return false;
+    }
+
+    public boolean matchesInstalled(String wrapperId, String sha256) {
+        File file = getPackageFile(wrapperId);
+        return file != null && PackageIdentity.matchesSha256(file, sha256);
+    }
+
+    public File getPackageFile(String wrapperId) {
+        String id = toIdentifier(wrapperId);
+        if (id.isEmpty()) return null;
+        for (String extension : new String[]{".tzst", ".so"}) {
+            File file = new File(wrapperDir, id + extension);
+            if (file.isFile() && file.length() > 0) return file;
+        }
+        return null;
     }
 
     /** Changes whenever an installed wrapper file is replaced. */

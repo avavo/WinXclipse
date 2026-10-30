@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="620dp"
+    android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:baselineAligned="false"
     android:orientation="horizontal">
@@ -58,7 +58,7 @@
             android:layout_weight="1"
             android:background="?attr/winxPanelBackground">
 
-            <ScrollView
+            <com.winlator.cmod.widget.GestureScrollView
                 android:id="@+id/SVProcessList"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
@@ -73,7 +73,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical" />
-            </ScrollView>
+            </com.winlator.cmod.widget.GestureScrollView>
 
             <TextView
                 android:id="@+id/TVEmptyText"
@@ -104,12 +104,12 @@
                 android:id="@+id/TVCPUTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="CPU (0%)"
+                android:text="@string/task_manager_cpu_frequencies"
                 android:textColor="?colorAccent"
                 android:textSize="15sp"
                 android:textStyle="bold" />
 
-            <ScrollView
+            <com.winlator.cmod.widget.GestureScrollView
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
                 android:layout_marginTop="4dp"
@@ -122,7 +122,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical" />
-            </ScrollView>
+            </com.winlator.cmod.widget.GestureScrollView>
         </LinearLayout>
 
         <com.winlator.cmod.widget.MemoryUsageBarView

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<com.winlator.cmod.widget.SidebarLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="380dp"
+    android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="?attr/winxSurfaceColor"
     android:orientation="vertical"
@@ -52,11 +52,18 @@
         android:layout_marginBottom="12dp"
         android:background="@color/colorAccent" />
 
-    <LinearLayout
-        android:id="@+id/LLSidebarMain"
+    <com.winlator.cmod.widget.GestureScrollView
+        android:id="@+id/SVSidebarMain"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
+        android:fillViewport="true"
+        android:scrollbars="vertical">
+
+    <LinearLayout
+        android:id="@+id/LLSidebarMain"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
         android:orientation="vertical">
 
         <LinearLayout
@@ -376,6 +383,8 @@
         </LinearLayout>
     </LinearLayout>
 
+    </com.winlator.cmod.widget.GestureScrollView>
+
     <FrameLayout
         android:id="@+id/FLSidebarTaskManager"
         android:layout_width="match_parent"
@@ -426,4 +435,4 @@
             android:src="@drawable/icon_help"
             app:tint="@color/colorAccent" />
     </LinearLayout>
-</LinearLayout>
+</com.winlator.cmod.widget.SidebarLayout>

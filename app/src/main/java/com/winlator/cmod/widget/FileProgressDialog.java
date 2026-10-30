@@ -53,7 +53,8 @@ public class FileProgressDialog {
         btCancel = dialog.findViewById(R.id.BTCancel);
         btCancel.setOnClickListener(v -> {
             if (onCancelListener != null) onCancelListener.run();
-            dismiss();
+            btCancel.setEnabled(false);
+            btCancel.setText(R.string.download_stopping);
         });
     }
 
@@ -68,6 +69,9 @@ public class FileProgressDialog {
             tvFileName.setText("");
             tvProgressPercentage.setText("0%");
             tvProgressSize.setText("");
+            btCancel.setEnabled(true);
+            btCancel.setText(R.string.cancel);
+            progressBar.setIndeterminate(false);
             progressBar.setProgress(0);
             if (!dialog.isShowing()) dialog.show();
         });
@@ -83,6 +87,7 @@ public class FileProgressDialog {
         activity.runOnUiThread(() -> {
             if (dialog == null || !dialog.isShowing()) return;
             tvFileName.setText(fileName);
+            progressBar.setIndeterminate(false);
             double exactProgress = total > 0 ? Math.min(100.0, (current * 100.0) / total) : 0.0;
             int progress = current > 0 && total > 0 ? Math.max(1, (int) exactProgress) : 0;
             progressBar.setProgress(progress);
@@ -90,6 +95,16 @@ public class FileProgressDialog {
                     ? String.format(java.util.Locale.getDefault(), "%.1f%%", exactProgress)
                     : progress + "%");
             tvProgressSize.setText(customProgressText);
+        });
+    }
+
+    public void updateIndeterminate(String fileName, String details) {
+        activity.runOnUiThread(() -> {
+            if (dialog == null || !dialog.isShowing()) return;
+            progressBar.setIndeterminate(true);
+            tvFileName.setText(fileName);
+            tvProgressPercentage.setText("");
+            tvProgressSize.setText(details);
         });
     }
 

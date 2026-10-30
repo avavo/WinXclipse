@@ -1,350 +1,87 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:theme="@style/WinXclipseToggleControlsTheme"
-    android:fillViewport="true">
-
-    <LinearLayout
-        android:layout_width="300dp"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center_horizontal"
-        android:orientation="vertical"
-        android:padding="16dp">
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/gpu_name"
-            android:textAppearance="?android:attr/textAppearanceMedium" />
-
-        <Spinner
-            android:id="@+id/SVideoGPUName"
-            style="@style/ComboBox"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/graphics_driver_present_modes"
-                android:textAppearance="?android:attr/textAppearanceMedium" />
-
-            <ImageView
-                android:id="@+id/BTVideoPresentModeHelp"
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                android:layout_marginLeft="8dp"
-                android:src="@drawable/icon_help"
-                app:tint="?colorAccent" />
-        </LinearLayout>
-
-        <Spinner
-            android:id="@+id/SVideoPresentMode"
-            style="@style/ComboBox"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-            <TextView
-                android:id="@+id/TVVideoRefreshRate"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/video_refresh_rate" />
-            <Spinner
-                android:id="@+id/SVideoRefreshRate"
-                style="@style/ComboBox"
-                android:layout_width="170dp"
-                android:layout_height="44dp" />
-        </LinearLayout>
-
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/texture_filter"
-            android:textAppearance="?android:attr/textAppearanceMedium" />
-
-        <Spinner
-            android:id="@+id/SVideoTextureFilter"
-            style="@style/ComboBox"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
-
-        <LinearLayout
-            android:id="@+id/LLVideoFsrUpscale"
-            android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-            <TextView
-                android:id="@+id/TVVideoFsrUpscale"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/video_fsr_upscale" />
-            <Spinner
-                android:id="@+id/SVideoFsrUpscale"
-                style="@style/ComboBox"
-                android:layout_width="140dp"
-                android:layout_height="44dp" />
-            <ImageView
-                android:id="@+id/BTVideoFsrUpscaleHelp"
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                android:layout_marginLeft="8dp"
-                android:src="@drawable/icon_help"
-                app:tint="?colorAccent" />
-        </LinearLayout>
-        <LinearLayout
-            android:id="@+id/LLVideoFsrMode"
-            android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-            <TextView
-                android:id="@+id/TVVideoFsrMode"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/video_fsr_mode" />
-            <Spinner
-                android:id="@+id/SVideoFsrMode"
-                style="@style/ComboBox"
-                android:layout_width="170dp"
-                android:layout_height="44dp" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <CheckBox
-                android:id="@+id/CBVideoFrameGeneration"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/experimental_frame_generation" />
-
-            <ImageView
-                android:id="@+id/BTVideoFrameGenerationHelp"
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                android:layout_marginLeft="8dp"
-                android:src="@drawable/icon_help"
-                app:tint="?colorAccent" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:id="@+id/LLVideoFrameGenerationSettings"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:visibility="gone">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="@string/frame_generation_profile" />
-                <Spinner
-                    android:id="@+id/SVideoFrameGenerationProfile"
-                    style="@style/ComboBox"
-                    android:layout_width="140dp"
-                    android:layout_height="44dp" />
-                <ImageView
-                    android:id="@+id/BTVideoFrameGenerationProfileHelp"
-                    android:layout_width="22dp"
-                    android:layout_height="22dp"
-                    android:layout_marginLeft="8dp"
-                    android:src="@drawable/icon_help"
-                    app:tint="?colorAccent" />
+<com.winlator.cmod.widget.GestureScrollView xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="wrap_content" android:theme="@style/WinXclipseToggleControlsTheme" android:fillViewport="true">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_gravity="center_horizontal" android:orientation="vertical" android:padding="16dp" android:paddingTop="12dp">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:minHeight="48dp">
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:text="@string/gpu_name" android:textAppearance="?android:attr/textAppearanceMedium" android:layout_weight="1" android:layout_marginBottom="6dp" />
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal">
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/graphics_driver_present_modes" android:textAppearance="?android:attr/textAppearanceMedium" />
+                <ImageView android:id="@+id/BTVideoPresentModeHelp" android:layout_width="40dp" android:layout_height="40dp" android:layout_marginLeft="8dp" android:src="@drawable/icon_help" app:tint="?colorAccent" android:padding="9dp" android:background="?attr/selectableItemBackgroundBorderless" android:contentDescription="@string/help" />
             </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="@string/frame_generation_multiplier" />
-                <Spinner
-                    android:id="@+id/SVideoFrameGenerationMultiplier"
-                    style="@style/ComboBox"
-                    android:layout_width="170dp"
-                    android:layout_height="44dp" />
+            <Spinner android:id="@+id/SVideoPresentMode" style="@style/ComboBox" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp" />
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="vertical" android:paddingTop="12dp">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+                    <TextView android:id="@+id/TVVideoRefreshRate" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/video_refresh_rate" android:layout_marginBottom="6dp" />
+                </LinearLayout>
+                <Spinner android:id="@+id/SVideoRefreshRate" style="@style/ComboBox" android:layout_width="match_parent" android:layout_height="48dp" android:minHeight="48dp" />
             </LinearLayout>
-
-            <LinearLayout
-                android:id="@+id/LLVideoFrameGenerationAutoFPS"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="@string/frame_generation_target_fps" />
-                <EditText
-                    android:id="@+id/ETVideoFrameGenerationAutoFPS"
-                    android:layout_width="170dp"
-                    android:layout_height="44dp"
-                    android:gravity="center"
-                    android:inputType="number"
-                    android:maxLength="3"
-                    android:text="60" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/texture_filter" android:textAppearance="?android:attr/textAppearanceMedium" />
+            <Spinner android:id="@+id/SVideoTextureFilter" style="@style/ComboBox" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp" />
+            <LinearLayout android:id="@+id/LLVideoFsrUpscale" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="vertical" android:paddingTop="12dp">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+                    <TextView android:id="@+id/TVVideoFsrUpscale" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/video_fsr_upscale" android:layout_marginBottom="6dp" />
+                    <ImageView android:id="@+id/BTVideoFsrUpscaleHelp" android:layout_width="40dp" android:layout_height="40dp" android:layout_marginLeft="8dp" android:src="@drawable/icon_help" app:tint="?colorAccent" android:padding="9dp" android:background="?attr/selectableItemBackgroundBorderless" android:contentDescription="@string/help" />
+                </LinearLayout>
+                <Spinner android:id="@+id/SVideoFsrUpscale" style="@style/ComboBox" android:layout_width="match_parent" android:layout_height="48dp" android:minHeight="48dp" />
             </LinearLayout>
+            <LinearLayout android:id="@+id/LLVideoFsrMode" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="vertical" android:paddingTop="12dp">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+                    <TextView android:id="@+id/TVVideoFsrMode" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/video_fsr_mode" android:layout_marginBottom="6dp" />
+                </LinearLayout>
+                <Spinner android:id="@+id/SVideoFsrMode" style="@style/ComboBox" android:layout_width="match_parent" android:layout_height="48dp" android:minHeight="48dp" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:gravity="center_vertical" android:orientation="horizontal" android:minHeight="48dp">
+                <CheckBox android:id="@+id/CBVideoFrameGeneration" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/experimental_frame_generation" android:minHeight="48dp" />
+                <ImageView android:id="@+id/BTVideoFrameGenerationHelp" android:layout_width="40dp" android:layout_height="40dp" android:layout_marginLeft="8dp" android:src="@drawable/icon_help" app:tint="?colorAccent" android:padding="9dp" android:background="?attr/selectableItemBackgroundBorderless" android:contentDescription="@string/help" />
+            </LinearLayout>
+            <LinearLayout android:id="@+id/LLVideoFrameGenerationSettings" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="vertical" android:paddingTop="12dp">
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+                        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/frame_generation_profile" android:layout_marginBottom="6dp" />
+                        <ImageView android:id="@+id/BTVideoFrameGenerationProfileHelp" android:layout_width="40dp" android:layout_height="40dp" android:layout_marginLeft="8dp" android:src="@drawable/icon_help" app:tint="?colorAccent" android:padding="9dp" android:background="?attr/selectableItemBackgroundBorderless" android:contentDescription="@string/help" />
+                    </LinearLayout>
+                    <Spinner android:id="@+id/SVideoFrameGenerationProfile" style="@style/ComboBox" android:layout_width="match_parent" android:layout_height="48dp" android:minHeight="48dp" />
+                </LinearLayout>
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="vertical" android:paddingTop="12dp">
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+                        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/frame_generation_multiplier" android:layout_marginBottom="6dp" />
+                    </LinearLayout>
+                    <Spinner android:id="@+id/SVideoFrameGenerationMultiplier" style="@style/ComboBox" android:layout_width="match_parent" android:layout_height="48dp" android:minHeight="48dp" />
+                </LinearLayout>
+                <LinearLayout android:id="@+id/LLVideoFrameGenerationAutoFPS" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="vertical" android:paddingTop="12dp">
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+                        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/frame_generation_target_fps" android:layout_marginBottom="6dp" />
+                    </LinearLayout>
+                    <EditText android:id="@+id/ETVideoFrameGenerationAutoFPS" android:layout_width="match_parent" android:layout_height="48dp" android:gravity="center" android:inputType="number" android:maxLength="3" android:text="60" android:minHeight="48dp" />
+                </LinearLayout>
+            </LinearLayout>
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="vertical" android:paddingTop="12dp">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+                    <TextView android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/video_vsync_off" android:layout_marginBottom="6dp" />
+                    <ImageView android:id="@+id/BTVideoVsyncOffHelp" android:layout_width="40dp" android:layout_height="40dp" android:layout_marginLeft="8dp" android:src="@drawable/icon_help" app:tint="?colorAccent" android:padding="9dp" android:background="?attr/selectableItemBackgroundBorderless" android:contentDescription="@string/help" />
+                </LinearLayout>
+                <Spinner android:id="@+id/SVideoVsyncLimit" style="@style/ComboBox" android:layout_width="match_parent" android:layout_height="48dp" android:minHeight="48dp" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal" android:minHeight="48dp">
+                <CheckBox android:id="@+id/CBVideoUnlimitedImages" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/video_unlimited_images" android:minHeight="48dp" />
+                <ImageView android:id="@+id/BTVideoUnlimitedImagesHelp" android:layout_width="40dp" android:layout_height="40dp" android:layout_marginLeft="8dp" android:src="@drawable/icon_help" app:tint="?colorAccent" android:padding="9dp" android:background="?attr/selectableItemBackgroundBorderless" android:contentDescription="@string/help" />
+            </LinearLayout>
+            <CheckBox android:id="@+id/CBVideoSwapRedBlue" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/swap_red_blue_channels" android:minHeight="48dp" />
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:gravity="center_vertical" android:orientation="horizontal">
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/vkbasalt" android:textAppearance="?android:attr/textAppearanceMedium" />
+                <ImageView android:id="@+id/BTVideoVkBasaltHelp" android:layout_width="40dp" android:layout_height="40dp" android:layout_marginLeft="8dp" android:src="@drawable/icon_help" app:tint="?colorAccent" android:padding="9dp" android:background="?attr/selectableItemBackgroundBorderless" android:contentDescription="@string/help" />
+            </LinearLayout>
+            <Spinner android:id="@+id/SVideoVkBasaltEffect" style="@style/ComboBox" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp" />
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="4dp">
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/vkbasalt_sharpness_level" />
+                <TextView android:id="@+id/TVVideoSharpnessLevel" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+            </LinearLayout>
+            <SeekBar android:id="@+id/SBVideoSharpnessLevel" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100" android:min="0" />
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/vkbasalt_sharpness_denoise" />
+                <TextView android:id="@+id/TVVideoSharpnessDenoise" android:layout_width="wrap_content" android:layout_height="wrap_content" android:gravity="end" />
+            </LinearLayout>
+            <SeekBar android:id="@+id/SBVideoSharpnessDenoise" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="100" android:min="0" />
         </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="44dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <TextView
-                android:layout_width="0dp"
-                android:layout_weight="1"
-                android:layout_height="wrap_content"
-                android:text="@string/video_vsync_off" />
-
-            <Spinner
-                android:id="@+id/SVideoVsyncLimit"
-                style="@style/ComboBox"
-                android:layout_width="100dp"
-                android:layout_height="44dp" />
-
-            <ImageView
-                android:id="@+id/BTVideoVsyncOffHelp"
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                android:layout_marginLeft="8dp"
-                android:src="@drawable/icon_help"
-                app:tint="?colorAccent" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="44dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <CheckBox
-                android:id="@+id/CBVideoUnlimitedImages"
-                android:layout_width="0dp"
-                android:layout_weight="1"
-                android:layout_height="wrap_content"
-                android:text="@string/video_unlimited_images" />
-
-            <ImageView
-                android:id="@+id/BTVideoUnlimitedImagesHelp"
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                android:layout_marginLeft="8dp"
-                android:src="@drawable/icon_help"
-                app:tint="?colorAccent" />
-        </LinearLayout>
-        <CheckBox
-            android:id="@+id/CBVideoSwapRedBlue"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="@string/swap_red_blue_channels" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/vkbasalt"
-                android:textAppearance="?android:attr/textAppearanceMedium" />
-            <ImageView
-                android:id="@+id/BTVideoVkBasaltHelp"
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                android:layout_marginLeft="8dp"
-                android:src="@drawable/icon_help"
-                app:tint="?colorAccent" />
-        </LinearLayout>
-
-        <Spinner
-            android:id="@+id/SVideoVkBasaltEffect"
-            style="@style/ComboBox"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginTop="4dp">
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/vkbasalt_sharpness_level" />
-            <TextView
-                android:id="@+id/TVVideoSharpnessLevel"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content" />
-        </LinearLayout>
-        <SeekBar
-            android:id="@+id/SBVideoSharpnessLevel"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:max="100"
-            android:min="0" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal">
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/vkbasalt_sharpness_denoise" />
-            <TextView
-                android:id="@+id/TVVideoSharpnessDenoise"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:gravity="end" />
-        </LinearLayout>
-        <SeekBar
-            android:id="@+id/SBVideoSharpnessDenoise"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:max="100"
-            android:min="0" />
+        <Spinner android:id="@+id/SVideoGPUName" style="@style/ComboBox" android:layout_width="match_parent" android:layout_height="48dp" android:minHeight="48dp" />
     </LinearLayout>
-</ScrollView>
+</com.winlator.cmod.widget.GestureScrollView>

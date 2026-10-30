@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android" android:drawable="@drawable/compact_toggle_motion_on">
+    <target android:name="thumb" android:animation="@animator/compact_toggle_to_off_thumb" />
+    <target android:name="track" android:animation="@animator/compact_toggle_to_off_track" />
+</animated-vector>

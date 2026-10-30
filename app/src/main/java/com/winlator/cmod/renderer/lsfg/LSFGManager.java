@@ -4,6 +4,8 @@ import com.winlator.cmod.renderer.GLRenderer;
 
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
+import java.util.function.LongSupplier;
 
 /** Chooses real/generated frames and derives a stable interpolation cadence. */
 public final class LSFGManager {
@@ -12,7 +14,9 @@ public final class LSFGManager {
     public static final int BACKEND_NATIVE = 1;
     public static final int BACKEND_AUTO = 2;
 
-    private final GLRenderer renderer;
+    private final Runnable requestRender;
+    private final Consumer<Boolean> setApexMode;
+    private final LongSupplier nanoClock;
     private final float[] deltaHistory = new float[8];
     private final AtomicInteger generatedFrameCount = new AtomicInteger();
     private final AtomicInteger actualRealFrameCount = new AtomicInteger();
@@ -45,7 +49,17 @@ public final class LSFGManager {
     private volatile String backendFailure = "";
 
     public LSFGManager(GLRenderer renderer) {
-        this.renderer = renderer;
+        this(renderer.xServerView::requestRender, enabled -> {
+            renderer.xServerView.setApexMode(enabled);
+            if (enabled) renderer.startApexChoreographer();
+            else renderer.stopApexChoreographer();
+        }, System::nanoTime);
+    }
+
+    LSFGManager(Runnable requestRender, Consumer<Boolean> setApexMode, LongSupplier nanoClock) {
+        this.requestRender = requestRender;
+        this.setApexMode = setApexMode;
+        this.nanoClock = nanoClock;
         Arrays.fill(deltaHistory, DEFAULT_DELTA_NANOS);
     }
 
@@ -58,9 +72,7 @@ public final class LSFGManager {
             backendFailure = "";
         }
         else if (backendFailure.isEmpty()) backendState = "Off";
-        renderer.xServerView.setApexMode(enabled);
-        if (enabled) renderer.startApexChoreographer();
-        else renderer.stopApexChoreographer();
+        setApexMode.accept(enabled);
     }
 
     private void resetTiming() {
@@ -136,12 +148,12 @@ public final class LSFGManager {
     private void markFramePending(boolean gamePresent) {
         if (!active) return;
         pendingRealFrame = true;
-        pendingRealFrameTimeNanos = System.nanoTime();
+        pendingRealFrameTimeNanos = nanoClock.getAsLong();
         if (gamePresent) {
             pendingGameFrame = true;
             gameFrameCount.incrementAndGet();
         }
-        renderer.xServerView.requestRender();
+        requestRender.run();
     }
 
     /** Returns true while the current real frame still owes a synthetic draw. */
@@ -168,6 +180,11 @@ public final class LSFGManager {
         return renderingGeneratedFrame;
     }
 
+    /** Cursor/UI redraws reuse captured images instead of shifting temporal history. */
+    public boolean shouldCaptureFrame() {
+        return active && !renderingGeneratedFrame && (pendingRealFrame || realFramesCaptured == 0);
+    }
+
     public float getInterpolationFactor() {
         if (!active || realFramesCaptured < 2) return lowLatencyMode ? 1.0f : 0.0f;
         if (!renderingGeneratedFrame) return lowLatencyMode ? 1.0f : 0.0f;
@@ -183,7 +200,7 @@ public final class LSFGManager {
         boolean submittedByGame = pendingGameFrame;
         pendingRealFrame = false;
         pendingGameFrame = false;
-        long now = System.nanoTime();
+        long now = nanoClock.getAsLong();
         long gap = submittedByGame && lastRealFrameTimeNanos > 0
                 ? now - lastRealFrameTimeNanos : 0;
         long discontinuityThreshold = Math.max(250_000_000L,
@@ -202,7 +219,6 @@ public final class LSFGManager {
             historyInvalidated = false;
         }
         if (submittedByGame) {
-            actualRealFrameCount.incrementAndGet();
             presentedRealFrame = true;
             presentedRealFrameTimeNanos = pendingRealFrameTimeNanos;
             // A multiplier of 1.5x earns one generated frame every two
@@ -261,7 +277,10 @@ public final class LSFGManager {
             generatedFrameBudget = Math.max(0.0f, generatedFrameBudget - 1.0f);
         }
         else if (active && presentedRealFrame) {
-            long now = System.nanoTime();
+            // Count completed compositor work, not a captured image whose
+            // subsequent shader/draw may still fail.
+            actualRealFrameCount.incrementAndGet();
+            long now = nanoClock.getAsLong();
             long queueDelay = presentedRealFrameTimeNanos > 0
                     ? Math.max(0, now - presentedRealFrameTimeNanos) : 0;
             float sample = queueDelay + (lowLatencyMode ? 0 : typicalDeltaNanos);

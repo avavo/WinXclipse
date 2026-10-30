@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="utf-8"?>
+<objectAnimator xmlns:android="http://schemas.android.com/apk/res/android" android:propertyName="fillColor" android:valueFrom="#777777" android:valueTo="@color/colorAccentDark" android:valueType="colorType" android:duration="140" />

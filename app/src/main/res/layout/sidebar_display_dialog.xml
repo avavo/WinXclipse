@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<com.winlator.cmod.widget.GestureScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:theme="@style/WinXclipseToggleControlsTheme">
 
     <LinearLayout
-        android:layout_width="300dp"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="center_horizontal"
         android:orientation="vertical"
@@ -352,4 +352,4 @@
                 android:text="@string/pip_mode" />
         </LinearLayout>
     </LinearLayout>
-</ScrollView>
+</com.winlator.cmod.widget.GestureScrollView>

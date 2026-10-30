@@ -123,7 +123,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
         final Context context = getContext();
         inputControlsManager = new InputControlsManager(context);
         LinearLayout llContent = findViewById(R.id.LLContent);
-        llContent.getLayoutParams().width = AppUtils.getPreferredDialogWidth(context);
+        llContent.getLayoutParams().width = ViewGroup.LayoutParams.MATCH_PARENT;
 
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
         boolean isDarkMode = AppUtils.isDarkMode(context);

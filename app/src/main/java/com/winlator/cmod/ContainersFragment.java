@@ -333,19 +333,36 @@ public class ContainersFragment extends Fragment {
             return;
         }
 
-        String message = "Required by config: " + current.requestedName();
-        if (current.similar != null) {
-            message += "\n\nClosest compatible installed content: "
-                    + com.winlator.cmod.contents.ContentsManager.getEntryName(current.similar)
-                    + " (" + current.similarity + "% match)";
+        String message = getString(R.string.runtime_required_by_config, current.requestedName());
+        String role = current.reference.optString("role", "");
+        if ("graphicsDriver".equals(role) || "wrapper".equals(role)) {
+            // A missing external driver/wrapper must not silently turn into
+            // another build or an unavailable saved identifier.
             AlertDialog dialog = new AlertDialog.Builder(requireContext())
-                    .setTitle("Content not found")
+                    .setTitle(R.string.runtime_content_missing)
+                    .setMessage(message + "\n\n" + getString(R.string.runtime_exact_unavailable))
+                    .setPositiveButton("graphicsDriver".equals(role)
+                            ? R.string.runtime_use_system_driver : R.string.runtime_use_builtin_wrapper,
+                            (dialogInterface, which) -> {
+                                choices.add(null);
+                                resolveImportedContents(manifest, resolutions, choices, index + 1);
+                            })
+                    .setNegativeButton(R.string.cancel, null)
+                    .create();
+            showCommunityDialog(dialog);
+            return;
+        }
+        if (current.similar != null) {
+            message += "\n\n" + getString(R.string.runtime_closest_installed,
+                    com.winlator.cmod.contents.ContentsManager.getEntryName(current.similar), current.similarity);
+            AlertDialog dialog = new AlertDialog.Builder(requireContext())
+                    .setTitle(R.string.runtime_content_missing)
                     .setMessage(message)
-                    .setPositiveButton("Use closest", (dialogInterface, which) -> {
+                    .setPositiveButton(R.string.runtime_use_closest, (dialogInterface, which) -> {
                         choices.add(current.similar);
                         resolveImportedContents(manifest, resolutions, choices, index + 1);
                     })
-                    .setNegativeButton("Continue without", (dialogInterface, which) -> {
+                    .setNegativeButton(R.string.runtime_use_default, (dialogInterface, which) -> {
                         choices.add(null);
                         resolveImportedContents(manifest, resolutions, choices, index + 1);
                     })
@@ -356,10 +373,10 @@ public class ContainersFragment extends Fragment {
                 && !current.requestedName().toLowerCase(java.util.Locale.ENGLISH).contains("arm64ec")
                 && !current.requestedName().toLowerCase(java.util.Locale.ENGLISH).matches(".*(^|[-_])x86($|[-_]).*")) {
             AlertDialog dialog = new AlertDialog.Builder(requireContext())
-                    .setTitle("Content not found")
-                    .setMessage(message + "\n\nClosest compatible built-in runtime: "
-                            + com.winlator.cmod.core.WineInfo.MAIN_WINE_VERSION.identifier())
-                    .setPositiveButton("Use closest", (dialogInterface, which) -> {
+                    .setTitle(R.string.runtime_content_missing)
+                    .setMessage(message + "\n\n" + getString(R.string.runtime_closest_builtin,
+                            com.winlator.cmod.core.WineInfo.MAIN_WINE_VERSION.identifier()))
+                    .setPositiveButton(R.string.runtime_use_closest, (dialogInterface, which) -> {
                         // Null intentionally maps wineRuntime to the bundled default.
                         choices.add(null);
                         resolveImportedContents(manifest, resolutions, choices, index + 1);
@@ -369,10 +386,9 @@ public class ContainersFragment extends Fragment {
             showCommunityDialog(dialog);
         } else {
             AlertDialog dialog = new AlertDialog.Builder(requireContext())
-                    .setTitle("Content not found")
-                    .setMessage(message + "\n\nNo sufficiently similar installed content was found."
-                            + "\n\nTip: install it from Downloads, then import the config again.")
-                    .setPositiveButton("Continue without", (dialogInterface, which) -> {
+                    .setTitle(R.string.runtime_content_missing)
+                    .setMessage(message + "\n\n" + getString(R.string.runtime_no_compatible_installed))
+                    .setPositiveButton(R.string.runtime_use_default, (dialogInterface, which) -> {
                         choices.add(null);
                         resolveImportedContents(manifest, resolutions, choices, index + 1);
                     })

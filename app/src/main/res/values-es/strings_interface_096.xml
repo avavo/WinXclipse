@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="container_section_identity">Contenedor</string>
+    <string name="container_section_display">Pantalla y gráficos</string>
+    <string name="container_name_hint">Elige un nombre para este contenedor</string>
+    <string name="task_manager_cpu_frequencies">Frecuencias de CPU</string>
+    <string name="task_manager_cpu_core_clock">Núcleo %1$d · %2$d / %3$d MHz</string>
+</resources>

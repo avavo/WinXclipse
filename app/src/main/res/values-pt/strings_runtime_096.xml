@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="runtime_required_by_config">Exigido pela configuração: %1$s</string>
+    <string name="runtime_content_missing">Conteúdo não encontrado</string>
+    <string name="runtime_exact_unavailable">Não foi possível instalar o pacote exato dos Downloads ou do catálogo. Instale-o e tente novamente, ou escolha usar o padrão integrado.</string>
+    <string name="runtime_use_system_driver">Usar driver do sistema</string>
+    <string name="runtime_use_builtin_wrapper">Usar wrapper integrado</string>
+    <string name="runtime_closest_installed">Conteúdo compatível instalado mais próximo: %1$s (%2$d%% de semelhança)</string>
+    <string name="runtime_use_closest">Usar mais próximo</string>
+    <string name="runtime_use_default">Usar padrão</string>
+    <string name="runtime_closest_builtin">Runtime integrado compatível: %1$s</string>
+    <string name="runtime_no_compatible_installed">Nenhum pacote compatível instalado foi encontrado. Instale o pacote exato nos Downloads e importe novamente, ou use o padrão.</string>
+</resources>

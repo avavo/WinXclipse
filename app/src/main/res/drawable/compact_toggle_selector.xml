@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="@drawable/compact_toggle_on" android:state_checked="true" />
-    <item android:drawable="@drawable/compact_toggle_off" />
-</selector>
+<animated-selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@+id/toggle_on" android:drawable="@drawable/compact_toggle_motion_on" android:state_checked="true" />
+    <item android:id="@+id/toggle_off" android:drawable="@drawable/compact_toggle_motion_off" />
+    <transition android:fromId="@id/toggle_off" android:toId="@id/toggle_on" android:drawable="@drawable/compact_toggle_to_on" />
+    <transition android:fromId="@id/toggle_on" android:toId="@id/toggle_off" android:drawable="@drawable/compact_toggle_to_off" />
+</animated-selector>

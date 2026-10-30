@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="48dp" android:height="26dp" android:viewportWidth="48" android:viewportHeight="26">
+    <path android:name="track" android:fillColor="@color/colorAccentDark" android:pathData="M13,1 L35,1 C41.63,1 47,6.37 47,13 C47,19.63 41.63,25 35,25 L13,25 C6.37,25 1,19.63 1,13 C1,6.37 6.37,1 13,1 Z" />
+    <group android:name="thumb" android:translateX="22">
+        <path android:fillColor="#FFF7FF" android:pathData="M13,3 A10,10 0,1 0,13 23 A10,10 0,1 0,13 3 Z" />
+    </group>
+</vector>

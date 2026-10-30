@@ -182,6 +182,12 @@ public class SettingsFragment extends Fragment {
         sLanguage.setSelection(LanguagePolicy.indexOf(preferences.getString(
                 AppLanguage.PREFERENCE, LanguagePolicy.SYSTEM)));
 
+        Spinner sStorageUnits = view.findViewById(R.id.SStorageUnits);
+        sStorageUnits.setAdapter(new ThemedSpinnerAdapter<>(context, new String[]{
+                getString(R.string.storage_units_gb), getString(R.string.storage_units_percent)}));
+        sStorageUnits.setSelection("percent".equals(preferences.getString(
+                com.winlator.cmod.core.StorageUsage.PREFERENCE, "gb")) ? 1 : 0);
+
         isDarkMode = AppUtils.isDarkMode(context);
         // Apply dynamic styles
         applyDynamicStyles(view, isDarkMode);
@@ -486,6 +492,8 @@ public class SettingsFragment extends Fragment {
             boolean useAlternativeIcon = cbUseAlternativeAppIcon.isChecked();
             SharedPreferences.Editor editor = preferences.edit();
 
+            editor.putString(com.winlator.cmod.core.StorageUsage.PREFERENCE,
+                    sStorageUnits.getSelectedItemPosition() == 1 ? "percent" : "gb");
             editor.putString(AppLanguage.PREFERENCE,
                     LanguagePolicy.OPTIONS[sLanguage.getSelectedItemPosition()]);
             editor.putBoolean(AppUtils.PREF_DARK_MODE, cbDarkMode.isChecked());
@@ -595,6 +603,7 @@ public class SettingsFragment extends Fragment {
 
     private void applyDynamicStylesRecursively(View view) {
         applyFieldSetLabelStyle(view.findViewById(R.id.TVAppLanguage), isDarkMode);
+        applyFieldSetLabelStyle(view.findViewById(R.id.TVStorageUnits), isDarkMode);
         TextView box86box64Label = view.findViewById(R.id.TVBox86Box64);
         applyFieldSetLabelStyle(box86box64Label, isDarkMode);
 

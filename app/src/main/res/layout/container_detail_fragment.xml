@@ -18,8 +18,13 @@
             android:paddingBottom="96dp">
 
             <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                style="@style/ContainerSectionHeading"
+                android:layout_marginTop="0dp"
+                android:text="@string/container_section_identity" />
+
+            <TextView
+                style="@style/ContainerFieldLabel"
+                android:labelFor="@id/ETName"
                 android:text="@string/name" />
 
             <EditText
@@ -27,7 +32,17 @@
                 android:id="@+id/ETName"
                 android:inputType="textCapSentences"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content" />
+                android:layout_height="52dp"
+                android:background="@drawable/container_name_field"
+                android:backgroundTint="@null"
+                android:hint="@string/container_name_hint"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp"
+                android:selectAllOnFocus="true" />
+
+            <TextView
+                style="@style/ContainerSectionHeading"
+                android:text="@string/container_section_display" />
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -145,8 +160,7 @@
             </LinearLayout>
 
             <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                style="@style/ContainerFieldLabel"
                 android:text="@string/graphics_driver" />
 
             <LinearLayout
@@ -170,8 +184,7 @@
             </LinearLayout>
 
             <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                style="@style/ContainerFieldLabel"
                 android:text="@string/wrapper" />
 
             <LinearLayout
@@ -209,8 +222,7 @@
             </LinearLayout>
 
             <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                style="@style/ContainerFieldLabel"
                 android:text="@string/video" />
 
             <LinearLayout
@@ -269,8 +281,7 @@
             </LinearLayout>
 
             <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                style="@style/ContainerFieldLabel"
                 android:text="@string/ddraw_wrapper"
                 android:visibility="gone" >
             </TextView>
@@ -285,8 +296,7 @@
             </Spinner>
 
             <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                style="@style/ContainerFieldLabel"
                 android:text="@string/audio_driver" />
 
             <LinearLayout
@@ -338,8 +348,7 @@
             </LinearLayout>
 
             <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                style="@style/ContainerFieldLabel"
                 android:text="@string/midi_sound_font"
                 android:visibility="gone" />
 
@@ -350,8 +359,7 @@
                 android:visibility="gone" />
 
             <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                style="@style/ContainerFieldLabel"
                 android:text="@string/lc_all" />
 
             <LinearLayout

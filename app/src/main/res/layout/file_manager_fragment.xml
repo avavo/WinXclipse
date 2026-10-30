@@ -33,7 +33,8 @@
                 android:paddingHorizontal="8.0dip"
                 android:focusable="true"
                 android:clickable="true"
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
+                android:layout_weight="1"
                 android:layout_height="40.0dip"
                 android:layout_marginStart="4.0dip">
                 <ImageView
@@ -47,9 +48,12 @@
                     android:textStyle="bold"
                     android:textColor="?colorAccent"
                     android:id="@+id/TVDriveName"
-                    android:layout_width="wrap_content"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:maxLines="1"
+                    android:ellipsize="end"
                     android:layout_height="wrap_content"
-                    android:text="@string/drive_d"
+                    android:text="@string/storage_locations"
                     android:layout_marginStart="6.0dip" />
                 <ImageView
                     android:layout_width="14.0dip"
@@ -58,17 +62,7 @@
                     android:layout_marginStart="2.0dip"
                     app:tint="?android:textColorSecondary" />
             </LinearLayout>
-            <TextView
-                android:textSize="12.0sp"
-                android:ellipsize="start"
-                android:id="@+id/TVCurrentPath"
-                android:layout_width="0.0dip"
-                android:layout_height="wrap_content"
-                android:text="/storage/emulated/0"
-                android:singleLine="true"
-                android:alpha="0.6"
-                android:paddingHorizontal="8.0dip"
-                android:layout_weight="1.0" />
+
             <ImageButton
                 android:id="@+id/BTSearch"
                 android:background="?selectableItemBackgroundBorderless"
@@ -100,6 +94,19 @@
                 android:contentDescription="@string/new_folder"
                 app:tint="?android:textColorPrimary" />
         </LinearLayout>
+        <TextView
+            android:textSize="12.0sp"
+            android:ellipsize="start"
+            android:id="@+id/TVCurrentPath"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:singleLine="true"
+            android:alpha="0.6"
+            android:paddingHorizontal="8.0dip"
+            android:minHeight="32dp"
+            android:gravity="center_vertical"
+            android:visibility="gone" />
         <LinearLayout
             android:id="@+id/LLSearchArea"
             android:layout_width="match_parent"
@@ -143,7 +150,8 @@
             android:layout_height="1.0dip" />
         <FrameLayout
             android:layout_width="match_parent"
-            android:layout_height="match_parent">
+            android:layout_height="0dp"
+            android:layout_weight="1">
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/RecyclerViewFiles"
                 android:layout_width="fill_parent"
@@ -157,6 +165,34 @@
                 android:alpha="0.5"
                 android:visibility="gone" />
         </FrameLayout>
+        <LinearLayout
+            android:id="@+id/LLStorageUsage"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="12dp">
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/storage_internal"
+                android:textStyle="bold"
+                android:textColor="?android:textColorPrimary" />
+            <ProgressBar
+                android:id="@+id/PBStorageUsage"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="8dp"
+                android:layout_marginVertical="6dp"
+                android:max="1000"
+                android:progressTint="?colorAccent" />
+            <TextView
+                android:id="@+id/TVStorageUsage"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="?android:textColorSecondary"
+                android:textSize="13sp" />
+        </LinearLayout>
     </LinearLayout>
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:layout_gravity="end|bottom|center"
@@ -165,6 +201,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_margin="16.0dip"
+        android:layout_marginBottom="16dp"
         android:src="@android:drawable/ic_menu_save"
-        android:contentDescription="Paste" />
+        android:contentDescription="@string/paste" />
 </FrameLayout>
