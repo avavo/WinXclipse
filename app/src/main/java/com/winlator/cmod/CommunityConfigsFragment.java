@@ -143,7 +143,7 @@ public class CommunityConfigsFragment extends Fragment {
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
-        MainActivity.setTabTitle(requireActivity(), "Community Configs");
+        MainActivity.setTabTitle(requireActivity(), R.string.community_configs);
         refresh();
         view.post(this::showFirstVisitNotice);
     }
@@ -224,7 +224,7 @@ public class CommunityConfigsFragment extends Fragment {
 
     private void refresh() {
         catalogLoaded = false;
-        emptyView.setText("Loading community configs…");
+        emptyView.setText(R.string.community_loading);
         emptyView.setVisibility(View.VISIBLE);
         android.app.Activity hostActivity = getActivity();
         android.content.Context appContext = requireContext().getApplicationContext();
@@ -319,7 +319,7 @@ public class CommunityConfigsFragment extends Fragment {
         if (emptyView == null) return;
         boolean empty = items.isEmpty();
         if (!catalogLoaded) {
-            emptyView.setText("Loading community configs…");
+            emptyView.setText(R.string.community_loading);
         }
         else if (!normalizedQuery.isEmpty() && empty) {
             emptyView.setText("No games match your search.");
@@ -726,7 +726,7 @@ public class CommunityConfigsFragment extends Fragment {
         AlertDialog dialog = new AlertDialog.Builder(requireContext())
                 .setTitle(game.name)
                 .setView(scroll)
-                .setNegativeButton("Cancel", null)
+                .setNegativeButton(R.string.cancel, null)
                 .setPositiveButton("Install", null)
                 .create();
         body.setTag(dialog);

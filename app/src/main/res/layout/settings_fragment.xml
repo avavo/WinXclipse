@@ -16,6 +16,23 @@
             <FrameLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
+                <LinearLayout style="@style/FieldSet">
+                    <Spinner
+                        android:id="@+id/SAppLanguage"
+                        style="@style/ComboBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:spinnerMode="dialog" />
+                </LinearLayout>
+                <TextView
+                    android:id="@+id/TVAppLanguage"
+                    style="@style/FieldSetLabel"
+                    android:text="@string/app_language" />
+            </FrameLayout>
+
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
 
                 <LinearLayout style="@style/FieldSet">
                     <TextView
@@ -240,7 +257,7 @@
                 <TextView
                     android:id="@+id/TVTheme"
                     style="@style/FieldSetLabel"
-                    android:text="Theme" />
+                    android:text="@string/theme" />
             </FrameLayout>
 
             <!-- Launcher icon -->
@@ -293,7 +310,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Frontend Export Path" />
+                        android:text="@string/frontend_export_path" />
 
                     <LinearLayout
                         android:layout_width="match_parent"
@@ -305,18 +322,18 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="Default Path: Downloads/WinXclipse/Frontend" />
+                            android:text="@string/frontend_default_path" />
                         <Button
                             android:id="@+id/BTChooseFrontendExportPath"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Choose Path" />
+                            android:text="@string/choose_path" />
                     </LinearLayout>
                 </LinearLayout>
                 <TextView
                     android:id="@+id/TVShortcutSettings"
                     style="@style/FieldSetLabel"
-                    android:text="Shortcut Settings" />
+                    android:text="@string/shortcut_settings" />
             </FrameLayout>
 
 
@@ -344,7 +361,7 @@
                                     android:id="@+id/CBEnableCustomApiKey"
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
-                                    android:text="Set SteamGrid API Key? (Cover Art)" />
+                                    android:text="@string/steamgrid_custom_key" />
 
                                 <ImageView
                                     android:id="@+id/BTHelpApiKey"
@@ -358,14 +375,14 @@
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="8dp"
-                                android:hint="Enter your API Key here"
+                                android:hint="@string/steamgrid_key_hint"
                                 android:visibility="gone" />
                         </LinearLayout>
 
                         <TextView
                             android:id="@+id/TVCustomApiKey"
                             style="@style/FieldSetLabel"
-                            android:text="SteamGridDB API Key" />
+                            android:text="@string/steamgrid_key" />
                     </FrameLayout>
 
                 </LinearLayout>
@@ -373,7 +390,7 @@
                 <TextView
                     android:id="@+id/TVBigPictureMode"
                     style="@style/FieldSetLabel"
-                    android:text="Big Picture Mode" />
+                    android:text="@string/shortcut_artwork" />
             </FrameLayout>
 
             <FrameLayout
@@ -433,14 +450,14 @@
                         android:id="@+id/CBXinputToggle"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Disable Controller Input"
+                        android:text="@string/disable_controller_input"
                         android:layout_marginTop="8dp" />
 
                     <CheckBox
                         android:id="@+id/CBXTouchscreenToggle"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Enable Touchscreen Mode Globally"
+                        android:text="@string/touchscreen_global"
                         android:layout_marginTop="8dp" />
 
                 </LinearLayout>
@@ -583,7 +600,7 @@
                         android:id="@+id/BTConfigureAnalogSticks"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Override Joystick Behavior"
+                        android:text="@string/override_joystick"
                         android:layout_marginTop="8dp" />
 
                 </LinearLayout>
@@ -790,7 +807,7 @@
                         android:layout_height="44dp"
                         android:layout_marginVertical="2dp"
                         android:layout_gravity="center_horizontal"
-                        android:text="Backup Data" />
+                        android:text="@string/backup_data" />
 
                     <Button
                         style="@style/ButtonPositive"
@@ -799,7 +816,7 @@
                         android:layout_height="44dp"
                         android:layout_marginVertical="2dp"
                         android:layout_gravity="center_horizontal"
-                        android:text="Restore Data" />
+                        android:text="@string/restore_data" />
 
                 </LinearLayout>
 

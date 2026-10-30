@@ -227,7 +227,7 @@ public class EnvVarsView extends FrameLayout {
                     builder.setMultiChoiceItems(multiItems, checkedItems, (dialog, which, isChecked) -> {
                         checkedItems[which] = isChecked;
                     });
-                    builder.setPositiveButton("OK", (dialog, which) -> {
+                    builder.setPositiveButton(R.string.ok, (dialog, which) -> {
                         StringBuilder sb = new StringBuilder();
                         for (int i = 0; i < checkedItems.length; i++) {
                             if (checkedItems[i]) {
@@ -237,7 +237,7 @@ public class EnvVarsView extends FrameLayout {
                         }
                         multiSelectTextView.setText(sb.toString());
                     });
-                    builder.setNegativeButton("Cancel", null);
+                    builder.setNegativeButton(R.string.cancel, null);
                     builder.show();
                 });
 

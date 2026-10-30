@@ -253,7 +253,7 @@ public class GamepadConfiguratorDialog {
             if (currentProfileName != null && !currentProfileName.equals("-- No Profiles --")) {
                 // Ask the user if they want to overwrite or save as a new profile
                 new AlertDialog.Builder(context)
-                        .setTitle("Save Profile")
+                        .setTitle(R.string.save_profile)
                         .setMessage("Do you want to overwrite the current profile or save as a new profile?")
                         .setPositiveButton("Overwrite", (dialog, which) -> {
                             saveProfile(currentProfileName); // Overwrite with the current name
@@ -292,7 +292,7 @@ public class GamepadConfiguratorDialog {
 
     private void promptForProfileName(Callback<String> callback) {
         AlertDialog.Builder builder = new AlertDialog.Builder(dialog.getContext());
-        builder.setTitle("Enter Profile Name");
+        builder.setTitle(R.string.enter_profile_name);
 
         // Set up the input
         final EditText input = new EditText(dialog.getContext());
@@ -300,7 +300,7 @@ public class GamepadConfiguratorDialog {
         builder.setView(input);
 
         // Set up the buttons
-        builder.setPositiveButton("Save", (dialogInterface, which) -> {
+        builder.setPositiveButton(R.string.save, (dialogInterface, which) -> {
             String profileName = input.getText().toString().trim();
             if (!profileName.isEmpty()) {
                 callback.call(profileName); // Pass the name back to the callback
@@ -308,7 +308,7 @@ public class GamepadConfiguratorDialog {
                 Toast.makeText(context, "Profile name cannot be empty", Toast.LENGTH_SHORT).show();
             }
         });
-        builder.setNegativeButton("Cancel", (dialogInterface, which) -> dialogInterface.cancel());
+        builder.setNegativeButton(R.string.cancel, (dialogInterface, which) -> dialogInterface.cancel());
 
         builder.show();
     }

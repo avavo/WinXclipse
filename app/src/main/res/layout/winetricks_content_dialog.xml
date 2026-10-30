@@ -19,7 +19,7 @@
             android:id="@+id/editWinetricksVerb"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Enter Winetricks verb"
+            android:hint="@string/winetricks_verb"
             android:inputType="text" />
 
         <ScrollView
@@ -55,13 +55,13 @@
             android:id="@+id/btnMove"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Move Window" />
+            android:text="@string/move_window" />
 
         <Button
             android:id="@+id/btnExecuteWinetricks"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Execute Winetricks" />
+            android:text="@string/execute_winetricks" />
 
         <!--
         <Button
@@ -75,26 +75,26 @@
             android:id="@+id/btnOpenWinetricksFolder"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Open Winetricks Folder" />
+            android:text="@string/open_winetricks_folder" />
 
         <Button
             android:id="@+id/btnTransparentToggle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Toggle Transparency" />
+            android:text="@string/toggle_transparency" />
 
         <!-- **NEW** Hide/Minimize button -->
         <Button
             android:id="@+id/btnHideWinetricks"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Hide Winetricks" />
+            android:text="@string/hide_winetricks" />
 
         <Button
             android:id="@+id/btnRestartWineserver"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Restart Wineserver" />
+            android:text="@string/restart_wineserver" />
 
 
     </LinearLayout>

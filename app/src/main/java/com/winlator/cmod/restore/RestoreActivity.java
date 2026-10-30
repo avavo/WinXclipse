@@ -18,6 +18,11 @@ import java.util.concurrent.Executors;
 
 public class RestoreActivity extends Activity {
 
+    @Override
+    protected void attachBaseContext(android.content.Context base) {
+        super.attachBaseContext(com.winlator.cmod.core.AppLanguage.attach(base));
+    }
+
     private PreloaderDialog preloaderDialog;
 
     @Override

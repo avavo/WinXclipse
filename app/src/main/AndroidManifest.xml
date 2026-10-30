@@ -48,6 +48,7 @@
         android:allowAudioPlaybackCapture="true"
         android:hardwareAccelerated="true"
         android:supportsRtl="true"
+        android:localeConfig="@xml/locales_config"
         tools:ignore="DataExtractionRules,GoogleAppIndexingWarning">
 
         <!-- Main activity -->

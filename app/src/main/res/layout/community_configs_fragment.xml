@@ -15,6 +15,6 @@
         android:layout_height="match_parent"
         android:gravity="center"
         android:padding="32dp"
-        android:text="Loading community configs…"
+        android:text="@string/community_loading"
         android:textSize="20sp" />
 </FrameLayout>

@@ -21,7 +21,7 @@
         android:layout_height="54dp"
         android:layout_marginStart="12dp"
         android:gravity="center_vertical"
-        android:text="WinXclipse"
+        android:text="@string/app_name_winxclipse"
         android:textColor="#F8FAFC"
         android:textSize="27sp"
         android:textStyle="bold" />

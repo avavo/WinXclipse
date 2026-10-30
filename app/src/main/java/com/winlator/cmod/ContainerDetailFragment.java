@@ -1294,6 +1294,8 @@ public class ContainerDetailFragment extends Fragment {
 
     public static void loadScreenSizeSpinner(View view, String selectedValue) {
         final Spinner sScreenSize = view.findViewById(R.id.SScreenSize);
+        sScreenSize.setAdapter(new com.winlator.cmod.widget.ThemedSpinnerAdapter<>(
+                sScreenSize.getContext(), view.getResources().getStringArray(R.array.screen_size_entries)));
 
         final LinearLayout llCustomScreenSize = view.findViewById(R.id.LLCustomScreenSize);
         sScreenSize.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {

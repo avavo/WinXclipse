@@ -17,7 +17,8 @@ public final class DriverSpinnerAdapter extends ThemedSpinnerAdapter<String> {
         super(context, ids);
         XclipseDriverManager manager = new XclipseDriverManager(context);
         List<String> installed = manager.enumerateInstalledDrivers();
-        for (String id : ids) labels.put(id, installed.contains(id) ? manager.getDisplayName(id) : id);
+        for (String id : ids) labels.put(id, installed.contains(id) ? manager.getDisplayName(id)
+                : "System".equals(id) ? context.getString(com.winlator.cmod.R.string.system) : id);
     }
 
     @Override public View getView(int position, View convertView, ViewGroup parent) {

@@ -50,6 +50,8 @@ import com.winlator.cmod.contentdialog.ContentDialog;
 import com.winlator.cmod.contents.ContentProfile;
 import com.winlator.cmod.contents.ContentsManager;
 import com.winlator.cmod.core.AppUtils;
+import com.winlator.cmod.core.AppLanguage;
+import com.winlator.cmod.core.LanguagePolicy;
 import com.winlator.cmod.core.ArrayUtils;
 import com.winlator.cmod.core.Callback;
 import com.winlator.cmod.core.DefaultVersion;
@@ -173,6 +175,12 @@ public class SettingsFragment extends Fragment {
         View view = inflater.inflate(R.layout.settings_fragment, container, false);
         final Context context = getContext();
         preferences = PreferenceManager.getDefaultSharedPreferences(context);
+
+        Spinner sLanguage = view.findViewById(R.id.SAppLanguage);
+        sLanguage.setAdapter(new ThemedSpinnerAdapter<>(context, new String[]{
+                getString(R.string.language_system), "English", "Português", "Español"}));
+        sLanguage.setSelection(LanguagePolicy.indexOf(preferences.getString(
+                AppLanguage.PREFERENCE, LanguagePolicy.SYSTEM)));
 
         isDarkMode = AppUtils.isDarkMode(context);
         // Apply dynamic styles
@@ -478,6 +486,8 @@ public class SettingsFragment extends Fragment {
             boolean useAlternativeIcon = cbUseAlternativeAppIcon.isChecked();
             SharedPreferences.Editor editor = preferences.edit();
 
+            editor.putString(AppLanguage.PREFERENCE,
+                    LanguagePolicy.OPTIONS[sLanguage.getSelectedItemPosition()]);
             editor.putBoolean(AppUtils.PREF_DARK_MODE, cbDarkMode.isChecked());
             editor.putBoolean(AppUtils.PREF_FOLLOW_SYSTEM_THEME, cbFollowSystemTheme.isChecked());
             editor.putBoolean(LauncherIconManager.PREF_USE_ALTERNATIVE_ICON,
@@ -552,6 +562,7 @@ public class SettingsFragment extends Fragment {
                 fragmentManager.beginTransaction()
                         .replace(R.id.FLFragmentContainer, new ContainersFragment())
                         .commit();
+                AppLanguage.applyPreference(requireActivity());
             }
         });
 
@@ -583,6 +594,7 @@ public class SettingsFragment extends Fragment {
     }
 
     private void applyDynamicStylesRecursively(View view) {
+        applyFieldSetLabelStyle(view.findViewById(R.id.TVAppLanguage), isDarkMode);
         TextView box86box64Label = view.findViewById(R.id.TVBox86Box64);
         applyFieldSetLabelStyle(box86box64Label, isDarkMode);
 
@@ -886,10 +898,10 @@ public class SettingsFragment extends Fragment {
 
     private void showBackupConfirmationDialog() {
         new AlertDialog.Builder(getContext())
-                .setTitle("Backup Data")
+                .setTitle(R.string.backup_data)
                 .setMessage("Do you want to create a backup of the app's data directory?")
-                .setPositiveButton("Yes", (dialog, which) -> backupAppData())
-                .setNegativeButton("No", null)
+                .setPositiveButton(R.string.yes, (dialog, which) -> backupAppData())
+                .setNegativeButton(R.string.no, null)
                 .show();
     }
 
@@ -1150,7 +1162,7 @@ public class SettingsFragment extends Fragment {
 //        tvGyroXSensitivity.setText("X Sensitivity: " + sbGyroXSensitivity.getProgress() + "%");
 //        tvGyroYSensitivity.setText("Y Sensitivity: " + sbGyroYSensitivity.getProgress() + "%");
 //        tvGyroSmoothing.setText("Smoothing: " + sbGyroSmoothing.getProgress() + "%");
-//        tvGyroDeadzone.setText("Deadzone: " + sbGyroDeadzone.getProgress() + "%");
+//        tvGyroDeadzone.setText(getString(R.string.deadzone, sbGyroDeadzone.getProgress()));
 //
 //        // Listeners for SeekBars
 //        sbGyroXSensitivity.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
@@ -1195,7 +1207,7 @@ public class SettingsFragment extends Fragment {
 //        sbGyroDeadzone.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
 //            @Override
 //            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-//                tvGyroDeadzone.setText("Deadzone: " + progress + "%");
+//                tvGyroDeadzone.setText(getString(R.string.deadzone, progress));
 //            }
 //
 //            @Override
@@ -1276,7 +1288,7 @@ public class SettingsFragment extends Fragment {
 //        sensorManager.registerListener(gyroListener, gyroscopeSensor, SensorManager.SENSOR_DELAY_GAME);
 //
 //        // Set up the dialog buttons
-//        builder.setPositiveButton("OK", (dialog, which) -> {
+//        builder.setPositiveButton(R.string.ok, (dialog, which) -> {
 //            SharedPreferences.Editor editor = preferences.edit();
 //            editor.putFloat("gyro_x_sensitivity", sbGyroXSensitivity.getProgress() / 100.0f);
 //            editor.putFloat("gyro_y_sensitivity", sbGyroYSensitivity.getProgress() / 100.0f);
@@ -1287,7 +1299,7 @@ public class SettingsFragment extends Fragment {
 //            editor.apply();
 //        });
 //
-//        builder.setNegativeButton("Cancel", null);
+//        builder.setNegativeButton(R.string.cancel, null);
 //
 //        // Show the dialog
 //        builder.create().show();
@@ -1300,7 +1312,7 @@ public class SettingsFragment extends Fragment {
 
         AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
         builder.setView(dialogView);
-        builder.setTitle("Configure Analog Sticks");
+        builder.setTitle(R.string.configure_analog_sticks);
         builder.setCancelable(false);
 
         // Initialize UI elements
@@ -1338,16 +1350,16 @@ public class SettingsFragment extends Fragment {
 
         // Set initial values
         sbLeftDeadzone.setProgress((int) currentDeadzoneLeft);
-        tvLeftDeadzone.setText("Deadzone: " + sbLeftDeadzone.getProgress() + "%");
+        tvLeftDeadzone.setText(getString(R.string.deadzone, sbLeftDeadzone.getProgress()));
 
         sbLeftSensitivity.setProgress((int) currentSensitivityLeft);
-        tvLeftSensitivity.setText("Sensitivity: " + sbLeftSensitivity.getProgress() + "%");
+        tvLeftSensitivity.setText(getString(R.string.sensitivity, sbLeftSensitivity.getProgress()));
 
         sbRightDeadzone.setProgress((int) currentDeadzoneRight);
-        tvRightDeadzone.setText("Deadzone: " + sbRightDeadzone.getProgress() + "%");
+        tvRightDeadzone.setText(getString(R.string.deadzone, sbRightDeadzone.getProgress()));
 
         sbRightSensitivity.setProgress((int) currentSensitivityRight);
-        tvRightSensitivity.setText("Sensitivity: " + sbRightSensitivity.getProgress() + "%");
+        tvRightSensitivity.setText(getString(R.string.sensitivity, sbRightSensitivity.getProgress()));
 
         cbInvertLeftX.setChecked(invertLeftX);
         cbInvertLeftY.setChecked(invertLeftY);
@@ -1360,7 +1372,7 @@ public class SettingsFragment extends Fragment {
         sbLeftDeadzone.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                tvLeftDeadzone.setText("Deadzone: " + progress + "%");
+                tvLeftDeadzone.setText(getString(R.string.deadzone, progress));
             }
 
             @Override
@@ -1373,7 +1385,7 @@ public class SettingsFragment extends Fragment {
         sbLeftSensitivity.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                tvLeftSensitivity.setText("Sensitivity: " + progress + "%");
+                tvLeftSensitivity.setText(getString(R.string.sensitivity, progress));
             }
 
             @Override
@@ -1386,7 +1398,7 @@ public class SettingsFragment extends Fragment {
         sbRightDeadzone.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                tvRightDeadzone.setText("Deadzone: " + progress + "%");
+                tvRightDeadzone.setText(getString(R.string.deadzone, progress));
             }
 
             @Override
@@ -1399,7 +1411,7 @@ public class SettingsFragment extends Fragment {
         sbRightSensitivity.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                tvRightSensitivity.setText("Sensitivity: " + progress + "%");
+                tvRightSensitivity.setText(getString(R.string.sensitivity, progress));
             }
 
             @Override
@@ -1410,7 +1422,7 @@ public class SettingsFragment extends Fragment {
         });
 
         // Set up the dialog buttons
-        builder.setPositiveButton("Save", (dialog, which) -> {
+        builder.setPositiveButton(R.string.save, (dialog, which) -> {
             // Retrieve and save the updated settings
             float newDeadzoneLeft = sbLeftDeadzone.getProgress() / 100.0f;
             float newDeadzoneRight = sbRightDeadzone.getProgress() / 100.0f;
@@ -1443,7 +1455,7 @@ public class SettingsFragment extends Fragment {
             // We'll assume ExternalController instances listen to preference changes
         });
 
-        builder.setNegativeButton("Cancel", null);
+        builder.setNegativeButton(R.string.cancel, null);
 
         // Create and show the dialog
         AlertDialog dialog = builder.create();

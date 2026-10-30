@@ -104,7 +104,7 @@ public class FrameRating extends FrameLayout implements Runnable {
         if (renderer != null)
             tvRenderer.setText(renderer);
         else
-            tvRenderer.setText("OpenGL");
+            tvRenderer.setText(R.string.opengl);
         if (gpuName != null) {
             tvGPU.setText(gpuName);
         }

@@ -214,7 +214,7 @@ public class ContainersFragment extends Fragment {
                 Shortcut fav = getFavoriteShortcut();
                 if (fav == null) {
                     new AlertDialog.Builder(getContext())
-                            .setTitle("Favorite")
+                            .setTitle(R.string.favorite)
                             .setMessage("No favorite assigned. Choose one now?")
                             .setPositiveButton("Choose", (d, w) -> {
                                 getParentFragmentManager().beginTransaction()
@@ -224,7 +224,7 @@ public class ContainersFragment extends Fragment {
                                         .replace(R.id.FLFragmentContainer, new ShortcutsFragment())
                                         .commit();
                             })
-                            .setNegativeButton("Cancel", null)
+                            .setNegativeButton(R.string.cancel, null)
                             .show();
                 } else {
                     runShortcut(fav);
@@ -349,7 +349,7 @@ public class ContainersFragment extends Fragment {
                         choices.add(null);
                         resolveImportedContents(manifest, resolutions, choices, index + 1);
                     })
-                    .setNeutralButton("Cancel", null)
+                    .setNeutralButton(R.string.cancel, null)
                     .create();
             showCommunityDialog(dialog);
         } else if ("wineRuntime".equals(current.reference.optString("role", ""))
@@ -364,7 +364,7 @@ public class ContainersFragment extends Fragment {
                         choices.add(null);
                         resolveImportedContents(manifest, resolutions, choices, index + 1);
                     })
-                    .setNegativeButton("Cancel", null)
+                    .setNegativeButton(R.string.cancel, null)
                     .create();
             showCommunityDialog(dialog);
         } else {
@@ -376,7 +376,7 @@ public class ContainersFragment extends Fragment {
                         choices.add(null);
                         resolveImportedContents(manifest, resolutions, choices, index + 1);
                     })
-                    .setNegativeButton("Cancel", null)
+                    .setNegativeButton(R.string.cancel, null)
                     .create();
             showCommunityDialog(dialog);
         }
@@ -528,10 +528,10 @@ public class ContainersFragment extends Fragment {
         builder.setMessage("This option will allow you to restore an exported container. To proceed, click OK and select your 'xuser-' directory. " +
                 "The container's settings will need to be configured after a successful import, but all files and shortcuts should be restored if you are restoring a real container. " +
                 "Beware, the directory you select will be copied into the app's storage directory, so be sure you have enough space. You can delete your copy afterward.");
-        builder.setPositiveButton("OK", (dialog, which) -> {
+        builder.setPositiveButton(R.string.ok, (dialog, which) -> {
             openFilePicker(); // Proceed to file picker
         });
-        builder.setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss());
+        builder.setNegativeButton(R.string.cancel, (dialog, which) -> dialog.dismiss());
         builder.show();
     }
 
@@ -540,10 +540,10 @@ public class ContainersFragment extends Fragment {
         AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
         builder.setTitle("Confirm Import");
         builder.setMessage("You selected: " + importDir.getPath() + ". Proceed to import the container?");
-        builder.setPositiveButton("Import", (dialog, which) -> {
+        builder.setPositiveButton(R.string.dxvk_import_conf, (dialog, which) -> {
             importContainer(uri); // Proceed with the import
         });
-        builder.setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss());
+        builder.setNegativeButton(R.string.cancel, (dialog, which) -> dialog.dismiss());
         builder.show();
     }
 
@@ -834,12 +834,12 @@ public class ContainersFragment extends Fragment {
             ScrollView scroll = new ScrollView(context);
             scroll.addView(fields);
             AlertDialog dialog = new AlertDialog.Builder(context)
-                    .setTitle("Export Community Config")
+                    .setTitle(R.string.export_community_config)
                     .setMessage("Fill in the game name, your Discord @, expected average FPS and compatibility status. "
                             + "The detected phone model cannot be changed. In Notes, mention any required fix, preset or variable; otherwise leave it blank.")
                     .setView(scroll)
-                    .setNegativeButton("Cancel", null)
-                    .setPositiveButton("Export", null)
+                    .setNegativeButton(R.string.cancel, null)
+                    .setPositiveButton(R.string.export, null)
                     .create();
             dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE)
                     .setOnClickListener(v -> {
@@ -973,7 +973,7 @@ public class ContainersFragment extends Fragment {
         Shortcut fav = getFavoriteShortcut();
         if (fav == null) {
             new AlertDialog.Builder(getContext())
-                    .setTitle("Favorite")
+                    .setTitle(R.string.favorite)
                     .setMessage("No favorite assigned. Choose one now?")
                     .setPositiveButton("Choose", (d, w) -> {
                         getParentFragmentManager().beginTransaction()
@@ -983,7 +983,7 @@ public class ContainersFragment extends Fragment {
                                 .replace(R.id.FLFragmentContainer, new ShortcutsFragment())
                                 .commit();
                     })
-                    .setNegativeButton("Cancel", null)
+                    .setNegativeButton(R.string.cancel, null)
                     .show();
         } else {
             runShortcut(fav);

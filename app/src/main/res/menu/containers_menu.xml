@@ -20,7 +20,7 @@
 
     <item
         android:id="@+id/action_favorite_star"
-        android:title="Favorite"
+        android:title="@string/favorite"
         android:icon="@drawable/ic_star_border"
     app:showAsAction="ifRoom" />
 
@@ -46,7 +46,7 @@
 
     <item
         android:id="@+id/containers_menu_import_config"
-        android:title="Import Community Config"
+        android:title="@string/import_community_config"
         android:icon="@drawable/icon_action_bar_import"
         app:showAsAction="never" />
 </menu>

@@ -194,7 +194,7 @@ import java.util.concurrent.Executors;
 
 import cn.sherlock.com.sun.media.sound.SF2Soundbank;
 
-public class XServerDisplayActivity extends AppCompatActivity implements NavigationView.OnNavigationItemSelectedListener {
+public class XServerDisplayActivity extends LocalizedActivity implements NavigationView.OnNavigationItemSelectedListener {
     private XServerView xServerView;
     private InputControlsView inputControlsView;
     private TouchpadView touchpadView;
@@ -4177,7 +4177,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         }
 
         final ContentDialog dialog = new ContentDialog(this, R.layout.hud_config_dialog);
-        dialog.setTitle("HUD Settings");
+        dialog.setTitle(R.string.hud_settings);
         dialog.setIcon(R.drawable.ic_hud);
 
         CheckBox cbEnable = dialog.findViewById(R.id.CBHudEnable);
@@ -4236,8 +4236,11 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         sbScale.setProgress(Math.round((initialScale - 0.5f) / 1.5f * 100));
         tvScale.setText(String.format(Locale.US, "%.1fx", initialScale));
 
-        String[] presets = {"Custom", "Top Left", "Top Center", "Top Right", "Middle Left",
-                "Center", "Middle Right", "Bottom Left", "Bottom Center", "Bottom Right"};
+        String[] presets = {getString(R.string.custom), getString(R.string.hud_pos_top_left),
+                getString(R.string.hud_pos_top_center), getString(R.string.hud_pos_top_right),
+                getString(R.string.hud_pos_middle_left), getString(R.string.hud_pos_center),
+                getString(R.string.hud_pos_middle_right), getString(R.string.hud_pos_bottom_left),
+                getString(R.string.hud_pos_bottom_center), getString(R.string.hud_pos_bottom_right)};
         spPreset.setAdapter(new ThemedSpinnerAdapter<>(dialog.getContext(), presets));
 
         cbEnable.setOnCheckedChangeListener((button, checked) -> {

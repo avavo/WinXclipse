@@ -55,10 +55,28 @@ public class ThemedSpinnerAdapter<T> extends ArrayAdapter<T> {
         if (!(view instanceof TextView)) return;
         TextView textView = (TextView) view;
         T item = getItem(position);
-        textView.setText(item == null ? "" : item.toString());
+        // getItem() stays invariant: runtime configuration code uses these values.
+        textView.setText(item == null ? "" : displayLabel(item.toString()));
         textView.setTextSize(textSizeSp);
         boolean dark = com.winlator.cmod.core.AppUtils.isDarkMode(getContext());
         textView.setTextColor(ContextCompat.getColor(getContext(),
                 dark ? android.R.color.white : android.R.color.black));
+    }
+
+    private String displayLabel(String value) {
+        int label;
+        switch (value) {
+            case "Custom": label = R.string.custom; break;
+            case "System": label = R.string.system; break;
+            case "None": label = R.string.none; break;
+            case "Enabled": label = R.string.enabled; break;
+            case "Disabled": label = R.string.disabled; break;
+            case "Fastest": label = R.string.fastest; break;
+            case "Fast": label = R.string.fast; break;
+            case "Slow": label = R.string.slow; break;
+            case "Slowest": label = R.string.slowest; break;
+            default: return value;
+        }
+        return getContext().getString(label);
     }
 }

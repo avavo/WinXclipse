@@ -52,7 +52,7 @@
             android:id="@+id/CBAutoGrabController"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Auto-grab controller (plug &amp; play)"
+            android:text="@string/controller_auto_grab"
             android:checked="true" />
 
         <CheckBox
@@ -69,7 +69,7 @@
             android:layout_height="40dp"
             android:layout_marginTop="4dp"
             android:layout_marginBottom="4dp"
-            android:text="Test Vibration" />
+            android:text="@string/test_vibration" />
 
         <CheckBox
             android:id="@+id/CBSimulateTouchScreen"

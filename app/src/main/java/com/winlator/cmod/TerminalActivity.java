@@ -18,7 +18,7 @@ import com.winlator.cmod.xenvironment.components.GuestProgramLauncherComponent;
 import java.io.File;
 import java.util.concurrent.Executors;
 
-public class TerminalActivity extends AppCompatActivity {
+public class TerminalActivity extends LocalizedActivity {
     private TextView outputTextView;
     private EditText commandInput;
     private Button executeButton;

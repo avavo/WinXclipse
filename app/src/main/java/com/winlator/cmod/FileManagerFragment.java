@@ -519,7 +519,7 @@ public class FileManagerFragment extends Fragment {
             tvDriveName.setText(R.string.drive_c);
             ivDriveIcon.setImageResource(R.drawable.ic_drive_wine);
         } else if (Objects.equals(path, Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).getAbsolutePath())) {
-            tvDriveName.setText("Drive D:");
+            tvDriveName.setText(R.string.drive_d);
             ivDriveIcon.setImageResource(R.drawable.ic_drive_storage);
         } else if (Objects.equals(path, Environment.getExternalStorageDirectory().getAbsolutePath())) {
             tvDriveName.setText("Internal Storage");
@@ -528,7 +528,7 @@ public class FileManagerFragment extends Fragment {
             tvDriveName.setText("Drive Z:");
             ivDriveIcon.setImageResource(R.drawable.ic_x11_icon);
         } else {
-            tvDriveName.setText("Storage");
+            tvDriveName.setText(R.string.drives);
             ivDriveIcon.setImageResource(R.drawable.ic_drive_storage);
         }
     }

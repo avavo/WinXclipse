@@ -23,7 +23,7 @@
             android:textSize="18sp"
             android:textStyle="bold"
             android:textColor="@color/colorPrimaryDark"
-            android:text="Copying files..."
+            android:text="@string/copying_files"
             android:layout_marginBottom="16dp" />
 
         <TextView

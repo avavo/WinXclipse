@@ -10,7 +10,7 @@
     <ImageView
         android:layout_width="72dp"
         android:layout_height="72dp"
-        android:contentDescription="WinXclipse"
+        android:contentDescription="@string/app_name_winxclipse"
         android:src="@mipmap/ic_launcher" />
 
     <TextView
@@ -18,7 +18,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
         android:gravity="center"
-        android:text="Uma nova versão está disponível"
+        android:text="@string/update_available"
         android:textSize="20sp"
         android:textStyle="bold" />
 
@@ -36,7 +36,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="6dp"
         android:gravity="center"
-        android:text="Baixe a versão mais recente pela página oficial."
+        android:text="@string/update_download_hint"
         android:textColor="?android:textColorSecondary"
         android:textSize="14sp" />
 

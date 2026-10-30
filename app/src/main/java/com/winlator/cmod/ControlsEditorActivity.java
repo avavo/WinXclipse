@@ -35,7 +35,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
 
-public class ControlsEditorActivity extends AppCompatActivity implements View.OnClickListener {
+public class ControlsEditorActivity extends LocalizedActivity implements View.OnClickListener {
     private InputControlsView inputControlsView;
     private ControlsProfile profile;
 

@@ -945,6 +945,8 @@ public class ShortcutSettingsDialog extends ContentDialog {
 
     public static void loadScreenSizeSpinner(View view, String selectedValue, boolean isDarkMode) {
         final Spinner sScreenSize = view.findViewById(R.id.SScreenSize);
+        sScreenSize.setAdapter(new com.winlator.cmod.widget.ThemedSpinnerAdapter<>(
+                sScreenSize.getContext(), view.getResources().getStringArray(R.array.screen_size_entries)));
 
         final LinearLayout llCustomScreenSize = view.findViewById(R.id.LLCustomScreenSize);
 

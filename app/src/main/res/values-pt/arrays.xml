@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="desktop_theme_entries">
+        <item>Seguir Android (padrão)</item>
+        <item>Claro</item>
+        <item>Escuro</item>
+    </string-array>
+    <string-array name="desktop_background_type_entries">
+        <item>Imagem</item>
+        <item>Cor sólida</item>
+    </string-array>
+    <string-array name="wincomponent_entries">
+        <item>Integrado (Wine)</item>
+        <item>Nativo (Windows)</item>
+    </string-array>
+    <string-array name="startup_selection_entries">
+        <item>Normal (carregar todos os serviços)</item>
+        <item>Essencial (somente serviços essenciais)</item>
+        <item>Agressivo (parar serviços ao iniciar)</item>
+    </string-array>
+    <string-array name="binding_type_entries">
+        <item>Teclado</item>
+        <item>Mouse</item>
+        <item>Controle</item>
+    </string-array>
+    <string-array name="touchscreenInputModesEntries">
+        <item>Touchpad</item>
+        <item>Tela de toque simulada</item>
+        <item>Toque direto</item>
+    </string-array>
+    <string-array name="transformCapturedPointerEntries">
+        <item>Não</item>
+        <item>Sentido horário</item>
+        <item>Sentido anti-horário</item>
+        <item>Invertido</item>
+        <item>Automático (touchpad)</item>
+    </string-array>
+    <string-array name="frame_generation_profile_entries">
+        <item>Rápido (menor uso de GPU)</item>
+        <item>Equilibrado (recomendado)</item>
+        <item>Qualidade (menos deformações)</item>
+    </string-array>
+    <string-array name="frame_generation_multiplier_entries">
+        <item>Automático (FPS alvo)</item>
+        <item>1.5x</item>
+        <item>2x</item>
+        <item>2.5x</item>
+        <item>3x</item>
+        <item>3.5x</item>
+        <item>4x</item>
+    </string-array>
+    <string-array name="hud_hardware_format_entries">
+        <item>Nome completo</item>
+        <item>Número do modelo</item>
+        <item>Só a marca</item>
+    </string-array>
+    <string-array name="hud_device_format_entries">
+        <item>Modelo (S24+, A55…)</item>
+        <item>Família Galaxy (Galaxy S, Galaxy A…)</item>
+    </string-array>
+</resources>

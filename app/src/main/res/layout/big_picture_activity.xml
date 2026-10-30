@@ -33,7 +33,7 @@
                 android:layout_alignParentTop="true"
                 android:layout_marginEnd="16dp"
                 android:layout_marginTop="8dp"
-                android:contentDescription="Settings"
+                android:contentDescription="@string/settings"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:nextFocusDown="@id/IVCoverArt"
@@ -45,7 +45,7 @@
                 android:id="@+id/settingsLabel"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Settings"
+                android:text="@string/settings"
                 android:background="@drawable/bg_transparent_dark"
                 android:textColor="@android:color/white"
                 android:gravity="center"
@@ -234,7 +234,7 @@
             android:layout_alignParentTop="true"
             android:layout_marginEnd="16dp"
             android:layout_marginTop="8dp"
-            android:contentDescription="Back"
+            android:contentDescription="@string/button_back"
             android:focusable="true"
             android:focusableInTouchMode="true"
             />
@@ -243,7 +243,7 @@
             android:id="@+id/backLabel"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Back"
+            android:text="@string/button_back"
             android:textColor="@android:color/white"
             android:gravity="center"
             android:layout_below="@id/backButton"
@@ -276,7 +276,7 @@
                     android:id="@+id/TVSettingsLabel"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Settings"
+                    android:text="@string/settings"
                     android:textColor="@android:color/white"
                     android:textSize="18sp"
                     android:textStyle="bold"
@@ -477,26 +477,26 @@
                             android:id="@+id/rbParallaxOff"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Off" />
+                            android:text="@string/off" />
 
                         <RadioButton
                             android:id="@+id/rbParallaxSlow"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Slow" />
+                            android:text="@string/slow" />
 
                         <RadioButton
                             android:id="@+id/rbParallaxDefault"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Default"
+                            android:text="@string/default_label"
                             android:checked="true" />
 
                         <RadioButton
                             android:id="@+id/rbParallaxFast"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Fast" />
+                            android:text="@string/fast" />
                     </RadioGroup>
 
                     <TextView

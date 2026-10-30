@@ -35,7 +35,7 @@ import com.winlator.cmod.inputcontrols.ExternalControllerBinding;
 import com.winlator.cmod.inputcontrols.InputControlsManager;
 import com.winlator.cmod.math.Mathf;
 
-public class ExternalControllerBindingsActivity extends AppCompatActivity {
+public class ExternalControllerBindingsActivity extends LocalizedActivity {
     private TextView emptyTextView;
     private ControlsProfile profile;
     private ExternalController controller;

@@ -14,7 +14,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginBottom="8dp"
-        android:text="Brightness"
+        android:text="@string/brightness"
         android:textAppearance="?android:attr/textAppearanceMedium" />
 
     <LinearLayout
@@ -45,7 +45,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
         android:layout_marginBottom="8dp"
-        android:text="Contrast"
+        android:text="@string/contrast"
         android:textAppearance="?android:attr/textAppearanceMedium" />
 
     <LinearLayout
@@ -76,7 +76,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
         android:layout_marginBottom="8dp"
-        android:text="Gamma"
+        android:text="@string/gamma"
         android:textAppearance="?android:attr/textAppearanceMedium" />
 
     <LinearLayout
@@ -107,7 +107,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
         android:layout_marginBottom="8dp"
-        android:text="Saturation"
+        android:text="@string/saturation"
         android:textAppearance="?android:attr/textAppearanceMedium" />
 
     <LinearLayout
