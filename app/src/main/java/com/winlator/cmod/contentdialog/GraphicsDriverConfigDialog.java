@@ -22,9 +22,12 @@ import com.winlator.cmod.core.AppUtils;
 import com.winlator.cmod.core.DefaultVersion;
 import com.winlator.cmod.core.FileUtils;
 import com.winlator.cmod.core.GPUInformation;
+import com.winlator.cmod.core.DriverCapabilities;
+import com.winlator.cmod.core.VulkanCapabilities;
 import com.winlator.cmod.core.StringUtils;
 import com.winlator.cmod.widget.MultiSelectionComboBox;
 import com.winlator.cmod.widget.ThemedSpinnerAdapter;
+import com.winlator.cmod.widget.DriverSpinnerAdapter;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -42,6 +45,12 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
     private final Spinner versionSpinner;
     private final Spinner vulkanVersionSpinner;
     private final MultiSelectionComboBox extensionsSpinner;
+    private final TextView extensionsStatus;
+    private DriverCapabilities.Request extensionRequest;
+    private String queriedDriver;
+    private int extensionRequestId;
+    private int queriedApiVersion;
+    private boolean extensionsReady;
     private final Spinner maxDeviceMemorySpinner;
     private final Spinner resourceTypeSpinner;
     private final CompoundButton syncFrameCheckBox;
@@ -76,6 +85,7 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
         versionSpinner = findViewById(R.id.SGraphicsDriverVersion);
         vulkanVersionSpinner = findViewById(R.id.SGraphicsDriverVulkanVersion);
         extensionsSpinner = findViewById(R.id.MSCAvailableExtensions);
+        extensionsStatus = findViewById(R.id.TVDriverExtensionsStatus);
         maxDeviceMemorySpinner = findViewById(R.id.SGraphicsDriverMaxDeviceMemory);
         resourceTypeSpinner = findViewById(R.id.SGraphicsDriverResourceType);
         syncFrameCheckBox = findViewById(R.id.CBSyncFrame);
@@ -135,7 +145,7 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
                 // Driver selection lives outside this configuration popup.  Keep the
                 // externally selected driver instead of replacing it with the hidden
                 // compatibility spinner's fallback value when the dialog is saved.
-                graphicsDriverVersionView.setText(initialVersion);
+                graphicsDriverVersionView.setText(new XclipseDriverManager(getContext()).getDisplayName(initialVersion));
             }
         });
     }
@@ -217,7 +227,7 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
                 context.getResources().getStringArray(
                         R.array.wrapper_graphics_driver_version_entries)));
         versions.addAll(new XclipseDriverManager(context).enumerateInstalledDrivers());
-        spinner.setAdapter(new ThemedSpinnerAdapter<>(context, new ArrayList<>(versions)));
+        spinner.setAdapter(new DriverSpinnerAdapter(context, new ArrayList<>(versions)));
         HashMap<String, String> config = parseGraphicsDriverConfig(
                 String.valueOf(configAnchor.getTag()));
         String wanted = config.getOrDefault("version", DefaultVersion.WRAPPER);
@@ -228,6 +238,8 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
                 HashMap<String, String> updated = parseGraphicsDriverConfig(
                         String.valueOf(configAnchor.getTag()));
                 updated.put("version", selectedValue(spinner));
+                if (!selectedValue(spinner).equalsIgnoreCase(config.getOrDefault("version", "")))
+                    updated.remove("driverApiVersion");
                 configAnchor.setTag(toGraphicsDriverConfig(updated));
             }
             @Override public void onNothingSelected(AdapterView<?> parent) {}
@@ -241,7 +253,8 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
         LinkedHashSet<String> versions = new LinkedHashSet<>(Arrays.asList(
                 context.getResources().getStringArray(R.array.wrapper_graphics_driver_version_entries)));
         versions.addAll(new XclipseDriverManager(context).enumerateInstalledDrivers());
-        versionSpinner.setAdapter(new ThemedSpinnerAdapter<>(context, new ArrayList<>(versions)));
+        if (!initialVersion.isEmpty()) versions.add(initialVersion);
+        versionSpinner.setAdapter(new DriverSpinnerAdapter(context, new ArrayList<>(versions)));
         setSpinnerSelectionWithFallback(versionSpinner, initialVersion, graphicsDriver);
     }
 
@@ -344,15 +357,41 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
     }
 
     private void refreshExtensions(String selectedVersion) {
-        String[] extensions = GPUInformation.enumerateExtensions();
-        if (extensions == null) extensions = new String[0];
-        extensionsSpinner.setItems(extensions, "Extensions");
-        extensionsSpinner.setSelectedItems(extensions);
-        if (initialVersion.equalsIgnoreCase(selectedVersion)) {
-            for (String extension : initialExtensionBlacklist.split(",")) {
-                if (!extension.isEmpty()) extensionsSpinner.unsetSelectedItem(extension);
+        if (selectedVersion.equals(queriedDriver) && extensionRequest != null) return;
+        if (extensionRequest != null) extensionRequest.close();
+        queriedDriver = selectedVersion;
+        int requestId = ++extensionRequestId;
+        extensionsReady = false;
+        queriedApiVersion = 0;
+        extensionsSpinner.setItems(new String[0], "Extensions");
+        extensionsSpinner.setEnabled(false);
+        extensionsStatus.setText(R.string.driver_extensions_loading);
+        extensionRequest = DriverCapabilities.query(getContext(), selectedVersion, capabilities -> {
+            if (requestId != extensionRequestId) return;
+            if (capabilities == null) {
+                extensionsStatus.setText(R.string.driver_extensions_failed);
+                return;
             }
-        }
+            queriedApiVersion = capabilities.apiVersion;
+            extensionsReady = true;
+            extensionsSpinner.setItems(capabilities.extensions, "Extensions");
+            extensionsSpinner.setSelectedItems(capabilities.extensions);
+            if (initialVersion.equalsIgnoreCase(selectedVersion)) {
+                for (String extension : initialExtensionBlacklist.split(","))
+                    if (!extension.isEmpty()) extensionsSpinner.unsetSelectedItem(extension);
+            }
+            extensionsSpinner.setEnabled(true);
+            int major = (queriedApiVersion >>> 22) & 0x7f;
+            int minor = (queriedApiVersion >>> 12) & 0x3ff;
+            extensionsStatus.setText(getContext().getString(R.string.driver_extensions_ready, major, minor));
+            loadSupportedVulkanVersions(getContext());
+        });
+    }
+
+    @Override public void dismiss() {
+        extensionRequestId++;
+        if (extensionRequest != null) extensionRequest.close();
+        super.dismiss();
     }
 
     private String writeGraphicsDriverConfig() {
@@ -361,7 +400,10 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
         // The driver is selected beside the wrapper in the container/shortcut screen.
         // This dialog only edits its options, so it must preserve that selection.
         result.put("version", initialVersion);
-        result.put("blacklistedExtensions", extensionsSpinner.getUnSelectedItemsAsString());
+        result.put("blacklistedExtensions", VulkanCapabilities.mergeBlacklist(initialExtensionBlacklist,
+                extensionsReady ? extensionsSpinner.getItems() : null, extensionsSpinner.getUnSelectedItemsAsString()));
+        if (extensionsReady && initialVersion.equalsIgnoreCase(queriedDriver))
+            result.put("driverApiVersion", Integer.toString(queriedApiVersion));
         result.put("maxDeviceMemory", StringUtils.parseNumber(selectedValue(maxDeviceMemorySpinner)));
         result.put("syncFrame", boolValue(syncFrameCheckBox));
         result.put("disablePresentWait", boolValue(disablePresentWaitCheckBox));
@@ -421,9 +463,14 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
     }
 
     private void loadSupportedVulkanVersions(Context context) {
+        String previous = selectedValue(vulkanVersionSpinner);
         ArrayList<String> versions = new ArrayList<>(Arrays.asList("1.1", "1.2", "1.3"));
-        if (supportsVulkan14(context)) versions.add("1.4");
+        boolean supports14 = queriedApiVersion > 0 ? VulkanCapabilities.supports14(queriedApiVersion)
+                : !DefaultVersion.WRAPPER.equalsIgnoreCase(initialVersion) || supportsVulkan14(context);
+        if (supports14) versions.add("1.4");
         vulkanVersionSpinner.setAdapter(new ThemedSpinnerAdapter<>(context, versions));
+        if (!previous.isEmpty()) AppUtils.setSpinnerSelectionFromValue(vulkanVersionSpinner,
+                versions.contains(previous) ? previous : "1.3");
     }
 
     public static boolean supportsVulkan14(Context context) {

@@ -4614,7 +4614,10 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             requestedVulkanVersion = "1.3";
         }
         if ("1.4".equals(requestedVulkanVersion)
-                && !GraphicsDriverConfigDialog.supportsVulkan14(this)) {
+                && DefaultVersion.WRAPPER.equalsIgnoreCase(xclipseDriverId)
+                && !GraphicsDriverConfigDialog.supportsVulkan14(this)
+                && !com.winlator.cmod.core.VulkanCapabilities.supports14(
+                        com.winlator.cmod.core.VulkanCapabilities.parseVersion(graphicsDriverConfig.get("driverApiVersion")))) {
             Log.w("GraphicsDriverExtraction",
                     "Vulkan 1.4 is not exposed by this device; clamping imported config to 1.3");
             requestedVulkanVersion = "1.3";

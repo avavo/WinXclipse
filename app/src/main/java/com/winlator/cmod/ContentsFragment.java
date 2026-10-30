@@ -709,7 +709,7 @@ public class ContentsFragment extends Fragment {
 
     private String externalTransferKey(ExternalDownloadCatalog.Item item) {
         String prefix = selectedCategory == CATEGORY_WRAPPERS ? "wrapper:" : "driver:";
-        return prefix + (item.url != null ? item.url : item.detail);
+        return prefix + (item.url != null ? item.url : item.installedId);
     }
 
     private File downloadOutput(String address) {
@@ -880,13 +880,9 @@ public class ContentsFragment extends Fragment {
         if (selectedCategory == CATEGORY_XCLIPSE_DRIVERS) {
             List<ExternalDownloadCatalog.Item> drivers = new ArrayList<>();
             for (String id : driverManager.enumerateInstalledDrivers()) {
-                String name = driverManager.getDriverName(id);
-                String version = driverManager.getDriverVersion(id);
-                if (name == null || name.isEmpty()) name = id;
-                if (version != null && !version.isEmpty() && !name.contains(version)) {
-                    name += " " + version;
-                }
-                drivers.add(new ExternalDownloadCatalog.Item(name, id, null));
+                String description = driverManager.getDriverDescription(id);
+                if (description.isEmpty()) description = driverManager.getDriverVersion(id);
+                drivers.add(new ExternalDownloadCatalog.Item(driverManager.getDisplayName(id), description, null, id));
             }
             if (remoteDrivers != null) drivers.addAll(remoteDrivers);
             showExternalItems(drivers);
@@ -989,8 +985,8 @@ public class ContentsFragment extends Fragment {
             holder.menu.setVisibility(installed && transfer == null ? View.VISIBLE : View.GONE);
             holder.menu.setOnClickListener(v -> ContentDialog.confirm(requireContext(),
                     R.string.do_you_want_to_remove_this_content, () -> {
-                        if (selectedCategory == CATEGORY_WRAPPERS) wrapperManager.remove(item.detail);
-                        else driverManager.removeDriver(item.detail);
+                        if (selectedCategory == CATEGORY_WRAPPERS) wrapperManager.remove(item.installedId);
+                        else driverManager.removeDriver(item.installedId);
                         loadContentList();
                     }));
             final boolean wrapperDownload = selectedCategory == CATEGORY_WRAPPERS;

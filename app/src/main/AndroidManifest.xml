@@ -137,6 +137,11 @@
             android:screenOrientation="sensor"
             android:exported="false" />
 
+        <service
+            android:name=".core.DriverProbeService"
+            android:process=":driver_probe"
+            android:exported="false" />
+
         <!-- FileProvider for sharing files -->
         <provider
             android:name="androidx.core.content.FileProvider"

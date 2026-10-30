@@ -23,6 +23,7 @@ add_library(winlator SHARED
         winlator/pulseaudio_reload_bridge.c
         winlator/patchelf_wrapper.cpp
         winlator/vulkan.cpp
+        winlator/driver_probe.cpp
         # MdiEx runtime (Core/Policy, Loader, Sched, MemShim, AHB, Surface)
         winxclipse_policy_engine/MdiEx_Core_1.0.0/wxp_core.c
         winxclipse_policy_engine/MdiEx_Core_1.0.0/wxp_xclipse_policy.c

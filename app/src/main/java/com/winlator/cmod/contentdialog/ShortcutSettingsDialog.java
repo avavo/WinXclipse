@@ -1252,7 +1252,8 @@ public class ShortcutSettingsDialog extends ContentDialog {
             String graphicsDriverConfig = vGraphicsDriverConfig.getTag().toString();
 
             tvGraphicsDriverVersion.setText(graphicsDriverLabel + "  ·  "
-                    + GraphicsDriverConfigDialog.getVersion(graphicsDriverConfig));
+                    + new com.winlator.cmod.contents.XclipseDriverManager(context).getDisplayName(
+                            GraphicsDriverConfigDialog.getVersion(graphicsDriverConfig)));
 
             vGraphicsDriverConfig.setOnClickListener((v) -> {
                 CheckBox experimentalBcn = vGraphicsDriverConfig.getRootView()

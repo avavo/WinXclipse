@@ -22,13 +22,13 @@ import java.util.Set;
 /** Dynamic catalog for Xclipse driver and wrapper downloads. */
 public final class ExternalDownloadCatalog {
     private static final String TAG = "ExternalDownloadCatalog";
-    private static final String DRIVER_CACHE_KEY = "xclipse_driver_release_cache_v2";
-    private static final String DRIVER_REFRESH_TIME_KEY = "xclipse_driver_release_refresh_time";
+    private static final String DRIVER_CACHE_KEY = "xclipse_driver_release_cache_v3";
+    private static final String DRIVER_REFRESH_TIME_KEY = "xclipse_driver_release_refresh_time_v3";
     private static final String WRAPPER_CACHE_KEY = "xclipse_wrapper_release_cache_v3";
     private static final String WRAPPER_REFRESH_TIME_KEY = "xclipse_wrapper_release_refresh_time_v3";
     /** "owner/name" lists every release; "owner/name@tag" pins one release. */
     private static final String[] DRIVER_REPOSITORIES = {
-            "WearyConcern1165/ExynosTools",
+            "JimVulkan/radv-xclipse",
             "avavo/WinXclipse@drivers_0.9"
     };
     private static final String[] WRAPPER_REPOSITORIES = {
@@ -39,11 +39,17 @@ public final class ExternalDownloadCatalog {
         public final String name;
         public final String detail;
         public final String url;
+        public final String installedId;
 
         public Item(String name, String detail, String url) {
+            this(name, detail, url, url == null ? detail : null);
+        }
+
+        public Item(String name, String detail, String url, String installedId) {
             this.name = name;
             this.detail = detail;
             this.url = url;
+            this.installedId = installedId;
         }
     }
 
@@ -93,10 +99,13 @@ public final class ExternalDownloadCatalog {
                     JSONObject item = new JSONObject();
                     try {
                         String packageName = stripPackageSuffix(fileName);
+                        String label = asset.optString("label", "").trim();
+                        if ("null".equals(label)) label = "";
                         item.put("name", wrappers
                                 ? CustomWrapperManager.toDisplayName(packageName)
-                                : packageName);
-                        item.put("detail", repositoryName + " • " + tag);
+                                : label.isEmpty() ? packageName : label);
+                        item.put("detail", repositoryName + " • " + tag
+                                + (release.optBoolean("prerelease", false) ? " • Preview" : ""));
                         item.put("url", url);
                         combined.put(item);
                     }

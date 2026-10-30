@@ -9,7 +9,7 @@ public final class DirectoryInstall {
     private DirectoryInstall() {}
 
     /** Returns a previous incomplete installation for cleanup after success. */
-    public static File commit(File staging, File destination) throws IOException {
+    public static synchronized File commit(File staging, File destination) throws IOException {
         if (staging == null || !staging.isDirectory()) throw new IOException("Missing staged package");
         File source = staging.getCanonicalFile();
         File target = destination.getCanonicalFile();
@@ -23,7 +23,9 @@ public final class DirectoryInstall {
         }
         File previous = null;
         if (target.exists()) {
-            previous = new File(source.getParentFile(), "previous-" + UUID.randomUUID());
+            // Keep recovery data outside temporary extraction trees. A caller
+            // cleaning staging after failure must not remove the previous package.
+            previous = new File(parent, ".previous-" + target.getName() + "-" + UUID.randomUUID());
             if (!target.renameTo(previous)) throw new IOException("Cannot stage previous package");
         }
         if (!source.renameTo(target)) {

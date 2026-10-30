@@ -378,6 +378,7 @@ public class ContentsManager {
             File[] fileList = typeFile.listFiles();
             if (fileList != null) {
                 for (File file : fileList) {
+                    if (file.getName().startsWith(".")) continue;
                     File proFile = new File(file, PROFILE_NAME);
                     if (proFile.exists() && proFile.isFile()) {
                         ContentProfile profile = readProfile(proFile);

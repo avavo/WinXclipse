@@ -51,6 +51,32 @@ public class DirectoryInstallTest {
         assertTrue(new File(destination, "old").isFile());
     }
 
+    @Test public void rollbackFailureKeepsRecoveryOutsideTemporaryTree() throws Exception {
+        File temporary = temp.newFolder();
+        File staging = new File(temporary, "payload");
+        assertTrue(staging.mkdir());
+        File destination = temp.newFolder();
+        Files.write(new File(destination, "old").toPath(), new byte[]{7});
+        File failing = new File(staging.getAbsolutePath()) {
+            @Override public File getCanonicalFile() { return this; }
+            @Override public boolean renameTo(File target) {
+                try {
+                    Files.createDirectory(target.toPath());
+                    Files.write(new File(target, "obstruction").toPath(), new byte[]{1});
+                }
+                catch (IOException error) { throw new RuntimeException(error); }
+                return false;
+            }
+        };
+        assertThrows(IOException.class, () -> DirectoryInstall.commit(failing, destination));
+        Files.delete(staging.toPath());
+        Files.delete(temporary.toPath());
+        File[] backups = temp.getRoot().listFiles(file -> file.getName().startsWith(".previous-"));
+        assertNotNull(backups);
+        assertEquals(1, backups.length);
+        assertArrayEquals(new byte[]{7}, Files.readAllBytes(new File(backups[0], "old").toPath()));
+    }
+
     @Test public void refusesOverlappingPaths() throws Exception {
         File staging = temp.newFolder();
         assertThrows(IOException.class, () -> DirectoryInstall.commit(staging, staging));

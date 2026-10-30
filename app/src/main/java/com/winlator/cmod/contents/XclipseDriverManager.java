@@ -9,6 +9,7 @@ import com.winlator.cmod.container.Container;
 import com.winlator.cmod.container.Shortcut;
 import com.winlator.cmod.container.ContainerManager;
 import com.winlator.cmod.core.DefaultVersion;
+import com.winlator.cmod.core.DirectoryInstall;
 import com.winlator.cmod.core.EnvVars;
 import com.winlator.cmod.core.FileUtils;
 import com.winlator.cmod.contentdialog.GraphicsDriverConfigDialog;
@@ -21,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
+import java.util.UUID;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -107,6 +109,33 @@ public class XclipseDriverManager {
         return driverVersion;
     }
 
+    public String getDriverDescription(String driverId) {
+        try {
+            JSONObject profile = new JSONObject(FileUtils.readString(new File(driverContentDir, driverId + "/meta.json")));
+            return profile.optString("description", "").trim();
+        }
+        catch (Exception error) { return ""; }
+    }
+
+    /** Display text is metadata, while the lowercase directory id stays stable for saved containers. */
+    public String getDisplayName(String driverId) {
+        if (!new File(driverContentDir, driverId + "/meta.json").isFile()) return driverId;
+        try {
+            String name = getDriverName(driverId);
+            return name == null || name.trim().isEmpty() ? driverId : name;
+        }
+        catch (RuntimeException error) { return driverId; }
+    }
+
+    public File getDriverLibrary(String driverId) {
+        if (driverId == null || !com.winlator.cmod.core.RuntimeFiles.hasPayload(driverContentDir, driverId)) return null;
+        File directory = new File(driverContentDir, driverId);
+        String name = getLibraryName(driverId);
+        if (name.isEmpty() || !com.winlator.cmod.core.RuntimeFiles.hasPayload(directory, name)) return null;
+        File library = new File(directory, name);
+        return library.isFile() ? library : null;
+    }
+
     private void reloadContainers(String driverId) {
         ContainerManager containerManager = new ContainerManager(context);
         String driverName = getDriverName(driverId);
@@ -149,7 +178,7 @@ public class XclipseDriverManager {
         if (files == null) return driversList;
         for (File f : files) {
             boolean fromResources = isFromResources("graphics_driver/xclipse-" + f.getName() + ".tzst");
-            if (!"tmp".equals(f.getName()) && !fromResources && new File(f, "meta.json").exists())
+            if (!f.getName().startsWith(".") && !"tmp".equals(f.getName()) && !fromResources && new File(f, "meta.json").exists())
                 driversList.add(f.getName());
         }
         return driversList;
@@ -256,11 +285,10 @@ public class XclipseDriverManager {
     }
 
     public String installDriver(Uri driverUri, Downloader.ProgressCallback progressCallback) {
-        File tmpDir = new File(driverContentDir, "tmp");
-        FileUtils.delete(tmpDir);
-        tmpDir.mkdirs();
-        File archive = new File(driverContentDir, ".driver-install.zip");
-        FileUtils.delete(archive);
+        File tmpDir = new File(driverContentDir, ".install-" + UUID.randomUUID());
+        if (!tmpDir.mkdirs()) return "";
+        File payload = new File(tmpDir, "payload");
+        File archive = new File(tmpDir, "driver.zip");
 
         try {
             reportProgress(progressCallback, 5);
@@ -270,16 +298,17 @@ public class XclipseDriverManager {
                     : FileUtils.copy(context, driverUri, archive, null);
             if (!copied) return "";
             reportProgress(progressCallback, 25);
-            if (!TarCompressorUtils.extractZip(archive, tmpDir)) return "";
+            if (!TarCompressorUtils.extractZip(archive, payload)) return "";
             reportProgress(progressCallback, 70);
 
-            File packageDir = findPackageRoot(tmpDir);
+            File packageDir = findPackageRoot(payload);
             File meta = new File(packageDir, "meta.json");
             if (!meta.isFile()) return "";
             JSONObject profile = new JSONObject(FileUtils.readString(meta));
             String displayName = profile.optString("name", "").trim();
             String libraryName = profile.optString("libraryName", "").trim();
             if (displayName.isEmpty() || libraryName.isEmpty()
+                    || !com.winlator.cmod.core.RuntimeFiles.hasPayload(packageDir, libraryName)
                     || !new File(packageDir, libraryName).isFile()) return "";
             reportProgress(progressCallback, 82);
 
@@ -287,20 +316,12 @@ public class XclipseDriverManager {
                     .replaceAll("[^a-z0-9._-]+", "-")
                     .replaceAll("-+", "-")
                     .replaceAll("^-|-$", "");
-            if (id.isEmpty()) return "";
+            if (id.isEmpty() || id.startsWith(".")) return "";
             File destination = new File(driverContentDir, id);
-            // Re-importing an already installed package is success. Returning
-            // an empty id here made automatic Community Config recovery report
-            // failure even though the exact driver was ready on disk.
-            if (destination.isDirectory()
-                    && new File(destination, "meta.json").isFile()
-                    && new File(destination, libraryName).isFile()) return id;
-            if (destination.exists()) FileUtils.delete(destination);
-
-            if (!FileUtils.copy(packageDir, destination)) {
-                FileUtils.delete(destination);
-                return "";
-            }
+            // A matching name does not mean matching driver bytes. Re-import
+            // the actual package instead of silently retaining an older build.
+            File previous = DirectoryInstall.commit(packageDir, destination);
+            if (previous != null) FileUtils.delete(previous);
             reportProgress(progressCallback, 100);
             return id;
         }
