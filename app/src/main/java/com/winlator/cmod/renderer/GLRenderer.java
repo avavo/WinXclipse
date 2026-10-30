@@ -448,6 +448,11 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
             Cursor cursor = pointWindow != null ? pointWindow.attributes.getCursor() : null;
             short x = xServer.pointer.getClampedX();
             short y = xServer.pointer.getClampedY();
+            int[] shown = mapFromForcedWindow(x, y);
+            if (shown != null) {
+                x = (short)shown[0];
+                y = (short)shown[1];
+            }
 
             if (cursor != null) {
                 if (cursor.isVisible()) renderDrawable(cursor.cursorImage, x - cursor.hotSpotX, y - cursor.hotSpotY, cursorMaterial);
@@ -475,7 +480,50 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
         try (XLock lock = xServer.lock(XServer.Lockable.WINDOW_MANAGER, XServer.Lockable.DRAWABLE_MANAGER)) {
             renderableWindows.clear();
             collectRenderableWindows(xServer.windowManager.rootWindow, xServer.windowManager.rootWindow.getX(), xServer.windowManager.rootWindow.getY());
+            updateForcedWindowMap();
         }
+    }
+
+    /**
+     * Where a force-fullscreen window really is and where it is drawn, as
+     * {srcX, srcY, srcW, srcH, dstX, dstY, dstW, dstH}; null when no window is stretched.
+     * Input is mapped through it so clicks land where the stretched image shows them.
+     */
+    private volatile int[] forcedWindowMap;
+
+    private void updateForcedWindowMap() {
+        int[] map = null;
+        for (RenderableWindow window : renderableWindows) {
+            if (!window.forceFullscreen || window.content == null) continue;
+            int width = window.content.width, height = window.content.height;
+            if (width <= 0 || height <= 0) continue;
+            // Same fit as renderDrawable(..., forceFullscreen = true).
+            short dstHeight = (short)Math.min(xServer.screenInfo.height, ((float)xServer.screenInfo.width / width) * height);
+            short dstWidth = (short)(((float)dstHeight / height) * width);
+            int dstX = (int)((xServer.screenInfo.width - dstWidth) * 0.5f);
+            int dstY = (int)((xServer.screenInfo.height - dstHeight) * 0.5f);
+            map = new int[]{window.rootX, window.rootY, width, height, dstX, dstY, dstWidth, dstHeight};
+        }
+        forcedWindowMap = map;
+    }
+
+    /** Screen point as the user sees it → point in the stretched window; null when none. */
+    public int[] mapToForcedWindow(int x, int y) {
+        int[] m = forcedWindowMap;
+        if (m == null || m[6] <= 0 || m[7] <= 0) return null;
+        int wx = m[0] + Math.round((x - m[4]) * (float)m[2] / m[6]);
+        int wy = m[1] + Math.round((y - m[5]) * (float)m[3] / m[7]);
+        return new int[]{Mathf.clamp(wx, m[0], m[0] + m[2] - 1), Mathf.clamp(wy, m[1], m[1] + m[3] - 1)};
+    }
+
+    /** The inverse, to draw the cursor over the stretched image. */
+    private int[] mapFromForcedWindow(int x, int y) {
+        int[] m = forcedWindowMap;
+        if (m == null || m[2] <= 0 || m[3] <= 0) return null;
+        return new int[]{
+                m[4] + Math.round((x - m[0]) * (float)m[6] / m[2]),
+                m[5] + Math.round((y - m[1]) * (float)m[7] / m[3]),
+        };
     }
 
     private void collectRenderableWindows(Window window, int x, int y) {
@@ -502,8 +550,10 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
 
                     if (width >= 320 && height >= 200 && width < xServer.screenInfo.width && height < xServer.screenInfo.height) {
                         Window parent = window.getParent();
-                        boolean parentHasWMClass = parent.getClassName().contains(forceFullscreenWMClass);
-                        boolean hasWMClass = window.getClassName().contains(forceFullscreenWMClass);
+                        // Wine may lower-case the executable name in WM_CLASS.
+                        String wmClass = forceFullscreenWMClass.toLowerCase(java.util.Locale.ROOT);
+                        boolean parentHasWMClass = parent.getClassName().toLowerCase(java.util.Locale.ROOT).contains(wmClass);
+                        boolean hasWMClass = window.getClassName().toLowerCase(java.util.Locale.ROOT).contains(wmClass);
                         if (hasWMClass) {
                             forceFullscreen = !parentHasWMClass && window.getChildCount() == 0;
                         }

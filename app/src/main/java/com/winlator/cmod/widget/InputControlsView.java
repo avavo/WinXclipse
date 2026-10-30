@@ -58,6 +58,7 @@ public class InputControlsView extends View {
     private float offsetY;
     private ControlElement selectedElement;
     private ControlsProfile profile;
+    private ControlsProfile physicalProfile;
     private float overlayOpacity = DEFAULT_OVERLAY_OPACITY;
     private TouchpadView touchpadView;
     private XServer xServer;
@@ -350,6 +351,30 @@ public class InputControlsView extends View {
         else this.profile = null;
     }
 
+    /**
+     * The profile whose physical-controller bindings stay active while the on-screen
+     * controls are hidden (so a pad mapped to keyboard/mouse keeps working); null for none.
+     */
+    public synchronized void setPhysicalProfile(ControlsProfile physicalProfile) {
+        if (this.physicalProfile != physicalProfile) resetPhysicalState();
+        this.physicalProfile = physicalProfile;
+    }
+
+    /** Profile for physical-controller events: the visible one, else the kept physical one. */
+    private synchronized ControlsProfile controllerProfile() {
+        return profile != null ? profile : physicalProfile;
+    }
+
+    /**
+     * Forgets stick, trigger and mouse-motion state when the bindings change. No key or
+     * button releases are sent: a release for something never pressed could click in game.
+     */
+    private void resetPhysicalState() {
+        java.util.Arrays.fill(axisSigns, (byte)0);
+        java.util.Arrays.fill(analogTriggerDown, false);
+        mouseMoveOffset.set(0, 0);
+    }
+
     public boolean isShowTouchscreenControls() {
         return showTouchscreenControls;
     }
@@ -425,13 +450,17 @@ public class InputControlsView extends View {
     }
 
     private void createMouseMoveTimer() {
+        if (xServer == null) return;
         WinHandler winHandler = xServer.getWinHandler();
-        if (mouseMoveTimer == null && profile != null) {
-            final float cursorSpeed = profile.getCursorSpeed();
+        // Created even without a visible profile: a physical stick bound to mouse movement
+        // needs it while the on-screen controls are hidden.
+        if (mouseMoveTimer == null) {
             mouseMoveTimer = new Timer();
             mouseMoveTimer.schedule(new TimerTask() {
                 @Override
                 public void run() {
+                    ControlsProfile speedProfile = controllerProfile();
+                    final float cursorSpeed = speedProfile != null ? speedProfile.getCursorSpeed() : 1.0f;
                     if (mouseMoveOffset.x != 0 || mouseMoveOffset.y != 0) {// Only move if there's an offsete if there's an offset
                         if (xServer.isRelativeMouseMovement())
                             winHandler.mouseEvent(MouseEventFlags.MOVE, (int) (mouseMoveOffset.x * cursorSpeed * 10), (int) (mouseMoveOffset.y * cursorSpeed * 10), 0);
@@ -466,38 +495,86 @@ public class InputControlsView extends View {
 //        }
 //    }
 
+    private static final int[] JOYSTICK_AXES = {
+            MotionEvent.AXIS_X, MotionEvent.AXIS_Y,
+            MotionEvent.AXIS_Z, MotionEvent.AXIS_RZ,
+            MotionEvent.AXIS_HAT_X, MotionEvent.AXIS_HAT_Y
+    };
+    private static final long STICK_SCROLL_INTERVAL_MS = 110;
+    /** Direction each axis is held in (-1, 0, 1), so a binding is released exactly once. */
+    private final byte[] axisSigns = new byte[JOYSTICK_AXES.length];
+    private final long[] lastStickScroll = new long[JOYSTICK_AXES.length];
+    private final boolean[] analogTriggerDown = new boolean[2];
+
     private void processJoystickInput(ExternalController controller) {
-        final int[] axes = {
-                MotionEvent.AXIS_X, MotionEvent.AXIS_Y,
-                MotionEvent.AXIS_Z, MotionEvent.AXIS_RZ,
-                MotionEvent.AXIS_HAT_X, MotionEvent.AXIS_HAT_Y
-        };
         final float[] values = {
                 controller.state.thumbLX, controller.state.thumbLY,
                 controller.state.thumbRX, controller.state.thumbRY,
                 controller.state.getDPadX(), controller.state.getDPadY()
         };
 
-        for (int i = 0; i < axes.length; i++) {
+        for (int i = 0; i < JOYSTICK_AXES.length; i++) {
             float value = values[i];
-            if (Math.abs(value) > ControlElement.STICK_DEAD_ZONE) {
-                byte sign = Mathf.sign(value);
-                int keyCode = ExternalControllerBinding.getKeyCodeForAxis(axes[i], sign);
-                ExternalControllerBinding controllerBinding = controller.getControllerBinding(keyCode);
-                if (controllerBinding != null) {
-                    handleInputEvent(controllerBinding.getBinding(), true, value);
-                }
-            } else {
-                // Handle releasing the bindings when the axis returns to deadzone
-                for (byte sign = -1; sign <= 1; sign += 2) {
-                    int keyCode = ExternalControllerBinding.getKeyCodeForAxis(axes[i], sign);
-                    ExternalControllerBinding controllerBinding = controller.getControllerBinding(keyCode);
-                    if (controllerBinding != null) {
-                        handleInputEvent(controllerBinding.getBinding(), false, value);
-                    }
+            byte sign = Math.abs(value) > ControlElement.STICK_DEAD_ZONE ? Mathf.sign(value) : 0;
+
+            // Back to the dead zone, or flipped straight to the other side: release first.
+            if (axisSigns[i] != 0 && axisSigns[i] != sign) {
+                ExternalControllerBinding previous = controller.getControllerBinding(
+                        ExternalControllerBinding.getKeyCodeForAxis(JOYSTICK_AXES[i], axisSigns[i]));
+                if (previous != null && !isScroll(previous.getBinding())) handleInputEvent(previous.getBinding(), false, 0);
+            }
+            axisSigns[i] = sign;
+            if (sign == 0) continue;
+
+            ExternalControllerBinding controllerBinding = controller.getControllerBinding(
+                    ExternalControllerBinding.getKeyCodeForAxis(JOYSTICK_AXES[i], sign));
+            if (controllerBinding == null) continue;
+            Binding binding = controllerBinding.getBinding();
+            if (isScroll(binding)) {
+                // A wheel notch per interval while the stick is held over.
+                long now = System.currentTimeMillis();
+                if (now - lastStickScroll[i] >= STICK_SCROLL_INTERVAL_MS) {
+                    lastStickScroll[i] = now;
+                    handleInputEvent(binding, true, value);
+                    handleInputEvent(binding, false, value);
                 }
             }
+            else handleInputEvent(binding, true, value);
         }
+    }
+
+    private static boolean isScroll(Binding binding) {
+        return binding == Binding.MOUSE_SCROLL_UP || binding == Binding.MOUSE_SCROLL_DOWN;
+    }
+
+    /** Analog triggers act as buttons: send their bindings only when they change. */
+    private void processAnalogTriggers(ExternalController controller) {
+        final int[] keyCodes = {KeyEvent.KEYCODE_BUTTON_L2, KeyEvent.KEYCODE_BUTTON_R2};
+        final byte[] buttons = {ExternalController.IDX_BUTTON_L2, ExternalController.IDX_BUTTON_R2};
+        for (int i = 0; i < keyCodes.length; i++) {
+            ExternalControllerBinding controllerBinding = controller.getControllerBinding(keyCodes[i]);
+            if (controllerBinding == null) continue;
+            boolean pressed = controller.state.isPressed(buttons[i]);
+            if (pressed == analogTriggerDown[i]) continue;
+            analogTriggerDown[i] = pressed;
+            handleInputEvent(controllerBinding.getBinding(), pressed);
+        }
+    }
+
+    /**
+     * Physical gamepad motion (sticks, d-pad hat, analog triggers) for the active profile.
+     * Only claims the event when the profile maps that motion; otherwise it stays with
+     * XInput, so a pad with only a few remapped buttons keeps its sticks.
+     */
+    public boolean onPhysicalMotionEvent(MotionEvent event) {
+        ControlsProfile current = controllerProfile();
+        if (editMode || current == null) return false;
+        ExternalController controller = current.getController(event.getDeviceId());
+        if (controller == null || !controller.hasMotionBindings()) return false;
+        if (!controller.updateStateFromMotionEvent(event)) return false;
+        processAnalogTriggers(controller);
+        processJoystickInput(controller);
+        return true;
     }
 
 
@@ -529,35 +606,7 @@ public class InputControlsView extends View {
 
     @Override
     public boolean onGenericMotionEvent(MotionEvent event) {
-        if (!editMode && profile != null) {
-            // Retrieve the associated controller for this event
-            ExternalController controller = profile.getController(event.getDeviceId());
-
-            if (controller != null && controller.updateStateFromMotionEvent(event)) {
-                // Process L2 and R2 button bindings
-                ExternalControllerBinding controllerBinding;
-
-                // L2 button
-                controllerBinding = controller.getControllerBinding(KeyEvent.KEYCODE_BUTTON_L2);
-                if (controllerBinding != null) {
-                    handleInputEvent(controllerBinding.getBinding(), controller.state.isPressed(ExternalController.IDX_BUTTON_L2));
-                }
-
-                // R2 button
-                controllerBinding = controller.getControllerBinding(KeyEvent.KEYCODE_BUTTON_R2);
-                if (controllerBinding != null) {
-                    handleInputEvent(controllerBinding.getBinding(), controller.state.isPressed(ExternalController.IDX_BUTTON_R2));
-                }
-
-                // Process joystick inputs for mouse movement and other bindings
-                processJoystickInput(controller);
-
-                // Return true to indicate the motion event was handled
-                return true;
-            }
-        }
-
-        // Pass the event to the super method if not handled
+        if (onPhysicalMotionEvent(event)) return true;
         return super.onGenericMotionEvent(event);
     }
 
@@ -700,8 +749,9 @@ public class InputControlsView extends View {
     }
 
     public boolean onKeyEvent(KeyEvent event) {
-        if (profile != null && event.getRepeatCount() == 0) {
-            ExternalController controller = profile.getController(event.getDeviceId());
+        ControlsProfile current = controllerProfile();
+        if (current != null && !editMode && event.getRepeatCount() == 0) {
+            ExternalController controller = current.getController(event.getDeviceId());
             if (controller != null) {
                 ExternalControllerBinding controllerBinding = controller.getControllerBinding(event.getKeyCode());
                 if (controllerBinding != null) {
@@ -727,7 +777,9 @@ public class InputControlsView extends View {
     public void handleInputEvent(Binding binding, boolean isActionDown, float offset) {
         WinHandler winHandler = xServer != null ? xServer.getWinHandler() : null;
         if (binding.isGamepad()) {
-            GamepadState state = profile.getGamepadState();
+            ControlsProfile current = controllerProfile();
+            if (current == null) return;
+            GamepadState state = current.getGamepadState();
 
             int buttonIdx = binding.ordinal() - Binding.GAMEPAD_BUTTON_A.ordinal();
             if (buttonIdx <= ExternalController.IDX_BUTTON_R2) {

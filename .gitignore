@@ -54,6 +54,9 @@ app/src/main/assets/inputcontrols/*
 !app/src/main/assets/inputcontrols/profiles/
 app/src/main/assets/inputcontrols/profiles/*
 !app/src/main/assets/inputcontrols/profiles/controls-4.icp
+!app/src/main/assets/inputcontrols/profiles/controls-1001.icp
+!app/src/main/assets/inputcontrols/profiles/controls-1002.icp
+!app/src/main/assets/inputcontrols/profiles/controls-1003.icp
 
 app/src/main/cpp/jniLibs/
 

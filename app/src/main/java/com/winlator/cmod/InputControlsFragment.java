@@ -334,6 +334,12 @@ public class InputControlsFragment extends Fragment {
         for (ExternalController controller : connectedControllers) {
             if (!controllers.contains(controller)) controllers.add(controller);
         }
+        // "Any controller": bindings that apply to whatever gamepad is connected.
+        if (currentProfile != null) {
+            boolean hasAny = false;
+            for (ExternalController controller : controllers) if (controller.isAnyController()) hasAny = true;
+            if (!hasAny) controllers.add(0, ExternalController.createAnyController(context));
+        }
 
         if (!controllers.isEmpty()) {
             view.findViewById(R.id.TVEmptyText).setVisibility(View.GONE);

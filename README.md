@@ -33,5 +33,14 @@ WinXclipse builds upon the work of:
 - [Winlator Ludashi](https://github.com/StevenMXZ/Winlator-Ludashi) for ports and implementation references  
 - [ExynosTools](https://github.com/WearyConcern1165/ExynosTools) for Exynos/Xclipse driver resources  
 - Wrappers from [Leegao](https://github.com/leegao/bionic-vulkan-wrapper), [GameNative](https://github.com/utkarshdalal/GameNative), [Ref4ik-v6](https://github.com/REF4IK/CronyX-), and Kirimu  
+- Steam sign-in and library code adapted from [GameNative](https://github.com/utkarshdalal/GameNative) (GPL-3.0), built on [JavaSteam](https://github.com/Longi94/JavaSteam) (MIT)  
+- GOG sign-in, library and downloads adapted from [GameNative](https://github.com/utkarshdalal/GameNative) and [heroic-gogdl](https://github.com/Heroic-Games-Launcher/heroic-gogdl) (GPL-3.0)  
   
 Winlator Xclipse adaptation by Álvaro
+
+## License
+
+WinXclipse is distributed under the [GNU General Public License v3.0](LICENSE), so that store
+integrations from GameNative (GPL-3.0) can be shared with the project. Code inherited from Winlator
+remains available under its original MIT license, kept in [LICENSES/MIT-Winlator.txt](LICENSES/MIT-Winlator.txt).
+Third-party components and their licenses are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

@@ -106,6 +106,15 @@
                 android:text="@string/menu_section_input"
                 android:textColor="@color/wx_text"
                 android:textSize="17sp" />
+            <!-- Phone keyboard, for games that ask for text (three-finger tap does the same). -->
+            <ImageButton
+                android:id="@+id/BTSidebarKeyboard"
+                android:layout_width="52dp"
+                android:layout_height="match_parent"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/keyboard"
+                android:src="@drawable/wx_ic_keyboard"
+                app:tint="@color/wx_lilac" />
             <ImageButton
                 android:id="@+id/BTSidebarInputMore"
                 android:layout_width="52dp"
