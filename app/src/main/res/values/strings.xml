@@ -942,4 +942,12 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="configuration_save_failed">Could not save the game configuration. Check free storage and try again.</string>
     <string name="gta_optimization">GTA V optimization</string>
     <string name="gta_optimization_help">Applies graphics and CPU optimizations for GTA V to improve performance on low-end hardware.</string>
+    <string name="download_pause">Pause download</string>
+    <string name="download_resume">Resume download</string>
+    <string name="download_start">Download</string>
+    <string name="download_paused">Paused · %1$d%%</string>
+    <string name="download_retry">Download failed · retry</string>
+    <string name="download_stopping">Stopping…</string>
+    <string name="wine_and_proton">Wine / Proton</string>
+    <string name="install_runtime">Install Wine / Proton</string>
 </resources>

@@ -407,9 +407,7 @@ public class ContainerDetailFragment extends Fragment {
         loadWineVersionSpinner(view, sWineVersion, sBox64Version);
 
         view.findViewById(R.id.BTManageWineContent).setOnClickListener(v ->
-                openContentDownloads(ContentProfile.ContentType.CONTENT_TYPE_WINE.ordinal()));
-        view.findViewById(R.id.BTManageProtonContent).setOnClickListener(v ->
-                openContentDownloads(ContentProfile.ContentType.CONTENT_TYPE_PROTON.ordinal()));
+                openContentDownloads(ContentsFragment.CATEGORY_RUNTIMES));
         view.findViewById(R.id.BTManageGraphicsContent).setOnClickListener(v ->
                 openContentDownloads(ContentsFragment.CATEGORY_WRAPPERS));
         view.findViewById(R.id.BTManageDriverContent).setOnClickListener(v ->

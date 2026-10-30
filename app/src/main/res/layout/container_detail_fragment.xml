@@ -139,13 +139,7 @@
                     <ImageButton
                         android:id="@+id/BTManageWineContent"
                         style="@style/DownloadIconButton"
-                        android:contentDescription="@string/download_wine"
-                        android:src="@drawable/icon_popup_menu_download" />
-
-                    <ImageButton
-                        android:id="@+id/BTManageProtonContent"
-                        style="@style/DownloadIconButton"
-                        android:contentDescription="@string/download_proton"
+                        android:contentDescription="@string/install_runtime"
                         android:src="@drawable/icon_popup_menu_download" />
                 </LinearLayout>
             </LinearLayout>
