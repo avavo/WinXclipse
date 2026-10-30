@@ -75,7 +75,7 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
     public void setContainer(Container container) { this.container = container; }
 
 
-    private void extractBox86_64Files() {
+    private boolean extractBox86_64Files() {
         ImageFs imageFs = environment.getImageFs();
         Context context = environment.getContext();
         String box64Version = container.getBox64Version();
@@ -83,13 +83,6 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
 
         if (shortcut != null) {
             box64Version = shortcut.getExtra("box64Version", shortcut.container.getBox64Version());
-        }
-
-        if (box64Version != null && (box64Version.equals("0.4.4")
-                || box64Version.startsWith("0.4.4-"))) {
-            Log.i("BionicProgramLauncherComponent",
-                    "Migrating removed Box64 " + box64Version + " to " + DefaultVersion.BOX64);
-            box64Version = DefaultVersion.BOX64;
         }
 
         Log.i("BionicProgramLauncherComponent", "Extracting required box64 version: " + box64Version);
@@ -112,11 +105,11 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
 
         String installedVersion = PreferenceManager.getDefaultSharedPreferences(context)
                 .getString("current_box64_version", "");
-        // Version mismatch is sufficient to replace the previously bundled
-        // 0.4.4. Searching the whole executable for "ld-linux" was a false
+        // Searching the whole executable for "ld-linux" was a false
         // positive: Box64 contains those guest-loader strings even in its
         // Android/bionic build, causing a reinstall on every launch.
-        boolean needsInstall = !box64File.isFile() || !box64Version.equals(installedVersion);
+        boolean needsInstall = !box64File.isFile() || box64File.length() == 0
+                || !box64Version.equals(installedVersion);
         if (needsInstall) {
             boolean installed;
             if (profile != null) {
@@ -126,15 +119,18 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
                 installed = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD,
                         context, "box86_64/box64-" + box64Version + ".tzst", rootDir);
             }
-            if (installed && box64File.isFile()) {
+            if (installed && box64File.isFile() && box64File.length() > 0) {
                 PreferenceManager.getDefaultSharedPreferences(context).edit()
                         .putString("current_box64_version", box64Version).apply();
             }
+            else {
+                Log.e("BionicStartup", "Box64 installation failed: " + box64Version);
+                return false;
+            }
         }
 
-        // Persist the migration in both the normal container field and a
-        // shortcut override, otherwise an old 0.4.4 selection wins again on
-        // the next launch.
+        // Persist a resolved fallback only after selecting installed content.
+        // Explicit selections of older installed versions remain available.
         boolean containerChanged = !box64Version.equals(originalContainerVersion)
                 || !box64Version.equals(container.getExtra("box64Version"));
         if (containerChanged) {
@@ -152,18 +148,20 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         // Set execute permissions. Do not delete this shared executable before
         // launch: x86_64 Proton depends on it and not every version has a
         // legacy assets/box86_64 fallback archive.
-        if (box64File.exists()) {
+        if (box64File.isFile() && box64File.length() > 0) {
             FileUtils.chmod(box64File, 0755);
+            return true;
         }
         else {
             Log.e("BionicProgramLauncherComponent",
                     "Cannot start x86/x86_64 runtime: Box64 " + box64Version + " is missing");
         }
+    return false;
     }
 
 
 
-    private void extractEmulatorsDlls() {
+    private boolean extractEmulatorsDlls() {
         Context context = environment.getContext();
         File rootDir = environment.getImageFs().getRootDir();
         File system32dir = new File(rootDir + "/home/xuser/.wine/drive_c/windows/system32");
@@ -189,8 +187,10 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
 
         File fexDll = new File(system32dir, "libwow64fex.dll");
         File legacyFexDll = new File(system32dir, "libarm64ecfex.dll");
-        if (!fexcoreVersion.equals(container.getExtra("fexcoreVersion"))
-                || (!fexDll.isFile() && !legacyFexDll.isFile())) {
+        boolean ready = fexcoreVersion.equals(container.getExtra("fexcoreVersion"))
+                && (fexDll.isFile() && fexDll.length() > 0
+                || legacyFexDll.isFile() && legacyFexDll.length() > 0);
+        if (!ready) {
             String effectiveVersion = fexcoreVersion;
             ContentProfile profile = contentsManager.getInstalledProfile(
                     ContentProfile.ContentType.CONTENT_TYPE_FEXCORE, fexcoreVersion);
@@ -227,7 +227,9 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
                         "fexcore/fexcore-" + effectiveVersion + ".tzst", system32dir);
             }
 
-            if (applied && (fexDll.isFile() || legacyFexDll.isFile())) {
+            if (applied && (fexDll.isFile() && fexDll.length() > 0
+                    || legacyFexDll.isFile() && legacyFexDll.length() > 0)) {
+                ready = true;
                 if (!shortcutOverridesVersion
                         && !effectiveVersion.equals(container.getFEXCoreVersion())) {
                     container.setFEXCoreVersion(effectiveVersion);
@@ -245,6 +247,7 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
                         + effectiveVersion + "; keeping the previous bridge/version marker");
             }
         }
+        return ready;
     }
 
     private void populateSysWow64() {
@@ -296,10 +299,13 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
     @Override
     public void start() {
         synchronized (lock) {
-            if (wineInfo.isArm64EC()) {
-                extractEmulatorsDlls();
-            } else {
-                extractBox86_64Files();
+            boolean translatorReady = wineInfo.isArm64EC()
+                    ? extractEmulatorsDlls() : extractBox86_64Files();
+            if (!translatorReady) {
+                pid = -1;
+                Log.e("BionicStartup", "Wine launch stopped: required translator is incomplete");
+                if (terminationCallback != null) terminationCallback.call(-1);
+                return;
             }
             populateSysWow64();
 //            checkDependencies();

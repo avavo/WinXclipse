@@ -51,7 +51,13 @@ public class ImageFs {
 
     public int getVersion() {
         File imgVersionFile = getImgVersionFile();
-        return imgVersionFile.exists() ? Integer.parseInt(FileUtils.readLines(imgVersionFile).get(0)) : 0;
+        if (!imgVersionFile.isFile()) return 0;
+        try {
+            return Math.max(0, Integer.parseInt(FileUtils.readString(imgVersionFile).trim()));
+        }
+        catch (RuntimeException error) {
+            return 0; // An interrupted/empty receipt must trigger installation again.
+        }
     }
 
     public String getFormattedVersion() {

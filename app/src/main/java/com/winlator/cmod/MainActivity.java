@@ -48,6 +48,7 @@ import com.winlator.cmod.contents.ContentProfile;
 import com.winlator.cmod.contents.ContentsManager;
 import com.winlator.cmod.core.Callback;
 import com.winlator.cmod.core.AppUtils;
+import com.winlator.cmod.core.DefaultVersion;
 import com.winlator.cmod.core.PreloaderDialog;
 import com.winlator.cmod.core.UpdateChecker;
 import com.winlator.cmod.container.ContainerManager;
@@ -217,6 +218,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         Executors.newSingleThreadExecutor().execute(() -> {
             PreloaderDialog spinner = new PreloaderDialog(this);
             boolean spinnerShown = false;
+            final boolean[] successful = {true};
 
             try {
                 /* ----------------------------------------------------------
@@ -242,8 +244,9 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                         if (verDirs != null) {
                             for (File verDir : verDirs) {
                                 File profileFile = new File(verDir, ContentsManager.PROFILE_NAME);
-                                if (!verDir.isDirectory() || !profileFile.isFile()
-                                        || contentVerifier.readProfile(profileFile) == null) continue;
+                                if (!verDir.isDirectory() || !profileFile.isFile()) continue;
+                                ContentProfile verified = contentVerifier.readProfile(profileFile);
+                                if (verified == null || !contentVerifier.isInstalledProfile(verified)) continue;
                                 String dirName = verDir.getName();
 
                                 // strip duplicated "type-" prefix if present
@@ -316,7 +319,6 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 }
 
                 if (toInstall.isEmpty()) {
-                    removeSupersededBundledBox64(new ContentsManager(this));
                     return;
                 }
 
@@ -352,8 +354,9 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                                     if (first) {
                                         first = false;
                                         cm.finishInstallContent(p, this);
+                                    }
+                                    else {
                                         markBundledContent(MainActivity.this, p);
-                                        removeSupersededBundledBox64(cm);
                                         // Re-read: other installs may have
                                         // updated the marker set meanwhile.
                                         Set<String> updated = new HashSet<>(
@@ -370,20 +373,25 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                                 }
                                 @Override public void onFailed(ContentsManager.InstallFailedReason r,
                                                                Exception e) {
+                                    successful[0] = false;
                                     Log.e("MainActivity","Install failed for "+asset+" : "+r,e);
                                 }
                             };
-                    cm.extraContentFile(Uri.fromFile(tmp), cb);
+                    cm.extraContentFile(Uri.fromFile(tmp), expectedBundledProfile(asset), cb);
                     tmp.delete();
                 }
 
             } catch (Exception e) {
+                successful[0] = false;
                 Log.e("MainActivity", "Asset-content install error", e);
             } finally {
                 final boolean shown = spinnerShown;        // effectively-final snapshot
                 runOnUiThread(() -> {
                     if (shown) spinner.close();
-                    if (onCompletion != null) onCompletion.run();
+                    if (successful[0]) {
+                        if (onCompletion != null) onCompletion.run();
+                    }
+                    else AppUtils.showToast(this, R.string.unable_to_install_system_files);
                 });
             }
         });
@@ -393,8 +401,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
     public static final String PREF_BUNDLED_CONTENT_ENTRIES = "bundled_content_entries";
 
-    private static final String BUNDLED_BOX64_VERSION = "0.4.3-260519-024717c";
-    private static final String SUPERSEDED_BOX64_VERSION = "0.4.4";
+    private static final String BUNDLED_BOX64_VERSION = DefaultVersion.BOX64_VERSION;
 
     /**
      * Type:verName pairs of the contents embedded in the APK. They install
@@ -406,51 +413,34 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
      */
     private static final Set<String> BUNDLED_CONTENT_SEED = new HashSet<>(Arrays.asList(
             "Box64:" + BUNDLED_BOX64_VERSION,
-            "FEXCore:2608"
+            "FEXCore:" + DefaultVersion.FEXCORE
     ));
 
     private static final Set<String> RELEASE_ONLY_CONTENT = new HashSet<>(Arrays.asList(
+            "Box64:0.4.3-260519-024717c",
+            "FEXCore:2608",
             "DXVK:1.7.2",
             "DXVK:1.7.3-async",
             "DXVK:2.6.2-1-gplasync-arm64ec",
             "VKD3D:3.0.1"
     ));
 
-    /** Removes the source package superseded by the APK's current Box64, but
-     * only after the replacement is confirmed installed. Existing containers
-     * are migrated by the launcher before it applies the shared executable. */
-    private void removeSupersededBundledBox64(ContentsManager manager) {
-        manager.syncContents();
-        ContentProfile replacement = manager.getProfile(
-                ContentProfile.ContentType.CONTENT_TYPE_BOX64, BUNDLED_BOX64_VERSION);
-        if (replacement == null || !manager.isInstalledProfile(replacement)) return;
-
-        List<ContentProfile> profiles = manager.getProfiles(
-                ContentProfile.ContentType.CONTENT_TYPE_BOX64);
-        if (profiles != null) {
-            for (ContentProfile profile : new ArrayList<>(profiles)) {
-                if (SUPERSEDED_BOX64_VERSION.equals(profile.verName)
-                        && manager.isInstalledProfile(profile)) {
-                    Log.i("ContentsDebug", "Removing superseded bundled Box64 "
-                            + profile.verName + "-" + profile.verCode);
-                    manager.removeContent(profile);
-                }
-            }
+    /** Bundled packages keep their original bytes; canonicalize manifest names
+     * through the installer's expected-profile path, also used by Downloads. */
+    private static ContentProfile expectedBundledProfile(String asset) {
+        ContentProfile profile = new ContentProfile();
+        if (DefaultVersion.BOX64_ASSET.equals(asset)) {
+            profile.type = ContentProfile.ContentType.CONTENT_TYPE_BOX64;
+            profile.verName = DefaultVersion.BOX64_VERSION;
+            profile.verCode = 0;
         }
-
-        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
-        Set<String> bundled = new HashSet<>(preferences.getStringSet(
-                PREF_BUNDLED_CONTENT_ENTRIES, new HashSet<>()));
-        Set<String> installedAssets = new HashSet<>(preferences.getStringSet(
-                PREF_INSTALLED_ASSET_CONTENTS, new HashSet<>()));
-        boolean bundledChanged = bundled.remove("Box64:" + SUPERSEDED_BOX64_VERSION);
-        boolean assetsChanged = installedAssets.remove("Box64-0.4.4.wcp");
-        if (bundledChanged || assetsChanged) {
-            preferences.edit()
-                    .putStringSet(PREF_BUNDLED_CONTENT_ENTRIES, bundled)
-                    .putStringSet(PREF_INSTALLED_ASSET_CONTENTS, installedAssets)
-                    .apply();
+        else if (DefaultVersion.FEXCORE_ASSET.equals(asset)) {
+            profile.type = ContentProfile.ContentType.CONTENT_TYPE_FEXCORE;
+            profile.verName = DefaultVersion.FEXCORE;
+            profile.verCode = DefaultVersion.FEXCORE_CODE;
         }
+        else return null;
+        return profile;
     }
 
     /** True when the profile is one of the APK-embedded bundles, which are

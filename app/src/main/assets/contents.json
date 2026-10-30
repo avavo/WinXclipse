@@ -238,5 +238,29 @@
     "verName": "3.0.1-arm64ec",
     "verCode": 0,
     "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/dxvk-and-vkd3d/vkd3d-proton-arm64ec-3.0.1.wcp"
+  },
+  {
+    "type": "Box64",
+    "verName": "0.4.3-260519-024717c",
+    "verCode": 0,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/box/Box64-0.4.3-260519-024717c.wcp"
+  },
+  {
+    "type": "FEXCore",
+    "verName": "2608",
+    "verCode": 0,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-fexcore-v0.8/FEXCore-2608.wcp"
+  },
+  {
+    "type": "Box64",
+    "verName": "0.4.5-415416f2b-Bionic",
+    "verCode": 0,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/box/Box64-0.4.5-415416f2b-Bionic.wcp"
+  },
+  {
+    "type": "FEXCore",
+    "verName": "2610",
+    "verCode": 2246,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-fexcore-v0.8/FEXCore-2610.wcp"
   }
 ]

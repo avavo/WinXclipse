@@ -40,6 +40,8 @@ app/src/main/assets/graphics_driver/*
 app/src/main/assets/contents/*
 !app/src/main/assets/contents/Box64-0.4.3-260519-024717c.wcp
 !app/src/main/assets/contents/FEXCore-2608.wcp
+!app/src/main/assets/contents/Box64-0.4.5-415416f2b-Bionic.wcp
+!app/src/main/assets/contents/FEXCore-2610.wcp
 !app/src/main/assets/dxwrapper/
 app/src/main/assets/dxwrapper/*
 # Default DXVK/D8VK payloads referenced by DefaultVersion.java — a fresh clone

@@ -9,6 +9,8 @@ import androidx.annotation.NonNull;
 
 import com.winlator.cmod.core.EvshimPatcher;
 import com.winlator.cmod.core.FileUtils;
+import com.winlator.cmod.core.RuntimeFiles;
+import com.winlator.cmod.core.DirectoryInstall;
 import com.winlator.cmod.core.StreamUtils;
 import com.winlator.cmod.core.TarCompressorUtils;
 
@@ -699,8 +701,12 @@ public class ContentsManager {
     }
 
     public void finishInstallContent(ContentProfile profile, OnInstallFinishedCallback callback) {
+        if (profile == null || profile.getStagingDir() == null) {
+            callback.onFailed(InstallFailedReason.ERROR_BADPROFILE, null);
+            return;
+        }
         File installPath = getInstallDir(context, profile);
-        if (installPath.exists()) {
+        if (isInstalledProfile(profile)) {
             if (profile != null && profile.getStagingDir() != null) FileUtils.delete(profile.getStagingDir());
             callback.onFailed(InstallFailedReason.ERROR_EXIST, null);
             return;
@@ -716,14 +722,19 @@ public class ContentsManager {
         // Do not create installPath first: File.renameTo() cannot replace an
         // existing directory. This used to make every completed extraction
         // look permanently stuck at "Installing Content".
-        File stagingDir = profile != null ? profile.getStagingDir() : null;
-        if (stagingDir == null || !stagingDir.isDirectory()) {
-            // Compatibility with an extraction started by an older caller.
-            stagingDir = getTmpDir(context);
+        File stagingDir = profile.getStagingDir();
+        if (!hasRequiredPayload(profile, stagingDir)) {
+            discardStagedContent(profile);
+            callback.onFailed(InstallFailedReason.ERROR_MISSINGFILES, null);
+            return;
         }
-        if (!stagingDir.renameTo(installPath)) {
-            FileUtils.delete(stagingDir);
-            callback.onFailed(InstallFailedReason.ERROR_UNKNOWN, null);
+        try {
+            File previous = DirectoryInstall.commit(stagingDir, installPath);
+            if (previous != null) FileUtils.delete(previous);
+        }
+        catch (java.io.IOException error) {
+            discardStagedContent(profile);
+            callback.onFailed(InstallFailedReason.ERROR_UNKNOWN, error);
             return;
         }
 
@@ -851,8 +862,22 @@ public class ContentsManager {
         if (profile == null) return false;
         if (profile.bakedInRuntime) return hasBakedInProton(context);
         File installDir = getInstallDir(context, profile);
-        return installDir.isDirectory()
-                && new File(installDir, PROFILE_NAME).isFile();
+        if (!installDir.isDirectory() || !new File(installDir, PROFILE_NAME).isFile()) return false;
+        return hasRequiredPayload(profile, installDir);
+    }
+
+    private static boolean hasRequiredPayload(ContentProfile profile, File installDir) {
+        if (profile.type == ContentProfile.ContentType.CONTENT_TYPE_WINE
+                || profile.type == ContentProfile.ContentType.CONTENT_TYPE_PROTON) {
+            return RuntimeFiles.hasWine(installDir, profile.wineBinPath)
+                    && RuntimeFiles.hasPayload(installDir, profile.wineLibPath)
+                    && RuntimeFiles.hasPayload(installDir, profile.winePrefixPack);
+        }
+        if (profile.fileList == null || profile.fileList.isEmpty()) return false;
+        for (ContentProfile.ContentFile file : profile.fileList) {
+            if (!RuntimeFiles.hasPayload(installDir, file.source)) return false;
+        }
+        return true;
     }
 
     public static File getInstallDir(Context context, ContentProfile profile) {

@@ -15,6 +15,7 @@ import com.winlator.cmod.contents.ContentProfile;
 import com.winlator.cmod.contents.ContentsManager;
 import com.winlator.cmod.contents.CustomWrapperManager;
 import com.winlator.cmod.contents.Downloader;
+import com.winlator.cmod.core.ContentVersion;
 import com.winlator.cmod.contents.ExternalDownloadCatalog;
 import com.winlator.cmod.contents.XclipseDriverManager;
 import com.winlator.cmod.core.FileUtils;
@@ -399,7 +400,7 @@ public final class CommunityConfigManager {
         try {
             String bundledJson = FileUtils.readString(context, ContentsManager.REMOTE_PROFILES);
             if (bundledJson != null) {
-                manager.setRemoteProfiles(manager.getCachedRemoteProfiles(bundledJson));
+                manager.setRemoteProfiles(manager.refreshRemoteProfiles(bundledJson));
                 manager.syncContents();
             }
         }
@@ -433,13 +434,13 @@ public final class CommunityConfigManager {
         // Same recovery from the remote Downloads catalog: a config may ask
         // for content (e.g. DXVK 1.7.3-async) that is listed for download but
         // not installed yet. Fetch it now so import does not prompt for
-        // something one tap away. Runtimes are excluded: multi-GB downloads
-        // must remain an explicit user choice in Downloads.
+        // something available in the catalog. Wine/Proton use the same exact
+        // dependency resolution as DXVK, VKD3D, FEXCore and Box64.
         boolean recoveredRemote = false;
         if (refs != null) {
             for (int i = 0; i < refs.length(); i++) {
                 JSONObject ref = refs.optJSONObject(i);
-                if (ref == null || "wineRuntime".equals(ref.optString("role", ""))) continue;
+                if (ref == null) continue;
                 if (findExactInstalled(manager, ref) != null) continue;
                 if (recoverRemoteContent(context, manager, ref)) recoveredRemote = true;
             }
@@ -997,14 +998,7 @@ public final class CommunityConfigManager {
     }
 
     private static String contentIdentity(String value) {
-        String result = clean(value).toLowerCase(Locale.ENGLISH)
-                .replaceFirst("(?i)\\.(?:wcp(?:\\.(?:xz|zst))?|t?zst|tar\\.(?:xz|zst)|zip)$", "")
-                .replaceFirst("^(?:wine|proton|dxvk|vkd3d|box64|fexcore)[\\s._-]+", "")
-                .replaceAll("[^a-z0-9]+", "-")
-                .replaceAll("^-+|-+$", "");
-        // ContentsManager entry names append a numeric versionCode that package
-        // filenames and versionName fields do not necessarily contain.
-        return result.replaceFirst("-[0-9]{1,10}$", "");
+        return ContentVersion.canonical(value);
     }
 
     private static boolean sameContentVersion(String left, String right) {
@@ -1024,10 +1018,13 @@ public final class CommunityConfigManager {
     private static boolean matchesReference(ContentProfile profile, JSONObject ref) {
         String id = ref.optString("contentId", "");
         if (!id.isEmpty() && id.equals(profile.getContentId())) return true;
-        String requested = contentIdentity(ref.optString("entryName",
-                ref.optString("versionName", "")));
-        return requested.equals(contentIdentity(ContentsManager.getEntryName(profile)))
-                || requested.equals(contentIdentity(profile.verName));
+        Integer code = ref.has("versionCode") && !ref.isNull("versionCode")
+                ? ref.optInt("versionCode", 0) : null;
+        // GitHub asset IDs are not manifest build codes. Download an exact-name
+        // candidate, then validate the real WCP metadata before committing it.
+        return ContentVersion.matches(profile.verName, profile.verCode,
+                ref.optString("versionName", ""), ref.optString("entryName", ""),
+                code, profile.fileList == null);
     }
 
     /**
@@ -1063,8 +1060,7 @@ public final class CommunityConfigManager {
                         "community-content-"
                                 + Integer.toHexString(candidate.remoteUrl.hashCode()) + ".wcp");
                 try {
-                    if ((downloaded.isFile()
-                            || Downloader.downloadFile(candidate.remoteUrl, downloaded))
+                    if (Downloader.downloadFile(candidate.remoteUrl, downloaded)
                             && installMatchingPackage(context, manager, ref, downloaded)) {
                         Log.i("CommunityConfig", "Recovered remote content "
                                 + ContentsManager.getEntryName(candidate));
@@ -1252,13 +1248,7 @@ public final class CommunityConfigManager {
     }
 
     private static String runtimeArchitecture(String value) {
-        String normalized = clean(value).toLowerCase(Locale.ENGLISH)
-                .replace('-', '_').replace(' ', '_');
-        if (normalized.contains("arm64ec") || normalized.contains("aarch64")) return "arm64ec";
-        if (normalized.contains("x86_64") || normalized.contains("amd64")
-                || normalized.contains("x64")) return "x86_64";
-        if (normalized.matches(".*(^|_)x86($|_).*")) return "x86";
-        return "";
+        return ContentVersion.architecture(value);
     }
     private static int similarity(String left, String right) {
         if (left.equals(right)) return 100;

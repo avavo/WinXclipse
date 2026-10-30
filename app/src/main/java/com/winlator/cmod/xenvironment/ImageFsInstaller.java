@@ -23,6 +23,7 @@ import com.winlator.cmod.core.OnExtractFileListener;
 import com.winlator.cmod.core.PreloaderDialog;
 import com.winlator.cmod.core.TarCompressorUtils;
 import com.winlator.cmod.core.WineInfo;
+import com.winlator.cmod.core.RuntimeFiles;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -55,146 +56,135 @@ public abstract class ImageFsInstaller {
     }
 
     public static void installWineFromAssets(final MainActivity activity) {
-        String[] versions = activity.getResources().getStringArray(R.array.wine_entries);
-        File rootDir = ImageFs.find(activity).getRootDir();
-        for (String version : versions) {
-            File outFile = new File(rootDir, "/opt/" + version);
-            outFile.mkdirs();
-            if (!TarCompressorUtils.extract(TarCompressorUtils.Type.XZ, activity, version + ".txz", outFile))
-                TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, activity, version + ".tzst", outFile);
+        if (!installRequiredWine(activity, ImageFs.find(activity).getRootDir(), null)) {
+            AppUtils.showToast(activity, R.string.unable_to_install_system_files);
         }
     }
 
     public static void installFromAssets(final MainActivity activity) {
-        AppUtils.keepScreenOn(activity);
-        ImageFs imageFs = ImageFs.find(activity);
-        File rootDir = imageFs.getRootDir();
-
-        SettingsFragment.resetEmulatorsVersion(activity);
-
-        final DownloadProgressDialog dialog = new DownloadProgressDialog(activity);
-        dialog.show(R.string.installing_system_files);
-        Executors.newSingleThreadExecutor().execute(() -> {
-            clearRootDir(rootDir);
-            final float compressionRatio = 4.0f;
-            final long contentLength = (long)(FileUtils.getSize(activity, "imagefs.tzst") * compressionRatio);
-            AtomicLong totalSizeRef = new AtomicLong();
-
-            // 0..78% imagefs, 78..93% wine, 93..100% finalization – bar moves continuously.
-            boolean success = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, activity, "imagefs.tzst", rootDir, (file, size) -> {
-                if (size > 0) {
-                    long totalSize = totalSizeRef.addAndGet(size);
-                    final int progress = Math.min(78, (int)(((float)totalSize / contentLength) * 78));
-                    activity.runOnUiThread(() -> dialog.setProgress(progress));
-                }
-                return file;
-            });
-
-            if (success) {
-                activity.runOnUiThread(() -> dialog.setProgress(78));
-                // Wine: prefer ZSTD (faster) and stream 78..93% per file so 85% no longer appears frozen.
-                String[] versions = activity.getResources().getStringArray(R.array.wine_entries);
-                long totalWineEst = 0;
-                for (String v : versions) {
-                    long s = FileUtils.getSize(activity, v + ".tzst");
-                    if (s == 0) s = FileUtils.getSize(activity, v + ".txz");
-                    totalWineEst += s * 4L;
-                }
-                totalWineEst = Math.max(1, totalWineEst);
-                AtomicLong wineDone = new AtomicLong(0);
-                final long totalWineFinal = totalWineEst;
-                for (String version : versions) {
-                    File outFile = new File(rootDir, "/opt/" + version);
-                    outFile.mkdirs();
-                    OnExtractFileListener wineListener = (file, size) -> {
-                        if (size > 0) {
-                            long d = wineDone.addAndGet(size);
-                            int prog = 78 + (int)Math.min(15, d * 15 / totalWineFinal);
-                            activity.runOnUiThread(() -> dialog.setProgress(Math.min(93, prog)));
-                        }
-                        return file;
-                    };
-                    boolean ok = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, activity, version + ".tzst", outFile, wineListener);
-                    if (!ok) TarCompressorUtils.extract(TarCompressorUtils.Type.XZ, activity, version + ".txz", outFile, wineListener);
-                }
-                activity.runOnUiThread(() -> dialog.setProgress(93));
-                // Finalization (create version file + reset containers) now owns 93..100% so 100% never hangs.
-                imageFs.createImgVersionFile(LATEST_VERSION);
-                activity.runOnUiThread(() -> dialog.setProgress(96));
-                resetContainerImgVersions(activity);
-                activity.runOnUiThread(() -> dialog.setProgress(100));
-            }
-            else AppUtils.showToast(activity, R.string.unable_to_install_system_files);
-
-            dialog.closeOnUiThread();
-        });
+        installFromAssets(activity, null);
     }
 
+    /** Publish the ImageFS receipt and continue startup only after every required
+     * runtime has actually been extracted. A failed install is retried next boot. */
     public static void installFromAssets(final MainActivity activity, final Runnable onCompletion) {
         AppUtils.keepScreenOn(activity);
         ImageFs imageFs = ImageFs.find(activity);
         File rootDir = imageFs.getRootDir();
-
-        SettingsFragment.resetEmulatorsVersion(activity);
-
         final DownloadProgressDialog dialog = new DownloadProgressDialog(activity);
         dialog.show(R.string.installing_system_files);
         Executors.newSingleThreadExecutor().execute(() -> {
-            clearRootDir(rootDir);
-            final float compressionRatio = 4.0f;
-            final long contentLength = (long)(FileUtils.getSize(activity, "imagefs.tzst") * compressionRatio);
-            AtomicLong totalSizeRef = new AtomicLong();
-
-            boolean success = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, activity, "imagefs.tzst", rootDir, (file, size) -> {
-                if (size > 0) {
-                    long totalSize = totalSizeRef.addAndGet(size);
-                    final int progress = Math.min(78, (int)(((float)totalSize / contentLength) * 78));
-                    activity.runOnUiThread(() -> dialog.setProgress(progress));
+            boolean success = false;
+            try {
+                File receipt = imageFs.getImgVersionFile();
+                if (receipt.exists() && !receipt.delete()) {
+                    throw new IOException("Cannot invalidate the previous ImageFS receipt");
                 }
-                return file;
-            });
-
-            if (success) {
+                clearRootDir(rootDir);
+                long estimate = Math.max(1L, FileUtils.getSize(activity, "imagefs.tzst") * 4L);
+                AtomicLong extracted = new AtomicLong();
+                boolean imageReady = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD,
+                        activity, "imagefs.tzst", rootDir, (file, size) -> {
+                            if (size > 0) {
+                                int progress = (int)Math.min(78, extracted.addAndGet(size) * 78L / estimate);
+                                activity.runOnUiThread(() -> dialog.setProgress(progress));
+                            }
+                            return file;
+                        });
+                if (!imageReady) throw new IOException("ImageFS extraction failed");
                 activity.runOnUiThread(() -> dialog.setProgress(78));
-                String[] versions = activity.getResources().getStringArray(R.array.wine_entries);
-                long totalWineEst2 = 0;
-                for (String v : versions) { long s = FileUtils.getSize(activity, v + ".tzst"); if (s==0) s = FileUtils.getSize(activity, v + ".txz"); totalWineEst2 += s * 4L; }
-                totalWineEst2 = Math.max(1, totalWineEst2);
-                AtomicLong wineDone2 = new AtomicLong(0);
-                final long totalWineFinal2 = totalWineEst2;
-                for (String version : versions) {
-                    File outFile = new File(rootDir, "/opt/" + version);
-                    outFile.mkdirs();
-                    OnExtractFileListener wl = (file, size) -> {
-                        if (size > 0) { long d = wineDone2.addAndGet(size); int prog = 78 + (int)Math.min(15, d * 15 / totalWineFinal2); activity.runOnUiThread(() -> dialog.setProgress(Math.min(93, prog))); }
-                        return file;
-                    };
-                    boolean ok = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, activity, version + ".tzst", outFile, wl);
-                    if (!ok) TarCompressorUtils.extract(TarCompressorUtils.Type.XZ, activity, version + ".txz", outFile, wl);
+                if (!installRequiredWine(activity, rootDir, dialog)) {
+                    throw new IOException("Required Wine/Proton extraction failed");
                 }
                 activity.runOnUiThread(() -> dialog.setProgress(93));
-                imageFs.createImgVersionFile(LATEST_VERSION);
-                activity.runOnUiThread(() -> dialog.setProgress(96));
+                SettingsFragment.resetEmulatorsVersion(activity);
                 resetContainerImgVersions(activity);
-                activity.runOnUiThread(() -> dialog.setProgress(100));
+                imageFs.getConfigDir().mkdirs();
+                if (!FileUtils.writeStringAtomic(imageFs.getImgVersionFile(),
+                        String.valueOf(LATEST_VERSION))) {
+                    throw new IOException("Could not commit the ImageFS receipt");
+                }
+                success = true;
             }
-            else AppUtils.showToast(activity, R.string.unable_to_install_system_files);
-
-            dialog.closeOnUiThread();
-            if (onCompletion != null) {
-                activity.runOnUiThread(onCompletion);
+            catch (Exception error) {
+                Log.e("ImageFsInstaller", "Initial installation did not finish", error);
+                FileUtils.delete(imageFs.getImgVersionFile());
             }
+            final boolean completed = success;
+            activity.runOnUiThread(() -> {
+                if (completed) dialog.setProgress(100);
+                dialog.close();
+                if (completed) {
+                    if (onCompletion != null) onCompletion.run();
+                }
+                else AppUtils.showToast(activity, R.string.unable_to_install_system_files);
+            });
         });
+    }
+
+    private static boolean installRequiredWine(MainActivity activity, File rootDir,
+                                                DownloadProgressDialog dialog) {
+        String[] versions = activity.getResources().getStringArray(R.array.wine_entries);
+        long estimate = 0;
+        for (String version : versions) {
+            long size = FileUtils.getSize(activity, version + ".tzst");
+            if (size == 0) size = FileUtils.getSize(activity, version + ".txz");
+            estimate += size * 4L;
+        }
+        final long total = Math.max(1L, estimate);
+        AtomicLong extracted = new AtomicLong();
+        for (String version : versions) {
+            File target = new File(rootDir, "opt/" + version);
+            if (!target.isDirectory() && !target.mkdirs()) return false;
+            OnExtractFileListener progress = (file, size) -> {
+                if (size > 0 && dialog != null) {
+                    int value = 78 + (int)Math.min(15, extracted.addAndGet(size) * 15L / total);
+                    activity.runOnUiThread(() -> dialog.setProgress(value));
+                }
+                return file;
+            };
+            boolean ready = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD,
+                    activity, version + ".tzst", target, progress);
+            if (!ready) ready = TarCompressorUtils.extract(TarCompressorUtils.Type.XZ,
+                    activity, version + ".txz", target, progress);
+            if (!ready || !RuntimeFiles.hasWine(target, "bin")) {
+                Log.e("ImageFsInstaller", "Incomplete bundled runtime: " + version);
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean hasRequiredWine(MainActivity activity, File rootDir) {
+        for (String version : activity.getResources().getStringArray(R.array.wine_entries)) {
+            if (!RuntimeFiles.hasWine(new File(rootDir, "opt/" + version), "bin")) {
+                // Removing the APK-baked Proton is supported once a replacement
+                // is installed. Do not reinstall it on every app launch.
+                ContentsManager manager = new ContentsManager(activity);
+                manager.syncContents();
+                for (ContentProfile.ContentType type : new ContentProfile.ContentType[]{
+                        ContentProfile.ContentType.CONTENT_TYPE_WINE,
+                        ContentProfile.ContentType.CONTENT_TYPE_PROTON}) {
+                    for (ContentProfile profile : manager.getProfiles(type)) {
+                        if (manager.isInstalledProfile(profile)) return true;
+                    }
+                }
+                return false;
+            }
+        }
+        return true;
     }
 
     public static void installIfNeeded(final MainActivity activity) {
         ImageFs imageFs = ImageFs.find(activity);
-        if (!imageFs.isValid() || imageFs.getVersion() < LATEST_VERSION) installFromAssets(activity);
+        if (!imageFs.isValid() || imageFs.getVersion() < LATEST_VERSION
+                || !hasRequiredWine(activity, imageFs.getRootDir())) installFromAssets(activity);
     }
 
     public static void installIfNeeded(final MainActivity activity, final Runnable onCompletion) {
         ImageFs imageFs = ImageFs.find(activity);
-        if (!imageFs.isValid() || imageFs.getVersion() < LATEST_VERSION) {
+        if (!imageFs.isValid() || imageFs.getVersion() < LATEST_VERSION
+                || !hasRequiredWine(activity, imageFs.getRootDir())) {
             installFromAssets(activity, onCompletion);
         }
         else if (onCompletion != null) {
