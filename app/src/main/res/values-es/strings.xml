@@ -968,4 +968,5 @@
     <string name="file_transfer_item">Elemento %1$d de %2$d</string>
     <string name="file_operation_cancelled">Operación cancelada. Se conservaron los elementos completados.</string>
     <string name="file_transfer_errors">No se pudieron completar estas transferencias. Se conservaron los originales y las copias de recuperación cuando fue necesario:\n%1$s</string>
+    <string name="wine_prefix_startup_failed">Wine no pudo preparar este contenedor. El juego no se inició.\n\n%1$s</string>
 </resources>

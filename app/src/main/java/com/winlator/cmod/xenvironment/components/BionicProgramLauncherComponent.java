@@ -29,6 +29,8 @@ import com.winlator.cmod.core.GPUInformation;
 import com.winlator.cmod.core.ProcessHelper;
 import com.winlator.cmod.core.TarCompressorUtils;
 import com.winlator.cmod.core.WineInfo;
+import com.winlator.cmod.core.WinePrefixBootstrap;
+import com.winlator.cmod.core.WinePrefixState;
 import com.winlator.cmod.inputcontrols.ControllerManager;
 import com.winlator.cmod.sysvshm.SysVSHMConnectionHandler;
 import com.winlator.cmod.sysvshm.SysVSHMRequestHandler;
@@ -45,21 +47,34 @@ import java.io.RandomAccessFile;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class BionicProgramLauncherComponent extends GuestProgramLauncherComponent {
     private String guestExecutable;
-    private static int pid = -1;
+    private int pid = -1;
     private String[] bindingPaths;
     private EnvVars envVars;
     private WineInfo wineInfo;
     private String box64Preset = Box86_64Preset.COMPATIBILITY;
     private Callback<Integer> terminationCallback;
-    private static final Object lock = new Object();
+    private final Object lock = new Object();
+    private static final ReentrantLock prefixBootLock = new ReentrantLock();
     private boolean wow64Mode = true;
     private final ContentsManager contentsManager;
     private final ContentProfile wineProfile;
     private Container container;
     private final Shortcut shortcut;
+    private volatile boolean stopped;
+    private volatile boolean startupFailed;
+    private volatile boolean preparingPrefix = true;
+    private Callback<String> startupFailureCallback;
+    private Runnable prefixUpdatedCallback;
+
+    public void setStartupFailureCallback(Callback<String> callback) { startupFailureCallback = callback; }
+    public void setPrefixUpdatedCallback(Runnable callback) { prefixUpdatedCallback = callback; }
+    public boolean hasStartupFailed() { return startupFailed; }
+    public boolean isPreparingPrefix() { return preparingPrefix; }
 
 //    private static SysVSharedMemory shmMgr;
     private static XConnectorEpoll shmServer;
@@ -298,13 +313,14 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
 
     @Override
     public void start() {
+        if (stopped) return;
         synchronized (lock) {
             boolean translatorReady = wineInfo.isArm64EC()
                     ? extractEmulatorsDlls() : extractBox86_64Files();
             if (!translatorReady) {
                 pid = -1;
                 Log.e("BionicStartup", "Wine launch stopped: required translator is incomplete");
-                if (terminationCallback != null) terminationCallback.call(-1);
+                failStartup("Required CPU translator is missing or incomplete");
                 return;
             }
             populateSysWow64();
@@ -314,18 +330,31 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
 //                    environment.getContext(),
 //                    new File(environment.getImageFs().getWinePath()),
 //                    wineInfo.isArm64EC());
-            pid = execGuestProgram();
+        }
+        // Prefix preparation can take minutes on its first boot. Keep it outside
+        // the process lock so leaving the session can cancel it immediately.
+        try {
+            execGuestProgram();
+        } catch (RuntimeException failure) {
+            failStartup(failure.getMessage());
         }
     }
 
     @Override
     public void stop() {
+        stopped = true;
         synchronized (lock) {
             if (pid != -1) {
                 Process.killProcess(pid);
                 pid = -1;
             }
         }
+    }
+
+    private void failStartup(String message) {
+        startupFailed = true;
+        Log.e("BionicStartup", "Startup stopped: " + message);
+        if (!stopped && startupFailureCallback != null) startupFailureCallback.call(message);
     }
 
     public Callback<Integer> getTerminationCallback() {
@@ -377,6 +406,25 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
     }
 
     private int execGuestProgram() {
+        // A cancelled bootstrap may still be stopping its wineserver. Do not
+        // let a quick reopen start another server for that prefix meanwhile.
+        try {
+            while (!stopped) {
+                if (!prefixBootLock.tryLock(200, TimeUnit.MILLISECONDS)) continue;
+                try {
+                    return stopped ? -1 : execGuestProgramAfterPreviousBoot();
+                } finally {
+                    prefixBootLock.unlock();
+                }
+            }
+        } catch (InterruptedException failure) {
+            Thread.currentThread().interrupt();
+            failStartup("Wine preparation cancelled");
+        }
+        return -1;
+    }
+
+    private int execGuestProgramAfterPreviousBoot() {
 
         // final int MAX_PLAYERS = 1; // old static method
 
@@ -629,13 +677,8 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         if (!ld_preload.isEmpty()) envVars.put("LD_PRELOAD", ld_preload);
         File fakeInputDir = new File(rootDir, "dev/input");
         if (!fakeInputDir.isDirectory()) fakeInputDir.mkdirs();
-        File event0 = new File(fakeInputDir, "event0");
-        try {
-            if (!event0.exists()) event0.createNewFile();
-        }
-        catch (IOException e) {
-            Log.e("FakeInput", "Could not create initial controller device", e);
-        }
+        // FakeInputWriter creates a device only when it can supply events.
+        // An empty placeholder is a permanently readable regular file at EOF.
         envVars.put("FAKE_EVDEV_DIR", fakeInputDir.getAbsolutePath());
         envVars.put("FAKE_EVDEV_VIBRATION", "1");
         
@@ -653,23 +696,6 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
                 command += part + " ";
             command = command.trim();
         }
-        else {
-            if (wineInfo.isArm64EC()) {
-                command = winePath + "/" + guestExecutable;
-            }
-            else {
-                // Resolve Wine explicitly. Passing only "wine" made Box64
-                // depend on its own PATH lookup, which is unreliable for WCP
-                // runtimes installed outside imagefs/opt.
-                String wineArguments = guestExecutable.equals("wine") ? ""
-                        : guestExecutable.startsWith("wine ")
-                                ? guestExecutable.substring("wine".length())
-                                : " " + guestExecutable;
-                String absoluteWine = new File(winePath, "wine").getAbsolutePath()
-                        .replace(" ", "\\ ");
-                command = imageFs.getBinDir() + "/box64 " + absoluteWine + wineArguments;
-            }
-        }
 
         // Ensure the shared Box64 emulator is executable.
         if (!wineInfo.isArm64EC()) {
@@ -679,16 +705,70 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
             }
         }
 
-        return ProcessHelper.exec(command, envVars.toStringArray(), rootDir, (status) -> {
-            synchronized (lock) {
-                pid = -1;
+        File prefix = new File(container.getRootDir(), ".wine");
+        envVars.put("WINEPREFIX", prefix.getAbsolutePath());
+        envVars.put("WINEARCH", wineInfo.isWin64() ? "win64" : "win32");
+        EnvVars setupEnv = new EnvVars();
+        setupEnv.putAll(envVars);
+        // First boot must not wait for an online Mono/Gecko installer dialog.
+        String overrides = setupEnv.get("WINEDLLOVERRIDES");
+        setupEnv.put("WINEDLLOVERRIDES", (overrides.isEmpty() ? "" : overrides + ";") + "mscoree,mshtml=d");
+        try {
+            File bin = new File(winePath);
+            File wineRoot = bin.getParentFile();
+            WinePrefixBootstrap.prepare(prefix, wineInfo.isWin64(),
+                    container.getWineVersion(), bin, new File(wineRoot, "share/wine/wine.inf"),
+                    wineInfo.isArm64EC() ? null : new File(imageFs.getBinDir(), "box64"),
+                    (args, timeout) -> {
+                        String option = args[args.length - 1];
+                        boolean cleanup = "-k".equals(option) || "-w".equals(option);
+                        // Cancellation still has to stop the prefix's server if
+                        // it was forked just as the user left the session.
+                        return ProcessHelper.execAndWait(args, setupEnv.toStringArray(), rootDir,
+                                timeout, () -> stopped && !cleanup);
+                    },
+                    () -> {
+                        if (stopped) throw new IOException("Wine preparation cancelled");
+                        if (prefixUpdatedCallback != null) prefixUpdatedCallback.run();
+                        if (stopped) throw new IOException("Wine preparation cancelled");
+                    });
+            // The post-update installer can add environment overrides too.
+            if (this.envVars != null) envVars.putAll(this.envVars);
+            envVars.put("WINEPREFIX", prefix.getAbsolutePath());
+            envVars.put("WINEARCH", wineInfo.isWin64() ? "win64" : "win32");
+        } catch (IOException | InterruptedException failure) {
+            if (failure instanceof InterruptedException) Thread.currentThread().interrupt();
+            failStartup(failure.getMessage());
+            return -1;
+        }
+
+        // Match the executable selected by bootstrap, including wine64-only WCPs.
+        if (envVars.get("GUEST_PROGRAM_LAUNCHER_COMMAND").isEmpty()) {
+            try {
+                String wine = WinePrefixState.wineExecutable(new File(winePath)).getAbsolutePath().replace(" ", "\\ ");
+                String args = guestExecutable.equals("wine") ? "" : guestExecutable.startsWith("wine ")
+                        ? guestExecutable.substring(4) : " " + guestExecutable;
+                command = (wineInfo.isArm64EC() ? "" : imageFs.getBinDir() + "/box64 ") + wine + args;
+            } catch (IOException failure) {
+                failStartup(failure.getMessage());
+                return -1;
             }
-            if (!environment.isWinetricksRunning()) {
-                if (terminationCallback != null)
+        }
+        synchronized (lock) {
+            if (stopped) return -1;
+            preparingPrefix = false;
+            pid = ProcessHelper.exec(command, envVars.toStringArray(), rootDir, (status) -> {
+                synchronized (lock) {
+                    pid = -1;
+                }
+                if (!stopped && !environment.isWinetricksRunning() && terminationCallback != null)
                     terminationCallback.call(status);
-            }
-        });
+            });
+            if (pid == -1) failStartup("Could not start the selected Wine runtime");
+            return pid;
+        }
     }
+
 
     private void addBox64EnvVars(EnvVars envVars, boolean enableLogs) {
         envVars.put("BOX64_NOBANNER", ProcessHelper.PRINT_DEBUG && enableLogs ? "0" : "1");

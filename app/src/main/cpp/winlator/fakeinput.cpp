@@ -511,17 +511,20 @@ EXPORT int close(int fd) {
 }
 
 EXPORT ssize_t read(int fd, void *buf, size_t count) {
+    if (count == 0) return syscall(SYS_read, fd, buf, count);
     auto controller = controller_map.find(fd);
     
     if (controller != controller_map.end()) {
         ssize_t bytes_read = 0;
         int flags = fcntl(fd, F_GETFL);
+        if (flags == -1) return -1;
         bool isNonBlock = flags & O_NONBLOCK;
         bytes_read = syscall(SYS_read, fd, buf, count);
         while(bytes_read == 0) {
             struct stat statbuf;
             if (!my_fstat) *(void **)&my_fstat = dlsym(RTLD_NEXT, "fstat");
-            if (my_fstat && my_fstat(fd, &statbuf) == 0 && statbuf.st_nlink == 0) {
+            bool hasStat = my_fstat && my_fstat(fd, &statbuf) == 0;
+            if (hasStat && statbuf.st_nlink == 0) {
                 errno = ENODEV;
                 return -1;
             }
@@ -533,6 +536,15 @@ EXPORT ssize_t read(int fd, void *buf, size_t count) {
             	bytes_read = -1;
             	errno = EINTR;
             	return bytes_read;
+            }
+            if (hasStat && S_ISREG(statbuf.st_mode)) {
+                // FakeInputWriter appends to regular files. poll() reports
+                // these readable even at EOF, so polling and retrying read()
+                // without a delay burns a core while waiting for the first
+                // (or next) controller event.
+                if (usleep(4000) == -1) return -1;
+                bytes_read = syscall(SYS_read, fd, buf, count);
+                continue;
             }
             struct pollfd pfd;
             pfd.fd = fd;

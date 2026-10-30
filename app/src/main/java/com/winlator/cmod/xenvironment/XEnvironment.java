@@ -13,6 +13,7 @@ public class XEnvironment implements Iterable<EnvironmentComponent> {
     private final Context context;
     private final ImageFs imageFs;
     private final ArrayList<EnvironmentComponent> components = new ArrayList<>();
+    private volatile boolean stopped;
 
     private boolean winetricksRunning = false;
 
@@ -65,10 +66,14 @@ public class XEnvironment implements Iterable<EnvironmentComponent> {
 
     public void startEnvironmentComponents() {
         FileUtils.clear(getTmpDir());
-        for (EnvironmentComponent environmentComponent : this) environmentComponent.start();
+        for (EnvironmentComponent environmentComponent : this) {
+            if (stopped) break;
+            environmentComponent.start();
+        }
     }
 
     public void stopEnvironmentComponents() {
+        stopped = true;
         for (EnvironmentComponent environmentComponent : this) environmentComponent.stop();
     }
 

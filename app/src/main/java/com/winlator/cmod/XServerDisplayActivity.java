@@ -107,6 +107,7 @@ import com.winlator.cmod.core.StringUtils;
 import com.winlator.cmod.core.TarCompressorUtils;
 import com.winlator.cmod.core.Win32AppWorkarounds;
 import com.winlator.cmod.core.WineInfo;
+import com.winlator.cmod.core.WinePrefixState;
 import com.winlator.cmod.core.WineRegistryEditor;
 import com.winlator.cmod.core.WineRequestHandler;
 import com.winlator.cmod.core.WineStartMenuCreator;
@@ -742,13 +743,6 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
 
         imageFs.setWinePath(wineInfo.path);
 
-        // Self-heal the WINEPREFIX registries: wineserver saves them on
-        // exit and a hard kill (OOM/task removal) can truncate the files, which
-        // makes every later launch fail with "not a valid registry file" and a
-        // 32/64-bit wineserver mismatch. Use the container's actual arch so
-        // win32 (x86) prefixes get #arch=win32.
-        ContainerManager.ensureValidPrefixRegistries(new File(imageFs.getRootDir(), ImageFs.WINEPREFIX), wineInfo.isWin64());
-
         ProcessHelper.removeAllDebugCallbacks();
         ProcessHelper.addDebugCallback(bcnTelemetryCallback);
         if (enableLogs) {
@@ -968,7 +962,8 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         xServer.windowManager.addOnWindowModificationListener(new WindowManager.OnWindowModificationListener() {
             @Override
             public void onUpdateWindowContent(Window window) {
-                if (!winStarted[0] && window.isApplicationWindow()) {
+                if (!winStarted[0] && window.isApplicationWindow()
+                        && (bionicLauncher == null || !bionicLauncher.isPreparingPrefix())) {
                     xServerView.getRenderer().setCursorVisible(true);
                     preloaderDialog.closeOnUiThread();
                     winStarted[0] = true;
@@ -1055,16 +1050,17 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
             }
             Executors.newSingleThreadExecutor().execute(() -> {
 
-                setupWineSystemFiles();
-                extractArm64ecInputDLLs(); // REQUIRED: Uses updated xinput1_3 main.c from x86_64 build, prevents crashes with 3+ players, avoids need for input shim dlls.
-                prepareWineDiagnosticLogs();
-                extractGraphicsDriverFiles();
-                changeWineAudioDriver();
-
                 try {
-                    setupXEnvironment();
-                } catch (PackageManager.NameNotFoundException e) {
-                    throw new RuntimeException(e);
+                    if (sessionStopped.get() || isFinishing() || isDestroyed()) return;
+                    WinePrefixState.ensureRegistries(new File(container.getRootDir(), ".wine"), wineInfo.isWin64());
+                    setupWineSystemFiles();
+                    extractArm64ecInputDLLs();
+                    prepareWineDiagnosticLogs();
+                    extractGraphicsDriverFiles();
+                    changeWineAudioDriver();
+                    if (!sessionStopped.get() && !isFinishing() && !isDestroyed()) setupXEnvironment();
+                } catch (Exception failure) {
+                    showWineStartupFailure(failure.getMessage());
                 }
 
             });
@@ -1379,6 +1375,10 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         if (launchBlockedByContentOperation) {
             super.onDestroy();
             return;
+        }
+        if (bionicLauncher != null && !sessionStopped.get()) {
+            bionicLauncher.stop(); // Cancel a pending prefix boot before it can launch the game.
+            Executors.newSingleThreadExecutor().execute(this::stopSessionServices);
         }
         if (inlineTaskManagerPanel != null) inlineTaskManagerPanel.stop();
         if (hudDataSource != null) {
@@ -2292,6 +2292,17 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
                 WineInfo.findInstalledRuntimeProfile(contentsManager, container.getWineVersion()),
                 shortcut
         );
+        bionicLauncher.setStartupFailureCallback(this::showWineStartupFailure);
+        bionicLauncher.setPrefixUpdatedCallback(() -> {
+            // wineboot owns the runtime upgrade. Reapply app-managed/native
+            // components afterwards, while no Wine process can overwrite them.
+            for (String key : new String[]{"appVersion", "imgVersion", "dxwrapper", "ddrawrapper",
+                    "wincomponents", "desktopTheme", "startupSelectionApplied", "wfmFixVersion",
+                    "arm64ecInputDllsVersion", "controllerFixVersion"}) container.putExtra(key, null);
+            setupWineSystemFiles();
+            extractArm64ecInputDLLs();
+            changeWineAudioDriver();
+        });
         guestProgramLauncherComponent = bionicLauncher;
         glibcLauncher = null; // We're not using glibc in this case
 
@@ -2504,7 +2515,12 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         FEXCoreManager.createAppConfigFiles(this);
 
         // Start all environment components (XServer, Audio, etc.)
+        if (sessionStopped.get() || isFinishing() || isDestroyed()) {
+            bionicLauncher.stop();
+            return;
+        }
         environment.startEnvironmentComponents();
+        if (sessionStopped.get() || bionicLauncher.hasStartupFailed()) return;
 
         if (String.valueOf(Container.STARTUP_SELECTION_AGGRESSIVE).equals(startupSelection)) {
             aggressiveWineTrimAttempts = 0;
@@ -2812,6 +2828,25 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
 
         AppUtils.observeSoftKeyboardVisibility(drawerLayout, renderer::setScreenOffsetYRelativeToCursor);
         setupModernSidebar(renderer);
+    }
+
+    private void showWineStartupFailure(String detail) {
+        if (sessionStopped.get()) return;
+        Log.e("WineStartup", "Prefix/runtime preparation failed: " + detail);
+        automaticLifecycleClose = true;
+        lifecycleCloseReason = "startup_failure: " + detail;
+        stopSessionServices();
+        runOnUiThread(() -> {
+            if (isFinishing() || isDestroyed()) return;
+            sidebarHandler.removeCallbacks(shortcutExitProbe);
+            preloaderDialog.close();
+            ContentDialog dialog = new ContentDialog(this);
+            dialog.setMessage(getString(R.string.wine_prefix_startup_failed, detail == null ? "" : detail));
+            dialog.setCancelable(false);
+            dialog.findViewById(R.id.BTCancel).setVisibility(View.GONE);
+            dialog.setOnConfirmCallback(this::finishSession);
+            dialog.show();
+        });
     }
 
     /**

@@ -21,6 +21,8 @@ import java.util.Locale;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
 
 public abstract class ProcessHelper {
     public static final boolean PRINT_DEBUG = false;
@@ -142,6 +144,38 @@ public abstract class ProcessHelper {
             Log.e("ProcessHelper", "Error executing command: " + command, e);
         }
         return pid;
+    }
+
+    /** Bounded guest setup command; no game/session termination callback is fired. */
+    public static int execAndWait(String[] command, String[] envp, File workingDir,
+                                  long timeoutMs, BooleanSupplier cancelled)
+            throws IOException, InterruptedException {
+        if (cancelled.getAsBoolean()) throw new IOException("Wine preparation cancelled");
+        long generation = getDebugSessionGeneration();
+        emitDebugLine("[prefix] " + Arrays.toString(command), generation);
+        ProcessBuilder builder = new ProcessBuilder(command).directory(workingDir);
+        for (String value : envp) {
+            int separator = value.indexOf('=');
+            if (separator > 0) builder.environment().put(value.substring(0, separator), value.substring(separator + 1));
+        }
+        java.lang.Process process = builder.start();
+        // pid() is not available on all supported Android versions. The phase
+        // marker identifies bootstrap output without hidden-field reflection.
+        createDebugThread(process.getInputStream(), "prefix stdout", -1, generation);
+        createDebugThread(process.getErrorStream(), "prefix stderr", -1, generation);
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs);
+        try {
+            while (!process.waitFor(200, TimeUnit.MILLISECONDS)) {
+                if (cancelled.getAsBoolean()) throw new IOException("Wine preparation cancelled");
+                if (System.nanoTime() >= deadline) throw new IOException("Wine preparation timed out: " + Arrays.toString(command));
+            }
+            if (cancelled.getAsBoolean()) throw new IOException("Wine preparation cancelled");
+            int status = process.exitValue();
+            emitDebugLine("[prefix exit] " + status, generation);
+            return status;
+        } finally {
+            if (process.isAlive()) process.destroyForcibly();
+        }
     }
 
     private static void createDebugThread(final InputStream inputStream, String streamName, int pid,

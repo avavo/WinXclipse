@@ -968,4 +968,5 @@
     <string name="file_transfer_item">Item %1$d de %2$d</string>
     <string name="file_operation_cancelled">Operação cancelada. Os itens concluídos foram mantidos.</string>
     <string name="file_transfer_errors">Não foi possível concluir estas transferências. As origens e cópias de recuperação foram mantidas quando necessário:\n%1$s</string>
+    <string name="wine_prefix_startup_failed">O Wine não conseguiu preparar este container. O jogo não foi iniciado.\n\n%1$s</string>
 </resources>

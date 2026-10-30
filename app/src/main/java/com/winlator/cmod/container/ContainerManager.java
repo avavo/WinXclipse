@@ -16,6 +16,8 @@ import com.winlator.cmod.core.MSLink;
 import com.winlator.cmod.core.OnExtractFileListener;
 import com.winlator.cmod.core.TarCompressorUtils;
 import com.winlator.cmod.core.WineInfo;
+import com.winlator.cmod.core.WinePrefixState;
+import com.winlator.cmod.core.DirectoryInstall;
 import com.winlator.cmod.contentdialog.DXVKConfigDialog;
 import com.winlator.cmod.xenvironment.ImageFs;
 
@@ -454,15 +456,9 @@ public class ContainerManager {
         return null;
     }
 
-    private void extractCommonDlls(WineInfo wineInfo, File wineLibDir, String srcName, String dstName, File containerDir, OnExtractFileListener onExtractFileListener) throws JSONException {
-        extractCommonDlls(wineInfo, wineLibDir, srcName, dstName, containerDir,
-                onExtractFileListener, false);
-    }
-
     private void extractCommonDlls(WineInfo wineInfo, File wineLibDir, String srcName,
-                                   String dstName, File containerDir,
-                                   OnExtractFileListener onExtractFileListener,
-                                   boolean overwriteExisting) throws JSONException {
+                                   String dstName, File prefixDir, OnExtractFileListener onExtractFileListener)
+            throws java.io.IOException {
         if (wineInfo == null || wineLibDir == null) {
             Log.w("ContainerManager", "Skipping common DLL extraction: missing WineInfo for " + srcName);
             return;
@@ -480,7 +476,7 @@ public class ContainerManager {
             return;
         }
 
-        File dstDir = new File(containerDir, ".wine/drive_c/windows/" + dstName);
+        File dstDir = new File(prefixDir, "drive_c/windows/" + dstName);
         if (!dstDir.exists() && !dstDir.mkdirs()) {
             Log.w("ContainerManager", "Skipping common DLL extraction: unable to create destination dir " + dstDir.getAbsolutePath());
             return;
@@ -505,14 +501,16 @@ public class ContainerManager {
             }
 
             File dstFile = new File(dstDir, dllName);
-            if (dstFile.exists() && !overwriteExisting) { skipped++; continue; }
+            if (dstFile.isFile() && dstFile.length() > 0) { skipped++; continue; }
 
             if (onExtractFileListener != null) {
                 dstFile = onExtractFileListener.onExtractFile(dstFile, 0);
                 if (dstFile == null) { skipped++; continue; }
             }
 
-            if (FileUtils.copy(file, dstFile)) copied++; else skipped++;
+            if (file.length() == 0 || !FileUtils.copy(file, dstFile) || dstFile.length() != file.length())
+                throw new java.io.IOException("Could not seed Wine module: " + file);
+            copied++;
         }
         Log.i("ContainerManager", "extractCommonDlls " + srcName + " -> " + dstName
                 + ": source=" + srcfiles.length + " copied=" + copied + " skipped=" + skipped);
@@ -532,146 +530,54 @@ public class ContainerManager {
                 if (new File(nestedWineDir, "i386-windows").isDirectory()) wineLibDir = nestedWineDir;
             }
         }
-        String containerPattern = wineVersion + "_container_pattern.tzst";
-        boolean result = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context, containerPattern, containerDir, onExtractFileListener);
-
-        if (!result && runtimeProfile != null && runtimeProfile.winePrefixPack != null) {
-            // Only use the runtime's declared pack when it actually is an archive;
-            // synthesized profiles point the field at the wine binary itself.
-            File packFile = ContentsManager.getSourceFile(context, runtimeProfile, runtimeProfile.winePrefixPack);
-            TarCompressorUtils.Type compression = packFile != null && packFile.isFile()
-                    ? TarCompressorUtils.detectType(packFile) : null;
-            if (compression != null) {
-                result = TarCompressorUtils.extract(compression, packFile, containerDir);
-            }
-            else Log.i("ContainerManager", "Runtime has no usable prefix pack (" + runtimeProfile.winePrefixPack + ")");
-        }
-
-        if (!result) {
-            // Raw Wine/Proton .tzst downloads ship without any prefix pack.
-            // Preferred fallback is the bundled Proton prefix pattern, but that
-            // archive has failed commons-compress parsing on some builds, so the
-            // final resort clones the shared imagefs prefix - which is guaranteed
-            // to be a working win64 prefix - into the new container.
-            result = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context,
-                    WineInfo.MAIN_WINE_VERSION.identifier() + "_container_pattern.tzst",
-                    containerDir, onExtractFileListener);
-            if (result) {
-                Log.i("ContainerManager", "Created container using the bundled Proton prefix pattern for " + wineVersion);
-            }
-        }
-
-        if (!result) {
-            // The container root doubles as the user home (it holds .wine directly),
-            // so clone every entry of the shared imagefs home into it.
-            File sharedHome = new File(ImageFs.find(context).getRootDir(), "home/xuser");
-            File[] entries = sharedHome.listFiles();
-            if (entries != null && entries.length > 0) {
-                result = true;
-                for (File entry : entries) {
-                    if (!FileUtils.copy(entry, new File(containerDir, entry.getName()))) {
-                        Log.e("ContainerManager", "Failed to clone prefix entry: " + entry.getPath());
-                        result = false;
-                        break;
-                    }
-                }
-                if (result) {
-                    ensureValidPrefixRegistries(new File(containerDir, ".wine"),
-                            wineInfo.isWin64());
-                    Log.i("ContainerManager", "Created container by cloning the shared imagefs prefix for "
-                            + wineVersion);
-                }
-                else FileUtils.delete(containerDir);
-            }
-        }
-
-        if (result) {
-            ensureValidPrefixRegistries(new File(containerDir, ".wine"), wineInfo.isWin64());
-            try {
-                Log.i("ContainerManager", "extractContainerPatternFile: populating DLL dirs (arch="
-                        + wineInfo.getArch() + ", isArm64EC=" + wineInfo.isArm64EC()
-                        + ", isWin64=" + wineInfo.isWin64() + ", wineLibDir=" + wineLibDir + ")");
-                if (wineInfo.isArm64EC()) {
-                    extractCommonDlls(wineInfo, wineLibDir, "aarch64-windows", "system32",
-                            containerDir, onExtractFileListener);
-                    extractCommonDlls(wineInfo, wineLibDir, "i386-windows", "syswow64",
-                            containerDir, onExtractFileListener);
-                }
-                else if (!wineInfo.isWin64()) {
-                    // Pure 32-bit (x86) prefix: system32 gets the i386 payload, no syswow64.
-                    // The fallback prefix is bundled as win64/ARM64EC. Replace
-                    // same-named system DLLs instead of skipping them, otherwise
-                    // a nominal win32 prefix still contains 64-bit system32.
-                    extractCommonDlls(wineInfo, wineLibDir, "i386-windows", "system32",
-                            containerDir, onExtractFileListener, true);
-                    File spuriousWow64 = new File(containerDir,
-                            ".wine/drive_c/windows/syswow64");
-                    if (spuriousWow64.isDirectory()) {
-                        FileUtils.delete(spuriousWow64);
-                        Log.i("ContainerManager", "Removed spurious syswow64 for win32 prefix");
-                    }
-                }
-                else {
-                    extractCommonDlls(wineInfo, wineLibDir, "x86_64-windows", "system32",
-                            containerDir, onExtractFileListener);
-                    extractCommonDlls(wineInfo, wineLibDir, "i386-windows", "syswow64",
-                            containerDir, onExtractFileListener);
+        // Extract into an isolated tree: a rejected/partial pack must never be
+        // completed with files copied from whichever container is currently active.
+        File staging = new File(containerDir, ".prefix-stage-" + java.util.UUID.randomUUID());
+        if (!staging.mkdirs()) return false;
+        OnExtractFileListener prefixListener = (file, size) -> {
+            // Wine's z: points outside the archive. Rebuild all drive mappings
+            // from container settings instead of weakening the generic extractor.
+            if (WinePrefixState.isDriveMapping(staging, file)) return null;
+            return onExtractFileListener != null ? onExtractFileListener.onExtractFile(file, size) : file;
+        };
+        try {
+            boolean extracted = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context,
+                    wineVersion + "_container_pattern.tzst", staging, prefixListener);
+            if (!extracted) {
+                if (!FileUtils.clear(staging)) return false;
+                if (runtimeProfile != null && runtimeProfile.winePrefixPack != null) {
+                    File pack = ContentsManager.getSourceFile(context, runtimeProfile, runtimeProfile.winePrefixPack);
+                    TarCompressorUtils.Type compression = pack != null && pack.isFile()
+                            ? TarCompressorUtils.detectType(pack) : null;
+                    if (compression != null) extracted = TarCompressorUtils.extract(compression, pack, staging, prefixListener);
                 }
             }
-            catch (JSONException e) {
-                return false;
+            if (!extracted && !FileUtils.clear(staging)) return false;
+            File stagedPrefix = new File(staging, ".wine");
+            if (extracted && !stagedPrefix.isDirectory() && new File(staging, "drive_c").isDirectory()) {
+                stagedPrefix = staging; // Some WCPs contain the prefix itself without a .wine wrapper.
             }
-        }
-
-        return result;
-    }
-
-    /** Wine rejects a prefix whose registry files lack the "WINE REGISTRY"
-     *  header or whose #arch marker disagrees with the selected runtime. Keep
-     *  valid registry contents and repair only the header/architecture marker. */
-    public static void ensureValidPrefixRegistries(File prefixDir) {
-        ensureValidPrefixRegistries(prefixDir, true);
-    }
-
-    public static void ensureValidPrefixRegistries(File prefixDir, boolean isWin64) {
-        if (!prefixDir.isDirectory()) return;
-        String[] registries = {"system.reg", "user.reg", "userdef.reg"};
-        java.util.regex.Pattern header = java.util.regex.Pattern.compile(
-                "^WINE REGISTRY Version \\d+\\s*$");
-        java.util.regex.Pattern arch = java.util.regex.Pattern.compile(
-                "(?m)^#arch=win(?:32|64)[\\t ]*\\r?$");
-        String desiredArch = isWin64 ? "#arch=win64" : "#arch=win32";
-        for (String name : registries) {
-            File file = new File(prefixDir, name);
-            String content = file.isFile() ? FileUtils.readString(file) : "";
-            int firstBreak = content.indexOf('\n');
-            String firstLine = firstBreak >= 0 ? content.substring(0, firstBreak) : content;
-            boolean validHeader = header.matcher(firstLine).matches();
-            String repaired = content;
-
-            if (!validHeader) {
-                repaired = "WINE REGISTRY Version 2\n" + desiredArch + "\n";
+            WinePrefixState.ensureRegistries(stagedPrefix, wineInfo.isWin64());
+            // Raw runtimes start with their own modules and let wineboot create
+            // their registry/layout; no Proton 9 registry is relabelled as win32.
+            if (wineInfo.isArm64EC()) {
+                extractCommonDlls(wineInfo, wineLibDir, "aarch64-windows", "system32", stagedPrefix, null);
+                extractCommonDlls(wineInfo, wineLibDir, "i386-windows", "syswow64", stagedPrefix, null);
+            } else if (!wineInfo.isWin64()) {
+                extractCommonDlls(wineInfo, wineLibDir, "i386-windows", "system32", stagedPrefix, null);
+            } else {
+                extractCommonDlls(wineInfo, wineLibDir, "x86_64-windows", "system32", stagedPrefix, null);
+                extractCommonDlls(wineInfo, wineLibDir, "i386-windows", "syswow64", stagedPrefix, null);
             }
-            else {
-                java.util.regex.Matcher archMatcher = arch.matcher(content);
-                if (archMatcher.find()) {
-                    if (!desiredArch.equals(archMatcher.group().trim())) {
-                        repaired = archMatcher.replaceFirst(
-                                java.util.regex.Matcher.quoteReplacement(desiredArch));
-                    }
-                }
-                else {
-                    int insertAt = firstBreak >= 0 ? firstBreak + 1 : content.length();
-                    repaired = content.substring(0, insertAt) + desiredArch + "\n"
-                            + content.substring(insertAt);
-                }
-            }
-
-            if (!repaired.equals(content)) {
-                Log.w("ContainerManager", "Repairing " + name + " as "
-                        + (isWin64 ? "win64" : "win32"));
-                FileUtils.writeString(file, repaired);
-            }
+            File previous = DirectoryInstall.commit(stagedPrefix, new File(containerDir, ".wine"));
+            if (previous != null) FileUtils.delete(previous);
+            Log.i("ContainerManager", "Created isolated " + wineInfo.getArch() + " prefix for " + wineVersion);
+            return true;
+        } catch (java.io.IOException failure) {
+            Log.e("ContainerManager", "Could not prepare container prefix", failure);
+            return false;
+        } finally {
+            FileUtils.delete(staging);
         }
     }
 
