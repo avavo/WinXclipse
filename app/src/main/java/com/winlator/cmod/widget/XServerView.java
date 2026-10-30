@@ -3,10 +3,12 @@ package com.winlator.cmod.widget;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.opengl.GLSurfaceView;
+import android.view.SurfaceHolder;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 
 import com.winlator.cmod.renderer.GLRenderer;
+import com.winlator.cmod.core.DisplayRefreshRate;
 import com.winlator.cmod.xserver.XServer;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -22,6 +24,7 @@ public class XServerView extends GLSurfaceView {
     private static final int EGL_CONTEXT_MINOR_VERSION_KHR = 0x30FB;
     private final GLRenderer renderer;
     private final AtomicBoolean frameDispatchPosted = new AtomicBoolean();
+    private volatile float preferredRefreshRate;
 
     public XServerView(Context context, XServer xServer) {
         super(context);
@@ -65,6 +68,21 @@ public class XServerView extends GLSurfaceView {
 
     public GLRenderer getRenderer() {
         return renderer;
+    }
+
+    public void setPreferredRefreshRate(float rate) {
+        preferredRefreshRate = rate;
+        post(() -> DisplayRefreshRate.requestSurface(getHolder().getSurface(), preferredRefreshRate));
+    }
+
+    @Override public void surfaceCreated(SurfaceHolder holder) {
+        super.surfaceCreated(holder);
+        DisplayRefreshRate.requestSurface(holder.getSurface(), preferredRefreshRate);
+    }
+
+    @Override public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+        super.surfaceChanged(holder, format, width, height);
+        DisplayRefreshRate.requestSurface(holder.getSurface(), preferredRefreshRate);
     }
 
     public void setApexMode(boolean enabled) {

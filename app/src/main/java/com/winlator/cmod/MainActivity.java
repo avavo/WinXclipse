@@ -175,23 +175,22 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     }
 
     private void applyMaxRefreshRate() {
-        try {
-            android.view.Display display = getDisplay();
-            if (display == null) display = getWindowManager().getDefaultDisplay();
-            if (display != null) {
-                android.view.Display.Mode[] modes = display.getSupportedModes();
-                android.view.Display.Mode maxMode = null;
-                for (android.view.Display.Mode m : modes) {
-                    if (maxMode == null || m.getRefreshRate() > maxMode.getRefreshRate()) maxMode = m;
-                }
-                if (maxMode != null) {
-                    android.view.WindowManager.LayoutParams params = getWindow().getAttributes();
-                    params.preferredDisplayModeId = maxMode.getModeId();
-                    params.preferredRefreshRate = maxMode.getRefreshRate();
-                    getWindow().setAttributes(params);
-                }
-            }
-        } catch (Exception ignored) {}
+        com.winlator.cmod.core.DisplayRefreshRate.request(this, "auto");
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        applyMaxRefreshRate();
+    }
+
+    @Override public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) applyMaxRefreshRate();
+    }
+
+    @Override public void onConfigurationChanged(android.content.res.Configuration configuration) {
+        super.onConfigurationChanged(configuration);
+        applyMaxRefreshRate();
     }
 
     /**

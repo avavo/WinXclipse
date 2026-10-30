@@ -34,7 +34,7 @@ import java.util.Locale;
 import java.util.List;
 
 public class DXVKConfigDialog extends ContentDialog {
-    public static final String DEFAULT_CONFIG = "version="+DefaultVersion.DXVK+",framerate=0,async=1,asyncCache=0,vkd3dVersion="+DefaultVersion.VKD3D+",vkd3dLevel=12_1,ddrawrapper=none,noTimeline=1,vk3d66=1,ramFix=1,ramFixPool=0";
+    public static final String DEFAULT_CONFIG = "version="+DefaultVersion.DXVK+",framerate=0,async=1,asyncCache=0,vkd3dVersion="+DefaultVersion.VKD3D+",vkd3dLevel="+DefaultVersion.VKD3D_FEATURE_LEVEL+",ddrawrapper=none,noTimeline=1,vk3d66=1,ramFix=1,ramFixPool=0";
     public static final String CUSTOM_CONF_FILENAME = "dxvk.conf";
     public static final String MANAGED_CONF_GUEST_PATH = "Z:/usr/dxvk.conf";
     private static final String MANAGED_CONF_RELATIVE_PATH = "usr/dxvk.conf";
@@ -394,6 +394,7 @@ public class DXVKConfigDialog extends ContentDialog {
                 merged.put(entry[0], entry[1]);
             }
         }
+        if (merged.get("vkd3dLevel").isEmpty()) merged.put("vkd3dLevel", DefaultVersion.VKD3D_FEATURE_LEVEL);
         return merged;
     }
 

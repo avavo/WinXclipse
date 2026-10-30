@@ -341,7 +341,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
                     public String getRefreshRate() {
                         return GraphicsDriverConfigDialog
                                 .parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()))
-                                .getOrDefault("refreshRate", "60");
+                                .getOrDefault("refreshRate", "auto");
                     }
 
                     @Override
@@ -408,7 +408,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
                         config.put("vsyncMode", vsyncMode == null ? "off" : vsyncMode);
                         config.put("vblankOff", "off".equals(vsyncMode) ? "1" : "0");
                         config.put("unlimitedImages", unlimitedImages ? "1" : "0");
-                        config.put("refreshRate", refreshRate == null ? "60" : refreshRate);
+                        config.put("refreshRate", refreshRate == null ? "auto" : refreshRate);
                         vGraphicsDriverConfig.setTag(
                                 GraphicsDriverConfigDialog.toGraphicsDriverConfig(config));
                         rendererFilterMode[0] = textureFilterMode;

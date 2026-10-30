@@ -13,4 +13,5 @@ public abstract class DefaultVersion {
     public static final String DXVK_X86 = "async-1.10.3";
     public static final String D8VK = "1.0";
     public static final String VKD3D = "none";
+    public static final String VKD3D_FEATURE_LEVEL = "12_2";
 }

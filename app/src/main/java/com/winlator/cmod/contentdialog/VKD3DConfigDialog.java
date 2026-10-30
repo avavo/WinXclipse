@@ -19,7 +19,7 @@ import java.util.List;
 
 public class VKD3DConfigDialog extends ContentDialog {
     public static final String DEFAULT_CONFIG = DXVKConfigDialog.DEFAULT_CONFIG +
-            ",vkd3dVersion=" + DefaultVersion.VKD3D + ",vkd3dLevel=12_1";
+            ",vkd3dVersion=" + DefaultVersion.VKD3D + ",vkd3dLevel=" + DefaultVersion.VKD3D_FEATURE_LEVEL;
     public static final String[] VKD3D_FEATURE_LEVEL = {"12_0", "12_1", "12_2", "11_1", "11_0", "10_1", "10_0", "9_3", "9_2", "9_1"};
     private final Context context;
 
@@ -56,7 +56,9 @@ public class VKD3DConfigDialog extends ContentDialog {
 
     public static KeyValueSet parseConfig(Object config) {
         String data = config != null && !config.toString().isEmpty() ? config.toString() : DEFAULT_CONFIG;
-        return new KeyValueSet(data);
+        KeyValueSet result = new KeyValueSet(data);
+        if (result.get("vkd3dLevel").isEmpty()) result.put("vkd3dLevel", DefaultVersion.VKD3D_FEATURE_LEVEL);
+        return result;
     }
 
     public static void setEnvVars(Context context, KeyValueSet config, EnvVars envVars) {

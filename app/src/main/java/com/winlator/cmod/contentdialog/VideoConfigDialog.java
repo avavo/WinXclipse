@@ -112,14 +112,18 @@ public class VideoConfigDialog extends ContentDialog {
                 WindowManager wm = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
                 Display display = wm != null ? wm.getDefaultDisplay() : null;
                 if (display != null) {
-                    for (Display.Mode mode : display.getSupportedModes())
-                        supportedRates.add(Math.max(1, Math.round(mode.getRefreshRate())));
+                    Display.Mode current = display.getMode();
+                    for (Display.Mode mode : display.getSupportedModes()) {
+                        if (mode.getPhysicalWidth() == current.getPhysicalWidth()
+                                && mode.getPhysicalHeight() == current.getPhysicalHeight())
+                            supportedRates.add(Math.max(1, Math.round(mode.getRefreshRate())));
+                    }
                 }
             }
             catch (RuntimeException ignored) {
             }
         }
-        if (supportedRates.isEmpty()) supportedRates.addAll(Arrays.asList(60, 90, 120, 144));
+        if (supportedRates.isEmpty()) supportedRates.add(60);
         for (int hz : supportedRates) {
             refreshLabels.add(hz + " Hz");
             refreshValues.add(String.valueOf(hz));

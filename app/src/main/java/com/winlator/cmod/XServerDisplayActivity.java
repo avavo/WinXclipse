@@ -222,6 +222,16 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     private KeyValueSet xperfConfig = new KeyValueSet(ExperimentalPerformanceDialog.DEFAULT_CONFIG);
     private String startupSelection;
     private float activeDisplayRefreshRate = 60f;
+    private android.hardware.display.DisplayManager refreshDisplayManager;
+    private final android.hardware.display.DisplayManager.DisplayListener refreshDisplayListener =
+            new android.hardware.display.DisplayManager.DisplayListener() {
+                @Override public void onDisplayAdded(int displayId) {}
+                @Override public void onDisplayRemoved(int displayId) {}
+                @Override public void onDisplayChanged(int displayId) {
+                    android.view.Display display = getWindowManager().getDefaultDisplay();
+                    if (display != null && display.getDisplayId() == displayId) updateActualDisplayRefreshRate();
+                }
+            };
     private WineInfo wineInfo;
     private final EnvVars envVars = new EnvVars();
     private boolean firstTimeBoot = false;
@@ -446,6 +456,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     @Override
     public void onConfigurationChanged(@NonNull Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
+        applyPreferredRefreshRate();
         if (configChangedCallback != null) {
             configChangedCallback.run();
             configChangedCallback = null;
@@ -1260,6 +1271,11 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     public void onResume() {
         super.onResume();
         if (launchBlockedByContentOperation) return;
+        if (refreshDisplayManager == null) {
+            refreshDisplayManager = (android.hardware.display.DisplayManager) getSystemService(DISPLAY_SERVICE);
+            if (refreshDisplayManager != null) refreshDisplayManager.registerDisplayListener(refreshDisplayListener, null);
+        }
+        applyPreferredRefreshRate();
         boolean gyroEnabled = preferences.getBoolean("gyro_enabled", true);
 
         if (gyroEnabled) {
@@ -1289,6 +1305,10 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     @Override
     public void onPause() {
         super.onPause();
+        if (refreshDisplayManager != null) {
+            refreshDisplayManager.unregisterDisplayListener(refreshDisplayListener);
+            refreshDisplayManager = null;
+        }
         if (launchBlockedByContentOperation) return;
         if (inputControlsView != null) inputControlsView.cancelAllTouches();
         boolean gyroEnabled = preferences.getBoolean("gyro_enabled", true);
@@ -1879,46 +1899,24 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         startActivity(intent);
     }
 
-    /** Requests the display mode closest to the configured refreshRate. Factory default = 60 Hz. */
+    /** Request a supported panel mode and hint the actual game surface on every lifecycle transition. */
     private void applyPreferredRefreshRate() {
-        String rate = graphicsDriverConfig.getOrDefault("refreshRate", "60");
-        android.view.Window window = getWindow();
-        if (window == null) return;
-        android.view.WindowManager.LayoutParams params = window.getAttributes();
-        float targetFps = 0;
-        try {
-            if (rate.isEmpty() || "auto".equals(rate)) {
-                android.view.Display display = getWindowManager().getDefaultDisplay();
-                if (display != null) {
-                    android.view.Display.Mode[] modes = display.getSupportedModes();
-                    android.view.Display.Mode maxMode = null;
-                    for (android.view.Display.Mode m : modes) {
-                        if (maxMode == null || m.getRefreshRate() > maxMode.getRefreshRate()) maxMode = m;
-                    }
-                    if (maxMode != null) {
-                        params.preferredDisplayModeId = maxMode.getModeId();
-                        params.preferredRefreshRate = maxMode.getRefreshRate();
-                        targetFps = maxMode.getRefreshRate();
-                    }
-                }
-                if (targetFps == 0) targetFps = 120f;
-            } else {
-                float preferred = Float.parseFloat(rate);
-                params.preferredRefreshRate = preferred;
-                targetFps = preferred;
-                android.view.Display display = getWindowManager().getDefaultDisplay();
-                if (display != null) {
-                    for (android.view.Display.Mode m : display.getSupportedModes()) {
-                        if (Math.abs(m.getRefreshRate() - preferred) < 0.5f) {
-                            params.preferredDisplayModeId = m.getModeId();
-                            break;
-                        }
-                    }
-                }
-            }
-            window.setAttributes(params);
-            if (targetFps > 0) activeDisplayRefreshRate = targetFps;
-        } catch (Exception ignored) {}
+        String rate = graphicsDriverConfig == null ? "auto" : graphicsDriverConfig.getOrDefault("refreshRate", "auto");
+        float requested = com.winlator.cmod.core.DisplayRefreshRate.request(this, rate);
+        if (xServerView != null && requested > 0) xServerView.setPreferredRefreshRate(requested);
+        updateActualDisplayRefreshRate();
+    }
+
+    private void updateActualDisplayRefreshRate() {
+        android.view.Display display = getWindowManager().getDefaultDisplay();
+        if (display == null) return;
+        float actual = display.getRefreshRate();
+        if (actual > 0) activeDisplayRefreshRate = actual;
+        if (xServer != null) {
+            com.winlator.cmod.xserver.extensions.PresentExtension present = xServer.getExtension(
+                    com.winlator.cmod.xserver.extensions.PresentExtension.MAJOR_OPCODE);
+            if (present != null) present.setRefreshRate(activeDisplayRefreshRate);
+        }
     }
 
     private String resolveVsyncMode() {
@@ -1999,6 +1997,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 Log.d("PointerCapture", "Released due to focus loss.");
             }
         } else {
+            applyPreferredRefreshRate();
             if (isRelativeMouseMovement && !pointerCaptureRequested) {
                 ensurePointerCapture("focus-gained");
             }
@@ -2648,6 +2647,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     private void setupUI() {
         FrameLayout rootView = findViewById(R.id.FLXServerDisplay);
         xServerView = new XServerView(this, xServer);
+        applyPreferredRefreshRate();
         final GLRenderer renderer = xServerView.getRenderer();
         renderer.setApexFailureListener(() -> {
             if (isFinishing() || isDestroyed()) return;
