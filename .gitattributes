@@ -4,3 +4,7 @@ app/src/main/assets/container_pattern.tzst filter=lfs diff=lfs merge=lfs -text
 app/src/main/assets/container_pattern_bionic.tzst filter=lfs diff=lfs merge=lfs -text
 app/src/main/assets/imagefs.tzst filter=lfs diff=lfs merge=lfs -text
 app/src/main/assets/proton-9.0-arm64ec.txz filter=lfs diff=lfs merge=lfs -text
+
+# Preserve patch context and the upstream font license texts verbatim.
+app/src/consoleUi/integration.patch -whitespace
+app/src/consoleUi/res/raw/ofl_*.txt -whitespace

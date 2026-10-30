@@ -1,0 +1,396 @@
+diff --git a/.gitignore b/.gitignore
+index 6867ed4..d208c7e 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -1,4 +1,5 @@
+ .gradle/
++.kotlin/
+ build/
+ app/build/
+ app/.cxx/
+diff --git a/app/build.gradle b/app/build.gradle
+index 78100cb..8788220 100644
+--- a/app/build.gradle
++++ b/app/build.gradle
+@@ -2,6 +2,9 @@
+ // (alias libs.plugins.android.application apply false). Do not redeclare it here.
+ plugins {
+     id 'com.android.application'
++    // Kotlin + Jetpack Compose for the console-style home screen (com.winlator.cmod.home).
++    id 'org.jetbrains.kotlin.android'
++    id 'org.jetbrains.kotlin.plugin.compose'
+ }
+ 
+ 
+@@ -22,6 +25,7 @@ android {
+ 
+     buildFeatures {
+         buildConfig true
++        compose true
+     }
+ 
+ // Keep the signing certificate stable so future APKs can update these
+@@ -105,6 +109,9 @@ android {
+         sourceCompatibility JavaVersion.VERSION_17
+         targetCompatibility JavaVersion.VERSION_17
+     }
++    kotlinOptions {
++        jvmTarget = '17'
++    }
+ 
+     // Keep Winlator’s buildTypes
+     buildTypes {
+@@ -165,6 +172,14 @@ dependencies {
+     implementation 'com.kohlschutter.junixsocket:junixsocket-native-common:2.6.0'
+     annotationProcessor 'com.github.bumptech.glide:compiler:4.11.0'
+     implementation 'com.google.android.flexbox:flexbox:3.0.0'
++
++    // Console-style home screen (Jetpack Compose); versions in gradle/libs.versions.toml
++    implementation platform('androidx.compose:compose-bom:2024.10.01')
++    implementation 'androidx.compose.ui:ui'
++    implementation 'androidx.compose.foundation:foundation'
++    implementation 'androidx.compose.material3:material3'
++    implementation 'androidx.compose.material:material-icons-core'
++    implementation 'androidx.activity:activity-compose:1.9.3'
+ }
+ 
+ 
+diff --git a/app/src/main/java/com/winlator/cmod/MainActivity.java b/app/src/main/java/com/winlator/cmod/MainActivity.java
+index 0baf031..69846eb 100644
+--- a/app/src/main/java/com/winlator/cmod/MainActivity.java
++++ b/app/src/main/java/com/winlator/cmod/MainActivity.java
+@@ -42,6 +42,7 @@ import com.winlator.cmod.R;
+ import com.winlator.cmod.contentdialog.ContentDialog;
+ import com.winlator.cmod.contentdialog.DebugDialog;
+ import com.winlator.cmod.contentdialog.ControllerAssignmentDialog;
++import com.winlator.cmod.home.HomeActivity;
+ import com.winlator.cmod.contentdialog.SaveEditDialog;
+ import com.winlator.cmod.contentdialog.SaveSettingsDialog;
+ import com.winlator.cmod.contents.ContentProfile;
+@@ -163,6 +164,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
+             actionBar.setHomeAsUpIndicator(R.drawable.icon_action_bar_menu);
+             onNavigationItemSelected(navigationView.getMenu().findItem(menuItemId));
+             navigationView.setCheckedItem(menuItemId);
++            openToolFromIntent(intent.getStringExtra(HomeActivity.EXTRA_TOOL));
+ 
+             // The base runtime must be ready before Android presents any
+             // storage permission UI. This keeps first boot deterministic and
+@@ -541,9 +543,43 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
+         ImageFsInstaller.installIfNeeded(this, () ->
+                 checkForAndInstallAssetContents(() -> {
+                     requestStorageAccessAfterInstallation();
++                    openConsoleHomeIfEnabled();
+                 }));
+     }
+ 
++    /** Classic-only tools the console settings link to (see home.ClassicTool). */
++    private void openToolFromIntent(String tool) {
++        if (tool == null) return;
++        if (tool.equals("new_container") || tool.startsWith("edit_container:")) {
++            // Pushed over the containers list so Save/Back return to it, as from the classic list.
++            int id = tool.startsWith("edit_container:") ? Integer.parseInt(tool.substring("edit_container:".length())) : -1;
++            getSupportFragmentManager().beginTransaction()
++                    .addToBackStack(null)
++                    .replace(R.id.FLFragmentContainer, id >= 0 ? new ContainerDetailFragment(id) : new ContainerDetailFragment())
++                    .commit();
++            return;
++        }
++        switch (tool) {
++            case "saves": openSaves(); break;
++            case "box64rc": openBox64RCFile(); break;
++            case "backend_logs": openBackendLogs(); break;
++            case "about": showAboutDialog(); break;
++        }
++    }
++
++    /**
++     * The console-style home is the default front end. It opens once the runtime
++     * is installed, unless this launch asked for a specific classic section.
++     */
++    private void openConsoleHomeIfEnabled() {
++        Intent intent = getIntent();
++        if (intent.getBooleanExtra(HomeActivity.EXTRA_SKIP_HOME, false)) return;
++        if (intent.getIntExtra("selected_menu_item_id", 0) > 0) return;
++        if (intent.getStringExtra(HomeActivity.EXTRA_TOOL) != null) return;
++        if (!HomeActivity.isEnabled(this)) return;
++        HomeActivity.open(this);
++    }
++
+     private void requestStorageAccessAfterInstallation() {
+         if (!requestLegacyStoragePermissions()) showUsbStorageAccessIfNeeded();
+     }
+@@ -701,6 +737,10 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
+         }
+ 
+         switch (item.getItemId()) {
++            case R.id.main_menu_console_home:
++                drawerLayout.closeDrawers();
++                HomeActivity.open(this);
++                return false;
+             case R.id.main_menu_shortcuts:
+                 show(new ShortcutsFragment(), false);  // Forward animation
+                 break;
+diff --git a/app/src/main/java/com/winlator/cmod/XServerDisplayActivity.java b/app/src/main/java/com/winlator/cmod/XServerDisplayActivity.java
+index b360bd2..6012b89 100644
+--- a/app/src/main/java/com/winlator/cmod/XServerDisplayActivity.java
++++ b/app/src/main/java/com/winlator/cmod/XServerDisplayActivity.java
+@@ -75,6 +75,8 @@ import com.winlator.cmod.container.ContainerManager;
+ import com.winlator.cmod.container.Shortcut;
+ import com.winlator.cmod.contentdialog.ContentDialog;
+ import com.winlator.cmod.contentdialog.ControllerAssignmentDialog;
++import com.winlator.cmod.home.HomeActivity;
++import com.winlator.cmod.home.HomeGames;
+ import com.winlator.cmod.contentdialog.DXVKConfigDialog;
+ import com.winlator.cmod.contentdialog.ExperimentalPerformanceDialog;
+ import com.winlator.cmod.contentdialog.DebugDialog;
+@@ -1340,6 +1342,10 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
+         String playCountKey = shortcutName + "_play_count";
+         int playCount = playtimePrefs.getInt(playCountKey, 0) + 1;
+         editor.putInt(playCountKey, playCount);
++        // The console home orders its game row by this.
++        if (shortcutName != null && !shortcutName.isEmpty()) {
++            editor.putLong(shortcutName + "_last_played", System.currentTimeMillis());
++        }
+         editor.apply();
+     }
+ 
+@@ -1383,7 +1389,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
+             // also works when the Wine session was launched by an Android shortcut.
+             runOnUiThread(() -> {
+                 preloaderDialog.close();
+-                Intent intent = new Intent(this, MainActivity.class);
++                Intent intent = new Intent(this, HomeActivity.isEnabled(this)
++                        ? HomeActivity.class : MainActivity.class);
+                 intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                 startActivity(intent);
+                 finish();
+@@ -2846,6 +2853,16 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
+         sidebarFrameGenerationButton = sidebar.findViewById(R.id.BTSidebarFrameGeneration);
+         sidebarPauseButton = sidebar.findViewById(R.id.BTSidebarPause);
+ 
++        // "Far Cry 2 Fortune's Edition · Container-1" under the clock (console UI header).
++        TextView sidebarGameName = sidebar.findViewById(R.id.TVSidebarGameName);
++        if (sidebarGameName != null) {
++            String title = shortcutName != null && !shortcutName.isEmpty()
++                    ? HomeGames.INSTANCE.displayName(shortcutName) : null;
++            String containerName = container != null ? container.getName() : null;
++            sidebarGameName.setText(title == null ? containerName
++                    : containerName == null ? title : title + "  ·  " + containerName);
++        }
++
+         updateSidebarFpsLabel(renderer.getFpsLimit());
+         updateSidebarFrameGenerationState(renderer);
+         ControlsProfile defaultProfile = getSidebarControllerProfile();
+diff --git a/app/src/main/java/com/winlator/cmod/bigpicture/steamgrid/SteamGridDBApi.java b/app/src/main/java/com/winlator/cmod/bigpicture/steamgrid/SteamGridDBApi.java
+index d6327b6..0e19edd 100644
+--- a/app/src/main/java/com/winlator/cmod/bigpicture/steamgrid/SteamGridDBApi.java
++++ b/app/src/main/java/com/winlator/cmod/bigpicture/steamgrid/SteamGridDBApi.java
+@@ -24,7 +24,20 @@ public interface SteamGridDBApi {
+             @Query("types") String types              // Example: "static"
+     );
+ 
++    // Wide background art for the console home ("heroes", 1920x620).
++    @GET("heroes/game/{gameId}")
++    Call<SteamGridGridsResponse> getHeroesByGameId(
++            @Header("Authorization") String authToken,
++            @Path("gameId") int gameId,
++            @Query("dimensions") String dimensions,
++            @Query("types") String types
++    );
+ 
+-
+-
++    // Transparent title logos for the console home.
++    @GET("logos/game/{gameId}")
++    Call<SteamGridGridsResponse> getLogosByGameId(
++            @Header("Authorization") String authToken,
++            @Path("gameId") int gameId,
++            @Query("types") String types
++    );
+ }
+diff --git a/app/src/main/java/com/winlator/cmod/core/ShortcutArtworkManager.java b/app/src/main/java/com/winlator/cmod/core/ShortcutArtworkManager.java
+index 9a51776..da774b2 100644
+--- a/app/src/main/java/com/winlator/cmod/core/ShortcutArtworkManager.java
++++ b/app/src/main/java/com/winlator/cmod/core/ShortcutArtworkManager.java
+@@ -127,6 +127,124 @@ public final class ShortcutArtworkManager {
+         });
+     }
+ 
++    /** Console home background art, stored beside the generated cover. */
++    public static File getHeroFile(Shortcut shortcut) {
++        File cover = shortcut.getGeneratedCoverArtFile();
++        return new File(cover.getParentFile(), shortcut.name + "_hero.img");
++    }
++
++    /** Console home title logo (transparent PNG), stored beside the generated cover. */
++    public static File getLogoFile(Shortcut shortcut) {
++        File cover = shortcut.getGeneratedCoverArtFile();
++        return new File(cover.getParentFile(), shortcut.name + "_logo.img");
++    }
++
++    /**
++     * Fetches the SteamGridDB hero and logo for the console home when either is missing.
++     * Uses the same API key, query cleanup and relevance threshold as covers. Calls back
++     * on the main thread with true when at least one new file was saved.
++     */
++    public static void ensureHomeArt(Context context, Shortcut shortcut, Callback callback) {
++        File hero = getHeroFile(shortcut);
++        File logo = getLogoFile(shortcut);
++        if (hero.isFile() && logo.isFile()) {
++            post(callback, false);
++            return;
++        }
++        final String pendingKey = homeKey(shortcut);
++        if (FAILED.contains(pendingKey) || !PENDING.add(pendingKey)) {
++            post(callback, false);
++            return;
++        }
++        final Context appContext = context.getApplicationContext();
++        EXECUTOR.execute(() -> {
++            boolean saved = false;
++            try {
++                String key = getApiKey(appContext);
++                SteamGridDBApi api = getSteamGridApi();
++                Integer gameId = findBestGameId(api, key, cleanSearchName(shortcut.name));
++                if (gameId != null) {
++                    if (!hero.isFile()) {
++                        retrofit2.Response<SteamGridGridsResponse> heroes = api.getHeroesByGameId(
++                                "Bearer " + key, gameId, "1920x620,3840x1240", "static").execute();
++                        if (heroes.isSuccessful() && heroes.body() != null && heroes.body().data != null) {
++                            saved |= downloadTo(firstImageUrl(heroes.body().data), hero);
++                        }
++                    }
++                    if (!logo.isFile()) {
++                        retrofit2.Response<SteamGridGridsResponse> logos = api.getLogosByGameId(
++                                "Bearer " + key, gameId, "static").execute();
++                        if (logos.isSuccessful() && logos.body() != null && logos.body().data != null) {
++                            saved |= downloadTo(firstImageUrl(logos.body().data), logo);
++                        }
++                    }
++                }
++            } catch (Exception e) {
++                Log.w(TAG, "Home artwork failed for " + shortcut.name, e);
++            } finally {
++                if (!hero.isFile() && !logo.isFile()) FAILED.add(pendingKey);
++                PENDING.remove(pendingKey);
++            }
++            post(callback, saved);
++        });
++    }
++
++    /** Forgets the console home art so the next ensureHomeArt() downloads it again. */
++    public static void resetHomeArt(Shortcut shortcut) {
++        for (File file : new File[]{getHeroFile(shortcut), getLogoFile(shortcut)}) {
++            if (file.isFile() && !file.delete()) Log.w(TAG, "Could not delete " + file);
++        }
++        FAILED.remove(homeKey(shortcut));
++    }
++
++    private static String homeKey(Shortcut shortcut) {
++        return "home:" + shortcut.container.getRootDir().getPath() + File.separatorChar + shortcut.name;
++    }
++
++    private static boolean downloadTo(String url, File output) throws Exception {
++        if (url == null) return false;
++        File parent = output.getParentFile();
++        if (parent == null || (!parent.isDirectory() && !parent.mkdirs())) return false;
++        File partial = new File(parent, output.getName() + ".part");
++        try (Response response = HTTP_CLIENT.newCall(new Request.Builder().url(url).build()).execute()) {
++            if (!response.isSuccessful() || response.body() == null) return false;
++            try (InputStream input = response.body().byteStream();
++                 java.io.OutputStream out = new java.io.FileOutputStream(partial)) {
++                byte[] buffer = new byte[64 * 1024];
++                int read;
++                while ((read = input.read(buffer)) != -1) out.write(buffer, 0, read);
++            }
++        }
++        return partial.renameTo(output);
++    }
++
++    private static String getApiKey(Context context) {
++        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
++        if (prefs.getBoolean("enable_custom_api_key", false)) {
++            String custom = prefs.getString("custom_api_key", "");
++            if (custom != null && !custom.trim().isEmpty()) return custom.trim();
++        }
++        return BUILT_IN_API_KEY;
++    }
++
++    /** Highest-scoring search result that passes MIN_BROWSER_MATCH_SCORE, or null. */
++    private static Integer findBestGameId(SteamGridDBApi api, String key, String query) throws Exception {
++        retrofit2.Response<SteamGridSearchResponse> search =
++                api.searchGame("Bearer " + key, query).execute();
++        if (!search.isSuccessful() || search.body() == null || search.body().data == null) return null;
++        SteamGridSearchResponse.GameData best = null;
++        int bestScore = Integer.MIN_VALUE;
++        for (SteamGridSearchResponse.GameData candidate : search.body().data) {
++            if (candidate == null) continue;
++            int score = searchMatchScore(query, candidate.name);
++            if (score > bestScore) {
++                bestScore = score;
++                best = candidate;
++            }
++        }
++        return best != null && bestScore >= MIN_BROWSER_MATCH_SCORE ? best.id : null;
++    }
++
+     /** Uses the same browser artwork policy for community-config cards. */
+     public static void ensureForGame(Context context, String gameName, File output, Callback callback) {
+         if (output.isFile()) {
+@@ -190,13 +308,7 @@ public final class ShortcutArtworkManager {
+     }
+ 
+     private static Bitmap fetchBrowserArtwork(Context context, String gameName) throws Exception {
+-        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
+-        String key = BUILT_IN_API_KEY;
+-        if (prefs.getBoolean("enable_custom_api_key", false)) {
+-            String custom = prefs.getString("custom_api_key", "");
+-            if (custom != null && !custom.trim().isEmpty()) key = custom.trim();
+-        }
+-
++        String key = getApiKey(context);
+         SteamGridDBApi api = getSteamGridApi();
+         String query = cleanSearchName(gameName);
+         retrofit2.Response<SteamGridSearchResponse> search =
+@@ -250,6 +362,8 @@ public final class ShortcutArtworkManager {
+         String clean = name.replace('_', ' ').replace('-', ' ')
+                 .replaceAll("(?<=[a-z0-9])(?=[A-Z])", " ")
+                 .replaceAll("(?i)\\.(exe|msi|lnk)$", "")
++                // GOG and other installers name their links "Launch <game>".
++                .replaceAll("(?i)^\\s*(?:launch|play)\\s+", "")
+                 .replaceAll("\\([^)]*\\)", " ")
+                 .replaceAll("\\[[^]]*\\]", " ")
+                 .replaceAll("(?i)\\bv?\\d+(?:\\.\\d+)+[a-z]*\\b", " ")
+diff --git a/build.gradle b/build.gradle
+index f62d51b..0cf3227 100644
+--- a/build.gradle
++++ b/build.gradle
+@@ -1,4 +1,6 @@
+ // Top-level build file where you can add configuration options common to all sub-projects/modules.
+ plugins {
+ alias(libs.plugins.android.application) apply false
++alias(libs.plugins.kotlin.android) apply false
++alias(libs.plugins.kotlin.compose) apply false
+ }
+\ No newline at end of file
+diff --git a/gradle/libs.versions.toml b/gradle/libs.versions.toml
+index dc84680..b185f7f 100644
+--- a/gradle/libs.versions.toml
++++ b/gradle/libs.versions.toml
+@@ -14,6 +14,9 @@ fragmentKtx = "1.8.0"
+ recyclerview = "1.3.2"
+ xz = "1.7"
+ zstdJni = "1.5.2-3"
++kotlin = "2.0.21"
++composeBom = "2024.10.01"
++activityCompose = "1.9.3"
+ 
+ [libraries]
+ commons-compress = { module = "org.apache.commons:commons-compress", version.ref = "commonsCompress" }
+@@ -33,4 +36,6 @@ zstd-jni = { module = "com.github.luben:zstd-jni", version.ref = "zstdJni" }
+ 
+ [plugins]
+ android-application = { id = "com.android.application", version.ref = "agp" }
++kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
++kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+ 

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Gradient ring (outer layer) around a slightly lifted violet fill. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="315"
+                android:startColor="@color/wx_blue"
+                android:centerColor="@color/wx_violet"
+                android:endColor="@color/wx_purple" />
+            <corners android:radius="14dp" />
+        </shape>
+    </item>
+    <item
+        android:bottom="2dp"
+        android:left="2dp"
+        android:right="2dp"
+        android:top="2dp">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/wx_surface_focused" />
+            <corners android:radius="12dp" />
+        </shape>
+    </item>
+</layer-list>
