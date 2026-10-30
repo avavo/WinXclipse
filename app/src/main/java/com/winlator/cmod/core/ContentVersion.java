@@ -8,9 +8,11 @@ public final class ContentVersion {
 
     public static String canonical(String value) {
         return (value == null ? "" : value.trim()).toLowerCase(Locale.ENGLISH)
-                .replaceFirst("\\.(?:wcp(?:\\.(?:xz|zst))?|tzst|tar\\.(?:xz|zst)|zip)$", "")
+                .replaceFirst("\\.(?:wcp(?:\\.(?:xz|zst))?|txz|tzst|xz|zst|tar\\.(?:xz|zst)|zip)$", "")
                 .replaceFirst("^(?:wine|proton|dxvk|vkd3d|box64|fexcore)[\\s._-]+", "")
-                .replaceAll("[^a-z0-9]+", "-").replaceAll("^-+|-+$", "");
+                .replaceAll("[^a-z0-9]+", "-").replaceAll("^-+|-+$", "")
+                .replaceAll("(^|-)aarch64(?=-|$)", "$1arm64")
+                .replaceAll("(^|-)(?:amd64|x64)(?=-|$)", "$1x86-64");
     }
 
     public static String architecture(String value) {
@@ -35,5 +37,15 @@ public final class ContentVersion {
         String entry = canonical(requestedEntry);
         return !entry.isEmpty() && (entry.equals(actual)
                 || entry.equals(canonical(actualName + "-" + actualCode)));
+    }
+
+    public static boolean matchesReference(String actualId, String actualName, int actualCode,
+            String requestedId, String requestedName, String requestedEntry, Integer requestedCode, boolean remote) {
+        if (canonical(requestedName).isEmpty() && canonical(requestedEntry).isEmpty()) {
+            return requestedId != null && !requestedId.isEmpty() && requestedId.equals(actualId)
+                    && (remote || requestedCode == null || requestedCode == actualCode);
+        }
+        // An opaque id is not permission to disregard contradictory version/build/ABI metadata.
+        return matches(actualName, actualCode, requestedName, requestedEntry, requestedCode, remote);
     }
 }

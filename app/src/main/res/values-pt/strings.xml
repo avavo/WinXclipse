@@ -969,4 +969,20 @@
     <string name="file_operation_cancelled">Operação cancelada. Os itens concluídos foram mantidos.</string>
     <string name="file_transfer_errors">Não foi possível concluir estas transferências. As origens e cópias de recuperação foram mantidas quando necessário:\n%1$s</string>
     <string name="wine_prefix_startup_failed">O Wine não conseguiu preparar este container. O jogo não foi iniciado.\n\n%1$s</string>
+    <string name="community_invalid_config">Configuração da comunidade inválida ou incompatível.</string>
+    <string name="community_wait_contents">Aguardando os downloads e as instalações terminarem…</string>
+    <string name="community_import_dependencies">Dependências da configuração</string>
+    <string name="community_import_paused">Importação pausada. Retome quando quiser.</string>
+    <string name="community_import_retry">A importação não terminou. Tente novamente para continuar.</string>
+    <string name="community_import_catalog">Consultando o catálogo de downloads…</string>
+    <string name="community_import_local">Conferindo pacotes instalados e baixados…</string>
+    <string name="download_queued">Aguardando na fila de downloads…</string>
+    <string name="community_catalog_incomplete">Não foi possível consultar todo o catálogo para %1$s. Tente novamente antes de escolher uma substituição.</string>
+    <string name="community_dependency_download_failed">O pacote exato de %1$s foi encontrado, mas o download falhou. Você pode tentar novamente.</string>
+    <string name="community_dependency_invalid">O pacote baixado não corresponde a %1$s ou não pôde ser instalado. Nenhuma substituição foi aplicada.</string>
+    <string name="community_choose_alternative">Escolher outra versão</string>
+    <string name="community_retry_action">Tentar novamente</string>
+    <string name="community_create_failed">Não foi possível criar o container com esta configuração.</string>
+    <string name="community_import_complete">Configuração da comunidade importada.</string>
+    <string name="community_apply_failed">Não foi possível aplicar esta configuração da comunidade.</string>
 </resources>

@@ -969,4 +969,20 @@
     <string name="file_operation_cancelled">Operación cancelada. Se conservaron los elementos completados.</string>
     <string name="file_transfer_errors">No se pudieron completar estas transferencias. Se conservaron los originales y las copias de recuperación cuando fue necesario:\n%1$s</string>
     <string name="wine_prefix_startup_failed">Wine no pudo preparar este contenedor. El juego no se inició.\n\n%1$s</string>
+    <string name="community_invalid_config">Configuración de la comunidad inválida o incompatible.</string>
+    <string name="community_wait_contents">Esperando a que terminen las descargas e instalaciones…</string>
+    <string name="community_import_dependencies">Dependencias de la configuración</string>
+    <string name="community_import_paused">Importación pausada. Puedes reanudarla cuando quieras.</string>
+    <string name="community_import_retry">La importación no terminó. Vuelve a intentarlo para continuar.</string>
+    <string name="community_import_catalog">Consultando el catálogo de descargas…</string>
+    <string name="community_import_local">Comprobando los paquetes instalados y descargados…</string>
+    <string name="download_queued">Esperando en la cola de descargas…</string>
+    <string name="community_catalog_incomplete">No se pudo consultar todo el catálogo para %1$s. Vuelve a intentarlo antes de elegir una alternativa.</string>
+    <string name="community_dependency_download_failed">Se encontró el paquete exacto de %1$s, pero falló la descarga. Puedes volver a intentarlo.</string>
+    <string name="community_dependency_invalid">El paquete descargado no coincide con %1$s o no se pudo instalar. No se aplicó ninguna sustitución.</string>
+    <string name="community_choose_alternative">Elegir otra versión</string>
+    <string name="community_retry_action">Reintentar</string>
+    <string name="community_create_failed">No se pudo crear el contenedor con esta configuración.</string>
+    <string name="community_import_complete">Configuración de la comunidad importada.</string>
+    <string name="community_apply_failed">No se pudo aplicar esta configuración de la comunidad.</string>
 </resources>

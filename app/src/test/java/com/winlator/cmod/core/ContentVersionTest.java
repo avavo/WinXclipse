@@ -41,4 +41,31 @@ public class ContentVersionTest {
         assertFalse(ContentVersion.matches("2610", 2246, "", "", null, true));
         assertFalse(ContentVersion.matches("", 0, "", "", null, true));
     }
+
+    @Test public void acceptsEquivalentAbiNamesWithoutConfusingArm64ec() {
+        assertTrue(ContentVersion.matches("10.0-aarch64", 12, "10.0-arm64", "", 12, false));
+        assertTrue(ContentVersion.matches("10.0-amd64", 12, "10.0-x86_64", "", 12, false));
+        assertFalse(ContentVersion.matches("10.0-aarch64", 12, "10.0-arm64ec", "", 12, false));
+    }
+
+    @Test public void rawArchiveSuffixesAreNotPartOfTheVersion() {
+        assertEquals(ContentVersion.canonical("Proton-10-arm64"), ContentVersion.canonical("Proton-10-arm64.txz"));
+        assertEquals(ContentVersion.canonical("Proton-10-arm64"), ContentVersion.canonical("Proton-10-arm64.tar.xz"));
+        assertEquals(ContentVersion.canonical("Proton-10-arm64"), ContentVersion.canonical("Proton-10-arm64.tzst"));
+    }
+
+    @Test public void matchingIdDoesNotOverrideAContradictoryVersionBuildOrAbi() {
+        assertFalse(ContentVersion.matchesReference("same-id", "10-arm64ec", 12,
+                "same-id", "11-arm64ec", "", 12, false));
+        assertFalse(ContentVersion.matchesReference("same-id", "10-arm64ec", 12,
+                "same-id", "10-arm64", "", 12, false));
+        assertFalse(ContentVersion.matchesReference("same-id", "10-arm64ec", 12,
+                "same-id", "10-arm64ec", "", 11, false));
+    }
+
+    @Test public void idOnlyLegacyReferencesStillWorkWithoutMatchingArbitraryPackages() {
+        assertTrue(ContentVersion.matchesReference("stable", "2610", 2246, "stable", "", "", null, false));
+        assertFalse(ContentVersion.matchesReference("different", "2610", 2246, "stable", "", "", null, false));
+        assertFalse(ContentVersion.matchesReference("", "2610", 2246, "", "", "", null, false));
+    }
 }

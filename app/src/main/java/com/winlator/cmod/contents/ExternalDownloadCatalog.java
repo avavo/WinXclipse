@@ -54,6 +54,9 @@ public final class ExternalDownloadCatalog {
     }
 
     private final SharedPreferences preferences;
+    private boolean refreshComplete;
+
+    public boolean wasRefreshComplete() { return refreshComplete; }
 
     public ExternalDownloadCatalog(Context context) {
         preferences = context.getSharedPreferences("external_download_catalog", Context.MODE_PRIVATE);
@@ -71,14 +74,23 @@ public final class ExternalDownloadCatalog {
 
     private List<Item> refresh(String[] repositories, String cacheKey,
                                String refreshTimeKey, boolean wrappers) {
-        JSONArray combined = new JSONArray();
-        boolean refreshed = false;
+        JSONArray combined;
+        try { combined = new JSONArray(preferences.getString(cacheKey, "[]")); }
+        catch (Exception invalid) { combined = new JSONArray(); }
+        int refreshed = 0;
         for (String repository : repositories) {
             JSONArray releases = fetchReleases(repository);
             if (releases == null) continue;
+            String repoPath = repository.replaceFirst("@.*$", "");
+            String prefix = "https://github.com/" + repoPath + "/releases/download/";
+            if (repository.contains("@")) prefix += repository.substring(repository.indexOf('@') + 1) + "/";
+            for (int i = combined.length() - 1; i >= 0; i--) {
+                JSONObject cached = combined.optJSONObject(i);
+                if (cached != null && cached.optString("url", "").startsWith(prefix)) combined.remove(i);
+            }
             String repositoryName = repository.substring(repository.indexOf('/') + 1)
                     .replaceFirst("@.*$", "");
-            refreshed = true;
+            refreshed++;
             for (int i = 0; i < releases.length(); i++) {
                 JSONObject release = releases.optJSONObject(i);
                 if (release == null || release.optBoolean("draft", false)) continue;
@@ -113,19 +125,12 @@ public final class ExternalDownloadCatalog {
                 }
             }
         }
-        if (refreshed && combined.length() > 0) {
+        refreshComplete = refreshed == repositories.length;
+        if (refreshed > 0) {
             preferences.edit()
                     .putString(cacheKey, combined.toString())
                     .putLong(refreshTimeKey, System.currentTimeMillis())
                     .apply();
-        }
-        else {
-            try {
-                combined = new JSONArray(preferences.getString(cacheKey, "[]"));
-            }
-            catch (Exception ignored) {
-                combined = new JSONArray();
-            }
         }
         return parseItems(combined);
     }

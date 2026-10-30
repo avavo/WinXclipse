@@ -11,6 +11,7 @@ import com.winlator.cmod.core.EvshimPatcher;
 import com.winlator.cmod.core.FileUtils;
 import com.winlator.cmod.core.RuntimeFiles;
 import com.winlator.cmod.core.DirectoryInstall;
+import com.winlator.cmod.core.ContentVersion;
 import com.winlator.cmod.core.StreamUtils;
 import com.winlator.cmod.core.TarCompressorUtils;
 
@@ -64,6 +65,9 @@ public class ContentsManager {
     private Map<ContentProfile.ContentType, List<String>> trustedFilesMap;
 
     private SharedPreferences preferences;
+    private boolean remoteRefreshComplete;
+
+    public boolean wasRemoteRefreshComplete() { return remoteRefreshComplete; }
 
     public enum InstallFailedReason {
         ERROR_NOSPACE,
@@ -166,6 +170,7 @@ public class ContentsManager {
         if (catalog.length() == 0) catalog = parseCatalog(bundledJson);
 
         boolean refreshedAnyRelease = false;
+        int refreshedReleases = 0;
         for (String tag : REMOTE_RELEASE_TAGS) {
             JSONObject release = fetchRelease(tag);
             if (release == null) continue;
@@ -202,9 +207,11 @@ public class ContentsManager {
                 catalog.put(profile);
             }
             refreshedAnyRelease = true;
+            refreshedReleases++;
         }
 
         String result = catalog.toString();
+        remoteRefreshComplete = refreshedReleases == REMOTE_RELEASE_TAGS.length;
         if (refreshedAnyRelease) preferences.edit()
                 .putString(REMOTE_CACHE_KEY, result)
                 .putLong(REMOTE_REFRESH_TIME_KEY, System.currentTimeMillis())
@@ -501,7 +508,9 @@ public class ContentsManager {
             /* Raw runtime builds (e.g. a Proton .tzst saved straight from the
                browser into Downloads) often ship without an embedded profile.
                Synthesize one so they install through the standard flow. */
-            if (!writeSynthesizedRuntimeProfile(file, getDisplayName(context, uri))) {
+            String sourceName = expectedProfile == null ? getDisplayName(context, uri)
+                    : expectedProfile.type.toString() + "-" + expectedProfile.verName;
+            if (!writeSynthesizedRuntimeProfile(file, sourceName)) {
                 failStagedInstall(callback, InstallFailedReason.ERROR_NOPROFILE, null, file);
                 return;
             }
@@ -521,6 +530,12 @@ public class ContentsManager {
             boolean expectedIsRuntime = expectedProfile.type == ContentProfile.ContentType.CONTENT_TYPE_WINE
                     || expectedProfile.type == ContentProfile.ContentType.CONTENT_TYPE_PROTON;
             if (profile.type != expectedProfile.type && !(actualIsRuntime && expectedIsRuntime)) {
+                failStagedInstall(callback, InstallFailedReason.ERROR_BADPROFILE, null, file);
+                return;
+            }
+            // A catalog identity may normalize a legacy type/build code, but
+            // cannot turn another runtime, release or ABI into the requested one.
+            if (!ContentVersion.canonical(profile.verName).equals(ContentVersion.canonical(expectedProfile.verName))) {
                 failStagedInstall(callback, InstallFailedReason.ERROR_BADPROFILE, null, file);
                 return;
             }

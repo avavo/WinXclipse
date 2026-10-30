@@ -43,6 +43,7 @@ import com.winlator.cmod.contents.ContentProfile;
 import com.winlator.cmod.contents.ContentsManager;
 import com.winlator.cmod.contents.Downloader;
 import com.winlator.cmod.contents.ResumableDownload;
+import com.winlator.cmod.contents.ContentDownloadQueue;
 import com.winlator.cmod.contents.XclipseDriverManager;
 import com.winlator.cmod.contents.CustomWrapperManager;
 import com.winlator.cmod.contents.ExternalDownloadCatalog;
@@ -101,6 +102,7 @@ public class ContentsFragment extends Fragment {
     private static final int TRANSFER_PAUSED = 3;
     private static final int TRANSFER_FAILED = 4;
     private static final int TRANSFER_STOPPING = 5;
+    private static final int TRANSFER_QUEUED = 6;
     private static final ConcurrentHashMap<String, TransferUiState> ACTIVE_TRANSFERS =
             new ConcurrentHashMap<>();
     private static final CopyOnWriteArraySet<Runnable> TRANSFER_LISTENERS = new CopyOnWriteArraySet<>();
@@ -539,38 +541,19 @@ public class ContentsFragment extends Fragment {
     }
 
     private void downloadWrapperFromUrl(String url) {
-        android.app.Activity hostActivity = getActivity();
-        android.content.Context hostContext = requireContext().getApplicationContext();
-        ContentOperationRegistry.Token downloadOperation =
-                ContentOperationRegistry.begin(ContentOperationRegistry.Kind.DOWNLOAD);
-        AppUtils.showToast(requireContext(), R.string.downloading_content);
-        new Thread(() -> {
-            String rawName = Uri.parse(url).getLastPathSegment();
-            if (rawName == null || rawName.isEmpty()) rawName = "wrapper.tzst";
-            int query = rawName.indexOf('?');
-            if (query >= 0) rawName = rawName.substring(0, query);
-            File output = new File(hostContext.getCacheDir(),
-                    "remote-wrapper-" + System.currentTimeMillis() + "-" + rawName.replaceAll("[^A-Za-z0-9._-]", "_"));
-            boolean downloaded = Downloader.downloadFile(url, output, null);
-            if (hostActivity == null || hostActivity.isFinishing()) {
-                FileUtils.delete(output);
-                downloadOperation.close();
-                return;
-            }
-            hostActivity.runOnUiThread(() -> {
-                if (!isAdded()) {
-                    FileUtils.delete(output);
-                    downloadOperation.close();
-                    return;
-                }
-                if (downloaded) promptAndInstallWrapper(Uri.fromFile(output), output);
-                else {
-                    FileUtils.delete(output);
-                    ContentDialog.alert(requireContext(), R.string.download_failed, null);
-                }
-                downloadOperation.close();
-            });
-        }).start();
+        android.content.SharedPreferences saved = requireContext().getSharedPreferences("external_download_catalog", 0);
+        java.util.Set<String> manual = new java.util.HashSet<>(saved.getStringSet("manual_wrapper_urls", java.util.Collections.emptySet()));
+        manual.add(url);
+        saved.edit().putStringSet("manual_wrapper_urls", manual).apply();
+        String key = "wrapper:" + url;
+        File output = downloadOutput(url);
+        String rawName = Uri.parse(url).getLastPathSegment();
+        String suggested = ExternalDownloadCatalog.stripPackageSuffix(rawName == null ? "Wrapper" : rawName);
+        startDownload(key, url, output, file -> {
+            updateTransfer(key, TRANSFER_WAITING_CONFIRMATION, 99);
+            promptAndInstallWrapper(Uri.fromFile(file), file, suggested, key);
+        });
+        loadContentList();
     }
 
     private void promptAndInstallWrapper(Uri source, @Nullable File temporaryFile) {
@@ -720,7 +703,7 @@ public class ContentsFragment extends Fragment {
 
     private TransferUiState recoverTransfer(String key, String address, File output) {
         TransferUiState state = ACTIVE_TRANSFERS.get(key);
-        if (state == null && ResumableDownload.hasSavedDownload(address, output)) {
+        if (state == null && ContentDownloadQueue.hasSavedDownload(address, output)) {
             state = new TransferUiState(TRANSFER_PAUSED, ResumableDownload.savedProgress(output));
             state.output = output;
             TransferUiState previous = ACTIVE_TRANSFERS.putIfAbsent(key, state);
@@ -742,13 +725,11 @@ public class ContentsFragment extends Fragment {
             ACTIVE_TRANSFERS.put(key, state);
         }
         notifyTransfers();
-        ContentOperationRegistry.Token operation = ContentOperationRegistry.begin(ContentOperationRegistry.Kind.DOWNLOAD);
         ResumableDownload.Control control = state.control;
         new Thread(() -> {
-            ResumableDownload.Result result = ResumableDownload.download(address, output, control, progress -> {
-                state.progress = progress;
-                notifyTransfers();
-            });
+            ResumableDownload.Result result = ContentDownloadQueue.download(address, output, control, progress -> {
+                updateTransfer(key, TRANSFER_DOWNLOADING, progress);
+            }, () -> updateTransfer(key, TRANSFER_QUEUED, state.progress));
             if (result != ResumableDownload.Result.COMPLETE) {
                 if (result == ResumableDownload.Result.CANCELLED) finishTransfer(key);
                 else {
@@ -756,21 +737,19 @@ public class ContentsFragment extends Fragment {
                     updateTransfer(key, result == ResumableDownload.Result.PAUSED ? TRANSFER_PAUSED : TRANSFER_FAILED,
                             ResumableDownload.savedProgress(output));
                 }
-                operation.close();
                 return;
             }
             if (control.isCancelled()) {
                 finishTransfer(key);
-                operation.close();
                 return;
             }
             Activity host = getActivity();
             if (host == null || host.isFinishing()) {
                 state.control = null;
                 updateTransfer(key, TRANSFER_PAUSED, 99);
-                operation.close();
                 return;
             }
+            ContentOperationRegistry.Token operation = ContentOperationRegistry.begin(ContentOperationRegistry.Kind.DOWNLOAD);
             host.runOnUiThread(() -> {
                 try {
                     state.control = null;
@@ -813,7 +792,7 @@ public class ContentsFragment extends Fragment {
     private void finishTransfer(@Nullable String key) {
         if (key == null) return;
         TransferUiState state = ACTIVE_TRANSFERS.remove(key);
-        if (state != null && state.output != null) ResumableDownload.discard(state.output);
+        if (state != null && state.output != null) ContentDownloadQueue.discard(state.output);
         notifyTransfers();
     }
 
@@ -832,6 +811,7 @@ public class ContentsFragment extends Fragment {
         if (state.stage == TRANSFER_WAITING_CONFIRMATION) {
             progressStatus.setText(R.string.waiting_install_confirmation);
         }
+        else if (state.stage == TRANSFER_QUEUED) progressStatus.setText(R.string.download_queued);
         else if (state.stage == TRANSFER_PAUSED) progressStatus.setText(getString(R.string.download_paused, state.progress));
         else if (state.stage == TRANSFER_FAILED) progressStatus.setText(R.string.download_retry);
         else if (state.stage == TRANSFER_STOPPING) progressStatus.setText(R.string.download_stopping);
@@ -857,10 +837,10 @@ public class ContentsFragment extends Fragment {
 
     private void bindDownloadButton(ImageButton button, @Nullable TransferUiState state, boolean available,
                                     Runnable start) {
-        boolean canDownload = state == null || state.stage == TRANSFER_DOWNLOADING
+        boolean canDownload = state == null || state.stage == TRANSFER_QUEUED || state.stage == TRANSFER_DOWNLOADING
                 || state.stage == TRANSFER_PAUSED || state.stage == TRANSFER_FAILED;
         button.setVisibility(available && canDownload ? View.VISIBLE : View.GONE);
-        boolean running = state != null && state.stage == TRANSFER_DOWNLOADING;
+        boolean running = state != null && (state.stage == TRANSFER_DOWNLOADING || state.stage == TRANSFER_QUEUED);
         button.setImageResource(running ? R.drawable.icon_download_pause : state != null
                 ? R.drawable.icon_download_resume : R.drawable.icon_popup_menu_download);
         button.setContentDescription(getString(running ? R.string.download_pause
@@ -902,6 +882,17 @@ public class ContentsFragment extends Fragment {
                         installed.add(item);
                     }
                 }
+            }
+            java.util.Set<String> shown = new java.util.HashSet<>();
+            for (ExternalDownloadCatalog.Item item : installed) if (item.url != null) shown.add(item.url);
+            for (String url : requireContext().getSharedPreferences("external_download_catalog", 0)
+                    .getStringSet("manual_wrapper_urls", java.util.Collections.emptySet())) {
+                File output = downloadOutput(url);
+                if (!shown.add(url) || !ACTIVE_TRANSFERS.containsKey("wrapper:" + url)
+                        && !ContentDownloadQueue.hasSavedDownload(url, output)) continue;
+                String raw = Uri.parse(url).getLastPathSegment();
+                installed.add(new ExternalDownloadCatalog.Item(
+                        ExternalDownloadCatalog.stripPackageSuffix(raw == null ? "Wrapper" : raw), getString(R.string.remote_url), url));
             }
             showExternalItems(installed);
             return;

@@ -1095,4 +1095,20 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="file_operation_cancelled">Operation cancelled. Completed items were kept.</string>
     <string name="file_transfer_errors">Could not finish these transfers. Sources and recovery copies were kept where needed:\n%1$s</string>
     <string name="wine_prefix_startup_failed">Wine could not prepare this container. The game was not started.\n\n%1$s</string>
+    <string name="community_invalid_config">Invalid or unsupported community config.</string>
+    <string name="community_wait_contents">Waiting for downloads and installations to finish…</string>
+    <string name="community_import_dependencies">Config dependencies</string>
+    <string name="community_import_paused">Import paused. Resume when you are ready.</string>
+    <string name="community_import_retry">Import could not finish. Retry to continue.</string>
+    <string name="community_import_catalog">Checking the download catalog…</string>
+    <string name="community_import_local">Checking installed and downloaded packages…</string>
+    <string name="download_queued">Waiting in the download queue…</string>
+    <string name="community_catalog_incomplete">The catalog could not be fully checked for %1$s. Retry before choosing a replacement.</string>
+    <string name="community_dependency_download_failed">The exact package for %1$s was found, but its download failed. You can retry it.</string>
+    <string name="community_dependency_invalid">The downloaded package did not match %1$s or could not be installed. No replacement was applied.</string>
+    <string name="community_choose_alternative">Choose another version</string>
+    <string name="community_retry_action">Retry</string>
+    <string name="community_create_failed">Could not create the container from this config.</string>
+    <string name="community_import_complete">Community config imported.</string>
+    <string name="community_apply_failed">Could not apply this community config.</string>
 </resources>

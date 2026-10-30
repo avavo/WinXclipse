@@ -14,7 +14,8 @@ import com.winlator.cmod.box86_64.Box86_64PresetManager;
 import com.winlator.cmod.contents.ContentProfile;
 import com.winlator.cmod.contents.ContentsManager;
 import com.winlator.cmod.contents.CustomWrapperManager;
-import com.winlator.cmod.contents.Downloader;
+import com.winlator.cmod.contents.ContentDownloadQueue;
+import com.winlator.cmod.contents.DependencyImportSession;
 import com.winlator.cmod.core.ContentVersion;
 import com.winlator.cmod.core.PackageIdentity;
 import com.winlator.cmod.contents.ExternalDownloadCatalog;
@@ -159,9 +160,16 @@ public final class CommunityConfigManager {
         public final ContentProfile exact;
         public final ContentProfile similar;
         public final int similarity;
+        public final DependencyImportSession.Failure failure;
 
         ContentResolution(JSONObject reference, ContentProfile exact,
                           ContentProfile similar, int similarity) {
+            this(reference, exact, similar, similarity, DependencyImportSession.Failure.UNAVAILABLE);
+        }
+
+        ContentResolution(JSONObject reference, ContentProfile exact, ContentProfile similar,
+                          int similarity, DependencyImportSession.Failure failure) {
+            this.failure = failure;
             this.reference = reference;
             this.exact = exact;
             this.similar = similar;
@@ -330,7 +338,14 @@ public final class CommunityConfigManager {
     }
 
     public static List<ContentResolution> resolveContents(Context context, JSONObject manifest)
-            throws JSONException {
+            throws JSONException, DependencyImportSession.Stopped {
+        return resolveContents(context, manifest, new DependencyImportSession(
+                new File(context.getFilesDir(), "content-downloads"), null));
+    }
+
+    public static List<ContentResolution> resolveContents(Context context, JSONObject manifest,
+            DependencyImportSession session) throws JSONException, DependencyImportSession.Stopped {
+        session.update(DependencyImportSession.Stage.LOCAL, "", 0);
         // Schema-v1 exports already contain the selected external Xclipse
         // driver in graphicsDriverConfig, but did not create a ContentProfile
         // reference for it. Recover that existing information before the new
@@ -351,7 +366,7 @@ public final class CommunityConfigManager {
         try {
             String bundledJson = FileUtils.readString(context, ContentsManager.REMOTE_PROFILES);
             if (bundledJson != null) {
-                manager.setRemoteProfiles(manager.refreshRemoteProfiles(bundledJson));
+                manager.setRemoteProfiles(manager.getCachedRemoteProfiles(bundledJson));
                 manager.syncContents();
             }
         }
@@ -366,18 +381,18 @@ public final class CommunityConfigManager {
         // those selections from container data without requiring re-export.
         JSONObject driverRef = externalReference(manifest, refs, "graphicsDriver");
         JSONObject wrapperRef = externalReference(manifest, refs, "wrapper");
-        if (driverRef != null && !ensureGraphicsDriver(context, manifest, driverRef)) {
-            result.add(new ContentResolution(driverRef, null, null, -1));
+        if (driverRef != null && !ensureGraphicsDriver(context, manifest, driverRef, session)) {
+            result.add(new ContentResolution(driverRef, null, null, -1, session.failure("graphicsDriver")));
         }
-        if (wrapperRef != null && !ensureWrapper(context, manifest, wrapperRef)) {
-            result.add(new ContentResolution(wrapperRef, null, null, -1));
+        if (wrapperRef != null && !ensureWrapper(context, manifest, wrapperRef, session)) {
+            result.add(new ContentResolution(wrapperRef, null, null, -1, session.failure("wrapper")));
         }
 
         // The installed profiles on disk are authoritative. If an exact package
         // is missing, recover a matching WCP the user already downloaded before
         // showing a missing-content prompt.
         try {
-            installExactPackagesFromDownloads(context, manager, refs);
+            installExactPackagesFromDownloads(context, manager, refs, session);
             manager.syncContents();
         }
         catch (RuntimeException error) {
@@ -397,13 +412,34 @@ public final class CommunityConfigManager {
         // not installed yet. Fetch it now so import does not prompt for
         // something available in the catalog. Wine/Proton use the same exact
         // dependency resolution as DXVK, VKD3D, FEXCore and Box64.
+        boolean needsRemoteCatalog = false;
+        for (int i = 0; i < refs.length(); i++) {
+            JSONObject ref = refs.optJSONObject(i);
+            if (ref != null && !isExternalReference(ref)
+                    && !isDisabledValue(ref.optString("versionName", ref.optString("entryName", "")))
+                    && !isBundledReference(context, ref.optString("role", ""), ref.optString("entryName", ref.optString("versionName", "")))
+                    && findExactInstalled(manager, ref) == null) needsRemoteCatalog = true;
+        }
+        if (needsRemoteCatalog) {
+            session.update(DependencyImportSession.Stage.CATALOG, "", 0);
+            manager.setRemoteProfiles(manager.refreshRemoteProfiles(FileUtils.readString(context, ContentsManager.REMOTE_PROFILES)));
+            manager.syncContents();
+            session.checkRunning();
+            if (!manager.wasRemoteRefreshComplete()) for (int i = 0; i < refs.length(); i++) {
+                JSONObject ref = refs.optJSONObject(i);
+                if (ref != null && findExactInstalled(manager, ref) == null)
+                    session.failed(ref.optString("role"), DependencyImportSession.Failure.CATALOG);
+            }
+        }
         boolean recoveredRemote = false;
         if (refs != null) {
             for (int i = 0; i < refs.length(); i++) {
                 JSONObject ref = refs.optJSONObject(i);
                 if (ref == null || isExternalReference(ref)) continue;
+                String selectedName = ref.optString("entryName", ref.optString("versionName", ""));
+                if (isDisabledValue(selectedName) || isBundledReference(context, ref.optString("role"), selectedName)) continue;
                 if (findExactInstalled(manager, ref) != null) continue;
-                if (recoverRemoteContent(context, manager, ref)) recoveredRemote = true;
+                if (recoverRemoteContent(context, manager, ref, session)) recoveredRemote = true;
             }
             if (recoveredRemote) {
                 try {
@@ -452,8 +488,7 @@ public final class CommunityConfigManager {
                 // A package imported by the user may have received its stable id
                 // only after an older configuration was exported.  Exact visible
                 // type/name/version is still the same content and must not prompt.
-                if ((!id.isEmpty() && id.equals(profile.getContentId()))
-                        || matchesReference(profile, ref)) {
+                if (matchesReference(profile, ref)) {
                     exact = profile;
                     break;
                 }
@@ -463,8 +498,9 @@ public final class CommunityConfigManager {
                     similar = profile;
                 }
             }
-            result.add(new ContentResolution(ref, exact, similar, best));
+            result.add(new ContentResolution(ref, exact, similar, best, session.failure(role)));
         }
+        session.checkRunning();
         return result;
     }
 
@@ -490,7 +526,9 @@ public final class CommunityConfigManager {
                 .put("entryName", selection).put("required", true);
     }
 
-    private static boolean ensureGraphicsDriver(Context context, JSONObject manifest, JSONObject ref) {
+    private static boolean ensureGraphicsDriver(Context context, JSONObject manifest, JSONObject ref,
+            DependencyImportSession session) throws DependencyImportSession.Stopped {
+        session.update(DependencyImportSession.Stage.LOCAL, ref.optString("versionName"), 0);
         JSONObject data = manifest.optJSONObject("container");
         if (data == null) return false;
         String driverConfig = data.optString("graphicsDriverConfig", "");
@@ -507,24 +545,30 @@ public final class CommunityConfigManager {
                 if (!archive.getName().toLowerCase(Locale.ENGLISH).endsWith(".zip")
                         || !PackageIdentity.sameDriver(requested,
                         ExternalDownloadCatalog.stripPackageSuffix(archive.getName()))) continue;
-                installedId = manager.installVerifiedDriver(Uri.fromFile(archive), null, requested, version, sha256);
+                installedId = session.install(requested, () -> manager.installVerifiedDriver(
+                        Uri.fromFile(archive), null, requested, version, sha256));
                 if (!installedId.isEmpty()) break;
             }
         }
         if (installedId.isEmpty()) {
             ExternalDownloadCatalog catalog = new ExternalDownloadCatalog(context);
-            for (ExternalDownloadCatalog.Item item : catalog.refreshDrivers()) {
+            session.update(DependencyImportSession.Stage.CATALOG, requested, 0);
+            List<ExternalDownloadCatalog.Item> items = catalog.refreshDrivers();
+            if (!catalog.wasRefreshComplete()) session.failed("graphicsDriver", DependencyImportSession.Failure.CATALOG);
+            for (ExternalDownloadCatalog.Item item : items) {
+                session.checkRunning();
                 if (!PackageIdentity.sameDriver(requested, item.name)
                         && !PackageIdentity.sameDriver(requested, packageNameFromUrl(item.url))) continue;
-                File downloaded = downloadedPackage(context, item.url, ".zip");
-                try {
-                    if (Downloader.downloadFile(item.url, downloaded)) {
-                        installedId = manager.installVerifiedDriver(Uri.fromFile(downloaded), null,
-                                requested, version, sha256);
-                    }
+                File downloaded = session.output(item.url);
+                if (!session.download(item.url, downloaded, requested)) {
+                    session.failed("graphicsDriver", DependencyImportSession.Failure.DOWNLOAD);
+                    continue;
                 }
-                finally { FileUtils.delete(downloaded); }
+                installedId = session.install(requested, () -> manager.installVerifiedDriver(
+                        Uri.fromFile(downloaded), null, requested, version, sha256),
+                        () -> ContentDownloadQueue.discard(downloaded));
                 if (!installedId.isEmpty()) break;
+                session.failed("graphicsDriver", DependencyImportSession.Failure.PACKAGE);
             }
         }
         if (installedId.isEmpty()) return false;
@@ -535,7 +579,9 @@ public final class CommunityConfigManager {
         catch (JSONException error) { return false; }
     }
 
-    private static boolean ensureWrapper(Context context, JSONObject manifest, JSONObject ref) {
+    private static boolean ensureWrapper(Context context, JSONObject manifest, JSONObject ref,
+            DependencyImportSession session) throws DependencyImportSession.Stopped {
+        session.update(DependencyImportSession.Stage.LOCAL, ref.optString("versionName"), 0);
         String requested = CustomWrapperManager.toIdentifier(ref.optString("entryName", ref.optString("versionName", "")));
         if (isBundledWrapper(requested)) return true;
         String sha256 = ref.optString("sha256", "");
@@ -547,25 +593,27 @@ public final class CommunityConfigManager {
         for (File archive : archives) {
             if (!requested.equals(CustomWrapperManager.toIdentifier(
                     ExternalDownloadCatalog.stripPackageSuffix(archive.getName())))) continue;
-            if (manager.install(Uri.fromFile(archive), requested, sha256) != null) return true;
+            if (session.install(requested, () -> manager.install(Uri.fromFile(archive), requested, sha256)) != null) return true;
         }
         ExternalDownloadCatalog catalog = new ExternalDownloadCatalog(context);
-        for (ExternalDownloadCatalog.Item item : catalog.refreshWrappers()) {
+        session.update(DependencyImportSession.Stage.CATALOG, requested, 0);
+        List<ExternalDownloadCatalog.Item> items = catalog.refreshWrappers();
+        if (!catalog.wasRefreshComplete()) session.failed("wrapper", DependencyImportSession.Failure.CATALOG);
+        for (ExternalDownloadCatalog.Item item : items) {
+            session.checkRunning();
             if (!requested.equals(CustomWrapperManager.toIdentifier(item.name))
                     && !requested.equals(CustomWrapperManager.toIdentifier(packageNameFromUrl(item.url)))) continue;
-            String extension = item.url != null && item.url.toLowerCase(Locale.ENGLISH).endsWith(".so") ? ".so" : ".tzst";
-            File downloaded = downloadedPackage(context, item.url, extension);
-            try {
-                if (Downloader.downloadFile(item.url, downloaded)
-                        && manager.install(Uri.fromFile(downloaded), requested, sha256) != null) return true;
+            File downloaded = session.output(item.url);
+            if (!session.download(item.url, downloaded, requested)) {
+                session.failed("wrapper", DependencyImportSession.Failure.DOWNLOAD);
+                continue;
             }
-            finally { FileUtils.delete(downloaded); }
+            boolean installed = session.install(requested, () -> manager.install(Uri.fromFile(downloaded), requested, sha256),
+                    () -> ContentDownloadQueue.discard(downloaded)) != null;
+            if (installed) return true;
+            session.failed("wrapper", DependencyImportSession.Failure.PACKAGE);
         }
         return false;
-    }
-
-    private static File downloadedPackage(Context context, String url, String extension) {
-        return new File(context.getCacheDir(), "community-" + java.util.UUID.randomUUID() + extension);
     }
 
     private static String packageNameFromUrl(String url) {
@@ -878,7 +926,8 @@ public final class CommunityConfigManager {
     }
 
     private static void installExactPackagesFromDownloads(Context context, ContentsManager manager,
-                                                           JSONArray refs) {
+                                                           JSONArray refs, DependencyImportSession session)
+            throws DependencyImportSession.Stopped {
         File downloads = Environment.getExternalStoragePublicDirectory(
                 Environment.DIRECTORY_DOWNLOADS);
         if (!downloads.isDirectory()) return;
@@ -894,21 +943,15 @@ public final class CommunityConfigManager {
             if (isDisabledValue(requested) || isBundledReference(context, role, requested)
                     || findExactInstalled(manager, ref) != null) continue;
 
-            File bestFile = null;
-            int bestScore = -1;
-            for (File candidate : packages) {
-                int score = packageNameScore(ref, candidate.getName());
-                if (score > bestScore) {
-                    bestScore = score;
-                    bestFile = candidate;
+            List<File> candidates = new ArrayList<>(packages);
+            candidates.sort((left, right) -> Integer.compare(packageNameScore(ref, right.getName()), packageNameScore(ref, left.getName())));
+            for (File candidate : candidates) {
+                session.checkRunning();
+                if (packageNameScore(ref, candidate.getName()) < 72) break;
+                if (session.install(requested, () -> installMatchingPackage(context, manager, ref, candidate))) {
+                    manager.syncContents();
+                    break;
                 }
-            }
-            // Avoid unpacking unrelated archives. Exact/reordered package names
-            // normally score 100; 72 still tolerates a type prefix or build code.
-            if (bestFile == null || bestScore < 72) continue;
-            if (installMatchingPackage(context, manager, ref, bestFile)) {
-                manager.syncContents();
-                packages.remove(bestFile);
             }
         }
     }
@@ -933,6 +976,7 @@ public final class CommunityConfigManager {
         String lower = clean(name).toLowerCase(Locale.ENGLISH);
         return lower.endsWith(".wcp") || lower.endsWith(".wcp.xz")
                 || lower.endsWith(".wcp.zst") || lower.endsWith(".tzst")
+                || lower.endsWith(".txz") || lower.endsWith(".xz") || lower.endsWith(".zst")
                 || lower.endsWith(".tar.xz") || lower.endsWith(".tar.zst");
     }
 
@@ -947,7 +991,7 @@ public final class CommunityConfigManager {
     }
 
     private static String stripPackageExtension(String name) {
-        return clean(name).replaceFirst("(?i)\\.(?:wcp(?:\\.(?:xz|zst))?|t?zst|tar\\.(?:xz|zst))$", "");
+        return clean(name).replaceFirst("(?i)\\.(?:wcp(?:\\.(?:xz|zst))?|txz|t?zst|xz|tar\\.(?:xz|zst))$", "");
     }
 
     private static String contentIdentity(String value) {
@@ -969,15 +1013,18 @@ public final class CommunityConfigManager {
     }
 
     private static boolean matchesReference(ContentProfile profile, JSONObject ref) {
-        String id = ref.optString("contentId", "");
-        if (!id.isEmpty() && id.equals(profile.getContentId())) return true;
+        return matchesReference(profile, ref, false);
+    }
+
+    private static boolean matchesReference(ContentProfile profile, JSONObject ref, boolean remote) {
         Integer code = ref.has("versionCode") && !ref.isNull("versionCode")
                 ? ref.optInt("versionCode", 0) : null;
         // GitHub asset IDs are not manifest build codes. Download an exact-name
         // candidate, then validate the real WCP metadata before committing it.
-        return ContentVersion.matches(profile.verName, profile.verCode,
+        return ContentVersion.matchesReference(profile.getContentId(), profile.verName, profile.verCode,
+                ref.optString("contentId", ""),
                 ref.optString("versionName", ""), ref.optString("entryName", ""),
-                code, profile.fileList == null);
+                code, remote);
     }
 
     /**
@@ -987,7 +1034,8 @@ public final class CommunityConfigManager {
      * a download URL that are not installed yet are considered.
      */
     private static boolean recoverRemoteContent(Context context, ContentsManager manager,
-                                                JSONObject ref) {
+                                                JSONObject ref, DependencyImportSession session)
+            throws DependencyImportSession.Stopped {
         for (ContentProfile.ContentType type : ContentProfile.ContentType.values()) {
             List<ContentProfile> profiles;
             try {
@@ -1008,23 +1056,25 @@ public final class CommunityConfigManager {
                 }
                 if (!isCompatibleProfile(candidate, ref.optString("type", ""),
                         ref.optString("role", ""))) continue;
-                if (!matchesReference(candidate, ref)) continue;
-                File downloaded = new File(context.getCacheDir(),
-                        "community-content-"
-                                + Integer.toHexString(candidate.remoteUrl.hashCode()) + ".wcp");
+                if (!matchesReference(candidate, ref, true)) continue;
+                session.checkRunning();
+                File downloaded = session.output(candidate.remoteUrl);
                 try {
-                    if (Downloader.downloadFile(candidate.remoteUrl, downloaded)
-                            && installMatchingPackage(context, manager, ref, downloaded, candidate)) {
-                        Log.i("CommunityConfig", "Recovered remote content "
-                                + ContentsManager.getEntryName(candidate));
+                    if (!session.download(candidate.remoteUrl, downloaded, candidate.verName)) {
+                        session.failed(ref.optString("role"), DependencyImportSession.Failure.DOWNLOAD);
+                        continue;
+                    }
+                    boolean installed = session.install(candidate.verName,
+                            () -> installMatchingPackage(context, manager, ref, downloaded, candidate),
+                            () -> ContentDownloadQueue.discard(downloaded));
+                    if (installed) {
+                        Log.i("CommunityConfig", "Recovered remote content " + ContentsManager.getEntryName(candidate));
                         return true;
                     }
-                }
-                catch (RuntimeException error) {
+                    session.failed(ref.optString("role"), DependencyImportSession.Failure.PACKAGE);
+                } catch (RuntimeException error) {
+                    session.failed(ref.optString("role"), DependencyImportSession.Failure.PACKAGE);
                     Log.w("CommunityConfig", "Could not recover remote content", error);
-                }
-                finally {
-                    FileUtils.delete(downloaded);
                 }
                 // Another exact-name asset may carry the requested build; one
                 // failed or mismatched download must not hide later candidates.
