@@ -117,18 +117,6 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         ControllerManager.getInstance().init(getApplicationContext());
 
 
-        // Get shared preferences
-        SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
-
-        // Check if Big Picture Mode is enabled
-        boolean isBigPictureModeEnabled = sharedPreferences.getBoolean("enable_big_picture_mode", false);
-
-        if (isBigPictureModeEnabled) {
-            // If enabled, launch the BigPictureActivity and finish MainActivity
-            Intent intent = new Intent(MainActivity.this, BigPictureActivity.class);
-            startActivity(intent);
-        }
-
         setContentView(R.layout.main_activity);
 
         drawerLayout = findViewById(R.id.DrawerLayout);
@@ -176,6 +164,19 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
     private void applyMaxRefreshRate() {
         com.winlator.cmod.core.DisplayRefreshRate.request(this, "auto");
+    }
+
+    public static void setTabTitle(android.app.Activity activity, int title) {
+        setTabTitle(activity, activity.getString(title));
+    }
+
+    public static void setTabTitle(android.app.Activity activity, CharSequence title) {
+        if (!(activity instanceof AppCompatActivity)) return;
+        ActionBar bar = ((AppCompatActivity) activity).getSupportActionBar();
+        if (bar == null) return;
+        com.winlator.cmod.core.ExynosDevices.Profile profile = com.winlator.cmod.core.ExynosDevices.find(Build.MODEL);
+        String model = profile != null ? profile.shortLabel() : Build.MODEL;
+        bar.setTitle(model == null || model.isEmpty() ? title : title + " | " + model);
     }
 
     @Override protected void onResume() {
@@ -529,8 +530,32 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     private void continueStartup() {
         ImageFsInstaller.installIfNeeded(this, () ->
                 checkForAndInstallAssetContents(() -> {
-                    requestStorageAccessAfterInstallation();
+                    showUpgradeNoticeIfNeeded(this::requestStorageAccessAfterInstallation);
                 }));
+    }
+
+    private void showUpgradeNoticeIfNeeded(Runnable next) {
+        if (isFinishing() || isDestroyed()) return;
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
+        boolean show = false;
+        try {
+            PackageInfo info = getPackageManager().getPackageInfo(getPackageName(), 0);
+            show = com.winlator.cmod.core.UpgradeNotice.shouldShow096(BuildConfig.VERSION_NAME,
+                    preferences.getBoolean("upgrade_notice_096_shown", false), info.firstInstallTime, info.lastUpdateTime);
+        }
+        catch (PackageManager.NameNotFoundException ignored) {}
+        if (!show) {
+            next.run();
+            return;
+        }
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle(R.string.upgrade_096_title)
+                .setMessage(R.string.upgrade_096_message)
+                .setPositiveButton(android.R.string.ok, null)
+                .setOnDismissListener(dialog -> {
+                    if (!isFinishing() && !isDestroyed()) next.run();
+                }).show();
+        preferences.edit().putBoolean("upgrade_notice_096_shown", true).apply();
     }
 
     private void requestStorageAccessAfterInstallation() {

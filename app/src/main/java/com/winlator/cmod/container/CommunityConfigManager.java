@@ -101,30 +101,6 @@ public final class CommunityConfigManager {
         }
     }
 
-    private static final DeviceProfile[] SUPPORTED_DEVICES = {
-            new DeviceProfile("Galaxy S22", "SM-S901", "Exynos 2200", "Xclipse 920"),
-            new DeviceProfile("Galaxy S22+", "SM-S906", "Exynos 2200", "Xclipse 920"),
-            new DeviceProfile("Galaxy S22 Ultra", "SM-S908", "Exynos 2200", "Xclipse 920"),
-            new DeviceProfile("Galaxy S23 FE", "SM-S711", "Exynos 2200", "Xclipse 920"),
-            new DeviceProfile("Galaxy S24", "SM-S921", "Exynos 2400", "Xclipse 940"),
-            new DeviceProfile("Galaxy S24+", "SM-S926", "Exynos 2400", "Xclipse 940"),
-            new DeviceProfile("Galaxy S24 FE", "SM-S721", "Exynos 2400e", "Xclipse 940"),
-            new DeviceProfile("Galaxy S25 FE", "SM-S731", "Exynos 2500", "Xclipse 950"),
-            new DeviceProfile("Galaxy Z Flip7", "SM-F766", "Exynos 2500", "Xclipse 950"),
-            new DeviceProfile("Galaxy Z Flip7 FE", "SM-F761", "Exynos 2400", "Xclipse 940"),
-            new DeviceProfile("Galaxy Z Flip8", "SM-F776", "Exynos 2600", "Xclipse 960"),
-            new DeviceProfile("Galaxy S26", "SM-S942", "Exynos 2600", "Xclipse 960"),
-            new DeviceProfile("Galaxy S26+", "SM-S947", "Exynos 2600", "Xclipse 960"),
-            new DeviceProfile("Galaxy A55 5G", "SM-A556", "Exynos 1480", "Xclipse 530"),
-            new DeviceProfile("Galaxy A37 5G", "SM-A376", "Exynos 1480", "Xclipse 530"),
-            new DeviceProfile("Galaxy A56 5G", "SM-A566", "Exynos 1580", "Xclipse 540"),
-            new DeviceProfile("Galaxy Tab S10 FE (Wi-Fi)", "SM-X520", "Exynos 1580", "Xclipse 540"),
-            new DeviceProfile("Galaxy Tab S10 FE (5G)", "SM-X526B", "Exynos 1580", "Xclipse 540"),
-            new DeviceProfile("Galaxy Tab S10 FE+ (Wi-Fi)", "SM-X620", "Exynos 1580", "Xclipse 540"),
-            new DeviceProfile("Galaxy Tab S10 FE+ (5G)", "SM-X626B", "Exynos 1580", "Xclipse 540"),
-            new DeviceProfile("Galaxy A57 5G", "SM-A576", "Exynos 1680", "Xclipse 550")
-    };
-
     /** Matches Samsung model prefixes while preserving the exact regional model reported by Android. */
     public static DeviceProfile getCurrentDeviceProfile() {
         String model = clean(Build.MODEL).toUpperCase(Locale.ENGLISH);
@@ -149,25 +125,8 @@ public final class CommunityConfigManager {
 
     /** Resolve a release/export model such as SM-X526B to its canonical device and SoC. */
     public static DeviceProfile getDeviceProfileForModel(String reportedModel) {
-        String reported = clean(reportedModel).toUpperCase(Locale.ENGLISH);
-        if (reported.isEmpty()) return null;
-        String canonical = canonicalSamsungModel(reported);
-        for (DeviceProfile profile : SUPPORTED_DEVICES) {
-            String candidate = canonicalSamsungModel(profile.model);
-            if (!canonical.isEmpty() && canonical.equals(candidate)) return profile;
-            if (reported.contains(profile.model.toUpperCase(Locale.ENGLISH))) return profile;
-        }
-        // Tolerate vendor strings that omit the family letter, for example
-        // "SM-926B" for the otherwise canonical SM-S926B.
-        java.util.regex.Matcher shortModel = java.util.regex.Pattern
-                .compile("SM-(\\d{3})").matcher(reported);
-        if (shortModel.find()) {
-            String digits = shortModel.group(1);
-            for (DeviceProfile profile : SUPPORTED_DEVICES) {
-                if (canonicalSamsungModel(profile.model).endsWith(digits)) return profile;
-            }
-        }
-        return null;
+        com.winlator.cmod.core.ExynosDevices.Profile profile = com.winlator.cmod.core.ExynosDevices.find(reportedModel);
+        return profile == null ? null : new DeviceProfile(profile.device, profile.model, profile.soc, profile.gpu);
     }
 
     /** Correct stale release metadata without changing the actual container settings. */
@@ -185,13 +144,6 @@ public final class CommunityConfigManager {
             if (!exactModel.isEmpty()) metadata.put("model", exactModel);
         }
         catch (JSONException ignored) {}
-    }
-
-    private static String canonicalSamsungModel(String value) {
-        java.util.regex.Matcher matcher = java.util.regex.Pattern
-                .compile("SM-[A-Z]\\d{3}", java.util.regex.Pattern.CASE_INSENSITIVE)
-                .matcher(clean(value));
-        return matcher.find() ? matcher.group().toUpperCase(Locale.ENGLISH) : "";
     }
 
     private static String exactSamsungModel(String value) {

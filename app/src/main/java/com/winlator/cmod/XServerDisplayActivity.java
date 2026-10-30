@@ -2762,6 +2762,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             frameRating.setDataSource(hudDataSource);
             frameRating.setMangoStyle("mangohud".equals(runtimeHudMode));
             frameRating.setWrapperName(graphicsDriver);
+            frameRating.setDriverName(new XclipseDriverManager(this).getDisplayName(
+                    graphicsDriverConfig.getOrDefault("version", DefaultVersion.WRAPPER)));
             frameRating.onRendererDetected(getHudApiName());
             frameRating.setPhoneGpuName(getPhoneGpuName());
             renderer.setWinlatorHUD(frameRating);
@@ -3897,6 +3899,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         frameRating = new WinlatorHUD(this);
         frameRating.setDataSource(hudDataSource);
         frameRating.setWrapperName(graphicsDriver);
+            frameRating.setDriverName(new XclipseDriverManager(this).getDisplayName(
+                    graphicsDriverConfig.getOrDefault("version", DefaultVersion.WRAPPER)));
         frameRating.onRendererDetected(getHudApiName());
         frameRating.setPhoneGpuName(getPhoneGpuName());
         if (xServerView != null) xServerView.getRenderer().setWinlatorHUD(frameRating);
@@ -4162,6 +4166,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             frameRating = new WinlatorHUD(this);
             frameRating.setDataSource(hudDataSource);
             frameRating.setWrapperName(graphicsDriver);
+            frameRating.setDriverName(new XclipseDriverManager(this).getDisplayName(
+                    graphicsDriverConfig.getOrDefault("version", DefaultVersion.WRAPPER)));
             frameRating.onRendererDetected(getHudApiName());
             frameRating.setPhoneGpuName(getPhoneGpuName());
             if (xServerView != null) xServerView.getRenderer().setWinlatorHUD(frameRating);
@@ -4193,6 +4199,21 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         CheckBox cbSoc = dialog.findViewById(R.id.CBHudSOC);
         CheckBox cbGpuTemp = dialog.findViewById(R.id.CBHudGPUTemp);
         CheckBox cbPhoneGpu = dialog.findViewById(R.id.CBHudPhoneGPU);
+        CheckBox cbDevice = dialog.findViewById(R.id.CBHudDevice);
+        CheckBox cbDriverName = dialog.findViewById(R.id.CBHudDriverName);
+        Spinner spSocFormat = dialog.findViewById(R.id.SPHudSocFormat);
+        Spinner spGpuFormat = dialog.findViewById(R.id.SPHudGpuFormat);
+        Spinner spDeviceFormat = dialog.findViewById(R.id.SPHudDeviceFormat);
+        bindHudFormat(spSocFormat, R.array.hud_hardware_format_entries, frameRating.getSocFormat(),
+                selected -> frameRating.setHardwareLabelFormat(false, selected));
+        bindHudFormat(spGpuFormat, R.array.hud_hardware_format_entries, frameRating.getGpuFormat(),
+                selected -> frameRating.setHardwareLabelFormat(true, selected));
+        bindHudFormat(spDeviceFormat, R.array.hud_device_format_entries, frameRating.isDeviceFamily() ? 1 : 0,
+                selected -> frameRating.setDeviceFamily(selected == 1));
+        cbDevice.setChecked(frameRating.isElementEnabled(20));
+        cbDriverName.setChecked(frameRating.isElementEnabled(21));
+        cbDevice.setOnCheckedChangeListener((button, checked) -> frameRating.toggleElement(20, checked));
+        cbDriverName.setOnCheckedChangeListener((button, checked) -> frameRating.toggleElement(21, checked));
         CheckBox cbFgLatency = dialog.findViewById(R.id.CBHudFGLatency);
         CheckBox cbFgStatus = dialog.findViewById(R.id.CBHudFGStatus);
         CheckBox cbRamWarning = dialog.findViewById(R.id.CBHudRamWarning);
@@ -4274,8 +4295,34 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             }
             @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
         });
-        dialog.findViewById(R.id.BTHudReset).setOnClickListener(v -> frameRating.forceReset());
+        dialog.findViewById(R.id.BTHudReset).setOnClickListener(v -> {
+            frameRating.forceReset();
+            frameRating.post(() -> {
+                frameRating.syncCheckboxes(cbFps, cbGpu, cbCpu, cbBatt, cbGraph, cbRend, cbRam, cbBattPct,
+                        cbMono, cbBorder, cbCompact, cbWrapper, cbLocked, cbCpuTemp, cbSoc, cbGpuTemp,
+                        cbPhoneGpu, cbFgLatency, cbFgStatus);
+                cbDevice.setChecked(frameRating.isElementEnabled(20));
+                cbDriverName.setChecked(frameRating.isElementEnabled(21));
+                spSocFormat.setSelection(frameRating.getSocFormat());
+                spGpuFormat.setSelection(frameRating.getGpuFormat());
+                spDeviceFormat.setSelection(frameRating.isDeviceFamily() ? 1 : 0);
+                cbVert.setChecked(frameRating.isVertical());
+                sbAlpha.setProgress(Math.round(frameRating.getHudAlpha() * 100));
+                sbScale.setProgress(Math.round((frameRating.getHudScale() - 0.5f) / 1.5f * 100));
+            });
+        });
         dialog.show();
+    }
+
+    private void bindHudFormat(Spinner spinner, int entries, int selection, java.util.function.IntConsumer changed) {
+        spinner.setAdapter(new ThemedSpinnerAdapter<>(spinner.getContext(), getResources().getStringArray(entries)));
+        spinner.setSelection(selection);
+        spinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+                changed.accept(position);
+            }
+            @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
+        });
     }
 
     public void showInputControlsFromControllerManager() {

@@ -143,7 +143,7 @@ public class CommunityConfigsFragment extends Fragment {
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
-        ((AppCompatActivity) requireActivity()).getSupportActionBar().setTitle("Community Configs");
+        MainActivity.setTabTitle(requireActivity(), "Community Configs");
         refresh();
         view.post(this::showFirstVisitNotice);
     }

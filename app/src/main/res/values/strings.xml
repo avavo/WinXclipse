@@ -953,4 +953,14 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="driver_extensions_loading">Reading selected driver…</string>
     <string name="driver_extensions_failed">Could not read this driver. Saved extension settings are preserved.</string>
     <string name="driver_extensions_ready">Selected driver · Vulkan %1$d.%2$d</string>
+    <string name="container_add">Add container</string>
+    <string name="container_new">Create new</string>
+    <string name="container_import_zip">Import from ZIP</string>
+    <string name="container_import_community">Import from community</string>
+    <string name="upgrade_096_title">What changed in 0.9.6</string>
+    <string name="upgrade_096_message">FEX 2610 and Box64 0.4.5, downloads with pause and resume, installation and driver fixes, and improved display refresh handling. RAM Fix remains enabled.</string>
+    <string name="hud_show_device">Show phone model</string>
+    <string name="hud_show_driver_name">Show driver name</string>
+    <string name="hud_soc_format">SoC label</string>
+    <string name="hud_gpu_format">GPU label</string>
 </resources>

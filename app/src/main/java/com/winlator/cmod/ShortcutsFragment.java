@@ -262,7 +262,7 @@ public class ShortcutsFragment extends Fragment {
         loadShortcutsList();
         startFileObservers(); // Start watching for new file
         discoverWineShortcutsAsync();
-        ((AppCompatActivity)getActivity()).getSupportActionBar().setTitle(R.string.shortcuts);
+        MainActivity.setTabTitle(requireActivity(), R.string.shortcuts);
     }
 
     @Nullable

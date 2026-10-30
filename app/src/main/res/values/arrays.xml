@@ -387,4 +387,13 @@
         <item>3.5x</item>
         <item>4x</item>
     </string-array>
+    <string-array name="hud_hardware_format_entries">
+        <item>Full name</item>
+        <item>Model number</item>
+        <item>Brand only</item>
+    </string-array>
+    <string-array name="hud_device_format_entries">
+        <item>Model (S24+, A55…)</item>
+        <item>Galaxy family (Galaxy S, Galaxy A…)</item>
+    </string-array>
 </resources>

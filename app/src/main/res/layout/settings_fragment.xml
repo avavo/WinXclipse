@@ -328,13 +328,6 @@
 
                 <LinearLayout style="@style/FieldSet">
 
-                    <!-- SteamGridDB API Key Section -->
-                    <CheckBox
-                        android:id="@+id/CBEnableBigPictureMode"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Enable Big Picture Mode on App Launch" />
-
                     <FrameLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content">

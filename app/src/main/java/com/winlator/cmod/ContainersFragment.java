@@ -109,7 +109,7 @@ public class ContainersFragment extends Fragment {
         super.onViewCreated(view, savedInstanceState);
         manager = new ContainerManager(getContext());
         loadContainersList();
-        ((AppCompatActivity) getActivity()).getSupportActionBar().setTitle(R.string.containers);
+        MainActivity.setTabTitle(requireActivity(), R.string.containers);
         Bundle arguments = getArguments();
         if (arguments != null) {
             String configPath = arguments.getString("community_config_path", "");
@@ -132,98 +132,66 @@ public class ContainersFragment extends Fragment {
         FrameLayout frameLayout = (FrameLayout) inflater.inflate(R.layout.containers_fragment, container, false);
         recyclerView = frameLayout.findViewById(R.id.RecyclerView);
         emptyTextView = frameLayout.findViewById(R.id.TVEmptyText);
+        frameLayout.findViewById(R.id.BTCreateContainer).setOnClickListener(v ->
+                new AlertDialog.Builder(requireContext()).setTitle(R.string.container_add)
+                        .setItems(new String[]{getString(R.string.container_import_zip),
+                                getString(R.string.container_import_community), getString(R.string.container_new)},
+                                (dialog, which) -> {
+                                    if (which == 0) importCommunityZip();
+                                    else if (which == 1) getParentFragmentManager().beginTransaction()
+                                            .addToBackStack(null)
+                                            .replace(R.id.FLFragmentContainer, new CommunityConfigsFragment()).commit();
+                                    else createContainer();
+                                }).show());
         recyclerView.setLayoutManager(new LinearLayoutManager(recyclerView.getContext()));
         recyclerView.addItemDecoration(new DividerItemDecoration(recyclerView.getContext(), DividerItemDecoration.VERTICAL));
         return frameLayout;
     }
 
+    private void createContainer() {
+        if (!ImageFs.find(requireContext()).isValid()) return;
+        getParentFragmentManager().beginTransaction()
+                .setCustomAnimations(R.anim.slide_in_up, R.anim.slide_out_down, R.anim.slide_in_down, R.anim.slide_out_up)
+                .addToBackStack(null)
+                .replace(R.id.FLFragmentContainer, new ContainerDetailFragment()).commit();
+    }
+
+    private void importCommunityZip() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("*/*");
+        intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"application/zip", "application/x-zip-compressed",
+                "application/octet-stream"});
+        startActivityForResult(intent, REQUEST_CODE_IMPORT_COMMUNITY_CONFIG);
+    }
+
     private void loadContainersList() {
         ArrayList<Container> containers = manager.getContainers();
         recyclerView.setAdapter(new ContainersAdapter(containers));
-        if (containers.isEmpty()) emptyTextView.setVisibility(View.VISIBLE);
+        emptyTextView.setVisibility(containers.isEmpty() ? View.VISIBLE : View.GONE);
     }
 
 
     @Override
     public void onResume() {
         super.onResume();
-        // re-create the menu so the icon always matches current favorite
+        // Clear toolbar actions inherited from another tab.
         requireActivity().invalidateOptionsMenu();
     }
 
     @Override
     public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
         menu.clear();
-        inflater.inflate(R.menu.containers_menu, menu);
-
-        // Other items tinting...
-        MenuItem bigPictureItem = menu.findItem(R.id.action_big_picture_mode);
-        if (bigPictureItem != null && bigPictureItem.getIcon() != null) {
-            bigPictureItem.getIcon().mutate();
-            bigPictureItem.getIcon().setColorFilter(Color.WHITE, PorterDuff.Mode.SRC_IN);
-        }
-
-        favoriteItem = menu.findItem(R.id.action_favorite_star);
-        if (favoriteItem != null) {
-            // Ensure it shows in the toolbar
-            favoriteItem.setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
-
-            // Create an ImageView as the action view
-            AppCompatImageView iv = new AppCompatImageView(requireContext());
-            int pad = dp(8);
-            iv.setPadding(pad, pad, pad, pad);
-            iv.setAdjustViewBounds(true);
-            iv.setClickable(true);
-            iv.setFocusable(true);
-            iv.setContentDescription(getString(R.string.app_name)); // or "Favorite shortcut"
-            ViewCompat.setTooltipText(iv, "Favorite");
-
-            favoriteItem.setActionView(iv);
-            favoriteActionView = iv;
-
-            // Click => launch (or prompt to choose)
-            iv.setOnClickListener(v -> handleFavoriteClick());
-
-            // Long‑press => clear (if set)
-            iv.setOnLongClickListener(v -> {
-                v.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
-                Shortcut fav = getFavoriteShortcut();
-                if (fav == null) {
-                    Toast.makeText(getContext(), "No favorite assigned.", Toast.LENGTH_SHORT).show();
-                } else {
-                    new AlertDialog.Builder(getContext())
-                            .setTitle("Clear favorite")
-                            .setMessage("Remove the current favorite?")
-                            .setPositiveButton("Remove", (d, w) -> clearFavorite())
-                            .setNegativeButton("Cancel", null)
-                            .show();
-                }
-                return true;
-            });
-        }
-
-        // Finally, paint the current icon into the view
-        applyFavoriteIcon();
     }
 
     @Override
     public boolean onOptionsItemSelected(MenuItem menuItem) {
         switch (menuItem.getItemId()) {
             case R.id.containers_menu_add:
-                if (!ImageFs.find(getContext()).isValid()) return false;
-                FragmentManager fragmentManager = getParentFragmentManager();
-                fragmentManager.beginTransaction()
-                        .setCustomAnimations(R.anim.slide_in_up, R.anim.slide_out_down, R.anim.slide_in_down, R.anim.slide_out_up)
-                        .addToBackStack(null)
-                        .replace(R.id.FLFragmentContainer, new ContainerDetailFragment())
-                        .commit();
+                createContainer();
                 return true;
-
             case R.id.containers_menu_import_config:
-                Intent importConfig = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-                importConfig.addCategory(Intent.CATEGORY_OPENABLE);
-                importConfig.setType("*/*");
-                startActivityForResult(importConfig, REQUEST_CODE_IMPORT_COMMUNITY_CONFIG);
+                importCommunityZip();
                 return true;
 
 //            case R.id.containers_menu_import:

@@ -108,7 +108,6 @@ public class SettingsFragment extends Fragment {
 
     private boolean enableLegacyInputMode = false;
 
-    private CheckBox cbEnableBigPictureMode;
     private CheckBox cbEnableCustomApiKey;
     private EditText etCustomApiKey;
 
@@ -163,7 +162,7 @@ public class SettingsFragment extends Fragment {
 //        Button btnConfigureGyro = view.findViewById(R.id.BTConfigureGyro);
 //        btnConfigureGyro.setOnClickListener(v -> showGyroConfigDialog());
 
-        ((AppCompatActivity)getActivity()).getSupportActionBar().setTitle(R.string.settings);
+        MainActivity.setTabTitle(requireActivity(), R.string.settings);
     }
 
 
@@ -213,10 +212,6 @@ public class SettingsFragment extends Fragment {
                 R.id.CBUseAlternativeAppIcon);
         cbUseAlternativeAppIcon.setChecked(preferences.getBoolean(
                 LauncherIconManager.PREF_USE_ALTERNATIVE_ICON, false));
-
-        // Initialize Big Picture Mode Checkbox
-        cbEnableBigPictureMode = view.findViewById(R.id.CBEnableBigPictureMode);
-        cbEnableBigPictureMode.setChecked(preferences.getBoolean("enable_big_picture_mode", false));
 
         initCustomApiKeySettings(view);
 
@@ -537,8 +532,6 @@ public class SettingsFragment extends Fragment {
 
             editor.putBoolean("legacy_mode_enabled", enableLegacyInputMode); // Save the 7.1.2 legacy mode state
 
-            // Save Big Picture Mode setting
-            editor.putBoolean("enable_big_picture_mode", ((CheckBox) view.findViewById(R.id.CBEnableBigPictureMode)).isChecked());
             saveCustomApiKeySettings(editor);
 
             if (editor.commit()) {

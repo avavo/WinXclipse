@@ -235,7 +235,7 @@ public class ContentsFragment extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
         if (!embedded && getActivity() instanceof AppCompatActivity) {
-            ((AppCompatActivity) getActivity()).getSupportActionBar().setTitle(R.string.contents);
+            MainActivity.setTabTitle(requireActivity(), R.string.contents);
         }
     }
 

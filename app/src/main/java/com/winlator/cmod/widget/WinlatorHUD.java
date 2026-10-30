@@ -24,6 +24,8 @@ import android.view.View;
 import com.winlator.cmod.R;
 import com.winlator.cmod.contentdialog.ContentDialog;
 import com.winlator.cmod.core.StringUtils;
+import com.winlator.cmod.core.ExynosDevices;
+import com.winlator.cmod.core.HardwareLabel;
 
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -39,6 +41,10 @@ public class WinlatorHUD extends View {
     private static final String KEY_VERT = "hud_vertical";
     private static final String KEY_RAM_WARNING = "hud_ram_warning";
     private static final String KEY_FPS_DEFAULT_MIGRATED = "hud_fps_default_095_2";
+    private static final String KEY_DEFAULTS_096 = "hud_defaults_096";
+    private static final String KEY_SOC_FORMAT = "hud_soc_format";
+    private static final String KEY_GPU_FORMAT = "hud_gpu_format";
+    private static final String KEY_DEVICE_FAMILY = "hud_device_family";
 
     public static final int SHOW_FPS      = 1;
     public static final int SHOW_GPU      = 1<<1;
@@ -59,13 +65,17 @@ public class WinlatorHUD extends View {
     public static final int SHOW_PHONE_GPU = 1<<16;
     public static final int SHOW_FG_LATENCY = 1<<17;
     public static final int SHOW_FG_STATUS = 1<<18;
-    private static final int SHOW_DEFAULT = SHOW_FPS | SHOW_MONO | SHOW_WRAPPER | SHOW_GPU | SHOW_CPU | SHOW_RAM | SHOW_BATT | SHOW_BORDER | SHOW_SOC;
+    public static final int SHOW_DEVICE = 1<<19;
+    public static final int SHOW_DRIVER = 1<<20;
+    private static final int OLD_DEFAULT = SHOW_FPS | SHOW_MONO | SHOW_WRAPPER | SHOW_GPU | SHOW_CPU | SHOW_RAM | SHOW_BATT | SHOW_BORDER | SHOW_SOC;
+    private static final int SHOW_DEFAULT = SHOW_FPS | SHOW_MONO | SHOW_GPU | SHOW_CPU | SHOW_RAM | SHOW_BATT
+            | SHOW_BORDER | SHOW_BATT_PCT | SHOW_DEVICE;
     /**
      * A conservative one-line MangoHUD layout which stays readable at 720p.
      * Temperature is included by SHOW_BATT and is drawn beside power usage.
      */
-    private static final int SHOW_MANGO_DEFAULT = SHOW_FPS | SHOW_WRAPPER | SHOW_CPU
-            | SHOW_RAM | SHOW_BATT | SHOW_BORDER;
+    private static final int SHOW_MANGO_DEFAULT = SHOW_FPS | SHOW_CPU
+            | SHOW_RAM | SHOW_BATT | SHOW_BORDER | SHOW_BATT_PCT | SHOW_DEVICE;
 
     private static final int C_WHITE = Color.WHITE;
     private static final int C_GPU  = Color.rgb(0xE0,0x40,0xFB);
@@ -110,7 +120,11 @@ public class WinlatorHUD extends View {
     private String strPwr = "N/A", strTmp = "", strCTmp = "", strGTmp = "", strFps = "0", strPct = "";
     private String strRend = "OpenGL", strWrapper = "WineD3D", strPhoneGpu = "Unknown GPU";
     private String strFgLatency = "N/A", strFgStatus = "FG Off";
-    private final String strSoc;
+    private final String rawSoc;
+    private String rawPhoneGpu = "Unknown GPU";
+    private String strSoc, strDevice, strDriver = "System";
+    private int socFormat, gpuFormat;
+    private boolean deviceFamily;
     private boolean snapCharging = false;
     private final int ramBlinkThreshold;
     private final int ramWarningThreshold;
@@ -179,7 +193,7 @@ public class WinlatorHUD extends View {
         GRAW   = 70f * d;
         CORNER = 5f * d;
         initPaints();
-        strSoc = getSocName();
+        rawSoc = getSocName();
         loadPrefs();
         setLayerType(LAYER_TYPE_HARDWARE, null);
     }
@@ -267,6 +281,8 @@ public class WinlatorHUD extends View {
     }
 
     private static String getSocName() {
+        ExynosDevices.Profile device = ExynosDevices.find(Build.MODEL);
+        if (device != null) return device.soc;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             String model = Build.SOC_MODEL;
             if (model != null && !model.isEmpty() && !"unknown".equalsIgnoreCase(model)) {
@@ -533,6 +549,18 @@ public class WinlatorHUD extends View {
             }
             first = false;
         }
+        if ((showMask & SHOW_DEVICE) != 0) {
+            if (!first) x += drawSep(c, x, 0);
+            c.drawText(strDevice, x, getBaseline(pRend, 0, rowH), pRend);
+            x += pRend.measureText(strDevice);
+            first = false;
+        }
+        if ((showMask & SHOW_DRIVER) != 0) {
+            if (!first) x += drawSep(c, x, 0);
+            c.drawText(strDriver, x, getBaseline(pRend, 0, rowH), pRend);
+            x += pRend.measureText(strDriver);
+            first = false;
+        }
         if ((showMask & SHOW_PHONE_GPU) != 0) {
             if (!first) x += drawSep(c, x, 0);
             float baseline = getBaseline(pRend, 0, rowH);
@@ -651,6 +679,14 @@ public class WinlatorHUD extends View {
                 y += lineH;
             }
         }
+        if ((showMask & SHOW_DEVICE) != 0) {
+            c.drawText(strDevice, PAD, getBaseline(pRend, y, lineH), pRend);
+            y += lineH;
+        }
+        if ((showMask & SHOW_DRIVER) != 0) {
+            c.drawText(strDriver, PAD, getBaseline(pRend, y, lineH), pRend);
+            y += lineH;
+        }
         if ((showMask & SHOW_PHONE_GPU) != 0) {
             c.drawText(strPhoneGpu, PAD, getBaseline(pRend, y, lineH), pRend);
             y += lineH;
@@ -716,6 +752,16 @@ public class WinlatorHUD extends View {
         if ((showMask & SHOW_RENDERER) != 0) {
             if (!first) w += drawSep(null, 0, 0);
             w += pRend.measureText(strRend);
+            first = false;
+        }
+        if ((showMask & SHOW_DEVICE) != 0) {
+            if (!first) w += drawSep(null, 0, 0);
+            w += pRend.measureText(strDevice);
+            first = false;
+        }
+        if ((showMask & SHOW_DRIVER) != 0) {
+            if (!first) w += drawSep(null, 0, 0);
+            w += pRend.measureText(strDriver);
             first = false;
         }
         if ((showMask & SHOW_PHONE_GPU) != 0) {
@@ -794,6 +840,8 @@ public class WinlatorHUD extends View {
         boolean compact = (showMask & SHOW_COMPACT) != 0;
         float w = PAD * 2;
         if ((showMask & SHOW_RENDERER) != 0) w = Math.max(w, PAD * 2 + pRend.measureText(strRend));
+        if ((showMask & SHOW_DEVICE) != 0) w = Math.max(w, PAD * 2 + pRend.measureText(strDevice));
+        if ((showMask & SHOW_DRIVER) != 0) w = Math.max(w, PAD * 2 + pRend.measureText(strDriver));
         if ((showMask & SHOW_PHONE_GPU) != 0) w = Math.max(w, PAD * 2 + pRend.measureText(strPhoneGpu));
         if ((showMask & SHOW_WRAPPER)  != 0) w = Math.max(w, PAD * 2 + pRend.measureText(strWrapper));
         if ((showMask & SHOW_GPU)      != 0) w = Math.max(w, PAD * 2 + (compact ? 0 : wLabelGpu) + Math.max(pVal.measureText(strGpu), wVal100pct));
@@ -840,6 +888,8 @@ public class WinlatorHUD extends View {
     private float countVerticalRows() {
         float r = 0;
         if ((showMask & SHOW_RENDERER) != 0) r++;
+        if ((showMask & SHOW_DEVICE) != 0) r++;
+        if ((showMask & SHOW_DRIVER) != 0) r++;
         if ((showMask & SHOW_PHONE_GPU) != 0) r++;
         if ((showMask & SHOW_WRAPPER)  != 0) r++;
         if ((showMask & SHOW_GPU)      != 0) r++;
@@ -965,6 +1015,14 @@ public class WinlatorHUD extends View {
 
     private void loadPrefs() {
         showMask = prefs.getInt(KEY_SHOW, SHOW_DEFAULT);
+        if (!prefs.getBoolean(KEY_DEFAULTS_096, false)) {
+            if (showMask == OLD_DEFAULT) showMask = SHOW_DEFAULT;
+            prefs.edit().putInt(KEY_SHOW, showMask).putBoolean(KEY_DEFAULTS_096, true).apply();
+        }
+        socFormat = prefs.getInt(KEY_SOC_FORMAT, HardwareLabel.FULL);
+        gpuFormat = prefs.getInt(KEY_GPU_FORMAT, HardwareLabel.FULL);
+        deviceFamily = prefs.getBoolean(KEY_DEVICE_FAMILY, false);
+        updateHardwareLabels();
         // 0.9.5 makes the FPS field part of the visible default for both new
         // and upgraded installs. Run this once so an older saved HUD mask does
         // not leave the checkbox off after updating; later user changes remain
@@ -1134,11 +1192,47 @@ public class WinlatorHUD extends View {
 
     public void setPhoneGpuName(String name) {
         if (name == null || name.trim().isEmpty()) return;
-        strPhoneGpu = name.trim().replaceFirst("(?i)^Samsung\\s+", "");
+        ExynosDevices.Profile device = ExynosDevices.find(Build.MODEL);
+        rawPhoneGpu = device == null ? name : device.gpu;
+        updateHardwareLabels();
+    }
+
+    public void setDriverName(String name) {
+        strDriver = name == null || name.trim().isEmpty() ? "System" : name;
         layoutDirty = true;
         requestLayout();
         invalidate();
     }
+
+    private void updateHardwareLabels() {
+        strSoc = HardwareLabel.format(rawSoc, socFormat);
+        strPhoneGpu = HardwareLabel.format(rawPhoneGpu, gpuFormat);
+        ExynosDevices.Profile device = ExynosDevices.find(Build.MODEL);
+        strDevice = device == null ? Build.MODEL : deviceFamily ? HardwareLabel.family(device.device) : device.shortLabel();
+        if (strDevice == null) strDevice = "";
+        layoutDirty = true;
+        requestLayout();
+        invalidate();
+    }
+
+    public int getSocFormat() { return socFormat; }
+    public int getGpuFormat() { return gpuFormat; }
+    public boolean isDeviceFamily() { return deviceFamily; }
+
+    public void setHardwareLabelFormat(boolean gpu, int format) {
+        int selected = Math.max(0, Math.min(2, format));
+        if (gpu) gpuFormat = selected; else socFormat = selected;
+        prefs.edit().putInt(gpu ? KEY_GPU_FORMAT : KEY_SOC_FORMAT, selected).apply();
+        updateHardwareLabels();
+    }
+
+    public void setDeviceFamily(boolean family) {
+        deviceFamily = family;
+        prefs.edit().putBoolean(KEY_DEVICE_FAMILY, family).apply();
+        updateHardwareLabels();
+    }
+
+    public boolean isElementEnabled(int index) { return (showMask & idxToMask(index)) != 0; }
 
     public void setVertical(boolean v) {
         vertical = v;
@@ -1220,6 +1314,9 @@ public class WinlatorHUD extends View {
             userEnabled = true;
             
             showMask = mangoStyle ? SHOW_MANGO_DEFAULT : SHOW_DEFAULT;
+            socFormat = gpuFormat = HardwareLabel.FULL;
+            deviceFamily = false;
+            updateHardwareLabels();
             vertical = false;
             layoutDirty = true;
             
@@ -1230,6 +1327,9 @@ public class WinlatorHUD extends View {
             SharedPreferences.Editor ed = prefs.edit();
             ed.putBoolean(KEY_VIS, true);
             ed.putInt(KEY_SHOW, showMask);
+            ed.putInt(KEY_SOC_FORMAT, socFormat);
+            ed.putInt(KEY_GPU_FORMAT, gpuFormat);
+            ed.putBoolean(KEY_DEVICE_FAMILY, deviceFamily);
             ed.putBoolean(KEY_VERT, vertical);
             ed.putFloat(KEY_SCALE, 1.0f);
             ed.putInt(KEY_ALPHA, 55);
@@ -1267,6 +1367,8 @@ public class WinlatorHUD extends View {
             case 17: return SHOW_PHONE_GPU;
             case 18: return SHOW_FG_LATENCY;
             case 19: return SHOW_FG_STATUS;
+            case 20: return SHOW_DEVICE;
+            case 21: return SHOW_DRIVER;
             default: return 0;
         }
     }

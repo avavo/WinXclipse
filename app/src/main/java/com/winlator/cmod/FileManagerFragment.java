@@ -107,7 +107,7 @@ public class FileManagerFragment extends Fragment {
         
         if (getActivity() instanceof AppCompatActivity activity) {
             if (activity.getSupportActionBar() != null) {
-                activity.getSupportActionBar().setTitle(R.string.file_manager);
+                MainActivity.setTabTitle(activity, R.string.file_manager);
             }
         }
 
@@ -835,7 +835,7 @@ public class FileManagerFragment extends Fragment {
     private void updateSelectionUI() {
         if (getActivity() instanceof AppCompatActivity activity && activity.getSupportActionBar() != null) {
             if (selectedFiles.isEmpty()) {
-                activity.getSupportActionBar().setTitle(R.string.file_manager);
+                MainActivity.setTabTitle(activity, R.string.file_manager);
             } else {
                 activity.getSupportActionBar().setTitle(selectedFiles.size() + " selected");
             }

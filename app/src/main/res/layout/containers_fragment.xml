@@ -8,6 +8,8 @@
         android:id="@+id/RecyclerView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:paddingBottom="88dp"
+        android:clipToPadding="false"
         android:scrollbars="vertical"
         app:layoutManager="LinearLayoutManager" />
 
@@ -19,4 +21,14 @@
         android:text="@string/no_items_to_display_containers"
         android:textSize="24sp"
         android:visibility="gone" />
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/BTCreateContainer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end|bottom"
+        android:layout_margin="16dp"
+        android:contentDescription="@string/container_add"
+        android:src="@drawable/icon_action_bar_add"
+        android:tint="#ffffff" />
 </FrameLayout>
