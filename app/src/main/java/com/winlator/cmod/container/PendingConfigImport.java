@@ -3,7 +3,7 @@ package com.winlator.cmod.container;
 import android.content.Context;
 
 import com.winlator.cmod.contents.DependencyImportSession;
-import com.winlator.cmod.core.FileUtils;
+import com.winlator.cmod.xenvironment.ImageFs;
 
 import org.json.JSONObject;
 
@@ -22,6 +22,7 @@ public final class PendingConfigImport {
     }
     private static PendingConfigImport instance;
     private final File receipt;
+    private final File homeDir;
     private final ExecutorService worker;
     private final Resolver resolver;
     private Observer observer;
@@ -33,16 +34,23 @@ public final class PendingConfigImport {
     private String name = "", error = "";
     private int percent;
     private JSONObject manifest;
+    private ConfigImportJournal journal;
     private List<CommunityConfigManager.ContentResolution> resolutions;
 
     private PendingConfigImport(Context context) {
         this(new File(context.getApplicationContext().getFilesDir(), "pending-config-import.json"),
+                new File(ImageFs.find(context.getApplicationContext()).getRootDir(), "home"),
                 Executors.newSingleThreadExecutor(), (manifest, session) ->
                         CommunityConfigManager.resolveContents(context.getApplicationContext(), manifest, session));
     }
 
     PendingConfigImport(File receipt, ExecutorService worker, Resolver resolver) {
+        this(receipt, new File(receipt.getParentFile(), "home"), worker, resolver);
+    }
+
+    PendingConfigImport(File receipt, File homeDir, ExecutorService worker, Resolver resolver) {
         this.receipt = receipt;
+        this.homeDir = homeDir;
         this.worker = worker;
         this.resolver = resolver;
         state = receipt.isFile() ? State.PAUSED : State.IDLE;
@@ -68,7 +76,7 @@ public final class PendingConfigImport {
         if (running) throw new IOException("Another configuration import is still running");
         try { config = new JSONObject(config.toString()); }
         catch (org.json.JSONException invalid) { throw new IOException("Invalid pending configuration", invalid); }
-        if (!FileUtils.writeStringAtomic(receipt, config.toString())) throw new IOException("Could not save pending configuration");
+        journal = ConfigImportJournal.create(receipt, config);
         manifest = config;
         resolutions = null;
         state = State.PAUSED;
@@ -98,9 +106,21 @@ public final class PendingConfigImport {
         notifyObserver();
         worker.execute(() -> {
             try {
-                JSONObject config;
-                synchronized (this) { config = manifest; }
-                if (config == null) config = new JSONObject(FileUtils.readString(receipt));
+                active.checkRunning();
+                ConfigImportJournal restored = ConfigImportJournal.load(receipt);
+                synchronized (this) {
+                    if (attempt != generation) return;
+                    active.checkRunning();
+                    journal = restored;
+                }
+                boolean published = restored.recover(homeDir);
+                JSONObject config = restored.manifest();
+                synchronized (this) {
+                    if (attempt != generation) return;
+                    active.checkRunning();
+                    manifest = config;
+                    if (published) { completeLocked(); return; }
+                }
                 List<CommunityConfigManager.ContentResolution> resolved = resolver.resolve(config, active);
                 synchronized (this) {
                     if (attempt != generation) return;
@@ -113,11 +133,14 @@ public final class PendingConfigImport {
                 }
             } catch (DependencyImportSession.Stopped stopped) {
                 synchronized (this) {
-                    if (attempt == generation) state = stopped.cancelled ? State.CANCELLED : State.PAUSED;
+                    if (attempt == generation) stoppedLocked(stopped);
                 }
             } catch (Exception failure) {
                 synchronized (this) {
-                    if (attempt == generation) { state = State.FAILED; error = failure.getMessage(); }
+                    if (attempt == generation) {
+                        try { active.checkRunning(); state = State.FAILED; error = failure.getMessage(); }
+                        catch (DependencyImportSession.Stopped stopped) { stoppedLocked(stopped); }
+                    }
                 }
             } finally {
                 synchronized (this) { if (session == active) { running = false; session = null; } }
@@ -138,19 +161,61 @@ public final class PendingConfigImport {
     public void cancel() {
         synchronized (this) {
             if (state == State.APPLYING) return;
-            generation++;
-            if (session != null) session.cancel();
-            receipt.delete();
-            state = State.CANCELLED;
-            manifest = null;
-            resolutions = null;
+            if (running && session != null) {
+                // Recovery can still be cleaning its own staging tree. Let that worker
+                // finish before deleting the receipt or allowing another offer to replace it.
+                session.cancel();
+                state = State.STOPPING;
+            } else {
+                generation++;
+                clearCancelledLocked();
+            }
         }
         notifyObserver();
     }
 
     public void complete() {
-        synchronized (this) { receipt.delete(); running = false; state = State.IDLE; manifest = null; resolutions = null; }
+        synchronized (this) {
+            try { completeLocked(); }
+            catch (IOException failure) { running = false; state = State.FAILED; error = failure.getMessage(); }
+        }
         notifyObserver();
+    }
+
+    private void completeLocked() throws IOException {
+        if (journal != null) journal.finish();
+        else if (receipt.exists() && !receipt.delete()) throw new IOException("Could not finish configuration import");
+        running = false;
+        session = null;
+        state = State.IDLE;
+        manifest = null;
+        resolutions = null;
+    }
+
+    private void stoppedLocked(DependencyImportSession.Stopped stopped) {
+        if (stopped.cancelled) clearCancelledLocked();
+        else state = State.PAUSED;
+    }
+
+    private void clearCancelledLocked() {
+        try {
+            if (journal != null) journal.finish();
+            else if (receipt.exists() && !receipt.delete()) throw new IOException("Could not cancel configuration import");
+        } catch (IOException failure) {
+            state = State.FAILED;
+            error = failure.getMessage();
+            return;
+        }
+        state = State.CANCELLED;
+        manifest = null;
+        resolutions = null;
+        journal = null;
+    }
+
+    /** Only the retained APPLYING operation may record/publish this import's container. */
+    public synchronized ConfigImportJournal creationJournal() {
+        if (state != State.APPLYING || journal == null) throw new IllegalStateException("Import is not being applied");
+        return journal;
     }
 
     /** Exactly one creation can consume a ready import, including after Activity recreation. */

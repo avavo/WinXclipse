@@ -627,7 +627,7 @@ public class ContainersFragment extends Fragment {
                 com.winlator.cmod.contents.ContentsManager contents =
                         new com.winlator.cmod.contents.ContentsManager(appContext);
                 contents.syncContents();
-                targetManager.createContainerAsync(config, contents, created -> {
+                targetManager.createContainerAsync(config, contents, pendingImport.creationJournal(), created -> {
                     operation.close();
                     // Complete the retained operation even if this Fragment was destroyed.
                     if (created != null) pendingImport.complete();

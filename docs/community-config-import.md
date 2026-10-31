@@ -48,18 +48,59 @@ Os recibos de aplicação de DLLs/componentes do exportador são descartados,
 incluindo os marcadores de integridade DXVK/DirectDraw e BCN. Preferências do
 usuário, HUD e RAM Fix são preservados.
 
+## Recuperação após encerramento do processo
+
+O lote 29 fecha a janela entre publicar a pasta do container e apagar o recibo
+da importação. `pending-config-import.json` agora guarda um envelope versionado,
+com UUID da operação e manifesto UTF-8. Antes de criar a pasta temporária, o
+journal grava os nomes de staging/destino, ambos filhos diretos do `home` privado.
+Uma marca vazia com o UUID no nome identifica a pasta antes da extração.
+
+Prefixo e `.container` completos são publicados juntos por renomeação no mesmo
+filesystem, sem substituir destino existente. Ao retomar a importação, uma tarefa
+fora da UI consulta o journal **antes** de resolver/baixar dependências:
+
+- Se o destino tem a marca da operação e configuração válida para aquele ID,
+  a importação já terminou. O recibo é encerrado, sem resolver dependências ou
+  criar outro container; edições posteriores do usuário são preservadas.
+- Se só existe staging incompleto da operação, ele é removido sem seguir links
+  do prefixo. O manifesto é mantido para nova resolução/revisão. Pastas de outras
+  operações e destinos de criações concorrentes não são adotados ou apagados.
+- Uma interrupção antes do `mkdir`, ou entre ele e a criação da marca, também é
+  recuperável. Sem marca, somente o diretório vazio reservado pode ser removido;
+  conteúdo não identificado é retido e informado como erro.
+- Destino identificado com configuração inválida interrompe a retomada e mantém
+  os dados/recibo, em vez de criar uma segunda cópia. Caminhos inválidos, symlinks
+  na raiz de staging/destino e versões de journal desconhecidas são recusados.
+- Finalização/cancelamento removem o recibo. Se a remoção falhar, gravam um estado
+  terminal persistente para não repetir a operação no próximo processo.
+  Cancelamento de uma tarefa ativa espera seu worker antes de liberar o recibo
+  para outra importação, evitando recriação tardia do arquivo cancelado.
+
+Recibos antigos contendo somente o manifesto são migrados sem mudar a versão
+pedida. Não é possível deduzir retroativamente qual container uma importação
+antiga sem UUID já teria publicado; o journal não usa semelhança de nome para isso.
+
 ## Validação e limites
 
 - Testes JVM de aplicação e persistência JSON com build/ABI, alternativas,
   referências legadas, tipos, marcadores do prefixo e seleção após reabertura.
 - Testes do estado retido com confirmação repetida, destruição da tela, falha
   de criação, retomada após reiniciar o processo e manifesto UTF-8.
+- Vinte casos adicionais do journal/estado retido cobrem checkpoints de interrupção,
+  publicação, preservação de dados, migração, colisão, recibo terminal e cancelamento.
+- Controle negativo: desativar temporariamente o reconhecimento do destino já
+  publicado faz o teste de reinício oferecer a importação novamente; a versão
+  corrigida reconhece a conclusão sem chamar o resolvedor. O guard foi restaurado
+  antes da suíte completa.
 - Os testes JSON usam `org.json:json:20240303` apenas em `testImplementation`.
   O app continua usando o JSON do Android; APIs novas dessa biblioteca não são
   usadas no código do app.
 - Compilação Java/Kotlin/recursos e suíte JUnit, sem empacotar APK/AAB.
 
-A proteção de criação é contra concorrência no processo e recriação da Activity.
-Ainda não é um journal de importação para interrupção abrupta entre publicar a
-pasta e apagar o recibo pendente. Visual, lifecycle completo, instalação dos
-pacotes e abertura real de jogos continuam na validação Android da Parte 12.
+A proteção cobre concorrência no processo, recriação da Activity e retomada após
+encerramento abrupto com o checkpoint persistido. Os testes simulam interrupções
+nos mesmos caminhos de publicação/recuperação; não equivalem a encerrar o app em
+um aparelho real nem garantem recuperação após perda de energia/corrupção do
+filesystem. Visual, lifecycle Android completo, instalação dos pacotes e abertura
+real de jogos continuam na validação da Parte 12.

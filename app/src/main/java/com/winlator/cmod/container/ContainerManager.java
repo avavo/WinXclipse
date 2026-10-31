@@ -173,10 +173,15 @@ public class ContainerManager {
     }
 
     public void createContainerAsync(final JSONObject data, ContentsManager contentsManager, Callback<Container> callback) {
+        createContainerAsync(data, contentsManager, null, callback);
+    }
+
+    public void createContainerAsync(final JSONObject data, ContentsManager contentsManager,
+                                     ConfigImportJournal importJournal, Callback<Container> callback) {
         final Handler handler = new Handler(Looper.getMainLooper());
         new Thread(() -> {
             Container result = null;
-            try { result = createContainer(data, contentsManager); }
+            try { result = createContainer(data, contentsManager, importJournal); }
             catch (RuntimeException failure) { Log.e("ContainerManager", "Unable to create container", failure); }
             final Container container = result;
             handler.post(() -> callback.call(container));
@@ -216,7 +221,7 @@ public class ContainerManager {
         });
     }
 
-    private Container createContainer(JSONObject data, ContentsManager contentsManager) {
+    private Container createContainer(JSONObject data, ContentsManager contentsManager, ConfigImportJournal importJournal) {
         File staging = null;
         try {
             // Don't rely on instance maxId which can be stale (0) when this
@@ -246,7 +251,8 @@ public class ContainerManager {
 
             File destination = containerDir;
             staging = containerDir = new File(homeDir, ".container-create-" + java.util.UUID.randomUUID());
-            if (!containerDir.mkdirs()) return null;
+            if (importJournal != null) importJournal.prepare(homeDir, staging, destination);
+            else if (!containerDir.mkdirs()) return null;
 
             Container container = new Container(id, this);
             container.setRootDir(containerDir);
@@ -255,7 +261,6 @@ public class ContainerManager {
             container.setWineVersion(data.getString("wineVersion"));
 
             if (!extractContainerPatternFile(container, container.getWineVersion(), contentsManager, containerDir, null)) {
-                FileUtils.delete(containerDir);
                 return null;
             }
 
@@ -273,13 +278,13 @@ public class ContainerManager {
 //            }
 
             if (!container.saveData()) {
-                FileUtils.delete(containerDir);
                 return null;
             }
             // A recreated Activity must never see a half-created prefix and
             // recover it with the default runtime. Publish only after config save.
             // No REPLACE_EXISTING: another creation cannot overwrite this container.
-            java.nio.file.Files.move(containerDir.toPath(), destination.toPath());
+            if (importJournal != null) importJournal.publish(homeDir, staging, destination);
+            else java.nio.file.Files.move(containerDir.toPath(), destination.toPath());
             container.setRootDir(destination);
             maxContainerId = id;
             containers.add(container);
@@ -287,7 +292,11 @@ public class ContainerManager {
         } catch (JSONException | IOException | RuntimeException failure) {
             Log.e("ContainerManager", "Could not prepare new container", failure);
         } finally {
-            if (staging != null && staging.exists()) FileUtils.delete(staging);
+            if (staging != null && staging.exists()) {
+                if (importJournal == null) FileUtils.delete(staging);
+                else try { importJournal.recover(homeDir); }
+                catch (IOException failure) { Log.w("ContainerManager", "Import staging retained for recovery", failure); }
+            }
         }
         return null;
     }
