@@ -79,6 +79,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
     private volatile boolean requestedApexLowLatency;
     private volatile Runnable apexFailureListener;
     private volatile WinlatorHUD winlatorHUD;
+    private final java.util.concurrent.CopyOnWriteArrayList<WinlatorHUD> additionalHuds = new java.util.concurrent.CopyOnWriteArrayList<>();
     private volatile com.winlator.cmod.core.GameplayMeasurement measurement;
     private final java.util.concurrent.atomic.AtomicLong sourceSequence = new java.util.concurrent.atomic.AtomicLong();
     private long measuredOutputSequence;
@@ -321,15 +322,29 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
 
     @Override
     public void onUpdateWindowContent(Window window) {
-        if (window.isApplicationWindow()) {
+        if (isApplicationContent(window)) {
             sourceSequence.incrementAndGet();
             com.winlator.cmod.core.GameplayMeasurement recording = measurement;
             if (recording != null && recording.isRunning()) recording.sourceFrame(System.nanoTime());
             WinlatorHUD hud = winlatorHUD;
             if (hud != null) hud.onFrame();
+            for (WinlatorHUD extra : additionalHuds) if (extra != hud) extra.onFrame();
         }
         lsfgManager.notifyRealFramePending();
         xServerView.requestRender();
+    }
+
+    private static boolean isApplicationContent(Window window) {
+        if (window.getWidth() <= 1 || window.getHeight() <= 1) return false;
+        // Wine often renders into a child HWND whose WM_HINTS group belongs to
+        // its top-level window. Requiring the drawable itself to own that group
+        // drops real GL/DX9 frames. The desktop root is never a game source.
+        Window ancestor = window;
+        for (int depth = 0; ancestor != null && ancestor.getParent() != null && depth < 64; depth++) {
+            if (ancestor.isApplicationWindow()) return true;
+            ancestor = ancestor.getParent();
+        }
+        return false;
     }
 
     @Override
@@ -725,14 +740,13 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
             }
             lastApexFrameNanos = 0;
             apexStatsStartNanos = 0;
-            WinlatorHUD hud = winlatorHUD;
-            if (hud != null) {
+            forEachHud(hud -> {
                 boolean active = requestedApexEnabled && lsfgManager.isActive();
                 hud.setFrameGenerationStats(active, 0, 0, 0, lsfgManager.getMultiplier(),
                         lsfgManager.getEstimatedLatencyMs(), lsfgManager.getBackendName(),
                         lsfgManager.getBackendState(), lsfgManager.getBackendFailure(),
                         requestedApexLowLatency);
-            }
+            });
             xServerView.requestRender();
         });
     }
@@ -796,6 +810,15 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
         measurement = recording;
     }
 
+    public void setAdditionalHuds(java.util.Collection<WinlatorHUD> panels) {
+        additionalHuds.clear(); additionalHuds.addAll(panels);
+    }
+    private void forEachHud(java.util.function.Consumer<WinlatorHUD> update) {
+        WinlatorHUD primary = winlatorHUD;
+        if (primary != null) update.accept(primary);
+        for (WinlatorHUD panel : additionalHuds) if (panel != primary) update.accept(panel);
+    }
+
     /**
      * GLSurfaceView continuous mode is not reliable on every vendor EGL stack
      * while the guest is idle between real Presents. Drive one request from
@@ -822,7 +845,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
 
     private void updateApexHudStats() {
         WinlatorHUD hud = winlatorHUD;
-        if (hud == null) {
+        if (hud == null && additionalHuds.isEmpty()) {
             apexStatsStartNanos = 0;
             lsfgManager.resetFrameCounts();
             return;
@@ -849,12 +872,12 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
                 + " generated=" + Math.round(sample.generatedFps)
                 + " multiplier=" + lsfgManager.getMultiplier()
                 + " latencyMs=" + lsfgManager.getEstimatedLatencyMs());
-        hud.setFrameGenerationStats(lsfgManager.isActive(), sample.sourceFps,
+        forEachHud(panel -> panel.setFrameGenerationStats(lsfgManager.isActive(), sample.sourceFps,
                 sample.outputFps, sample.generatedFps,
                 lsfgManager.getMultiplier(),
                 lsfgManager.getEstimatedLatencyMs(), lsfgManager.getBackendName(),
                 lsfgManager.getBackendState(), lsfgManager.getBackendFailure(),
-                lsfgManager.isLowLatencyMode());
+                lsfgManager.isLowLatencyMode()));
         apexStatsStartNanos = now;
     }
 
@@ -866,11 +889,11 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
         if (lsfgManager.getBackendFailure().isEmpty())
             lsfgManager.reportBackendFailure("Frame-generation compositor failed");
         WinlatorHUD hud = winlatorHUD;
-        if (hud != null) hud.setFrameGenerationStats(false, 0, 0, 0,
+        forEachHud(panel -> panel.setFrameGenerationStats(false, 0, 0, 0,
                 lsfgManager.getMultiplier(),
                 lsfgManager.getEstimatedLatencyMs(), lsfgManager.getBackendName(),
                 lsfgManager.getBackendState(), lsfgManager.getBackendFailure(),
-                requestedApexLowLatency);
+                requestedApexLowLatency));
         notifyApexFailure();
     }
 

@@ -208,6 +208,8 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
     private InputControlsManager inputControlsManager;
     private ImageFs imageFs;
     private WinlatorHUD frameRating = null;
+    private final java.util.ArrayList<WinlatorHUD> additionalHuds = new java.util.ArrayList<>();
+    private boolean resumeInlineTaskManager;
     private HudDataSource hudDataSource = null;
     private com.winlator.cmod.widget.GameplayMeasurementButton measurementButton;
     private long mRamOptSession = 0;
@@ -1304,6 +1306,12 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         handler.removeCallbacks(savePlaytimeRunnable);
         handler.postDelayed(savePlaytimeRunnable, SAVE_INTERVAL_MS);
         if (!isPaused) ProcessHelper.resumeAllWineProcesses();
+        if (resumeInlineTaskManager && inlineTaskManagerPanel != null) {
+            inlineTaskManagerPanel.resume(); resumeInlineTaskManager = false;
+        }
+        if (hudDataSource != null && container != null && container.isShowFPS()
+                && ((frameRating != null && frameRating.isUserEnabled()) || additionalHuds.stream().anyMatch(WinlatorHUD::isUserEnabled))) hudDataSource.start();
+        resetHudFrameBoundaries();
         if (measurementButton != null) measurementButton.setSessionActive(true, isPaused);
     }
 
@@ -1316,6 +1324,11 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         }
         if (launchBlockedByContentOperation) return;
         if (measurementButton != null) measurementButton.setSessionActive(false, isPaused);
+        if (inlineTaskManagerPanel != null) {
+            resumeInlineTaskManager = inlineTaskManagerPanel.isRunning();
+            inlineTaskManagerPanel.stop();
+        }
+        if (hudDataSource != null) hudDataSource.stop();
         if (inputControlsView != null) inputControlsView.cancelAllTouches();
         boolean gyroEnabled = preferences.getBoolean("gyro_enabled", true);
 
@@ -1390,9 +1403,12 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         }
         if (inlineTaskManagerPanel != null) inlineTaskManagerPanel.stop();
         if (measurementButton != null) measurementButton.close();
-        if (xServerView != null) xServerView.getRenderer().setGameplayMeasurement(null);
+        if (xServerView != null) {
+            xServerView.getRenderer().setGameplayMeasurement(null);
+            xServerView.getRenderer().setAdditionalHuds(java.util.Collections.emptyList());
+        }
         if (hudDataSource != null) {
-            hudDataSource.stop();
+            hudDataSource.close();
             hudDataSource = null;
         }
         if (preloaderDialog != null) preloaderDialog.close();
@@ -2782,23 +2798,8 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
             startTouchscreenTimeout();
         }
 
-        String runtimeHudMode = getRuntimeHudMode();
-        if (container != null && container.isShowFPS()
-                && !"dxvk".equals(runtimeHudMode)) {
-            hudDataSource = getHudDataSource();
-            frameRating = new WinlatorHUD(this);
-            frameRating.setDataSource(hudDataSource);
-            frameRating.setMangoStyle("mangohud".equals(runtimeHudMode));
-            frameRating.setWrapperName(graphicsDriver);
-            frameRating.setDriverName(new XclipseDriverManager(this).getDisplayName(
-                    graphicsDriverConfig.getOrDefault("version", DefaultVersion.WRAPPER)));
-            frameRating.onRendererDetected(getHudApiName());
-            frameRating.setPhoneGpuName(getPhoneGpuName());
-            renderer.setWinlatorHUD(frameRating);
-            frameRating.enableByUser();
-            rootView.addView(frameRating);
-            frameRating.postDelayed(() -> frameRating.setPhoneGpuName(getPhoneGpuName()), 500);
-        }
+        if (container != null && container.isShowFPS() && com.winlator.cmod.core.HudMode.nativeStyle(getRuntimeHudMode()) >= 0) ensureWinlatorHud();
+        restoreAdditionalHuds();
 
         setupGameplayMeasurement(rootView, renderer);
 
@@ -3903,7 +3904,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
 
     private String getRuntimeHudMode() {
         String containerMode = container != null ? container.getHudMode() : "winlator";
-        return shortcut != null ? shortcut.getExtra("hudMode", containerMode) : containerMode;
+        return com.winlator.cmod.core.HudMode.normalize(shortcut != null ? shortcut.getExtra("hudMode", containerMode) : containerMode);
     }
 
     private ControlsProfile getSidebarControllerProfile() {
@@ -3926,35 +3927,101 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
             sidebarControllerProfileView.setText(profile != null ? profile.getName() : getString(R.string.disabled));
     }
 
+    private WinlatorHUD createHudPanel(String id, int style) {
+        WinlatorHUD hud = new WinlatorHUD(this, id);
+        if (hudDataSource == null) hudDataSource = new HudDataSource(this);
+        hud.setDataSource(hudDataSource);
+        hud.setHudStyle(style < 0 ? hud.getHudStyle() : style);
+        hud.setWrapperName(graphicsDriver);
+        hud.setDriverName(new XclipseDriverManager(this).getDisplayName(graphicsDriverConfig.getOrDefault("version", DefaultVersion.WRAPPER)));
+        hud.onRendererDetected(getHudApiName());
+        hud.setPhoneGpuName(getPhoneGpuName());
+        FrameLayout root = findViewById(R.id.FLXServerDisplay);
+        root.addView(hud, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+        hud.setSessionHudVisible(container != null && container.isShowFPS());
+        return hud;
+    }
+
     private void ensureWinlatorHud() {
         if (frameRating != null) return;
-        FrameLayout root = findViewById(R.id.FLXServerDisplay);
-        hudDataSource = getHudDataSource();
-        frameRating = new WinlatorHUD(this);
-        frameRating.setDataSource(hudDataSource);
-        frameRating.setWrapperName(graphicsDriver);
-            frameRating.setDriverName(new XclipseDriverManager(this).getDisplayName(
-                    graphicsDriverConfig.getOrDefault("version", DefaultVersion.WRAPPER)));
-        frameRating.onRendererDetected(getHudApiName());
-        frameRating.setPhoneGpuName(getPhoneGpuName());
+        int style = com.winlator.cmod.core.HudMode.nativeStyle(getRuntimeHudMode());
+        frameRating = createHudPanel("primary", Math.max(0, style));
+        if (container != null && container.isShowFPS() && style >= 0 && !frameRating.hasSavedVisibility()) frameRating.enableByUser();
+        frameRating.setSessionHudVisible(container != null && container.isShowFPS() && style >= 0);
         if (xServerView != null) xServerView.getRenderer().setWinlatorHUD(frameRating);
-        root.addView(frameRating);
-        frameRating.postDelayed(() -> frameRating.setPhoneGpuName(getPhoneGpuName()), 500);
+    }
+
+    private void restoreAdditionalHuds() {
+        java.util.ArrayList<String> ids = new java.util.ArrayList<>(getSharedPreferences("hud_panels", MODE_PRIVATE)
+                .getStringSet("ids", java.util.Collections.emptySet()));
+        java.util.Collections.sort(ids);
+        for (String id : ids) if (id.matches("[a-f0-9-]{36}")) additionalHuds.add(createHudPanel(id, -1));
+        if (xServerView != null) xServerView.getRenderer().setAdditionalHuds(additionalHuds);
+    }
+
+    private void saveHudPanels() {
+        java.util.Set<String> ids = new java.util.HashSet<>();
+        for (WinlatorHUD hud : additionalHuds) ids.add(hud.getPanelId());
+        getSharedPreferences("hud_panels", MODE_PRIVATE).edit().putStringSet("ids", ids).apply();
+        if (xServerView != null) xServerView.getRenderer().setAdditionalHuds(additionalHuds);
+    }
+
+    private void showHudPanelChooser(WinlatorHUD current, ContentDialog editor) {
+        ensureWinlatorHud();
+        java.util.ArrayList<WinlatorHUD> panels = new java.util.ArrayList<>();
+        panels.add(frameRating); panels.addAll(additionalHuds);
+        java.util.ArrayList<String> labels = new java.util.ArrayList<>();
+        for (WinlatorHUD panel : panels) labels.add(panel.getPanelName());
+        int add = labels.size(); labels.add(getString(R.string.hud_panel_add));
+        int rename = labels.size(); labels.add(getString(R.string.hud_panel_rename));
+        int remove = labels.size();
+        if (current != frameRating) labels.add(getString(R.string.hud_panel_remove));
+        new androidx.appcompat.app.AlertDialog.Builder(editor.getContext()).setTitle(R.string.hud_panels)
+                .setItems(labels.toArray(new String[0]), (choice, index) -> {
+                    if (index < panels.size()) { editor.dismiss(); showHUDConfigDialog(panels.get(index)); }
+                    else if (index == add) ContentDialog.prompt(this, R.string.hud_panel_name,
+                            "HUD " + (panels.size() + 1), name -> {
+                        if (name.trim().isEmpty()) return;
+                        WinlatorHUD panel = createHudPanel(java.util.UUID.randomUUID().toString(), 0);
+                        panel.setPanelName(name.trim()); panel.enableByUser();
+                        additionalHuds.add(panel); saveHudPanels();
+                        if (container != null) { container.setShowFPS(true); container.saveData(); }
+                        setHudSessionVisibility(true);
+                        panel.post(() -> panel.setPositionPreset(5));
+                        editor.dismiss(); showHUDConfigDialog(panel);
+                    });
+                    else if (index == rename) ContentDialog.prompt(this, R.string.hud_panel_name, current.getPanelName(), name -> {
+                        if (!name.trim().isEmpty()) { current.setPanelName(name.trim()); editor.setTitle(getString(R.string.hud_settings) + " · " + current.getPanelName()); }
+                    });
+                    else if (index == remove && current != frameRating)
+                        ContentDialog.confirm(this, R.string.hud_panel_remove_confirm, () -> {
+                            current.disableByUser(); additionalHuds.remove(current);
+                            ((FrameLayout)findViewById(R.id.FLXServerDisplay)).removeView(current);
+                            current.clearPanelPreferences(); saveHudPanels();
+                            editor.dismiss(); showHUDConfigDialog(frameRating);
+                        });
+                }).show();
+    }
+
+    private void setHudSessionVisibility(boolean enabled) {
+        if (frameRating != null) frameRating.setSessionHudVisible(enabled && com.winlator.cmod.core.HudMode.nativeStyle(getRuntimeHudMode()) >= 0);
+        for (WinlatorHUD hud : additionalHuds) hud.setSessionHudVisible(enabled);
+    }
+
+    private void resetHudFrameBoundaries() {
+        if (frameRating != null) frameRating.resetFrameBoundary();
+        for (WinlatorHUD hud : additionalHuds) hud.resetFrameBoundary();
     }
 
     private void toggleSidebarHud() {
         if (container == null) return;
         boolean enabled = !container.isShowFPS();
-        container.setShowFPS(enabled);
-        container.saveData();
-        if ("winlator".equals(container.getHudMode())) {
-            ensureWinlatorHud();
-            if (enabled) frameRating.enableByUser(); else frameRating.disableByUser();
-        } else {
-            AppUtils.showToast(this, enabled
-                    ? "HUD enabled for the next launch."
-                    : "HUD disabled for the next launch.");
-        }
+        container.setShowFPS(enabled); container.saveData();
+        if (enabled && com.winlator.cmod.core.HudMode.nativeStyle(getRuntimeHudMode()) >= 0) ensureWinlatorHud();
+        if (enabled && frameRating != null && !frameRating.isUserEnabled()
+                && additionalHuds.stream().noneMatch(WinlatorHUD::isUserEnabled)) frameRating.enableByUser();
+        setHudSessionVisibility(enabled);
+        if (com.winlator.cmod.core.HudMode.dxvk(getRuntimeHudMode())) AppUtils.showToast(this, R.string.hud_dxvk_next_launch);
     }
 
     private void toggleSidebarPause() {
@@ -3966,6 +4033,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
             sidebarPauseButton.setImageResource(R.drawable.icon_play);
         }
         isPaused = !isPaused;
+        resetHudFrameBoundaries();
         if (measurementButton != null) measurementButton.setSessionActive(true, isPaused);
     }
 
@@ -4240,24 +4308,25 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         return hudDataSource;
     }
 
-    private void bindHudTelemetry(ContentDialog dialog) {
+    private void bindHudTelemetry(ContentDialog dialog, WinlatorHUD hud) {
         bindHudFormat(dialog.findViewById(R.id.SPHudRamFormat), R.array.hud_ram_format_entries,
-                frameRating.getRamFormat(), frameRating::setRamFormat);
+                hud.getRamFormat(), hud::setRamFormat);
         int[] controls = {R.id.CBHudCoreFrequency, R.id.CBHudCoreUsage, R.id.CBHudCoreName,
-                R.id.CBHudGpuFrequency, R.id.CBHudBatteryCharge};
-        String[] keys = {"core_frequency", "core_usage", "core_name", "gpu_frequency", "battery_charge"};
+                R.id.CBHudGpuFrequency, R.id.CBHudBatteryCharge, R.id.CBHudVram};
+        String[] keys = {"core_frequency", "core_usage", "core_name", "gpu_frequency", "battery_charge", "vram"};
         for (int i = 0; i < controls.length; i++) {
             CheckBox check = dialog.findViewById(controls[i]);
+            if (controls[i] == R.id.CBHudVram) check.setVisibility(hud.getHudStyle() == 1 ? View.VISIBLE : View.GONE);
             String key = keys[i];
-            check.setChecked(frameRating.getTelemetryOption(key));
-            check.setOnCheckedChangeListener((button, enabled) -> frameRating.setTelemetryOption(key, enabled));
+            check.setChecked(hud.getTelemetryOption(key));
+            check.setOnCheckedChangeListener((button, enabled) -> hud.setTelemetryOption(key, enabled));
         }
         dialog.findViewById(R.id.BTHudCores).setOnClickListener(view -> {
             com.winlator.cmod.core.CpuTelemetry.Core[] cores = getHudDataSource().cpu.cores;
             int count = cores.length > 0 ? cores.length : Runtime.getRuntime().availableProcessors();
             String[] labels = new String[count], ids = new String[count];
             boolean[] checked = new boolean[count];
-            java.util.Set<String> selected = frameRating.getSelectedCores();
+            java.util.Set<String> selected = hud.getSelectedCores();
             for (int i = 0; i < count; i++) {
                 ids[i] = String.valueOf(cores.length > 0 ? cores[i].id : i);
                 labels[i] = cores.length > 0 ? cores[i].label(true) : "CPU " + i;
@@ -4268,38 +4337,34 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
                     .setMultiChoiceItems(labels, checked, (choice, index, on) -> {
                         if (on) selected.add(ids[index]); else selected.remove(ids[index]);
                     })
-                    .setPositiveButton(android.R.string.ok, (choice, which) -> frameRating.setSelectedCores(selected))
+                    .setPositiveButton(android.R.string.ok, (choice, which) -> hud.setSelectedCores(selected))
                     .setNegativeButton(R.string.cancel, null).show();
         });
     }
 
     private void showHUDConfigDialog() {
-        if (container != null && !"winlator".equals(container.getHudMode())) {
-            AppUtils.showToast(this, "Select Winlator HUD in the container settings to customize it here.");
-            return;
-        }
-        if (frameRating == null) {
-            FrameLayout rootView = findViewById(R.id.FLXServerDisplay);
-            hudDataSource = getHudDataSource();
-            frameRating = new WinlatorHUD(this);
-            frameRating.setDataSource(hudDataSource);
-            frameRating.setWrapperName(graphicsDriver);
-            frameRating.setDriverName(new XclipseDriverManager(this).getDisplayName(
-                    graphicsDriverConfig.getOrDefault("version", DefaultVersion.WRAPPER)));
-            frameRating.onRendererDetected(getHudApiName());
-            frameRating.setPhoneGpuName(getPhoneGpuName());
-            if (xServerView != null) xServerView.getRenderer().setWinlatorHUD(frameRating);
-            rootView.addView(frameRating);
-            frameRating.postDelayed(() -> frameRating.setPhoneGpuName(getPhoneGpuName()), 500);
-            if (container != null && !container.isShowFPS()) frameRating.disableByUser();
-        }
+        ensureWinlatorHud();
+        showHUDConfigDialog(frameRating);
+    }
 
+    private void showHUDConfigDialog(WinlatorHUD hud) {
         final ContentDialog dialog = new ContentDialog(this, R.layout.hud_config_dialog);
-        dialog.setTitle(R.string.hud_settings);
+        dialog.setTitle(getString(R.string.hud_settings) + " · " + hud.getPanelName());
         dialog.setIcon(R.drawable.ic_hud);
 
-        bindHudTelemetry(dialog);
+        bindHudTelemetry(dialog, hud);
         bindGameplayMeasurement(dialog);
+        dialog.findViewById(R.id.BTHudPanels).setOnClickListener(view -> showHudPanelChooser(hud, dialog));
+        bindHudFormat(dialog.findViewById(R.id.SPHudAppearance), R.array.hud_appearance_entries, hud.getHudStyle(), selected -> {
+            if (selected == hud.getHudStyle()) return;
+            hud.setHudStyle(selected);
+            if (hud == frameRating && container != null) {
+                String mode = com.winlator.cmod.core.HudMode.withStyle(getRuntimeHudMode(), selected);
+                container.setHudMode(mode); container.saveData();
+                if (shortcut != null && shortcut.hasExtra("hudMode")) { shortcut.putExtra("hudMode", mode); shortcut.saveData(); }
+            }
+            dialog.dismiss(); hud.post(() -> showHUDConfigDialog(hud));
+        });
         CheckBox cbEnable = dialog.findViewById(R.id.CBHudEnable);
         CheckBox cbFps = dialog.findViewById(R.id.CBHudFPS);
         CheckBox cbGpu = dialog.findViewById(R.id.CBHudGPU);
@@ -4309,6 +4374,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         CheckBox cbBattPct = dialog.findViewById(R.id.CBHudBatteryPct);
         CheckBox cbRend = dialog.findViewById(R.id.CBHudRenderer);
         CheckBox cbGraph = dialog.findViewById(R.id.CBHudGraph);
+        if (hud.getHudStyle() == 1) cbGraph.setText(R.string.hud_frametime_graph);
         CheckBox cbVert = dialog.findViewById(R.id.CBHudVertical);
         CheckBox cbMono = dialog.findViewById(R.id.CBHudMono);
         CheckBox cbBorder = dialog.findViewById(R.id.CBHudBorder);
@@ -4324,16 +4390,16 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         Spinner spSocFormat = dialog.findViewById(R.id.SPHudSocFormat);
         Spinner spGpuFormat = dialog.findViewById(R.id.SPHudGpuFormat);
         Spinner spDeviceFormat = dialog.findViewById(R.id.SPHudDeviceFormat);
-        bindHudFormat(spSocFormat, R.array.hud_hardware_format_entries, frameRating.getSocFormat(),
-                selected -> frameRating.setHardwareLabelFormat(false, selected));
-        bindHudFormat(spGpuFormat, R.array.hud_hardware_format_entries, frameRating.getGpuFormat(),
-                selected -> frameRating.setHardwareLabelFormat(true, selected));
-        bindHudFormat(spDeviceFormat, R.array.hud_device_format_entries, frameRating.isDeviceFamily() ? 1 : 0,
-                selected -> frameRating.setDeviceFamily(selected == 1));
-        cbDevice.setChecked(frameRating.isElementEnabled(20));
-        cbDriverName.setChecked(frameRating.isElementEnabled(21));
-        cbDevice.setOnCheckedChangeListener((button, checked) -> frameRating.toggleElement(20, checked));
-        cbDriverName.setOnCheckedChangeListener((button, checked) -> frameRating.toggleElement(21, checked));
+        bindHudFormat(spSocFormat, R.array.hud_hardware_format_entries, hud.getSocFormat(),
+                selected -> hud.setHardwareLabelFormat(false, selected));
+        bindHudFormat(spGpuFormat, R.array.hud_hardware_format_entries, hud.getGpuFormat(),
+                selected -> hud.setHardwareLabelFormat(true, selected));
+        bindHudFormat(spDeviceFormat, R.array.hud_device_format_entries, hud.isDeviceFamily() ? 1 : 0,
+                selected -> hud.setDeviceFamily(selected == 1));
+        cbDevice.setChecked(hud.isElementEnabled(20));
+        cbDriverName.setChecked(hud.isElementEnabled(21));
+        cbDevice.setOnCheckedChangeListener((button, checked) -> hud.toggleElement(20, checked));
+        cbDriverName.setOnCheckedChangeListener((button, checked) -> hud.toggleElement(21, checked));
         CheckBox cbFgLatency = dialog.findViewById(R.id.CBHudFGLatency);
         CheckBox cbFgStatus = dialog.findViewById(R.id.CBHudFGStatus);
         CheckBox cbRamWarning = dialog.findViewById(R.id.CBHudRamWarning);
@@ -4343,16 +4409,18 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         TextView tvScale = dialog.findViewById(R.id.TVHudScale);
         Spinner spPreset = dialog.findViewById(R.id.SPHudPreset);
 
-        frameRating.syncCheckboxes(cbFps, cbGpu, cbCpu, cbBatt, cbGraph, cbRend,
+        hud.syncCheckboxes(cbFps, cbGpu, cbCpu, cbBatt, cbGraph, cbRend,
                 cbRam, cbBattPct, cbMono, cbBorder, cbCompact, cbWrapper, cbLocked,
                 cbCpuTemp, cbSoc, cbGpuTemp, cbPhoneGpu, cbFgLatency, cbFgStatus);
-        cbEnable.setChecked(frameRating.isUserEnabled());
-        cbVert.setChecked(frameRating.isVertical());
+        cbEnable.setChecked(hud.isUserEnabled());
+        cbVert.setChecked(hud.isVertical());
+        cbVert.setEnabled(hud.getHudStyle() != 1);
+        cbCompact.setEnabled(hud.getHudStyle() != 1);
 
-        int initialAlpha = Math.round(frameRating.getHudAlpha() * 100);
+        int initialAlpha = Math.round(hud.getHudAlpha() * 100);
         sbAlpha.setProgress(initialAlpha);
         tvAlpha.setText(initialAlpha + "%");
-        float initialScale = frameRating.getHudScale();
+        float initialScale = hud.getHudScale();
         sbScale.setProgress(Math.round((initialScale - 0.5f) / 1.5f * 100));
         tvScale.setText(String.format(Locale.US, "%.1fx", initialScale));
 
@@ -4364,40 +4432,46 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         spPreset.setAdapter(new ThemedSpinnerAdapter<>(dialog.getContext(), presets));
 
         cbEnable.setOnCheckedChangeListener((button, checked) -> {
-            if (checked) frameRating.enableByUser(); else frameRating.disableByUser();
-            if (container != null) {
-                container.setShowFPS(checked);
+            if (checked) hud.enableByUser(); else hud.disableByUser();
+            if (checked && container != null) {
+                container.setShowFPS(true);
+                if (hud == frameRating && com.winlator.cmod.core.HudMode.nativeStyle(getRuntimeHudMode()) < 0) {
+                    String mode = com.winlator.cmod.core.HudMode.withStyle(getRuntimeHudMode(), hud.getHudStyle());
+                    container.setHudMode(mode);
+                    if (shortcut != null && shortcut.hasExtra("hudMode")) { shortcut.putExtra("hudMode", mode); shortcut.saveData(); }
+                }
                 container.saveData();
+                setHudSessionVisibility(true);
             }
         });
-        cbFps.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(0, checked));
-        cbGpu.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(2, checked));
-        cbCpu.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(3, checked));
-        cbBatt.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(4, checked));
-        cbGraph.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(5, checked));
-        cbRend.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(6, checked));
-        cbRam.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(7, checked));
-        cbBattPct.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(8, checked));
-        cbMono.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(9, checked));
-        cbBorder.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(10, checked));
-        cbCompact.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(11, checked));
-        cbWrapper.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(12, checked));
-        cbLocked.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(13, checked));
-        cbCpuTemp.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(14, checked));
-        cbSoc.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(15, checked));
-        cbGpuTemp.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(16, checked));
-        cbPhoneGpu.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(17, checked));
-        cbFgLatency.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(18, checked));
-        cbFgStatus.setOnCheckedChangeListener((v, checked) -> frameRating.toggleElement(19, checked));
-        cbVert.setOnCheckedChangeListener((v, checked) -> frameRating.setVertical(checked));
-        cbRamWarning.setChecked(!frameRating.isRamWarningEnabled());
-        cbRamWarning.setOnCheckedChangeListener((v, checked) -> frameRating.setRamWarningEnabled(!checked));
+        cbFps.setOnCheckedChangeListener((v, checked) -> hud.toggleElement(0, checked));
+        cbGpu.setOnCheckedChangeListener((v, checked) -> hud.toggleElement(2, checked));
+        cbCpu.setOnCheckedChangeListener((v, checked) -> hud.toggleElement(3, checked));
+        cbBatt.setOnCheckedChangeListener((v, checked) -> hud.toggleElement(4, checked));
+        cbGraph.setOnCheckedChangeListener((v, checked) -> hud.toggleElement(5, checked));
+        cbRend.setOnCheckedChangeListener((v, checked) -> hud.toggleElement(6, checked));
+        cbRam.setOnCheckedChangeListener((v, checked) -> hud.toggleElement(7, checked));
+        cbBattPct.setOnCheckedChangeListener((v, checked) -> hud.toggleElement(8, checked));
+        cbMono.setOnCheckedChangeListener((v, checked) -> hud.toggleElement(9, checked));
+        cbBorder.setOnCheckedChangeListener((v, checked) -> hud.toggleElement(10, checked));
+        cbCompact.setOnCheckedChangeListener((v, checked) -> hud.toggleElement(11, checked));
+        cbWrapper.setOnCheckedChangeListener((v, checked) -> hud.toggleElement(12, checked));
+        cbLocked.setOnCheckedChangeListener((v, checked) -> hud.toggleElement(13, checked));
+        cbCpuTemp.setOnCheckedChangeListener((v, checked) -> hud.toggleElement(14, checked));
+        cbSoc.setOnCheckedChangeListener((v, checked) -> hud.toggleElement(15, checked));
+        cbGpuTemp.setOnCheckedChangeListener((v, checked) -> hud.toggleElement(16, checked));
+        cbPhoneGpu.setOnCheckedChangeListener((v, checked) -> hud.toggleElement(17, checked));
+        cbFgLatency.setOnCheckedChangeListener((v, checked) -> hud.toggleElement(18, checked));
+        cbFgStatus.setOnCheckedChangeListener((v, checked) -> hud.toggleElement(19, checked));
+        cbVert.setOnCheckedChangeListener((v, checked) -> hud.setVertical(checked));
+        cbRamWarning.setChecked(!hud.isRamWarningEnabled());
+        cbRamWarning.setOnCheckedChangeListener((v, checked) -> hud.setRamWarningEnabled(!checked));
         dialog.findViewById(R.id.BTHudRamWarningHelp).setOnClickListener(view ->
                 AppUtils.showHelpBox(this, view, R.string.ram_warning_help));
 
         sbAlpha.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                if (fromUser) frameRating.setHudAlpha(progress / 100f);
+                if (fromUser) hud.setHudAlpha(progress / 100f);
                 tvAlpha.setText(progress + "%");
             }
             @Override public void onStartTrackingTouch(SeekBar seekBar) {}
@@ -4406,7 +4480,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         sbScale.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 float scale = 0.5f + progress / 100f * 1.5f;
-                if (fromUser) frameRating.setHudScale(scale);
+                if (fromUser) hud.setHudScale(scale);
                 tvScale.setText(String.format(Locale.US, "%.1fx", scale));
             }
             @Override public void onStartTrackingTouch(SeekBar seekBar) {}
@@ -4414,25 +4488,25 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         });
         spPreset.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
             @Override public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
-                if (position > 0) frameRating.setPositionPreset(position - 1);
+                if (position > 0) hud.setPositionPreset(position - 1);
             }
             @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
         });
         dialog.findViewById(R.id.BTHudReset).setOnClickListener(v -> {
-            frameRating.forceReset();
-            frameRating.post(() -> {
-                frameRating.syncCheckboxes(cbFps, cbGpu, cbCpu, cbBatt, cbGraph, cbRend, cbRam, cbBattPct,
+            hud.forceReset();
+            hud.post(() -> {
+                hud.syncCheckboxes(cbFps, cbGpu, cbCpu, cbBatt, cbGraph, cbRend, cbRam, cbBattPct,
                         cbMono, cbBorder, cbCompact, cbWrapper, cbLocked, cbCpuTemp, cbSoc, cbGpuTemp,
                         cbPhoneGpu, cbFgLatency, cbFgStatus);
-                cbDevice.setChecked(frameRating.isElementEnabled(20));
-                cbDriverName.setChecked(frameRating.isElementEnabled(21));
-                spSocFormat.setSelection(frameRating.getSocFormat());
-                spGpuFormat.setSelection(frameRating.getGpuFormat());
-                spDeviceFormat.setSelection(frameRating.isDeviceFamily() ? 1 : 0);
-                bindHudTelemetry(dialog);
-                cbVert.setChecked(frameRating.isVertical());
-                sbAlpha.setProgress(Math.round(frameRating.getHudAlpha() * 100));
-                sbScale.setProgress(Math.round((frameRating.getHudScale() - 0.5f) / 1.5f * 100));
+                cbDevice.setChecked(hud.isElementEnabled(20));
+                cbDriverName.setChecked(hud.isElementEnabled(21));
+                spSocFormat.setSelection(hud.getSocFormat());
+                spGpuFormat.setSelection(hud.getGpuFormat());
+                spDeviceFormat.setSelection(hud.isDeviceFamily() ? 1 : 0);
+                bindHudTelemetry(dialog, hud);
+                cbVert.setChecked(hud.isVertical());
+                sbAlpha.setProgress(Math.round(hud.getHudAlpha() * 100));
+                sbScale.setProgress(Math.round((hud.getHudScale() - 0.5f) / 1.5f * 100));
             });
         });
         dialog.show();
@@ -4610,7 +4684,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
 
         boolean showFps = container != null && container.isShowFPS();
         String hudMode = getRuntimeHudMode();
-        boolean useDxvkHud = showFps && "dxvk".equals(hudMode);
+        boolean useDxvkHud = showFps && com.winlator.cmod.core.HudMode.dxvk(hudMode);
         // Bannerlator's stable HUD path is native to Android. The MangoHud
         // choice uses WinlatorHUD/HudDataSource instead of injecting a missing
         // Vulkan layer into the guest process.

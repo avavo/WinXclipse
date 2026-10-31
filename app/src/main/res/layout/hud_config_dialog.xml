@@ -18,6 +18,9 @@
             android:orientation="vertical"
             android:padding="10dp">
 
+            <Button android:id="@+id/BTHudPanels" style="@style/ButtonNeutral" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/hud_panels" />
+            <Spinner android:id="@+id/SPHudAppearance" style="@style/ComboBox" android:layout_width="match_parent" android:layout_height="wrap_content" android:entries="@array/hud_appearance_entries" />
+
             <CheckBox
                 android:id="@+id/CBHudEnable"
                 android:layout_width="match_parent"
@@ -68,6 +71,7 @@
                     <CheckBox android:id="@+id/CBHudSOC" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/hud_soc" />
                     <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/hud_soc_format" />
                     <Spinner android:id="@+id/SPHudSocFormat" style="@style/ComboBox" android:layout_width="match_parent" android:layout_height="wrap_content" android:entries="@array/hud_hardware_format_entries" />
+                    <CheckBox android:id="@+id/CBHudVram" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/hud_vram" />
                     <CheckBox android:id="@+id/CBHudRAM" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/hud_ram" />
                     <Spinner android:id="@+id/SPHudRamFormat" style="@style/ComboBox" android:layout_width="match_parent" android:layout_height="wrap_content" android:entries="@array/hud_ram_format_entries" />
                     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal">

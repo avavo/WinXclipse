@@ -129,7 +129,10 @@ public class TaskManagerDialog extends ContentDialog implements OnGetProcessInfo
         timer.schedule(new TimerTask() {
             @Override
             public void run() {
-                activity.runOnUiThread(TaskManagerDialog.this::update);
+                activity.runOnUiThread(() -> {
+                    if (!activity.isFinishing() && !activity.isDestroyed() && getWindow() != null
+                            && getWindow().getDecorView().getWindowVisibility() == View.VISIBLE) update();
+                });
             }
         }, 0, 1000);
         super.show();

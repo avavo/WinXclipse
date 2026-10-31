@@ -98,8 +98,17 @@
     </string-array>
     <string-array name="hud_mode_entries">
         <item>Winlator HUD</item>
-        <item>MangoHud</item>
+        <item>MangoHUD 1</item>
+        <item>MangoHUD 2</item>
         <item>DXVK HUD</item>
+        <item>DXVK + Winlator HUD</item>
+        <item>DXVK + MangoHUD 1</item>
+        <item>DXVK + MangoHUD 2</item>
+    </string-array>
+    <string-array name="hud_appearance_entries">
+        <item>Winlator HUD</item>
+        <item>MangoHUD 1</item>
+        <item>MangoHUD 2</item>
     </string-array>
     <string-array name="vulkan_version_entries">
         <item>1.1</item>

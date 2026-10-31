@@ -29,6 +29,7 @@ import com.winlator.cmod.core.HardwareLabel;
 import com.winlator.cmod.core.CpuTelemetry;
 import com.winlator.cmod.core.TelemetryMath;
 import com.winlator.cmod.renderer.FrameRateSample;
+import com.winlator.cmod.renderer.FrameTimeHistory;
 
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -79,6 +80,8 @@ public class WinlatorHUD extends View {
      */
     private static final int SHOW_MANGO_DEFAULT = SHOW_FPS | SHOW_CPU
             | SHOW_RAM | SHOW_BATT | SHOW_BORDER | SHOW_BATT_PCT | SHOW_DEVICE;
+    private static final int SHOW_MANGO_ONE_DEFAULT = SHOW_FPS | SHOW_GPU | SHOW_CPU | SHOW_RAM | SHOW_GRAPH
+            | SHOW_CPU_TEMP | SHOW_GPU_TEMP | SHOW_DEVICE | SHOW_BATT_PCT | SHOW_BORDER;
 
     private static final int C_WHITE = Color.WHITE;
     private static final int C_GPU  = Color.rgb(0xE0,0x40,0xFB);
@@ -110,6 +113,9 @@ public class WinlatorHUD extends View {
     private final Paint pChg     = new Paint(TEXT_FLAGS);
     private final Paint pGraph   = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint pGraphBg = new Paint();
+    private final Paint pMango = new Paint(TEXT_FLAGS);
+    private final Paint pMangoValue = new Paint(TEXT_FLAGS);
+    private final Paint pMangoUnit = new Paint(TEXT_FLAGS);
 
     private final RectF bgRect = new RectF();
     private final RectF ramHelpHitRect = new RectF();
@@ -165,9 +171,13 @@ public class WinlatorHUD extends View {
 
     private int showMask = SHOW_DEFAULT;
     private float hudAlpha = 1f;
-    private boolean userEnabled = false;
+    private volatile boolean userEnabled = false;
     private boolean vertical = false;
     private boolean mangoStyle = false;
+    private int hudStyle;
+    private volatile boolean sessionVisible = true;
+    private final FrameTimeHistory frameTimes = new FrameTimeHistory(120);
+    private final String panelId;
 
     private float touchX, touchY, startX, startY;
     private boolean dragging = false;
@@ -187,11 +197,19 @@ public class WinlatorHUD extends View {
         if (getVisibility() == VISIBLE) scheduleRedraw();
     };
 
-    public WinlatorHUD(Context context) { this(context, null); }
+    public WinlatorHUD(Context context) { this(context, null, "primary"); }
 
     public WinlatorHUD(Context context, AttributeSet attrs) {
+        this(context, attrs, "primary");
+    }
+    public WinlatorHUD(Context context, String id) { this(context, null, id); }
+
+    private WinlatorHUD(Context context, AttributeSet attrs, String id) {
         super(context, attrs);
-        prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        panelId = id;
+        prefs = context.getSharedPreferences("primary".equals(id) ? PREFS : PREFS + "_" + id, Context.MODE_PRIVATE);
+        hudStyle = Math.max(0, Math.min(2, prefs.getInt("style", 0)));
+        mangoStyle = hudStyle != 0;
         // User request: blink at 90%, dialog at 93% (was 91/93 and 92/95)
         ramBlinkThreshold = 90;
         ramWarningThreshold = 93;
@@ -204,6 +222,8 @@ public class WinlatorHUD extends View {
         initPaints();
         rawSoc = getSocName();
         loadPrefs();
+        lastFpsNs = System.nanoTime();
+        setPivotX(0); setPivotY(0);
         setLayerType(LAYER_TYPE_HARDWARE, null);
     }
 
@@ -259,6 +279,10 @@ public class WinlatorHUD extends View {
         wValWatt   = pVal.measureText("9.9W");
         wValTemp   = pVal.measureText("99°C");
         wValBInfo  = pVal.measureText("9.9W (100%)");
+        pMango.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD));
+        pMangoValue.setTypeface(pMango.getTypeface());
+        pMangoUnit.setTypeface(pMango.getTypeface());
+        pMangoValue.setColor(Color.WHITE);
     }
 
     public void setDataSource(HudDataSource ds) { this.dataSource = ds; }
@@ -271,22 +295,44 @@ public class WinlatorHUD extends View {
      * HUD customization.
      */
     public void setMangoStyle(boolean enabled) {
-        mangoStyle = enabled;
-        if (enabled) {
-            showMask = SHOW_MANGO_DEFAULT;
-            vertical = false;
-            pBg.setColor(Color.argb(210, 8, 10, 14));
-            pBorder.setColor(Color.argb(190, 126, 87, 194));
-        } else {
-            showMask = prefs.getInt(KEY_SHOW, SHOW_DEFAULT);
-            vertical = prefs.getBoolean(KEY_VERT, false);
-            pBg.setColor(Color.argb(180, 0, 0, 0));
-            pBorder.setColor(C_BORDER);
+        setHudStyle(enabled ? 2 : 0);
+    }
+
+    public int getHudStyle() { return hudStyle; }
+    public String getPanelId() { return panelId; }
+    public String getPanelName() { return prefs.getString("name", "primary".equals(panelId) ? "HUD 1" : "HUD"); }
+    public void setPanelName(String name) { prefs.edit().putString("name", name).apply(); }
+    public void clearPanelPreferences() { prefs.edit().clear().apply(); }
+    public void setHudStyle(int style) {
+        style = Math.max(0, Math.min(2, style));
+        if (style != hudStyle || !prefs.getBoolean("style_initialized", false)) {
+            if (style != hudStyle || prefs.getBoolean("style_initialized", false))
+                prefs.edit().putInt("style_" + hudStyle + "_mask", showMask)
+                        .putInt("style_" + hudStyle + "_ram", ramFormat)
+                        .putInt("style_" + hudStyle + "_alpha", Math.round(hudAlpha * 100))
+                        .putFloat("style_" + hudStyle + "_scale", getScaleX()).apply();
+            hudStyle = style;
+            int mask = style == 1 ? SHOW_MANGO_ONE_DEFAULT
+                    : style == 2 ? SHOW_MANGO_DEFAULT : prefs.getInt(KEY_SHOW, SHOW_DEFAULT);
+            showMask = prefs.getInt("style_" + style + "_mask", mask);
+            ramFormat = prefs.getInt("style_" + style + "_ram", style == 1 ? 2 : 0);
+            hudAlpha = prefs.getInt("style_" + style + "_alpha", style == 1 ? 85 : prefs.getInt(KEY_ALPHA, 55)) / 100f;
+            float scale = prefs.getFloat("style_" + style + "_scale", prefs.getFloat(KEY_SCALE, 1f));
+            setAlpha(hudAlpha); setScaleX(scale); setScaleY(scale);
+            prefs.edit().putInt("style", style).putInt(KEY_SHOW, showMask).putInt("ram_format", ramFormat)
+                    .putInt(KEY_ALPHA, Math.round(hudAlpha * 100)).putFloat(KEY_SCALE, scale)
+                    .putBoolean("style_initialized", true).apply();
         }
+        mangoStyle = style != 0;
+        if (style == 1 && !prefs.contains(KEY_X)) post(() -> setPositionPreset(0));
+        pBg.setColor(style == 1 ? Color.argb(210, 12, 12, 12) : style == 2 ? Color.argb(210, 8, 10, 14) : Color.argb(180, 0, 0, 0));
+        pBorder.setColor(style == 1 ? Color.argb(50, 48, 48, 48) : style == 2 ? Color.argb(190, 126, 87, 194) : C_BORDER);
+        if (style != 1) pGraph.setStrokeWidth(1.5f);
         layoutDirty = true;
         cachedPath = null;
         requestLayout();
         invalidate();
+        post(this::fitPosition);
     }
 
     private static String getSocName() {
@@ -327,7 +373,21 @@ public class WinlatorHUD extends View {
         return null;
     }
 
-    public void onFrame() { frameAccum.incrementAndGet(); }
+    public void onFrame() {
+        if (!userEnabled || !sessionVisible) return;
+        frameAccum.incrementAndGet(); frameTimes.frame(System.nanoTime());
+    }
+
+    public void resetFrameBoundary() { frameTimes.boundary(); frameAccum.set(0); lastFpsNs = System.nanoTime(); }
+    public void setSessionHudVisible(boolean visible) {
+        if (visible && !sessionVisible) resetFrameBoundary();
+        sessionVisible = visible;
+        setVisibility(visible && userEnabled ? VISIBLE : GONE);
+        if (visible && userEnabled) {
+            if (dataSource != null) dataSource.start();
+            scheduleRedraw();
+        }
+    }
 
     public void update() { onFrame(); }
 
@@ -378,7 +438,7 @@ public class WinlatorHUD extends View {
             }
             snapCharging = dataSource.charging;
             java.util.List<String> rows = new java.util.ArrayList<>();
-            if ((showMask & SHOW_BATT_PCT) != 0 && (showMask & SHOW_BATT) == 0)
+            if (hudStyle != 1 && (showMask & SHOW_BATT_PCT) != 0 && (showMask & SHOW_BATT) == 0)
                 rows.add(pc >= 0 ? pc + "%" : "N/A %");
             if (gpuFrequency) rows.add("GPU " + (dataSource.gpuMhz.get() >= 0 ? dataSource.gpuMhz.get() + " MHz" : "N/A"));
             if (batteryCharge) rows.add((dataSource.batteryChargeEstimated ? "≈" : "")
@@ -428,6 +488,7 @@ public class WinlatorHUD extends View {
         if (getVisibility() != VISIBLE) return;
         try {
             ramHelpHitRect.setEmpty();
+            if (hudStyle == 1) { drawMangoOne(c); return; }
             boolean mono = (showMask & SHOW_MONO) != 0;
             updatePaintColors(mono);
 
@@ -457,6 +518,119 @@ public class WinlatorHUD extends View {
         pTmp.setColor(mono ? C_WHITE : C_TEMP);
         pRend.setColor(mono ? C_WHITE : C_REND);
         pRam.setColor(ramAlertActive ? C_TEMP : (mono ? C_WHITE : C_RAM));
+    }
+
+    private static final class MangoRow {
+        final String label, value, extra;
+        final int color;
+        MangoRow(String label, String value, String extra, int color) {
+            this.label = label; this.value = value; this.extra = extra; this.color = color;
+        }
+    }
+    private float mangoLineHeight() { return TS * 1.9f; }
+    private String mangoEngine() {
+        String label = rendererLabel.toLowerCase(Locale.ROOT);
+        if (label.contains("vkd3d")) return "VKD3D";
+        if (label.contains("dxvk")) return "DXVK";
+        if (label.contains("opengl") || label.contains("wined3d")) return "OpenGL";
+        return label.contains("gdi") ? "GDI" : "Vulkan";
+    }
+    private String mangoFrameTime() {
+        double milliseconds = frameTimes.latest(System.nanoTime());
+        return Double.isFinite(milliseconds) ? String.format(Locale.getDefault(), "%.1f ms", milliseconds) : "N/A ms";
+    }
+    private java.util.List<MangoRow> mangoRows() {
+        java.util.List<MangoRow> rows = new java.util.ArrayList<>();
+        if ((showMask & SHOW_GPU) != 0) rows.add(new MangoRow("GPU", strGpu,
+                (showMask & SHOW_GPU_TEMP) != 0 ? (strGTmp.isEmpty() ? "N/A" : strGTmp) : "", Color.rgb(45, 183, 104)));
+        if ((showMask & SHOW_CPU) != 0) rows.add(new MangoRow("CPU", strCpu,
+                (showMask & SHOW_CPU_TEMP) != 0 ? (strCTmp.isEmpty() ? "N/A" : strCTmp) : "", Color.rgb(44, 171, 217)));
+        // Unified system RAM is not a measurement of GPU allocations. Keep the
+        // requested VRAM row honest until a backend exposes an actual budget.
+        if (getTelemetryOption("vram")) rows.add(new MangoRow("VRAM", "N/A", "", Color.rgb(192, 63, 203)));
+        if ((showMask & SHOW_RAM) != 0) rows.add(new MangoRow("RAM", strRam,
+                "", ramAlertActive ? C_TEMP : Color.rgb(210, 78, 200)));
+        if ((showMask & SHOW_FPS) != 0) rows.add(new MangoRow(mangoEngine(),
+                String.format(Locale.getDefault(), "%.0f FPS", snapFps), mangoFrameTime(), Color.rgb(240, 62, 56)));
+        return rows;
+    }
+    private java.util.List<String> mangoFooter() {
+        java.util.List<String> rows = new java.util.ArrayList<>();
+        String identity = (showMask & SHOW_DEVICE) != 0 ? strDevice : "";
+        if ((showMask & SHOW_BATT_PCT) != 0) identity += (identity.isEmpty() ? "" : " · ") + (strPct.isEmpty() ? "N/A %" : strPct);
+        if (!identity.isEmpty()) rows.add(identity);
+        if ((showMask & SHOW_RENDERER) != 0) rows.add(strRend);
+        if ((showMask & SHOW_DRIVER) != 0) rows.add(strDriver);
+        if ((showMask & SHOW_PHONE_GPU) != 0) rows.add(strPhoneGpu);
+        if ((showMask & SHOW_SOC) != 0) rows.add(strSoc);
+        if ((showMask & SHOW_WRAPPER) != 0) rows.add(strWrapper);
+        if ((showMask & SHOW_BATT) != 0) rows.add(strPwr + (strTmp.isEmpty() ? "" : " · " + strTmp));
+        if ((showMask & SHOW_FG_STATUS) != 0) rows.add(strFgStatus);
+        if ((showMask & SHOW_FG_LATENCY) != 0) rows.add(strFgLatency);
+        rows.addAll(telemetryRows);
+        return rows;
+    }
+    private void mangoRight(Canvas canvas, String text, float edge, float baseline, Paint paint) {
+        canvas.drawText(text, edge - paint.measureText(text), baseline, paint);
+    }
+    private void mangoValue(Canvas canvas, String text, float edge, float baseline) {
+        String number = text, unit = "";
+        for (String suffix : new String[]{" FPS", " GB", " ms", "°C", "%"}) if (text.endsWith(suffix) && !text.startsWith("N/A")) {
+            number = text.substring(0, text.length() - suffix.length()); unit = suffix.trim(); break;
+        }
+        pMangoUnit.setTextSize(TS * .85f); pMangoUnit.setColor(pMangoValue.getColor());
+        float unitWidth = pMangoUnit.measureText(unit), gap = unit.isEmpty() ? 0 : TS * .12f;
+        canvas.drawText(number, edge - unitWidth - gap - pMangoValue.measureText(number), baseline, pMangoValue);
+        canvas.drawText(unit, edge - unitWidth, baseline - TS * .52f, pMangoUnit);
+    }
+    private void drawMangoOne(Canvas canvas) {
+        bgRect.set(0, 0, getWidth(), getHeight());
+        canvas.drawRoundRect(bgRect, CORNER, CORNER, pBg);
+        if ((showMask & SHOW_BORDER) != 0) canvas.drawRoundRect(bgRect, CORNER, CORNER, pBorder);
+        float line = mangoLineHeight(), y = PAD;
+        pMango.setTextSize(TS * 1.65f);
+        pMangoValue.setTextSize(TS * 1.85f);
+        boolean mono = (showMask & SHOW_MONO) != 0;
+        for (MangoRow row : mangoRows()) {
+            float baseline = getBaseline(pMango, y, line);
+            pMango.setColor(mono ? Color.WHITE : row.color);
+            canvas.drawText(row.label, PAD, baseline, pMango);
+            pMangoValue.setColor(ramAlertActive && row.label.equals("RAM") ? C_TEMP : Color.WHITE);
+            mangoValue(canvas, row.value, getWidth() * .61f, baseline);
+            pMangoValue.setTextSize(TS * 1.65f);
+            mangoValue(canvas, row.extra, getWidth() - PAD, baseline);
+            pMangoValue.setTextSize(TS * 1.85f);
+            if (ramAlertActive && row.label.equals("RAM")) ramHelpHitRect.set(PAD, y, getWidth() - PAD, y + line);
+            y += line;
+        }
+        pMangoValue.setColor(Color.WHITE);
+        pMangoValue.setTextSize(TS);
+        for (String row : mangoFooter()) {
+            canvas.save();
+            canvas.clipRect(PAD, y, getWidth() - PAD, y + TS + PAD);
+            canvas.drawText(row, PAD, getBaseline(pMangoValue, y, TS + PAD), pMangoValue);
+            canvas.restore();
+            y += TS + PAD;
+        }
+        if ((showMask & SHOW_GRAPH) == 0) return;
+        pMango.setTextSize(TS); pMango.setColor(mono ? Color.WHITE : Color.rgb(240, 62, 56));
+        canvas.drawText("Frametime", PAD, y + TS, pMango);
+        mangoRight(canvas, mangoFrameTime(), getWidth() - PAD, y + TS * 2.4f, pMangoValue);
+        double[] history = frameTimes.snapshot();
+        if (history.length == 0) return;
+        double maximum = 33.333;
+        for (double value : history) maximum = Math.max(maximum, value * 1.12);
+        float top = y + TS * 2.7f, bottom = getHeight() - PAD;
+        float width = getWidth() - PAD * 2;
+        Path path = new Path();
+        for (int i = 0; i < history.length; i++) {
+            float x = PAD + width * (120 - history.length + i) / 119f;
+            float pointY = bottom - (float)(history[i] / maximum) * (bottom - top);
+            if (i == 0) path.moveTo(x, pointY); else path.lineTo(x, pointY);
+        }
+        pGraph.setColor(mono ? Color.WHITE : Color.rgb(42, 232, 43));
+        pGraph.setStrokeWidth(Math.max(1f, TS / 12));
+        canvas.drawPath(path, pGraph);
     }
 
     private float getDisplayedFps(long nowNanos) {
@@ -920,6 +1094,13 @@ public class WinlatorHUD extends View {
 
     @Override
     protected void onMeasure(int ws, int hs) {
+        if (hudStyle == 1) {
+            float width = TS * 24 + PAD * 2;
+            float height = mangoRows().size() * mangoLineHeight() + PAD * 2
+                    + mangoFooter().size() * (TS + PAD) + ((showMask & SHOW_GRAPH) != 0 ? TS * 6 : 0);
+            setMeasuredDimension((int)Math.ceil(width), (int)Math.ceil(Math.max(mangoLineHeight(), height)));
+            return;
+        }
         float lineH = TS + PAD * 2;
         float w = vertical ? measureVertical() : measureHorizontal();
         float h = vertical ? (countVerticalRows() * lineH) : lineH;
@@ -975,12 +1156,12 @@ public class WinlatorHUD extends View {
             case MotionEvent.ACTION_MOVE:
                 float dx = e.getRawX() - touchX, dy = e.getRawY() - touchY;
                 if (!dragging && Math.hypot(dx, dy) > DRAG_THRESH) dragging = true;
-                if (dragging) { setX(startX + dx); setY(startY + dy); }
+                if (dragging) { setX(startX + dx); setY(startY + dy); fitPosition(); }
                 return true;
             case MotionEvent.ACTION_UP:
                 if (e.getPointerCount() > 1) { dragging = false; return true; }
                 if (dragging) { savePosition(); } 
-                else if (touchDownMs > 0 && System.currentTimeMillis() - touchDownMs < 300) {
+                else if (hudStyle != 1 && touchDownMs > 0 && System.currentTimeMillis() - touchDownMs < 300) {
                     vertical = !vertical;
                     prefs.edit().putBoolean(KEY_VERT, vertical).apply();
                     try { requestLayout(); invalidate(); } catch (Exception ignored) {}
@@ -1000,7 +1181,7 @@ public class WinlatorHUD extends View {
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
-        if (userEnabled && rendererActive) {
+        if (sessionVisible && userEnabled && rendererActive) {
             uiHandler.removeCallbacks(redrawRunnable);
             redrawScheduled = false;
             setVisibility(VISIBLE);
@@ -1016,7 +1197,7 @@ public class WinlatorHUD extends View {
     }
 
     private void ensureVisible() {
-        if (userEnabled && rendererActive) {
+        if (sessionVisible && userEnabled && rendererActive && isAttachedToWindow() && getWindowVisibility() == VISIBLE) {
             if (getVisibility() != VISIBLE) setVisibility(VISIBLE);
             scheduleRedraw();
         }
@@ -1027,9 +1208,10 @@ public class WinlatorHUD extends View {
     }
 
     private void scheduleRedraw() {
+        if (!sessionVisible || !userEnabled || !isAttachedToWindow() || getWindowVisibility() != VISIBLE) return;
         if (!redrawScheduled) {
             redrawScheduled = true;
-            uiHandler.postDelayed(redrawRunnable, 1000);
+            uiHandler.postDelayed(redrawRunnable, hudStyle == 1 ? 250 : 1000);
         }
     }
 
@@ -1040,17 +1222,19 @@ public class WinlatorHUD extends View {
         else {
             uiHandler.removeCallbacks(redrawRunnable);
             redrawScheduled = false;
-            if (userEnabled) uiHandler.postDelayed(this::ensureVisible, 300);
+            if (sessionVisible && userEnabled) uiHandler.postDelayed(this::ensureVisible, 300);
         }
     }
 
     @Override
     protected void onWindowVisibilityChanged(int visibility) {
         super.onWindowVisibilityChanged(visibility);
-        if (visibility == VISIBLE && userEnabled) {
+        if (visibility == VISIBLE && sessionVisible && userEnabled) {
             uiHandler.removeCallbacks(redrawRunnable);
             redrawScheduled = false;
             uiHandler.postDelayed(this::ensureVisible, 150);
+        } else {
+            uiHandler.removeCallbacks(redrawRunnable); redrawScheduled = false;
         }
     }
 
@@ -1117,15 +1301,17 @@ public class WinlatorHUD extends View {
     private boolean rendererActive = false;
 
     public boolean isUserEnabled() { return userEnabled; }
+    public boolean hasSavedVisibility() { return prefs.contains(KEY_VIS); }
 
     public void enableByUser() {
         userEnabled = true;
         rendererActive = true;
         prefs.edit().putBoolean(KEY_VIS, true).apply();
+        resetFrameBoundary();
         if (dataSource != null) dataSource.start();
         uiHandler.removeCallbacks(redrawRunnable);
         redrawScheduled = false;
-        setVisibility(VISIBLE);
+        setVisibility(sessionVisible ? VISIBLE : GONE);
         scheduleRedraw();
         requestLayout();
     }
@@ -1148,7 +1334,7 @@ public class WinlatorHUD extends View {
                 layoutDirty = true;
                 changed = true;
             }
-            if (userEnabled) {
+            if (sessionVisible && userEnabled) {
                 if (getVisibility() != VISIBLE) setVisibility(VISIBLE);
                 scheduleRedraw();
             }
@@ -1271,7 +1457,7 @@ public class WinlatorHUD extends View {
     public boolean isDeviceFamily() { return deviceFamily; }
 
     public int getRamFormat() { return ramFormat; }
-    public boolean getTelemetryOption(String key) { return prefs.getBoolean(key, key.equals("core_frequency") || key.equals("core_usage")); }
+    public boolean getTelemetryOption(String key) { return prefs.getBoolean(key, key.equals("core_frequency") || key.equals("core_usage") || key.equals("vram")); }
     public void setRamFormat(int format) {
         ramFormat = Math.max(0, Math.min(3, format));
         prefs.edit().putInt("ram_format", ramFormat).apply();
@@ -1284,6 +1470,7 @@ public class WinlatorHUD extends View {
             case "core_name": coreName = enabled; break;
             case "gpu_frequency": gpuFrequency = enabled; break;
             case "battery_charge": batteryCharge = enabled; break;
+            case "vram": break;
             default: return;
         }
         prefs.edit().putBoolean(key, enabled).apply();
@@ -1366,6 +1553,19 @@ public class WinlatorHUD extends View {
     public void setHudScale(float scale) {
         setScaleX(scale); setScaleY(scale);
         prefs.edit().putFloat(KEY_SCALE, scale).apply();
+        post(this::fitPosition);
+    }
+
+    private void fitPosition() {
+        if (!(getParent() instanceof View)) return;
+        View parent = (View)getParent();
+        if (parent.getWidth() <= 0 || parent.getHeight() <= 0) return;
+        setX(Math.max(0, Math.min(getX(), parent.getWidth() - getWidth() * getScaleX())));
+        setY(Math.max(0, Math.min(getY(), parent.getHeight() - getHeight() * getScaleY())));
+    }
+    @Override protected void onSizeChanged(int w, int h, int oldW, int oldH) {
+        super.onSizeChanged(w, h, oldW, oldH);
+        post(this::fitPosition);
     }
 
     public void setHudAlpha(float a) {
@@ -1376,7 +1576,7 @@ public class WinlatorHUD extends View {
     }
 
     public void reset() {
-        rendererLabel = "OpenGL"; frameAccum.set(0); snapFps = 0; gHead = 0; lastFpsNs = 0;
+        rendererLabel = "OpenGL"; resetFrameBoundary(); snapFps = 0; gHead = 0;
     }
 
     public void forceReset() {
@@ -1384,16 +1584,16 @@ public class WinlatorHUD extends View {
             uiHandler.removeCallbacks(redrawRunnable);
             redrawScheduled = false;
             frameAccum.set(0);
-            snapFps = 0; gHead = 0; lastFpsNs = 0;
+            snapFps = 0; gHead = 0; resetFrameBoundary(); frameTimes.clear();
             cachedPath = null; lastGHead = -1;
             dragging = false; touchDownMs = 0;
             rendererActive = true;
             userEnabled = true;
             
-            showMask = mangoStyle ? SHOW_MANGO_DEFAULT : SHOW_DEFAULT;
+            showMask = hudStyle == 1 ? SHOW_MANGO_ONE_DEFAULT : mangoStyle ? SHOW_MANGO_DEFAULT : SHOW_DEFAULT;
             socFormat = gpuFormat = HardwareLabel.FULL;
             deviceFamily = false;
-            ramFormat = 0;
+            ramFormat = hudStyle == 1 ? 2 : 0;
             coreFrequency = coreUsage = true;
             coreName = gpuFrequency = batteryCharge = false;
             selectedCores.clear();
@@ -1403,7 +1603,7 @@ public class WinlatorHUD extends View {
             layoutDirty = true;
             
             setScaleX(1.0f); setScaleY(1.0f);
-            hudAlpha = 0.55f;
+            hudAlpha = hudStyle == 1 ? .85f : .55f;
             setAlpha(hudAlpha);
 
             SharedPreferences.Editor ed = prefs.edit();
@@ -1415,10 +1615,10 @@ public class WinlatorHUD extends View {
             ed.putInt("ram_format", ramFormat);
             ed.putBoolean("core_frequency", true).putBoolean("core_usage", true)
                     .putBoolean("core_name", false).putBoolean("gpu_frequency", false)
-                    .putBoolean("battery_charge", false).putStringSet("selected_cores", new java.util.HashSet<>());
+                    .putBoolean("battery_charge", false).putBoolean("vram", true).putStringSet("selected_cores", new java.util.HashSet<>());
             ed.putBoolean(KEY_VERT, vertical);
             ed.putFloat(KEY_SCALE, 1.0f);
-            ed.putInt(KEY_ALPHA, 55);
+            ed.putInt(KEY_ALPHA, Math.round(hudAlpha * 100));
             ed.remove(KEY_X);
             ed.remove(KEY_Y);
             ed.apply();
@@ -1426,7 +1626,7 @@ public class WinlatorHUD extends View {
             post(() -> setPositionPreset(1));
 
             if (dataSource != null) dataSource.start();
-            setVisibility(VISIBLE);
+            setVisibility(sessionVisible ? VISIBLE : GONE);
             scheduleRedraw();
             requestLayout();
         });

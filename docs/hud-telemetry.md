@@ -34,3 +34,38 @@ Referências primárias:
 Os testes cobrem contadores, hotplug/reset, dados ausentes, unidades, formatos e
 identificadores. Acesso real aos sensores depende do kernel/SELinux do aparelho;
 sem aparelho conectado, não foi comprovada a disponibilidade por modelo.
+
+## Painéis e MangoHUD 1
+
+MangoHUD 1 segue as duas referências visuais fornecidas pelo mantenedor: painel
+escuro com colunas, rótulos coloridos, unidades menores, renderer/FPS/frametime e
+gráfico verde de intervalos reais. O valor de VRAM fica N/A se não houver sensor
+real de alocações da GPU; não usa RAM do Android com outro rótulo. A linha pode
+ser ocultada. O renderer pode aparecer como DXVK, VKD3D, OpenGL ou Vulkan conforme
+a configuração efetiva, sem ativar o HUD interno do DXVK para desenhar esse painel.
+
+É uma apresentação Android própria para Bionic, conforme o esclarecimento de que
+o objetivo é o visual das imagens. O pacote separado do CMOD
+[winlator_mangohud_glibc_v1](https://github.com/coffincolors/winlator/releases/tag/winlator_mangohud_glibc_v1)
+foi inspecionado: sua libMangoHud depende de libc.so.6, libm.so.6 e libgcc_s.so.1.
+Esse binário GLIBC não foi injetado no processo Bionic, nem foi substituído pelo
+FrameRating/HUD do DXVK do CMOD. Não se declara portado o binário original.
+
+O preset anterior permanece como MangoHUD 2, mantendo o identificador antigo
+`mangohud`. O seletor permite DXVK + Winlator/MangoHUD 1/MangoHUD 2. A injeção do
+DXVK depende dessa escolha explícita e só muda no próximo lançamento do processo.
+
+O editor permite criar, selecionar, renomear e remover painéis adicionais. Cada
+um tem preferências de campos, formato, núcleos, posição, escala, opacidade e
+estilo em um namespace próprio. Trocar de estilo preserva máscara/RAM/escala e
+opacidade anteriores. Todos usam o mesmo leitor de sensores da sessão; esconder
+um painel não desliga os outros nem cria um leitor por painel.
+
+O gráfico mantém no máximo 120 intervalos em ordem, ignora timestamps repetidos
+e separa pausas. O FPS inicial agora mede um intervalo iniciado na ativação, sem
+contar dois segundos de frames dentro do primeiro segundo reportado. Há suporte
+a drawables filhos de janelas Wine, comum em renderização GL/DX9. Os dados são
+atualizações X11 observadas; a validação por jogo continua na Parte 12.
+
+Nenhuma captura do app em aparelho foi produzida neste lote. Foram validados a
+compilação, recursos e testes de política de modos, histórico, unidades e cálculos.

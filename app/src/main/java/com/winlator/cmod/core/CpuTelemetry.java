@@ -32,7 +32,8 @@ public final class CpuTelemetry {
     public CpuTelemetry(File root, File stat) { this(root, stat, new File(root, "cpuinfo")); }
     public CpuTelemetry(File root, File stat, File cpuinfo) { this.root = root; this.stat = stat; this.cpuinfo = cpuinfo; }
 
-    public Sample poll() {
+    public synchronized void reset() { previous = Collections.emptyMap(); }
+    public synchronized Sample poll() {
         Map<Integer, TelemetryMath.CpuTimes> current = TelemetryMath.cpuTimes(read(stat));
         TreeSet<Integer> ids = new TreeSet<>();
         File[] dirs = root.listFiles();

@@ -1142,4 +1142,13 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="measurement_source_note" formatted="false">Source FPS counts X11 application content updates; compositor FPS counts completed draws. Generated frames are separate. These are not physical display timestamps. 1% low is the inverse mean of the slowest 1% of frame intervals (bounded histogram). N/A means insufficient or unavailable data.</string>
     <string name="measurement_power_coverage">Time covered by power readings</string>
     <string name="measurement_charging_note">Power is net battery discharge, not app-only power. W/Wh cover valid discharge samples only. Battery consumption is unavailable if charging occurred; ≈ marks estimated mAh.</string>
+    <string name="hud_panels">HUD panels</string>
+    <string name="hud_panel_add">+ Create HUD panel</string>
+    <string name="hud_panel_rename">Rename this panel</string>
+    <string name="hud_panel_remove">Remove this panel</string>
+    <string name="hud_panel_name">HUD panel name</string>
+    <string name="hud_panel_remove_confirm">Remove this HUD panel and its preferences?</string>
+    <string name="hud_dxvk_next_launch">Native panels updated. DXVK HUD changes apply on the next launch.</string>
+    <string name="hud_vram">VRAM row in MangoHUD 1 (N/A without a GPU memory sensor)</string>
+    <string name="hud_frametime_graph">Frametime graph</string>
 </resources>

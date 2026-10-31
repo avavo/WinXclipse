@@ -1016,4 +1016,13 @@
     <string name="measurement_source_note" formatted="false">FPS reais contam atualizações de conteúdo de aplicações X11; FPS do compositor contam desenhos concluídos. Quadros gerados ficam separados. Não são timestamps físicos da tela. 1% low é o inverso da média do 1% mais lento dos intervalos (histograma limitado). N/A indica dados insuficientes ou indisponíveis.</string>
     <string name="measurement_power_coverage">Tempo coberto pelas leituras de potência</string>
     <string name="measurement_charging_note">Potência é a descarga líquida da bateria, não apenas do app. W/Wh cobrem só amostras válidas de descarga. Consumo de bateria fica indisponível se houve carregamento; ≈ indica mAh estimados.</string>
+    <string name="hud_panels">Painéis de HUD</string>
+    <string name="hud_panel_add">+ Criar painel de HUD</string>
+    <string name="hud_panel_rename">Renomear este painel</string>
+    <string name="hud_panel_remove">Remover este painel</string>
+    <string name="hud_panel_name">Nome do painel de HUD</string>
+    <string name="hud_panel_remove_confirm">Remover este painel de HUD e suas preferências?</string>
+    <string name="hud_dxvk_next_launch">Painéis atualizados. Mudanças no HUD do DXVK valem no próximo lançamento.</string>
+    <string name="hud_vram">Linha de VRAM no MangoHUD 1 (N/A sem sensor de memória da GPU)</string>
+    <string name="hud_frametime_graph">Gráfico de frametime</string>
 </resources>

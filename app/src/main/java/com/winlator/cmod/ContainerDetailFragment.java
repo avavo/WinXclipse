@@ -532,10 +532,7 @@ public class ContainerDetailFragment extends Fragment {
         final CheckBox cbShowFPS = view.findViewById(R.id.CBShowFPS);
         cbShowFPS.setChecked(!isEditMode() || container.isShowFPS());
         final Spinner sHudMode = view.findViewById(R.id.SHudMode);
-        int hudModeSelection = 0;
-        if (isEditMode() && "mangohud".equals(container.getHudMode())) hudModeSelection = 1;
-        else if (isEditMode() && "dxvk".equals(container.getHudMode())) hudModeSelection = 2;
-        sHudMode.setSelection(hudModeSelection);
+        sHudMode.setSelection(com.winlator.cmod.core.HudMode.index(isEditMode() ? container.getHudMode() : "winlator"));
         sHudMode.setEnabled(cbShowFPS.isChecked());
         cbShowFPS.setOnCheckedChangeListener((button, checked) -> sHudMode.setEnabled(checked));
 
@@ -891,8 +888,7 @@ public class ContainerDetailFragment extends Fragment {
                 String drives = getDrives(view);
                 boolean showFPS = cbShowFPS.isChecked();
                 int hudModePosition = sHudMode.getSelectedItemPosition();
-                String hudMode = hudModePosition == 1 ? "mangohud"
-                        : hudModePosition == 2 ? "dxvk" : "winlator";
+                String hudMode = com.winlator.cmod.core.HudMode.at(hudModePosition);
                 boolean fullscreenStretched = cbFullscreenStretched.isChecked();
 
                 String cpuList = cpuListView.getCheckedCPUListAsString();

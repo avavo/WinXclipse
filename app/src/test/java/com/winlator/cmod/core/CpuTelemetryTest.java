@@ -41,4 +41,16 @@ public class CpuTelemetryTest {
         assertEquals(-1, sample.cores[0].mhz);
         assertEquals(-1, sample.cores[0].usage);
     }
+    @Test public void resumeStartsANewCounterInterval() throws Exception {
+        File root = temporary.newFolder("cpu"), stat = temporary.newFile("stat");
+        new File(root, "cpu0").mkdir();
+        write(stat, "cpu 10 0 0 90\ncpu0 10 0 0 90");
+        CpuTelemetry source = new CpuTelemetry(root, stat);
+        source.poll();
+        write(stat, "cpu 20 0 0 180\ncpu0 20 0 0 180");
+        assertEquals(10, source.poll().usage);
+        source.reset();
+        write(stat, "cpu 900 0 0 200\ncpu0 900 0 0 200");
+        assertEquals(-1, source.poll().usage);
+    }
 }

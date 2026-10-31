@@ -272,8 +272,7 @@ public class Container {
     }
 
     public void setHudMode(String hudMode) {
-        this.hudMode = "mangohud".equals(hudMode) || "dxvk".equals(hudMode)
-                ? hudMode : "winlator";
+        this.hudMode = com.winlator.cmod.core.HudMode.normalize(hudMode);
     }
 
     public boolean isWoW64Mode() {

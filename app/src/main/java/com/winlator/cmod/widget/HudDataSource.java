@@ -95,9 +95,6 @@ public class HudDataSource {
     public HudDataSource(Context context) {
         this.context = context.getApplicationContext();
         this.batteryManager = (BatteryManager) this.context.getSystemService(Context.BATTERY_SERVICE);
-        thread = new HandlerThread("WinlatorHUD", android.os.Process.THREAD_PRIORITY_BACKGROUND);
-        thread.start();
-        handler = new Handler(thread.getLooper());
     }
 
     public synchronized void start() {
@@ -110,15 +107,23 @@ public class HudDataSource {
             gpuPath = null;
         }
         running = true;
-        handler.removeCallbacksAndMessages(null);
+        if (handler != null) handler.removeCallbacksAndMessages(null);
         long current = ++generation;
-        handler.post(() -> poll(current));
+        handler.post(() -> {
+            cpuTelemetry.reset();
+            lastMaliGpuInfoMs = lastMaliGpuInfoWallMs = -1;
+            poll(current);
+        });
     }
 
     public synchronized void stop() {
         running = false;
         generation++;
-        handler.removeCallbacksAndMessages(null);
+        if (handler != null) handler.removeCallbacksAndMessages(null);
+    }
+
+    public synchronized void close() {
+        stop();
         if (thread != null) thread.quitSafely();
         thread = null;
     }
