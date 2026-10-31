@@ -18,7 +18,7 @@ public class DependencyImportSessionTest {
         DependencyImportSession session = new DependencyImportSession(temp.getRoot(), null);
         session.pause();
         DependencyImportSession.Stopped failure = assertThrows(DependencyImportSession.Stopped.class,
-                () -> session.download("http://127.0.0.1:9/unused.wcp", new File(temp.getRoot(), "package.wcp"), "package"));
+                () -> session.acquire("http://127.0.0.1:9/unused.wcp", "package"));
         assertFalse(failure.cancelled);
         assertEquals(DependencyImportSession.Failure.UNAVAILABLE, session.failure("wineRuntime"));
         assertFalse(ContentOperationRegistry.hasActiveOperations());
@@ -73,7 +73,7 @@ public class DependencyImportSessionTest {
         try (ResumableDownloadTest.Server server = new ResumableDownloadTest.Server((headers, out) ->
                 ContentDownloadQueueTest.reply(out, new byte[]{1, 3, 5}))) {
             File output = session.output(server.url());
-            assertThrows(DependencyImportSession.Stopped.class, () -> session.download(server.url(), output, "Proton"));
+            assertThrows(DependencyImportSession.Stopped.class, () -> session.acquire(server.url(), "Proton"));
             assertTrue(output.isFile());
             assertTrue(ContentDownloadQueue.hasSavedDownload(server.url(), output));
             assertEquals(0, ContentOperationRegistry.getActiveInstalls());

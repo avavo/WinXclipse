@@ -48,22 +48,24 @@ public final class DependencyImportSession {
         return ResumableDownload.outputFile(directory, address, name.isEmpty() ? "package.wcp" : name);
     }
 
-    public boolean download(String address, File output, String name) throws Stopped {
+    /** Exact dependency installers use a private archive that survives another consumer's cleanup. */
+    public ContentDownloadQueue.Artifact acquire(String address, String name) throws Stopped {
         ResumableDownload.Control current;
-        synchronized (this) {
-            checkRunning();
-            control = current = new ResumableDownload.Control();
-        }
+        synchronized (this) { checkRunning(); control = current = new ResumableDownload.Control(); }
+        ContentDownloadQueue.Artifact artifact = null;
         try {
-            ResumableDownload.Result result = ContentDownloadQueue.download(address, output, current,
+            artifact = ContentDownloadQueue.acquire(address, output(address), current,
                     percent -> { if (listener != null) listener.update(Stage.DOWNLOADING, name, percent); },
                     () -> { if (listener != null) listener.update(Stage.QUEUED, name, 0); });
             checkRunning();
-            if (result == ResumableDownload.Result.PAUSED || result == ResumableDownload.Result.CANCELLED) {
-                synchronized (this) { paused = true; cancelled |= result == ResumableDownload.Result.CANCELLED; }
+            if (artifact.result == ResumableDownload.Result.PAUSED || artifact.result == ResumableDownload.Result.CANCELLED) {
+                synchronized (this) { paused = true; cancelled |= artifact.result == ResumableDownload.Result.CANCELLED; }
                 checkRunning();
             }
-            return result == ResumableDownload.Result.COMPLETE;
+            return artifact;
+        } catch (Stopped stopped) {
+            if (artifact != null) artifact.close();
+            throw stopped;
         } finally { synchronized (this) { if (control == current) control = null; } }
     }
 

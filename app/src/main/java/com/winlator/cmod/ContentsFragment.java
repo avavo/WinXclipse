@@ -115,6 +115,7 @@ public class ContentsFragment extends Fragment {
         volatile int stage;
         volatile int progress;
         volatile ResumableDownload.Control control;
+        volatile ContentDownloadQueue.Artifact artifact;
         File output;
 
         TransferUiState(int stage, int progress) {
@@ -727,10 +728,13 @@ public class ContentsFragment extends Fragment {
         notifyTransfers();
         ResumableDownload.Control control = state.control;
         new Thread(() -> {
-            ResumableDownload.Result result = ContentDownloadQueue.download(address, output, control, progress -> {
+            ContentDownloadQueue.Artifact artifact = ContentDownloadQueue.acquire(address, output, control, progress -> {
                 updateTransfer(key, TRANSFER_DOWNLOADING, progress);
             }, () -> updateTransfer(key, TRANSFER_QUEUED, state.progress));
+            ResumableDownload.Result result = artifact.result;
+            synchronized (state) { state.artifact = artifact; }
             if (result != ResumableDownload.Result.COMPLETE) {
+                releaseArchive(state);
                 if (result == ResumableDownload.Result.CANCELLED) finishTransfer(key);
                 else {
                     state.control = null;
@@ -745,6 +749,7 @@ public class ContentsFragment extends Fragment {
             }
             Activity host = getActivity();
             if (host == null || host.isFinishing()) {
+                releaseArchive(state);
                 state.control = null;
                 updateTransfer(key, TRANSFER_PAUSED, 99);
                 return;
@@ -754,11 +759,15 @@ public class ContentsFragment extends Fragment {
                 try {
                     state.control = null;
                     if (control.isCancelled()) finishTransfer(key);
-                    else if (!isAdded() || control.isStopping()) updateTransfer(key, TRANSFER_PAUSED, 99);
-                    else ready.accept(output);
+                    else if (!isAdded() || control.isStopping()) {
+                        releaseArchive(state);
+                        updateTransfer(key, TRANSFER_PAUSED, 99);
+                    }
+                    else ready.accept(artifact.file);
                 }
                 catch (RuntimeException error) {
                     Log.e("ContentsFragment", "Unable to open downloaded package", error);
+                    releaseArchive(state);
                     updateTransfer(key, TRANSFER_FAILED, 99);
                 }
                 finally { operation.close(); }
@@ -792,8 +801,17 @@ public class ContentsFragment extends Fragment {
     private void finishTransfer(@Nullable String key) {
         if (key == null) return;
         TransferUiState state = ACTIVE_TRANSFERS.remove(key);
-        if (state != null && state.output != null) ContentDownloadQueue.discard(state.output);
+        if (state != null) {
+            releaseArchive(state);
+            if (state.output != null) ContentDownloadQueue.discard(state.output);
+        }
         notifyTransfers();
+    }
+
+    private static void releaseArchive(TransferUiState state) {
+        ContentDownloadQueue.Artifact artifact;
+        synchronized (state) { artifact = state.artifact; state.artifact = null; }
+        if (artifact != null) artifact.close();
     }
 
     private void refreshTransferRows() {

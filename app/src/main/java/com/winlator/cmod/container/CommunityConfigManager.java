@@ -562,15 +562,17 @@ public final class CommunityConfigManager {
                 if (!PackageIdentity.sameDriver(requested, item.name)
                         && !PackageIdentity.sameDriver(requested, packageNameFromUrl(item.url))) continue;
                 File downloaded = session.output(item.url);
-                if (!session.download(item.url, downloaded, requested)) {
-                    session.failed("graphicsDriver", DependencyImportSession.Failure.DOWNLOAD);
-                    continue;
+                try (ContentDownloadQueue.Artifact artifact = session.acquire(item.url, requested)) {
+                    if (artifact.result != com.winlator.cmod.contents.ResumableDownload.Result.COMPLETE) {
+                        session.failed("graphicsDriver", DependencyImportSession.Failure.DOWNLOAD);
+                        continue;
+                    }
+                    installedId = session.install(requested, () -> manager.installVerifiedDriver(
+                            Uri.fromFile(artifact.file), null, requested, version, sha256),
+                            () -> ContentDownloadQueue.discard(downloaded));
+                    if (!installedId.isEmpty()) break;
+                    session.failed("graphicsDriver", DependencyImportSession.Failure.PACKAGE);
                 }
-                installedId = session.install(requested, () -> manager.installVerifiedDriver(
-                        Uri.fromFile(downloaded), null, requested, version, sha256),
-                        () -> ContentDownloadQueue.discard(downloaded));
-                if (!installedId.isEmpty()) break;
-                session.failed("graphicsDriver", DependencyImportSession.Failure.PACKAGE);
             }
         }
         if (installedId.isEmpty()) return false;
@@ -606,14 +608,16 @@ public final class CommunityConfigManager {
             if (!requested.equals(CustomWrapperManager.toIdentifier(item.name))
                     && !requested.equals(CustomWrapperManager.toIdentifier(packageNameFromUrl(item.url)))) continue;
             File downloaded = session.output(item.url);
-            if (!session.download(item.url, downloaded, requested)) {
-                session.failed("wrapper", DependencyImportSession.Failure.DOWNLOAD);
-                continue;
+            try (ContentDownloadQueue.Artifact artifact = session.acquire(item.url, requested)) {
+                if (artifact.result != com.winlator.cmod.contents.ResumableDownload.Result.COMPLETE) {
+                    session.failed("wrapper", DependencyImportSession.Failure.DOWNLOAD);
+                    continue;
+                }
+                boolean installed = session.install(requested, () -> manager.install(Uri.fromFile(artifact.file), requested, sha256),
+                        () -> ContentDownloadQueue.discard(downloaded)) != null;
+                if (installed) return true;
+                session.failed("wrapper", DependencyImportSession.Failure.PACKAGE);
             }
-            boolean installed = session.install(requested, () -> manager.install(Uri.fromFile(downloaded), requested, sha256),
-                    () -> ContentDownloadQueue.discard(downloaded)) != null;
-            if (installed) return true;
-            session.failed("wrapper", DependencyImportSession.Failure.PACKAGE);
         }
         return false;
     }
@@ -1061,13 +1065,13 @@ public final class CommunityConfigManager {
                 if (!matchesReference(candidate, ref, true)) continue;
                 session.checkRunning();
                 File downloaded = session.output(candidate.remoteUrl);
-                try {
-                    if (!session.download(candidate.remoteUrl, downloaded, candidate.verName)) {
+                try (ContentDownloadQueue.Artifact artifact = session.acquire(candidate.remoteUrl, candidate.verName)) {
+                    if (artifact.result != com.winlator.cmod.contents.ResumableDownload.Result.COMPLETE) {
                         session.failed(ref.optString("role"), DependencyImportSession.Failure.DOWNLOAD);
                         continue;
                     }
                     boolean installed = session.install(candidate.verName,
-                            () -> installMatchingPackage(context, manager, ref, downloaded, candidate),
+                            () -> installMatchingPackage(context, manager, ref, artifact.file, candidate),
                             () -> ContentDownloadQueue.discard(downloaded));
                     if (installed) {
                         Log.i("CommunityConfig", "Recovered remote content " + ContentsManager.getEntryName(candidate));
