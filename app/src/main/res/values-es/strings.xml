@@ -985,4 +985,15 @@
     <string name="community_create_failed">No se pudo crear el contenedor con esta configuración.</string>
     <string name="community_import_complete">Configuración de la comunidad importada.</string>
     <string name="community_apply_failed">No se pudo aplicar esta configuración de la comunidad.</string>
+    <string name="hud_select_cores">Elegir núcleos de CPU</string>
+    <string name="hud_core_frequency">Frecuencia de los núcleos (MHz)</string>
+    <string name="hud_core_usage">Uso de cada núcleo (%)</string>
+    <string name="hud_core_name">Nombre del núcleo (Cortex, si se informa)</string>
+    <string name="hud_gpu_frequency">Frecuencia de GPU (MHz)</string>
+    <string name="hud_battery_charge">Carga de batería disponible (mAh)</string>
+    <string name="hud_sensor_note">N/A indica que el sistema no permite leer el sensor. ≈ indica carga estimada.</string>
+    <string name="hud_ram_used_percent">RAM usada (%)</string>
+    <string name="hud_ram_free_percent">RAM libre (%)</string>
+    <string name="hud_ram_used_gb">RAM usada (GB)</string>
+    <string name="hud_ram_free_gb">RAM libre (GB)</string>
 </resources>

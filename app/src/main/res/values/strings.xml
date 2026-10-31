@@ -1111,4 +1111,15 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="community_create_failed">Could not create the container from this config.</string>
     <string name="community_import_complete">Community config imported.</string>
     <string name="community_apply_failed">Could not apply this community config.</string>
+    <string name="hud_select_cores">Choose CPU cores</string>
+    <string name="hud_core_frequency">CPU core frequency (MHz)</string>
+    <string name="hud_core_usage">CPU core usage (%)</string>
+    <string name="hud_core_name">Core name (Cortex, when reported)</string>
+    <string name="hud_gpu_frequency">GPU frequency (MHz)</string>
+    <string name="hud_battery_charge">Available battery charge (mAh)</string>
+    <string name="hud_sensor_note">N/A means the system does not expose this sensor. ≈ marks a charge estimate.</string>
+    <string name="hud_ram_used_percent">RAM used (%)</string>
+    <string name="hud_ram_free_percent">RAM free (%)</string>
+    <string name="hud_ram_used_gb">RAM used (GB)</string>
+    <string name="hud_ram_free_gb">RAM free (GB)</string>
 </resources>

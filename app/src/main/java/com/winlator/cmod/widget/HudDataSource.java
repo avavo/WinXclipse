@@ -11,6 +11,8 @@ import android.os.Handler;
 import android.os.HandlerThread;
 
 import com.winlator.cmod.core.CPUStatus;
+import com.winlator.cmod.core.CpuTelemetry;
+import com.winlator.cmod.core.TelemetryMath;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -26,6 +28,16 @@ public class HudDataSource {
     public final AtomicInteger gpuTempC      = new AtomicInteger(-1);
     public final AtomicInteger batteryPct    = new AtomicInteger(-1);
     public final AtomicInteger ramUsagePct  = new AtomicInteger(-1);
+    public final AtomicInteger gpuMhz = new AtomicInteger(-1);
+    public volatile CpuTelemetry.Sample cpu = CpuTelemetry.EMPTY;
+    public volatile long ramTotalBytes = -1, ramAvailableBytes = -1;
+    public volatile double batteryAvailableMah = Double.NaN;
+    public volatile boolean batteryChargeEstimated, charging;
+    public volatile long batteryCurrentMicroamps = Long.MIN_VALUE;
+    private final CpuTelemetry cpuTelemetry = new CpuTelemetry();
+    private boolean running;
+    private long generation;
+    private String gpuFrequencyPath;
 
     private HandlerThread thread;
     private Handler handler;
@@ -59,9 +71,6 @@ public class HudDataSource {
     };
 
     private static final String[] CPU_TEMP_PATHS = {
-        "/sys/class/thermal/thermal_zone7/temp", // SD8 Gen 2/3
-        "/sys/class/thermal/thermal_zone0/temp", // Common MTK / Generic
-        "/sys/class/thermal/thermal_zone1/temp",
         "/proc/mtktscpu/mtktscpu",               // Legacy MediaTek
         "/sys/class/thermal/cpu-thermal/temp"
     };
@@ -88,31 +97,39 @@ public class HudDataSource {
         handler = new Handler(thread.getLooper());
     }
 
-    public void start() {
-        if (!thread.isAlive()) {
+    public synchronized void start() {
+        if (running) return;
+        if (thread == null || !thread.isAlive()) {
             thread = new HandlerThread("WinlatorHUD", android.os.Process.THREAD_PRIORITY_BACKGROUND);
             thread.start();
             handler = new Handler(thread.getLooper());
             gpuFailed = false;
             gpuPath = null;
         }
+        running = true;
         handler.removeCallbacksAndMessages(null);
-        handler.post(this::poll);
+        long current = ++generation;
+        handler.post(() -> poll(current));
     }
 
-    public void stop() {
+    public synchronized void stop() {
+        running = false;
+        generation++;
         handler.removeCallbacksAndMessages(null);
-        thread.quitSafely();
+        if (thread != null) thread.quitSafely();
+        thread = null;
     }
 
-    private void poll() {
+    private void poll(long current) {
+        synchronized (this) { if (!running || current != generation) return; }
         pollGpu();
+        pollGpuFrequency();
         pollCpu();
         pollBattery();
         pollCpuTemp();
         pollGpuTemp();
         pollRam();
-        handler.postDelayed(this::poll, 1500);
+        synchronized (this) { if (running && current == generation) handler.postDelayed(() -> poll(current), 1500); }
     }
 
     private void pollGpu() {
@@ -128,7 +145,7 @@ public class HudDataSource {
         if (path != null) {
             gpuPath = path;
             int v = path.endsWith("gpuinfo") ? readGpuInfo(path) : readPercent(path);
-            gpuLoad.set(v >= 0 ? v : 0);
+            gpuLoad.set(v);
             return;
         }
 
@@ -151,7 +168,7 @@ public class HudDataSource {
                 File[] subdirs = devfreqDir.listFiles();
                 if (subdirs != null) {
                     for (File dir : subdirs) {
-                        if (dir.isDirectory()) {
+                        if (dir.isDirectory() && isGpuNode(dir.getName())) {
                             String[] candidates = {"gpu_load", "gpu_loading", "load", "percent", "utilisation", "utilization", "gpuinfo"};
                             for (String name : candidates) {
                                 File f = new File(dir, name);
@@ -218,23 +235,42 @@ public class HudDataSource {
         try (BufferedReader r = new BufferedReader(new FileReader(path))) {
             String l = r.readLine();
             if (l == null) return -1;
-            int val = Integer.parseInt(l.trim().replaceAll("[^0-9]", ""));
-            return (val >= 0 && val <= 100) ? val : -1;
+            return TelemetryMath.percent(l);
         } catch (Exception e) { return -1; }
     }
 
     private void pollCpu() {
-        try {
-            short[] clocks = CPUStatus.getCurrentClockSpeeds();
-            long cur = 0, max = 0;
-            for (int i = 0; i < clocks.length; i++) {
-                cur += clocks[i];
-                max += CPUStatus.getMaxClockSpeed(i);
-            }
-            cpuLoad.set(max > 0 ? (int) Math.min(100, cur * 100L / max) : -1);
-        } catch (Exception e) {
-            cpuLoad.set(-1);
+        cpu = cpuTelemetry.poll();
+        cpuLoad.set(cpu.usage);
+    }
+
+    private static boolean isGpuNode(String name) {
+        String lower = name.toLowerCase(java.util.Locale.ROOT);
+        return lower.contains("gpu") || lower.contains("g3d") || lower.contains("mali")
+                || lower.contains("kgsl") || lower.contains("xclipse");
+    }
+
+    private void pollGpuFrequency() {
+        if (gpuFrequencyPath != null) {
+            int mhz = readGpuMhz(gpuFrequencyPath);
+            if (mhz >= 0) { gpuMhz.set(mhz); return; }
+            gpuFrequencyPath = null;
         }
+        java.util.List<String> paths = new java.util.ArrayList<>();
+        paths.add("/sys/class/kgsl/kgsl-3d0/gpuclk"); // Hz, like devfreq cur_freq.
+        File[] nodes = new File("/sys/class/devfreq").listFiles();
+        if (nodes != null) for (File node : nodes) if (isGpuNode(node.getName()))
+            paths.add(new File(node, "cur_freq").getPath());
+        for (String path : paths) {
+            int mhz = readGpuMhz(path);
+            if (mhz >= 0) { gpuFrequencyPath = path; gpuMhz.set(mhz); return; }
+        }
+        gpuMhz.set(-1);
+    }
+
+    private int readGpuMhz(String path) {
+        long hz = readSysFsLong(path);
+        return hz > 0 && hz <= 10_000_000_000L ? (int)(hz / 1_000_000) : -1;
     }
 
     private void pollCpuTemp() {
@@ -297,6 +333,13 @@ public class HudDataSource {
     }
 
     private void pollBattery() {
+        batteryTempC.set(-1);
+        batteryMw.set(-1);
+        batteryPct.set(-1);
+        batteryAvailableMah = Double.NaN;
+        batteryChargeEstimated = false;
+        batteryCurrentMicroamps = Long.MIN_VALUE;
+        charging = false;
         try {
             Intent batt = context.registerReceiver(null,
                 new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
@@ -305,45 +348,46 @@ public class HudDataSource {
             int temp = batt.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 0);
             batteryTempC.set(temp > 0 ? temp / 10 : -1);
 
-            int pct = batt.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
+            int pct = TelemetryMath.batteryPercent(batt.getIntExtra(BatteryManager.EXTRA_LEVEL, -1),
+                    batt.getIntExtra(BatteryManager.EXTRA_SCALE, -1));
             batteryPct.set(pct);
 
             int status = batt.getIntExtra(BatteryManager.EXTRA_STATUS, -1);
-            boolean charging = status == BatteryManager.BATTERY_STATUS_CHARGING
+            charging = status == BatteryManager.BATTERY_STATUS_CHARGING
                             || status == BatteryManager.BATTERY_STATUS_FULL;
             int mv = batt.getIntExtra(BatteryManager.EXTRA_VOLTAGE, 0);
             if (mv <= 0) {
-                long uv = firstNonZero(VOLTAGE_PATHS);
+                long uv = firstNonZero(new String[]{VOLTAGE_PATHS[0], VOLTAGE_PATHS[1], VOLTAGE_PATHS[2]});
                 if (uv > 0) mv = (int) (uv / 1000L);
             }
 
-            long rawCurrent = 0;
+            long rawCurrent = Long.MIN_VALUE;
             if (batteryManager != null)
                 rawCurrent = batteryManager.getLongProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW);
-            if (rawCurrent == Long.MIN_VALUE) rawCurrent = 0;
-            if (rawCurrent == 0) rawCurrent = firstNonZero(CURRENT_PATHS);
-
-            float amps = normalizeCurrentAmps(rawCurrent);
-            if (mv > 0 && amps > 0f) {
-                // Unlike the old CHG-only branch, keep showing real watts while
-                // charging. Samsung devices expose a signed current; abs() in
-                // Normalize the different current units exposed by Android kernels.
-                batteryMw.set(Math.round((mv / 1000f) * amps * 1000f));
-            } else {
-                batteryMw.set(charging ? -2 : -1);
+            if (rawCurrent == Long.MIN_VALUE || rawCurrent == Integer.MIN_VALUE) {
+                // Standard power_supply current_now is µA. Vendor ibat_now has
+                // unspecified units, so it is deliberately not used here.
+                rawCurrent = firstNonZero(new String[]{CURRENT_PATHS[0], CURRENT_PATHS[1], CURRENT_PATHS[2]});
+                if (rawCurrent == 0) rawCurrent = Long.MIN_VALUE;
+                else rawCurrent = charging ? Math.abs(rawCurrent) : -Math.abs(rawCurrent);
+            }
+            batteryCurrentMicroamps = rawCurrent;
+            double watts = TelemetryMath.watts(rawCurrent, mv);
+            batteryMw.set(Double.isNaN(watts) ? -1 : (int)Math.round(watts * 1000));
+            long charge = batteryManager == null ? Long.MIN_VALUE
+                    : batteryManager.getLongProperty(BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER);
+            batteryAvailableMah = TelemetryMath.chargeMah(charge);
+            if (charge == 0 && pct != 0) batteryAvailableMah = Double.NaN;
+            if (Double.isNaN(batteryAvailableMah)) {
+                long full = firstNonZero(new String[]{"/sys/class/power_supply/battery/charge_full",
+                        "/sys/class/power_supply/battery/charge_full_design", "/sys/class/power_supply/bms/charge_full"});
+                double fullMah = TelemetryMath.chargeMah(full);
+                if (full > 0 && pct >= 0 && !Double.isNaN(fullMah)) {
+                    batteryAvailableMah = fullMah * pct / 100d;
+                    batteryChargeEstimated = true;
+                }
             }
         } catch (Exception ignored) {}
-    }
-
-    /**
-     * BatteryManager normally reports microamps, while a number of vendor
-     * sysfs nodes (including Samsung fuel gauges) expose milliamps.  Match
-     * Detect the kernel current unit before calculating voltage x current.
-     */
-    private float normalizeCurrentAmps(long rawCurrent) {
-        if (rawCurrent == 0 || rawCurrent == Long.MIN_VALUE) return -1f;
-        long magnitude = Math.abs(rawCurrent);
-        return magnitude < 20_000L ? magnitude / 1_000f : magnitude / 1_000_000f;
     }
 
     private void pollRam() {
@@ -355,10 +399,12 @@ public class HudDataSource {
                 if (line.startsWith("MemTotal:"))     memTotal = parseMeminfoKb(line);
                 else if (line.startsWith("MemAvailable:")) { memAvail = parseMeminfoKb(line); break; }
             }
-            if (memTotal > 0 && memAvail >= 0)
+            ramTotalBytes = memTotal > 0 ? memTotal * 1024 : -1;
+            ramAvailableBytes = memAvail >= 0 && memAvail <= memTotal ? memAvail * 1024 : -1;
+            if (memTotal > 0 && memAvail >= 0 && memAvail <= memTotal)
                 ramUsagePct.set((int)(100L * (memTotal - memAvail) / memTotal));
             else ramUsagePct.set(-1);
-        } catch (Exception e) { ramUsagePct.set(-1); }
+        } catch (Exception e) { ramUsagePct.set(-1); ramTotalBytes = ramAvailableBytes = -1; }
     }
 
     private long parseMeminfoKb(String line) {
@@ -509,7 +555,7 @@ public class HudDataSource {
         if (type.contains("big") || type.contains("little") || type.contains("mid")) return 9;
         if (type.contains("acpm")) return 10;
         if (isExcludedZone(type)) return -1;
-        return 90;
+        return -1;
     }
 
     private static boolean isExcludedZone(String type) {

@@ -2781,7 +2781,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         String runtimeHudMode = getRuntimeHudMode();
         if (container != null && container.isShowFPS()
                 && !"dxvk".equals(runtimeHudMode)) {
-            hudDataSource = new HudDataSource(this);
+            hudDataSource = getHudDataSource();
             frameRating = new WinlatorHUD(this);
             frameRating.setDataSource(hudDataSource);
             frameRating.setMangoStyle("mangohud".equals(runtimeHudMode));
@@ -3923,7 +3923,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
     private void ensureWinlatorHud() {
         if (frameRating != null) return;
         FrameLayout root = findViewById(R.id.FLXServerDisplay);
-        hudDataSource = new HudDataSource(this);
+        hudDataSource = getHudDataSource();
         frameRating = new WinlatorHUD(this);
         frameRating.setDataSource(hudDataSource);
         frameRating.setWrapperName(graphicsDriver);
@@ -4183,6 +4183,45 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         catch (Exception ignored) {}
     }
 
+    public synchronized HudDataSource getHudDataSource() {
+        if (hudDataSource == null) hudDataSource = new HudDataSource(this);
+        hudDataSource.start();
+        return hudDataSource;
+    }
+
+    private void bindHudTelemetry(ContentDialog dialog) {
+        bindHudFormat(dialog.findViewById(R.id.SPHudRamFormat), R.array.hud_ram_format_entries,
+                frameRating.getRamFormat(), frameRating::setRamFormat);
+        int[] controls = {R.id.CBHudCoreFrequency, R.id.CBHudCoreUsage, R.id.CBHudCoreName,
+                R.id.CBHudGpuFrequency, R.id.CBHudBatteryCharge};
+        String[] keys = {"core_frequency", "core_usage", "core_name", "gpu_frequency", "battery_charge"};
+        for (int i = 0; i < controls.length; i++) {
+            CheckBox check = dialog.findViewById(controls[i]);
+            String key = keys[i];
+            check.setChecked(frameRating.getTelemetryOption(key));
+            check.setOnCheckedChangeListener((button, enabled) -> frameRating.setTelemetryOption(key, enabled));
+        }
+        dialog.findViewById(R.id.BTHudCores).setOnClickListener(view -> {
+            com.winlator.cmod.core.CpuTelemetry.Core[] cores = getHudDataSource().cpu.cores;
+            int count = cores.length > 0 ? cores.length : Runtime.getRuntime().availableProcessors();
+            String[] labels = new String[count], ids = new String[count];
+            boolean[] checked = new boolean[count];
+            java.util.Set<String> selected = frameRating.getSelectedCores();
+            for (int i = 0; i < count; i++) {
+                ids[i] = String.valueOf(cores.length > 0 ? cores[i].id : i);
+                labels[i] = cores.length > 0 ? cores[i].label(true) : "CPU " + i;
+                checked[i] = selected.contains(ids[i]);
+            }
+            new androidx.appcompat.app.AlertDialog.Builder(dialog.getContext())
+                    .setTitle(R.string.hud_select_cores)
+                    .setMultiChoiceItems(labels, checked, (choice, index, on) -> {
+                        if (on) selected.add(ids[index]); else selected.remove(ids[index]);
+                    })
+                    .setPositiveButton(android.R.string.ok, (choice, which) -> frameRating.setSelectedCores(selected))
+                    .setNegativeButton(R.string.cancel, null).show();
+        });
+    }
+
     private void showHUDConfigDialog() {
         if (container != null && !"winlator".equals(container.getHudMode())) {
             AppUtils.showToast(this, "Select Winlator HUD in the container settings to customize it here.");
@@ -4190,7 +4229,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         }
         if (frameRating == null) {
             FrameLayout rootView = findViewById(R.id.FLXServerDisplay);
-            hudDataSource = new HudDataSource(this);
+            hudDataSource = getHudDataSource();
             frameRating = new WinlatorHUD(this);
             frameRating.setDataSource(hudDataSource);
             frameRating.setWrapperName(graphicsDriver);
@@ -4208,6 +4247,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         dialog.setTitle(R.string.hud_settings);
         dialog.setIcon(R.drawable.ic_hud);
 
+        bindHudTelemetry(dialog);
         CheckBox cbEnable = dialog.findViewById(R.id.CBHudEnable);
         CheckBox cbFps = dialog.findViewById(R.id.CBHudFPS);
         CheckBox cbGpu = dialog.findViewById(R.id.CBHudGPU);
@@ -4337,6 +4377,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
                 spSocFormat.setSelection(frameRating.getSocFormat());
                 spGpuFormat.setSelection(frameRating.getGpuFormat());
                 spDeviceFormat.setSelection(frameRating.isDeviceFamily() ? 1 : 0);
+                bindHudTelemetry(dialog);
                 cbVert.setChecked(frameRating.isVertical());
                 sbAlpha.setProgress(Math.round(frameRating.getHudAlpha() * 100));
                 sbScale.setProgress(Math.round((frameRating.getHudScale() - 0.5f) / 1.5f * 100));

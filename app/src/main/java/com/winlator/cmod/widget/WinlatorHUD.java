@@ -26,6 +26,8 @@ import com.winlator.cmod.contentdialog.ContentDialog;
 import com.winlator.cmod.core.StringUtils;
 import com.winlator.cmod.core.ExynosDevices;
 import com.winlator.cmod.core.HardwareLabel;
+import com.winlator.cmod.core.CpuTelemetry;
+import com.winlator.cmod.core.TelemetryMath;
 import com.winlator.cmod.renderer.FrameRateSample;
 
 import java.util.Locale;
@@ -126,6 +128,10 @@ public class WinlatorHUD extends View {
     private String strSoc, strDevice, strDriver = "System";
     private int socFormat, gpuFormat;
     private boolean deviceFamily;
+    private int ramFormat;
+    private boolean coreFrequency, coreUsage, coreName, gpuFrequency, batteryCharge;
+    private java.util.Set<String> selectedCores = new java.util.HashSet<>();
+    private java.util.List<String> telemetryRows = java.util.Collections.emptyList();
     private boolean snapCharging = false;
     private final int ramBlinkThreshold;
     private final int ramWarningThreshold;
@@ -357,7 +363,9 @@ public class WinlatorHUD extends View {
 
             if (g != snapGpu)   { snapGpu = g;  strGpu = g  >= 0 ? g  + "%" : "N/A"; }
             if (cp != snapCpu)  { snapCpu = cp; strCpu = cp >= 0 ? cp + "%" : "N/A"; }
-            if (rm != snapRam)  { snapRam = rm; strRam = rm >= 0 ? rm + "%" : "N/A"; }
+            snapRam = rm;
+            String ram = TelemetryMath.ram(dataSource.ramTotalBytes, dataSource.ramAvailableBytes, ramFormat);
+            if (!ram.equals(strRam)) { strRam = ram; requestLayout(); }
             updateRamAlert(rm);
             if (tm != snapTmp)  { snapTmp = tm; strTmp = tm > 0 ? tm + "°C" : ""; }
             if (ctm != snapCTmp) { snapCTmp = ctm; strCTmp = ctm > 0 ? ctm + "°C" : ""; }
@@ -365,11 +373,24 @@ public class WinlatorHUD extends View {
             if (pc != snapPct)  { snapPct = pc; strPct = pc >= 0 ? pc + "%" : ""; }
             if (mw != snapMw) {
                 snapMw = mw;
-                snapCharging = (mw == -2);
-                if (snapCharging)   strPwr = "CHG";
-                else if (mw > 0)    strPwr = String.format(Locale.US, "%.1fW", mw / 1000f);
+                if (mw >= 0)       strPwr = String.format(Locale.US, "%.1fW", mw / 1000f);
                 else                strPwr = "N/A";
             }
+            snapCharging = dataSource.charging;
+            java.util.List<String> rows = new java.util.ArrayList<>();
+            if ((showMask & SHOW_BATT_PCT) != 0 && (showMask & SHOW_BATT) == 0)
+                rows.add(pc >= 0 ? pc + "%" : "N/A %");
+            if (gpuFrequency) rows.add("GPU " + (dataSource.gpuMhz.get() >= 0 ? dataSource.gpuMhz.get() + " MHz" : "N/A"));
+            if (batteryCharge) rows.add((dataSource.batteryChargeEstimated ? "≈" : "")
+                    + (Double.isNaN(dataSource.batteryAvailableMah) ? "N/A mAh"
+                    : String.format(Locale.getDefault(), "%.0f mAh", dataSource.batteryAvailableMah)));
+            for (CpuTelemetry.Core core : dataSource.cpu.cores) if (selectedCores.contains(String.valueOf(core.id))) {
+                String value = core.label(coreName);
+                if (coreFrequency) value += " " + (core.mhz >= 0 ? core.mhz + " MHz" : "N/A MHz");
+                if (coreUsage) value += " " + (core.usage >= 0 ? core.usage + "%" : "N/A %");
+                rows.add(value);
+            }
+            if (!rows.equals(telemetryRows)) { telemetryRows = rows; layoutDirty = true; requestLayout(); }
         }
     }
 
@@ -512,7 +533,7 @@ public class WinlatorHUD extends View {
             if ((showMask & SHOW_BATT_PCT) != 0) {
                 x += drawSep(c, x, 0);
                 float pw = Math.max((compact ? pBat : pVal).measureText(strPct), wVal100pct);
-                c.drawText(strPct.isEmpty() ? "0%" : strPct, x, baseline, compact ? pBat : pVal);
+                c.drawText(strPct.isEmpty() ? "N/A" : strPct, x, baseline, compact ? pBat : pVal);
                 x += pw;
             }
             if (!strTmp.isEmpty() || (showMask & SHOW_COMPACT) == 0) {
@@ -586,6 +607,7 @@ public class WinlatorHUD extends View {
             if ((showMask & SHOW_GRAPH) != 0) {
                 x += PAD;
                 drawInlineGraph(c, x, PAD, GRAW, rowH - PAD * 2);
+                x += GRAW;
             }
             first = false;
         }
@@ -601,6 +623,14 @@ public class WinlatorHUD extends View {
             Paint statusPaint = apexFailure ? pTmp : pRend;
             float baseline = getBaseline(statusPaint, 0, rowH);
             c.drawText(strFgStatus, x, baseline, statusPaint);
+            x += statusPaint.measureText(strFgStatus);
+            first = false;
+        }
+        for (String row : telemetryRows) {
+            if (!first) x += drawSep(c, x, 0);
+            c.drawText(row, x, getBaseline(pVal, 0, rowH), pVal);
+            x += pVal.measureText(row);
+            first = false;
         }
     }
 
@@ -650,7 +680,7 @@ public class WinlatorHUD extends View {
         if ((showMask & SHOW_BATT) != 0) {
             float bl = getBaseline(compact ? pBat : pVal, y, lineH);
             if (!compact) c.drawText("PWR ", PAD, bl, pBat);
-            String bInfo = strPwr + ((showMask & SHOW_BATT_PCT) != 0 ? " ("+(strPct.isEmpty() ? "0%" : strPct)+")" : "");
+            String bInfo = strPwr + ((showMask & SHOW_BATT_PCT) != 0 ? " ("+(strPct.isEmpty() ? "N/A" : strPct)+")" : "");
             c.drawText(bInfo, PAD + (compact ? 0 : wLabelPwr), bl, snapCharging ? pChg : (compact ? pBat : pVal));
             y += lineH;
             if (!strTmp.isEmpty() || (showMask & SHOW_COMPACT) == 0) {
@@ -709,6 +739,11 @@ public class WinlatorHUD extends View {
         if ((showMask & SHOW_FG_STATUS) != 0) {
             Paint statusPaint = apexFailure ? pTmp : pRend;
             c.drawText(strFgStatus, PAD, getBaseline(statusPaint, y, lineH), statusPaint);
+            y += lineH;
+        }
+        for (String row : telemetryRows) {
+            c.drawText(row, PAD, getBaseline(pVal, y, lineH), pVal);
+            y += lineH;
         }
     }
 
@@ -831,6 +866,12 @@ public class WinlatorHUD extends View {
         if ((showMask & SHOW_FG_STATUS) != 0) {
             if (!first) w += drawSep(null, 0, 0);
             w += (apexFailure ? pTmp : pRend).measureText(strFgStatus);
+            first = false;
+        }
+        for (String row : telemetryRows) {
+            if (!first) w += drawSep(null, 0, 0);
+            w += pVal.measureText(row);
+            first = false;
         }
         return w + radius * 2;
     }
@@ -873,6 +914,7 @@ public class WinlatorHUD extends View {
             w = Math.max(w, PAD * 2 + pRend.measureText(strFgLatency));
         if ((showMask & SHOW_FG_STATUS) != 0)
             w = Math.max(w, PAD * 2 + (apexFailure ? pTmp : pRend).measureText(strFgStatus));
+        for (String row : telemetryRows) w = Math.max(w, PAD * 2 + pVal.measureText(row));
         return w;
     }
 
@@ -901,7 +943,7 @@ public class WinlatorHUD extends View {
         if ((showMask & SHOW_FPS)      != 0) r++;
         if ((showMask & SHOW_FG_LATENCY) != 0) r++;
         if ((showMask & SHOW_FG_STATUS) != 0) r++;
-        return Math.max(1, r);
+        return Math.max(1, r + telemetryRows.size());
     }
 
     @Override
@@ -1021,6 +1063,13 @@ public class WinlatorHUD extends View {
         socFormat = prefs.getInt(KEY_SOC_FORMAT, HardwareLabel.FULL);
         gpuFormat = prefs.getInt(KEY_GPU_FORMAT, HardwareLabel.FULL);
         deviceFamily = prefs.getBoolean(KEY_DEVICE_FAMILY, false);
+        ramFormat = Math.max(0, Math.min(3, prefs.getInt("ram_format", 0)));
+        coreFrequency = prefs.getBoolean("core_frequency", true);
+        coreUsage = prefs.getBoolean("core_usage", true);
+        coreName = prefs.getBoolean("core_name", false);
+        gpuFrequency = prefs.getBoolean("gpu_frequency", false);
+        batteryCharge = prefs.getBoolean("battery_charge", false);
+        selectedCores = new java.util.HashSet<>(prefs.getStringSet("selected_cores", java.util.Collections.emptySet()));
         updateHardwareLabels();
         // 0.9.5 makes the FPS field part of the visible default for both new
         // and upgraded installs. Run this once so an older saved HUD mask does
@@ -1221,6 +1270,32 @@ public class WinlatorHUD extends View {
     public int getGpuFormat() { return gpuFormat; }
     public boolean isDeviceFamily() { return deviceFamily; }
 
+    public int getRamFormat() { return ramFormat; }
+    public boolean getTelemetryOption(String key) { return prefs.getBoolean(key, key.equals("core_frequency") || key.equals("core_usage")); }
+    public void setRamFormat(int format) {
+        ramFormat = Math.max(0, Math.min(3, format));
+        prefs.edit().putInt("ram_format", ramFormat).apply();
+        snapshot(); invalidate(); requestLayout();
+    }
+    public void setTelemetryOption(String key, boolean enabled) {
+        switch (key) {
+            case "core_frequency": coreFrequency = enabled; break;
+            case "core_usage": coreUsage = enabled; break;
+            case "core_name": coreName = enabled; break;
+            case "gpu_frequency": gpuFrequency = enabled; break;
+            case "battery_charge": batteryCharge = enabled; break;
+            default: return;
+        }
+        prefs.edit().putBoolean(key, enabled).apply();
+        snapshot(); requestLayout(); invalidate();
+    }
+    public java.util.Set<String> getSelectedCores() { return new java.util.HashSet<>(selectedCores); }
+    public void setSelectedCores(java.util.Set<String> ids) {
+        selectedCores = new java.util.HashSet<>(ids);
+        prefs.edit().putStringSet("selected_cores", selectedCores).apply();
+        snapshot(); requestLayout(); invalidate();
+    }
+
     public void setHardwareLabelFormat(boolean gpu, int format) {
         int selected = Math.max(0, Math.min(2, format));
         if (gpu) gpuFormat = selected; else socFormat = selected;
@@ -1318,6 +1393,11 @@ public class WinlatorHUD extends View {
             showMask = mangoStyle ? SHOW_MANGO_DEFAULT : SHOW_DEFAULT;
             socFormat = gpuFormat = HardwareLabel.FULL;
             deviceFamily = false;
+            ramFormat = 0;
+            coreFrequency = coreUsage = true;
+            coreName = gpuFrequency = batteryCharge = false;
+            selectedCores.clear();
+            telemetryRows = java.util.Collections.emptyList();
             updateHardwareLabels();
             vertical = false;
             layoutDirty = true;
@@ -1332,6 +1412,10 @@ public class WinlatorHUD extends View {
             ed.putInt(KEY_SOC_FORMAT, socFormat);
             ed.putInt(KEY_GPU_FORMAT, gpuFormat);
             ed.putBoolean(KEY_DEVICE_FAMILY, deviceFamily);
+            ed.putInt("ram_format", ramFormat);
+            ed.putBoolean("core_frequency", true).putBoolean("core_usage", true)
+                    .putBoolean("core_name", false).putBoolean("gpu_frequency", false)
+                    .putBoolean("battery_charge", false).putStringSet("selected_cores", new java.util.HashSet<>());
             ed.putBoolean(KEY_VERT, vertical);
             ed.putFloat(KEY_SCALE, 1.0f);
             ed.putInt(KEY_ALPHA, 55);

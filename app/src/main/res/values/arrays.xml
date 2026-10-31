@@ -396,4 +396,10 @@
         <item>Model (S24+, A55…)</item>
         <item>Galaxy family (Galaxy S, Galaxy A…)</item>
     </string-array>
+    <string-array name="hud_ram_format_entries">
+        <item>@string/hud_ram_used_percent</item>
+        <item>@string/hud_ram_free_percent</item>
+        <item>@string/hud_ram_used_gb</item>
+        <item>@string/hud_ram_free_gb</item>
+    </string-array>
 </resources>

@@ -78,32 +78,28 @@ public class InlineTaskManagerPanel extends LinearLayout implements OnGetProcess
     }
 
     private void updateHardwareInfo() {
-        short[] clocks = CPUStatus.getCurrentClockSpeeds();
+        com.winlator.cmod.widget.HudDataSource source = activity.getHudDataSource();
+        com.winlator.cmod.core.CpuTelemetry.Sample sample = source.cpu;
         LinearLayout list = findViewById(R.id.LLInlineCPUInfo);
-        while (list.getChildCount() < clocks.length) {
-            TextView core = new TextView(activity);
-            core.setTextColor(resolveOnSurfaceColor());
-            core.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
-            core.setSingleLine(true);
-            list.addView(core);
+        int count = sample.cores.length + 1;
+        while (list.getChildCount() < count) {
+            TextView row = new TextView(activity);
+            row.setTextColor(resolveOnSurfaceColor());
+            row.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
+            row.setPadding(0, 2, 0, 2);
+            list.addView(row);
         }
-        while (list.getChildCount() > clocks.length)
-            list.removeViewAt(list.getChildCount() - 1);
-
-        int totalCurrent = 0;
-        int totalMaximum = 0;
-        for (int i = 0; i < clocks.length; i++) {
-            int current = Math.max(0, clocks[i]);
-            int maximum = Math.max(0, CPUStatus.getMaxClockSpeed(i));
-            int usage = maximum > 0 ? Math.min(100, Math.round(current * 100f / maximum)) : 0;
-            totalCurrent += current;
-            totalMaximum += maximum;
-            ((TextView) list.getChildAt(i)).setText("Core " + (i + 1) + "   "
-                    + current + " / " + maximum + " MHz   " + usage + "%");
+        while (list.getChildCount() > count) list.removeViewAt(list.getChildCount() - 1);
+        for (int i = 0; i < sample.cores.length; i++) {
+            com.winlator.cmod.core.CpuTelemetry.Core core = sample.cores[i];
+            ((TextView)list.getChildAt(i)).setText(core.label(true) + "   "
+                    + (core.mhz >= 0 ? core.mhz + " MHz" : "N/A MHz") + "   "
+                    + (core.usage >= 0 ? core.usage + "%" : "N/A %"));
         }
-        int cpuUsage = totalMaximum > 0
-                ? Math.min(100, Math.round(totalCurrent * 100f / totalMaximum)) : 0;
-        ((TextView) findViewById(R.id.TVInlineCPUTitle)).setText("CPU (" + cpuUsage + "%)");
+        int gpu = source.gpuLoad.get(), mhz = source.gpuMhz.get();
+        ((TextView)list.getChildAt(count - 1)).setText("GPU   "
+                + (gpu >= 0 ? gpu + "%" : "N/A %") + "   " + (mhz >= 0 ? mhz + " MHz" : "N/A MHz"));
+        ((TextView)findViewById(R.id.TVInlineCPUTitle)).setText("CPU (" + (sample.usage >= 0 ? sample.usage + "%" : "N/A") + ")");
         ActivityManager manager = (ActivityManager) activity.getSystemService(Context.ACTIVITY_SERVICE);
         ActivityManager.MemoryInfo info = new ActivityManager.MemoryInfo();
         manager.getMemoryInfo(info);

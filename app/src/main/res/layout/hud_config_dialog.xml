@@ -55,6 +55,11 @@
                     <Spinner android:id="@+id/SPHudDeviceFormat" style="@style/ComboBox" android:layout_width="match_parent" android:layout_height="wrap_content" android:entries="@array/hud_device_format_entries" />
                     <CheckBox android:id="@+id/CBHudGPU" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/hud_gpu_load" />
                     <CheckBox android:id="@+id/CBHudCPU" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/hud_cpu_load" />
+                    <Button android:id="@+id/BTHudCores" style="@style/ButtonNeutral" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/hud_select_cores" />
+                    <CheckBox android:id="@+id/CBHudCoreFrequency" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/hud_core_frequency" />
+                    <CheckBox android:id="@+id/CBHudCoreUsage" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/hud_core_usage" />
+                    <CheckBox android:id="@+id/CBHudCoreName" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/hud_core_name" />
+                    <CheckBox android:id="@+id/CBHudGpuFrequency" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/hud_gpu_frequency" />
                     <CheckBox android:id="@+id/CBHudCPUTemp" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/hud_cpu_temp" />
                     <CheckBox android:id="@+id/CBHudGPUTemp" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/hud_gpu_temp" />
                     <CheckBox android:id="@+id/CBHudPhoneGPU" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/hud_phone_gpu" />
@@ -64,6 +69,7 @@
                     <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/hud_soc_format" />
                     <Spinner android:id="@+id/SPHudSocFormat" style="@style/ComboBox" android:layout_width="match_parent" android:layout_height="wrap_content" android:entries="@array/hud_hardware_format_entries" />
                     <CheckBox android:id="@+id/CBHudRAM" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/hud_ram" />
+                    <Spinner android:id="@+id/SPHudRamFormat" style="@style/ComboBox" android:layout_width="match_parent" android:layout_height="wrap_content" android:entries="@array/hud_ram_format_entries" />
                     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal">
                         <CheckBox android:id="@+id/CBHudRamWarning" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/disable_ram_warning" />
                         <ImageView
@@ -75,6 +81,8 @@
                             app:tint="?colorAccent" />
                     </LinearLayout>
                     <CheckBox android:id="@+id/CBHudBattery" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/hud_battery" />
+                    <CheckBox android:id="@+id/CBHudBatteryCharge" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/hud_battery_charge" />
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/hud_sensor_note" />
                     <CheckBox android:id="@+id/CBHudBatteryPct" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/hud_battery_percent" />
                 </LinearLayout>
 

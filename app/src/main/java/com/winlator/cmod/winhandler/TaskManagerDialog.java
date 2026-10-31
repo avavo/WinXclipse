@@ -181,41 +181,28 @@ public class TaskManagerDialog extends ContentDialog implements OnGetProcessInfo
     }
 
     private void updateCPUInfoView() {
-        short[] clockSpeeds = CPUStatus.getCurrentClockSpeeds();
-        int totalClockSpeed = 0;
-        int totalMaxClockSpeed = 0;
-        final LinearLayout cpuInfo = findViewById(R.id.LLCPUInfo);
-
-        while (cpuInfo.getChildCount() < clockSpeeds.length) {
-            TextView coreView = new TextView(getContext());
-            coreView.setTextColor(resolveThemeColor(R.attr.winxOnSurfaceColor));
-            coreView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
-            coreView.setSingleLine(true);
-            coreView.setPadding(0, 1, 0, 1);
-            cpuInfo.addView(coreView);
+        com.winlator.cmod.widget.HudDataSource source = activity.getHudDataSource();
+        com.winlator.cmod.core.CpuTelemetry.Sample sample = source.cpu;
+        LinearLayout list = findViewById(R.id.LLCPUInfo);
+        int count = sample.cores.length + 1;
+        while (list.getChildCount() < count) {
+            TextView row = new TextView(activity);
+            row.setTextColor(resolveThemeColor(R.attr.winxOnSurfaceColor));
+            row.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
+            row.setPadding(0, 2, 0, 2);
+            list.addView(row);
         }
-        while (cpuInfo.getChildCount() > clockSpeeds.length) {
-            cpuInfo.removeViewAt(cpuInfo.getChildCount() - 1);
+        while (list.getChildCount() > count) list.removeViewAt(list.getChildCount() - 1);
+        for (int i = 0; i < sample.cores.length; i++) {
+            com.winlator.cmod.core.CpuTelemetry.Core core = sample.cores[i];
+            ((TextView)list.getChildAt(i)).setText(core.label(true) + "   "
+                    + (core.mhz >= 0 ? core.mhz + " MHz" : "N/A MHz") + "   "
+                    + (core.usage >= 0 ? core.usage + "%" : "N/A %"));
         }
-
-        for (int i = 0; i < clockSpeeds.length; i++) {
-            int current = Math.max(0, clockSpeeds[i]);
-            int maximum = Math.max(0, CPUStatus.getMaxClockSpeed(i));
-            totalClockSpeed += current;
-            totalMaxClockSpeed += maximum;
-            ((TextView)cpuInfo.getChildAt(i)).setText("Core " + (i + 1) + "   "
-                    + current + " / " + maximum + " MHz");
-        }
-
-        int cpuCount = clockSpeeds.length;
-        int avgClockSpeed = cpuCount > 0 ? totalClockSpeed / cpuCount : 0;
-        int avgMaxClockSpeed = cpuCount > 0 ? totalMaxClockSpeed / cpuCount : 0;
-        int cpuUsagePercent = avgMaxClockSpeed > 0
-                ? Math.min(100, Math.max(0, Math.round((avgClockSpeed * 100.0f) / avgMaxClockSpeed)))
-                : 0;
-
-        TextView tvCPUTitle = findViewById(R.id.TVCPUTitle);
-        tvCPUTitle.setText("CPU ("+cpuUsagePercent+"%)");
+        int gpu = source.gpuLoad.get(), mhz = source.gpuMhz.get();
+        ((TextView)list.getChildAt(count - 1)).setText("GPU   "
+                + (gpu >= 0 ? gpu + "%" : "N/A %") + "   " + (mhz >= 0 ? mhz + " MHz" : "N/A MHz"));
+        ((TextView)findViewById(R.id.TVCPUTitle)).setText("CPU (" + (sample.usage >= 0 ? sample.usage + "%" : "N/A") + ")");
 
     }
 
