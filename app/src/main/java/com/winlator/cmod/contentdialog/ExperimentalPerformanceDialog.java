@@ -20,7 +20,7 @@ import com.winlator.cmod.widget.ThemedSpinnerAdapter;
  */
 public class ExperimentalPerformanceDialog extends ContentDialog {
     public static final String DEFAULT_CONFIG =
-            "vramCap=0,vramCapMode=auto,perfcache=0,mdiex=0,ramAggro=0,wow64Pin=0,translationTurbo=0";
+            "vramCap=0,vramCapMode=auto,perfcache=0,mdiex=0,ramAggro=0,maliCleanup=0,wow64Pin=0,translationTurbo=0";
 
     public interface OnConfirmCallback {
         void onConfirm(String config);
@@ -47,6 +47,7 @@ public class ExperimentalPerformanceDialog extends ContentDialog {
         CheckBox cbPerfcache = findViewById(R.id.CBXPerfPerfcache);
         CheckBox cbMdiex = findViewById(R.id.CBXPerfMdiex);
         CheckBox cbNramv = findViewById(R.id.CBXPerfNramv);
+        CheckBox cbMaliCleanup = findViewById(R.id.CBXPerfMaliCleanup);
 
         sVramCapMode.setAdapter(new ThemedSpinnerAdapter<>(context,
                 new String[]{"Auto", "2048 MB", "3072 MB", "4096 MB", "6144 MB",
@@ -67,6 +68,7 @@ public class ExperimentalPerformanceDialog extends ContentDialog {
         cbPerfcache.setChecked("1".equals(config.get("perfcache")));
         cbMdiex.setChecked("1".equals(config.get("mdiex")));
         cbNramv.setChecked("1".equals(config.get("ramAggro")));
+        cbMaliCleanup.setChecked("1".equals(config.get("maliCleanup")));
 
         Runnable updateVramCapUi = () -> {
             float alpha = cbVramCap.isChecked() ? 1f : 0.45f;
@@ -87,6 +89,8 @@ public class ExperimentalPerformanceDialog extends ContentDialog {
                 AppUtils.showHelpBox(context, v, R.string.xperf_help_mdiex));
         findViewById(R.id.BTXPerfNramvHelp).setOnClickListener(v ->
                 AppUtils.showHelpBox(context, v, R.string.xperf_help_nramv));
+        findViewById(R.id.BTXPerfMaliCleanupHelp).setOnClickListener(v ->
+                AppUtils.showHelpBox(context, v, R.string.xperf_help_mali_cleanup));
 
         setOnConfirmCallback(() -> {
             config.put("vramCap", cbVramCap.isChecked() ? "1" : "0");
@@ -104,6 +108,7 @@ public class ExperimentalPerformanceDialog extends ContentDialog {
             config.put("perfcache", cbPerfcache.isChecked() ? "1" : "0");
             config.put("mdiex", cbMdiex.isChecked() ? "1" : "0");
             config.put("ramAggro", cbNramv.isChecked() ? "1" : "0");
+            config.put("maliCleanup", cbMaliCleanup.isChecked() ? "1" : "0");
             callback.onConfirm(config.toString());
         });
     }

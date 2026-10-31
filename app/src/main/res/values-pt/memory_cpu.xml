@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sync_cpu_topology">Sincronizar com o Wine</string>
+    <string name="sync_cpu_topology_help">Informa ao Wine os núcleos selecionados e sua quantidade. Usa a lista principal de afinidade; a afinidade de 32 bits continua independente. Desativado por padrão. Requer suporte na versão do Wine escolhida.</string>
+    <string name="xperf_mali_cleanup">Preparar memória Mali (antes de iniciar)</string>
+    <string name="xperf_help_mali_cleanup">Preparação opcional baseada no Winlator Mali. Aloca e libera brevemente até 256 MiB antes de iniciar o Wine, somente com memória disponível suficiente. É ignorada se o Wine estiver rodando ou houver pouca RAM. Nunca se repete durante o jogo. Pode atrasar a abertura e não trazer benefício; desativada por padrão.</string>
+</resources>

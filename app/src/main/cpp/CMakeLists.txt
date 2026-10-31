@@ -47,6 +47,7 @@ add_library(winlator SHARED
         ram_optimizer_xclipse/rox_debug.c
         ram_optimizer_xclipse/rox_compat.c
         winlator/ram_optimizer_xclipse_bridge.c
+        winlator/startup_memory_cleaner.c
         winlator/winxclipse_policy_bridge.c
 )
 

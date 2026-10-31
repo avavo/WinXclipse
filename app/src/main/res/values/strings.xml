@@ -323,7 +323,7 @@
     <string name="xperf_help_vram_cap_mode">How the VRAM cap size is chosen. Auto picks a safe value based on your device RAM; manual values force a specific cap.</string>
     <string name="xperf_help_perfcache">Keeps the Xclipse driver shader pipeline and texture caches between runs, so games compile shaders less often and load faster after the first run.</string>
     <string name="xperf_help_mdiex">WinXclipse policy engine: tunes scheduling and memory hints specifically for your SoC (chipset) during the session.</string>
-    <string name="xperf_help_nramv">Experimental RAM Optimizer Xclipse: applies an aggressive memory pass to the Android app process at session startup. It does not reclaim memory from background apps or the separate Wine process. The HUD only displays RAM usage and never triggers paging during gameplay.</string>
+    <string name="xperf_help_nramv">Purges unused allocator memory in the Android app once at session startup. It does not page out live UI or renderer heaps and does not reclaim memory from other apps or the separate Wine process. Unsupported Android allocators are left unchanged.</string>
     <string name="xperf_help_wow64_pin">Pins WoW64 (32-bit on 64-bit) translation threads to the performance (big) cores, reducing stutter in 32-bit games.</string>
     <string name="xperf_help_translation_turbo">Applies the new Turbo translator settings without changing the selected preset: larger translated blocks, faster floating-point paths, and relaxed x86 memory/self-modifying-code checks in Box86/Box64 and FEXCore. It can noticeably improve CPU-limited games. Turn it off if a game crashes, hangs, or shows simulation glitches.</string>
     <string name="gdc_help_sync_frame">Waits for the display on every frame (lowest input latency, slightly lower FPS).</string>
@@ -354,7 +354,7 @@
     <string name="xperf_vram_cap_mode">VRAM cap size</string>
     <string name="xperf_perfcache">Cache Xclipse (pipeline &amp; texture caches)</string>
     <string name="xperf_mdiex">WinXclipse policy engine (per-SoC)</string>
-    <string name="xperf_nramv">RAM Optimizer Xclipse: aggressive reclaim</string>
+    <string name="xperf_nramv">RAM Aggressive: purge unused allocator memory</string>
 
 
     <string name="xperf_need_master">Enable Experimental Performance first</string>

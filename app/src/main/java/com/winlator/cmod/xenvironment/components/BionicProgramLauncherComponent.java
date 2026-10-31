@@ -75,6 +75,9 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
     private volatile boolean preparingPrefix = true;
     private Callback<String> startupFailureCallback;
     private Runnable prefixUpdatedCallback;
+    private boolean startupMemoryCleanupEnabled;
+
+    public void setStartupMemoryCleanupEnabled(boolean enabled) { startupMemoryCleanupEnabled = enabled; }
 
     public void setStartupFailureCallback(Callback<String> callback) { startupFailureCallback = callback; }
     public void setPrefixUpdatedCallback(Runnable callback) { prefixUpdatedCallback = callback; }
@@ -669,6 +672,9 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
                 failStartup(failure.getMessage());
                 return -1;
             }
+        }
+        if (startupMemoryCleanupEnabled && !stopped) {
+            com.winlator.cmod.core.StartupMemoryCleaner.run(context, () -> stopped);
         }
         synchronized (lock) {
             if (stopped) return -1;

@@ -269,7 +269,7 @@
     <string name="xperf_help_vram_cap_mode">Define o limite de VRAM. Automático escolhe um valor conservador com base na RAM do aparelho; valores manuais forçam um limite específico.</string>
     <string name="xperf_help_perfcache">Mantém os caches de pipelines e texturas do Xclipse entre sessões, reduzindo recompilações de shaders e acelerando carregamentos posteriores.</string>
     <string name="xperf_help_mdiex">Motor de políticas do WinXclipse: ajusta o escalonamento e as recomendações de memória para o seu SoC durante a sessão.</string>
-    <string name="xperf_help_nramv">RAM Optimizer Xclipse experimental: aplica uma recuperação agressiva de memória no processo Android do app ao iniciar a sessão. Não libera memória de apps em segundo plano nem do processo separado do Wine. O HUD apenas exibe o uso de RAM e nunca aciona paginação durante o jogo.</string>
+    <string name="xperf_help_nramv">Libera memória livre do alocador do app Android uma vez ao iniciar a sessão. Não pagina heaps ativos da interface ou do renderizador, nem libera RAM de outros apps ou do processo separado do Wine. Alocadores Android sem suporte permanecem inalterados.</string>
     <string name="xperf_help_wow64_pin">Fixa as threads de tradução WoW64 nos núcleos de desempenho, reduzindo engasgos em jogos de 32 bits.</string>
     <string name="xperf_help_translation_turbo">Aplica ajustes Turbo sem alterar a predefinição selecionada: blocos traduzidos maiores, caminhos de ponto flutuante mais rápidos e verificações de memória/código automodificável menos rígidas no Box86/Box64 e FEXCore. Pode melhorar jogos limitados pela CPU. Desative se houver falhas, travamentos ou erros de simulação.</string>
     <string name="gdc_help_sync_frame">Espera a tela a cada quadro (menor latência de entrada, FPS um pouco menor).</string>
@@ -296,7 +296,7 @@
     <string name="xperf_vram_cap_mode">Tamanho do limite de VRAM</string>
     <string name="xperf_perfcache">Cache Xclipse (pipelines e texturas)</string>
     <string name="xperf_mdiex">Motor de políticas WinXclipse (por SoC)</string>
-    <string name="xperf_nramv">RAM Optimizer Xclipse: recuperação agressiva</string>
+    <string name="xperf_nramv">RAM Aggressive: liberar memória livre do alocador</string>
     <string name="xperf_need_master">Ative o Desempenho experimental primeiro</string>
     <string name="experimental_bcn">Suporte experimental a BCn</string>
     <string name="experimental_bcn_description">Ativa a camada experimental de compatibilidade com BCn neste container ou atalho. O pacote otimizado para Xclipse é uma opção dentro desta seção.</string>

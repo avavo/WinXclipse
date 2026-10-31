@@ -83,6 +83,7 @@ public class Container {
     private byte startupSelection = STARTUP_SELECTION_ESSENTIAL;
     private String cpuList;
     private String cpuListWoW64;
+    private boolean syncCpuTopology;
     private String desktopTheme = WineThemeManager.DEFAULT_DESKTOP_THEME;
     private String box64Preset = Box86_64Preset.COMPATIBILITY;
     private File rootDir;
@@ -314,6 +315,9 @@ public class Container {
     public void setCPUListWoW64(String cpuListWoW64) {
         this.cpuListWoW64 = cpuListWoW64 != null && !cpuListWoW64.isEmpty() ? cpuListWoW64 : null;
     }
+
+    public boolean isSyncCpuTopology() { return syncCpuTopology; }
+    public void setSyncCpuTopology(boolean sync) { syncCpuTopology = sync; }
 
     public boolean isExclusiveXInput() {
         return exclusiveXInput;
@@ -573,6 +577,7 @@ public class Container {
         data.put("envVars", envVars);
         data.put("cpuList", cpuList);
         data.put("cpuListWoW64", cpuListWoW64);
+        data.put("syncCpuTopology", syncCpuTopology);
         data.put("graphicsDriver", graphicsDriver);
         data.put("graphicsDriverConfig", graphicsDriverConfig);
         data.put("emulator", emulator);
@@ -685,6 +690,7 @@ public class Container {
         dxwrapperConfig = "";
         cpuList = null;
         cpuListWoW64 = null;
+        syncCpuTopology = false;
         emulator = null;
         extraData = null;
         checkObsoleteOrMissingProperties(data);
@@ -706,6 +712,9 @@ public class Container {
                     break;
                 case "cpuListWoW64" :
                     setCPUListWoW64(data.getString(key));
+                    break;
+                case "syncCpuTopology":
+                    setSyncCpuTopology(data.optBoolean(key, false));
                     break;
                 case "graphicsDriver" :
                     setGraphicsDriver(data.getString(key));

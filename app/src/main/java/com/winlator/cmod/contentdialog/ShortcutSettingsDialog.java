@@ -741,6 +741,9 @@ public class ShortcutSettingsDialog extends ContentDialog {
         cpuListView.setCheckedCPUList(shortcut.getExtra("cpuList", shortcut.container.getCPUList(true)));
         final CPUListView cpuListViewWoW64 = findViewById(R.id.CPUListViewWoW64);
         cpuListViewWoW64.setCheckedCPUList(shortcut.getExtra("cpuListWoW64", shortcut.container.getCPUListWoW64(true)));
+        final CheckBox cbSyncCpuTopology = findViewById(R.id.CBSyncCpuTopology);
+        cbSyncCpuTopology.setChecked("1".equals(shortcut.getExtra("syncCpuTopology",
+                shortcut.container.isSyncCpuTopology() ? "1" : "0")));
 
         setOnConfirmCallback(() -> {
             String name = etName.getText().toString().trim();
@@ -892,6 +895,9 @@ public class ShortcutSettingsDialog extends ContentDialog {
 
                 String cpuListWoW64 = cpuListViewWoW64.getCheckedCPUListAsString();
                 shortcut.putExtra("cpuListWoW64", !cpuListWoW64.equals(shortcut.container.getCPUListWoW64(true)) ? cpuListWoW64 : null);
+                shortcut.putExtra("syncCpuTopology",
+                        cbSyncCpuTopology.isChecked() == shortcut.container.isSyncCpuTopology()
+                                ? null : cbSyncCpuTopology.isChecked() ? "1" : "0");
 
                 // The runtime FSR extras must not override the driver config on
                 // the next launch; clear them only when the dialog is confirmed.

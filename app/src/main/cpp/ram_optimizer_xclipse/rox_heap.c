@@ -8,6 +8,42 @@
 #include "rox.h"
 #include "rox_internal.h"
 
+#if defined(__ANDROID__)
+
+__attribute__((weak)) int malloc_trim(size_t pad);
+
+/* Bionic knows which allocator pages are unused. Sweeping /proc/self/maps
+ * cannot distinguish live UI/renderer heaps and unnamed thread stacks. */
+static int purge_unused(int aggressive)
+{
+    int supported = 0;
+#ifdef M_PURGE_ALL
+    if (aggressive) supported = mallopt(M_PURGE_ALL, 0);
+#endif
+#ifdef M_PURGE
+    if (!supported) supported = mallopt(M_PURGE, 0);
+#endif
+    if (malloc_trim) {
+        (void)malloc_trim(0);
+        supported = 1;
+    }
+    return supported ? ROPT_OK : ROPT_ERR_NODEV;
+}
+
+int rox_heap_trim(void) { return purge_unused(0); }
+int rox_heap_madvise(void) { return purge_unused(0); }
+int rox_heap_madvise_free(void) { return purge_unused(0); }
+
+int rox_heap_compact(rox_profile_t profile)
+{
+    if (!rox_core_is_initialized()) return ROPT_ERR_INIT;
+    if (profile < ROPT_PROFILE_LIGHT || profile > ROPT_PROFILE_MAX_VALID)
+        return ROPT_ERR_PARAM;
+    return purge_unused(profile == ROPT_PROFILE_AGGRESSIVE);
+}
+
+#else
+
 #ifndef MADV_PAGEOUT
 #define MADV_PAGEOUT 21
 #endif
@@ -187,3 +223,5 @@ int rox_heap_compact(rox_profile_t profile)
         return ROPT_ERR_PARAM;
     }
 }
+
+#endif /* __ANDROID__: allocator-owned unused memory only */

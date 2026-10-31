@@ -985,6 +985,14 @@
                 android:text="@string/processor_affinity"
                 android:layout_marginTop="8dp" />
 
+            <CheckBox
+                android:id="@+id/CBSyncCpuTopology"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/sync_cpu_topology"
+                android:tooltipText="@string/sync_cpu_topology_help"
+                android:minHeight="48dp" />
+
             <com.winlator.cmod.widget.CPUListView
                 android:id="@+id/CPUListView"
                 android:layout_width="match_parent"

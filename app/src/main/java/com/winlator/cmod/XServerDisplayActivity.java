@@ -2430,10 +2430,24 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         applyWrapperMemoryCapEnv();
         applyDxvkRuntimeEnv();
 
-        // NRAMV scans and PAGEOUTs anonymous mappings of this Android process,
-        // not the separate Wine process. Keep that intrusive behavior behind
-        // its explicit experimental switch; running it for every game can
-        // introduce refault stalls absent from the reference Winlators.
+        boolean syncCpuTopology = shortcut == null ? container.isSyncCpuTopology()
+                : "1".equals(shortcut.getExtra("syncCpuTopology", container.isSyncCpuTopology() ? "1" : "0"));
+        {
+            String cpus = shortcut == null ? container.getCPUList(true)
+                    : shortcut.getExtra("cpuList", container.getCPUList(true));
+            try {
+                String topology = com.winlator.cmod.core.WineCpuTopology.resolve(syncCpuTopology,
+                        cpus, envVars.get("WINE_CPU_TOPOLOGY"));
+                if (!topology.isEmpty()) envVars.put("WINE_CPU_TOPOLOGY", topology);
+            } catch (IllegalArgumentException failure) {
+                Log.w("BionicStartup", "Invalid selected CPU topology; keeping explicit Wine environment", failure);
+            }
+        }
+        bionicLauncher.setStartupMemoryCleanupEnabled(experimentalPerformance
+                && "1".equals(xperfConfig.get("maliCleanup")));
+
+        // The explicit Android RAM pass purges unused allocator memory only.
+        // Never PAGEOUT the UI/renderer's live anonymous mappings.
         // Video tab choices apply regardless of the Experimental master switch.
         // vblank_mode=0 is only valid for an explicitly immediate swapchain.
         // Applying it merely because the independent FPS pacing control is Off
@@ -5244,30 +5258,13 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         }
     }
 
-    /** Starts the RAM Optimizer Xclipse engine. Less physical RAM selects a
-     * more aggressive baseline because the shared CPU/GPU pool must be
-     * reclaimed earlier and more frequently. */
+    /** One explicitly enabled startup purge of unused Android allocator pages. */
     private void applyRamOptimizerProfile() {
         try {
             mRamOptSession = RamOptimizerXclipse.beginSession();
             if (RamOptimizerXclipse.nativeInit() != 0) return;
 
-            boolean aggro = isExperimentalPerformanceActive()
-                    && "1".equals(xperfConfig.get("ramAggro"));
-            int baseline;
-            if (aggro) baseline = RamOptimizerXclipse.PROFILE_AGGRESSIVE;
-            else {
-                ActivityManager activityManager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
-                long totalMB = 0;
-                if (activityManager != null) {
-                    ActivityManager.MemoryInfo memoryInfo = new ActivityManager.MemoryInfo();
-                    activityManager.getMemoryInfo(memoryInfo);
-                    totalMB = memoryInfo.totalMem / (1024L * 1024L);
-                }
-                if (totalMB > 0 && totalMB < 6500) baseline = RamOptimizerXclipse.PROFILE_AGGRESSIVE;
-                else if (totalMB > 0 && totalMB < 10240) baseline = RamOptimizerXclipse.PROFILE_MEDIUM;
-                else baseline = RamOptimizerXclipse.PROFILE_LIGHT;
-            }
+            int baseline = RamOptimizerXclipse.PROFILE_AGGRESSIVE;
             RamOptimizerXclipse.setBaselineProfile(baseline);
             RamOptimizerXclipse.restoreBaseline();
             Log.i("GraphicsDriverExtraction", "RAM Optimizer baseline=" + baseline + " version=" + RamOptimizerXclipse.nativeVersion());

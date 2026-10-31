@@ -664,6 +664,8 @@ public class ContainerDetailFragment extends Fragment {
 
         final CPUListView cpuListView = view.findViewById(R.id.CPUListView);
         final CPUListView cpuListViewWoW64 = view.findViewById(R.id.CPUListViewWoW64);
+        final CheckBox cbSyncCpuTopology = view.findViewById(R.id.CBSyncCpuTopology);
+        cbSyncCpuTopology.setChecked(isEditMode() && container.isSyncCpuTopology());
 
         cpuListView.setCheckedCPUList(isEditMode() ? container.getCPUList(true) : Container.getFallbackCPUList());
         cpuListViewWoW64.setCheckedCPUList(isEditMode() ? container.getCPUListWoW64(true) : Container.getFallbackCPUListWoW64());
@@ -944,6 +946,7 @@ public class ContainerDetailFragment extends Fragment {
                     container.setEnvVars(envVars);
                     container.setCPUList(cpuList);
                     container.setCPUListWoW64(cpuListWoW64);
+                    container.setSyncCpuTopology(cbSyncCpuTopology.isChecked());
                     container.setGraphicsDriver(graphicsDriver);
                     container.setGraphicsDriverConfig(graphicsDriverConfig);
                     container.setDXWrapper(dxwrapper);
@@ -1003,6 +1006,7 @@ public class ContainerDetailFragment extends Fragment {
                     data.put("envVars", envVars);
                     data.put("cpuList", cpuList);
                     data.put("cpuListWoW64", cpuListWoW64);
+                    data.put("syncCpuTopology", cbSyncCpuTopology.isChecked());
                     data.put("graphicsDriver", graphicsDriver);
                     data.put("graphicsDriverConfig", graphicsDriverConfig);
                     data.put("dxwrapper", dxwrapper);

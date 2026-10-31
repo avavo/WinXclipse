@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sync_cpu_topology">Sync with Wine</string>
+    <string name="sync_cpu_topology_help">Report the selected CPU cores and their count to Wine. Uses the main CPU affinity list; 32-bit affinity stays separately configurable. Disabled by default. Requires support in the selected Wine build.</string>
+    <string name="xperf_mali_cleanup">Mali memory preparation (before launch)</string>
+    <string name="xperf_help_mali_cleanup">Optional preparation based on Winlator Mali. Briefly allocates and releases up to 256 MiB before launching Wine, only with sufficient memory available. Skipped while Wine is running or RAM is low. It never repeats during gameplay. May delay launch and may provide no benefit; disabled by default.</string>
+</resources>
