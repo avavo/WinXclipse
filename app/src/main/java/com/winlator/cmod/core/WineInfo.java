@@ -129,7 +129,7 @@ public class WineInfo implements Parcelable {
 
         if (identifier.equals(MAIN_WINE_VERSION.identifier())) {
             File mainDir = new File(imageFs.getRootDir(), "opt/" + MAIN_WINE_VERSION.identifier());
-            boolean bakedInPresent = RuntimeFiles.hasWine(mainDir, "bin");
+            boolean bakedInPresent = ImageFsMaintenance.hasBundledWine(mainDir);
             if (bakedInPresent) return new WineInfo(MAIN_WINE_VERSION.type, MAIN_WINE_VERSION.version, MAIN_WINE_VERSION.arch, mainDir.getPath());
             // A managed copy of this same runtime is valid. Another installed
             // Wine/Proton must never silently replace the requested version.

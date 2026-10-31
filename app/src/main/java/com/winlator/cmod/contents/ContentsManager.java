@@ -10,6 +10,7 @@ import androidx.annotation.NonNull;
 import com.winlator.cmod.core.EvshimPatcher;
 import com.winlator.cmod.core.FileUtils;
 import com.winlator.cmod.core.RuntimeFiles;
+import com.winlator.cmod.core.ImageFsMaintenance;
 import com.winlator.cmod.core.DirectoryInstall;
 import com.winlator.cmod.core.ContentVersion;
 import com.winlator.cmod.core.StreamUtils;
@@ -457,7 +458,7 @@ public class ContentsManager {
 
     /** True while the APK-baked Proton tree is present in imagefs. */
     public static boolean hasBakedInProton(Context context) {
-        return new File(context.getFilesDir(), BAKED_IN_PROTON_DIR + "/bin/wine").isFile();
+        return ImageFsMaintenance.hasBundledWine(getBakedInProtonDir(context));
     }
 
     /** Root of the APK-baked Proton tree inside imagefs. */

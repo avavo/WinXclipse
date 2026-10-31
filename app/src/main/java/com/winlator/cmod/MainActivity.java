@@ -213,9 +213,12 @@ public class MainActivity extends LocalizedActivity implements NavigationView.On
      *
      * The PreloaderDialog appears only when an install actually starts.
      */
+    private static final java.util.concurrent.ExecutorService ASSET_INSTALLER =
+            Executors.newSingleThreadExecutor(runnable -> new Thread(runnable, "AssetContentsPreparation"));
+
     private void checkForAndInstallAssetContents(@Nullable Runnable onCompletion) {
 
-        Executors.newSingleThreadExecutor().execute(() -> {
+        ASSET_INSTALLER.execute(() -> {
             PreloaderDialog spinner = new PreloaderDialog(this);
             boolean spinnerShown = false;
             final boolean[] successful = {true};
@@ -388,6 +391,7 @@ public class MainActivity extends LocalizedActivity implements NavigationView.On
                 final boolean shown = spinnerShown;        // effectively-final snapshot
                 runOnUiThread(() -> {
                     if (shown) spinner.close();
+                    if (isFinishing() || isDestroyed()) return;
                     if (successful[0]) {
                         if (onCompletion != null) onCompletion.run();
                     }
