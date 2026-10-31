@@ -242,13 +242,13 @@ public class DebugDialog extends ContentDialog implements Callback<String> {
                 pendingLines = 0;
             }
             if (logFile == null || !logFile.exists() || logFile.length() == 0) {
-                Toast.makeText(context, "No log file to save yet", Toast.LENGTH_SHORT).show();
+                Toast.makeText(context, R.string.debug_log_empty, Toast.LENGTH_SHORT).show();
                 return;
             }
             File dir = new File(android.os.Environment.getExternalStoragePublicDirectory(
                     android.os.Environment.DIRECTORY_DOWNLOADS), "WinXclipse/logs");
             if (!dir.isDirectory() && !dir.mkdirs()) {
-                Toast.makeText(context, "Could not create Downloads folder", Toast.LENGTH_SHORT).show();
+                Toast.makeText(context, R.string.debug_log_folder_failed, Toast.LENGTH_SHORT).show();
                 return;
             }
             java.io.FileInputStream in = null;
@@ -264,11 +264,11 @@ public class DebugDialog extends ContentDialog implements Callback<String> {
                 if (in != null) try { in.close(); } catch (IOException ignored) {}
                 if (out != null) try { out.close(); } catch (IOException ignored) {}
             }
-            Toast.makeText(context, "Log saved to Downloads/WinXclipse/logs", Toast.LENGTH_LONG).show();
+            Toast.makeText(context, context.getString(R.string.debug_log_saved, dir.getAbsolutePath()), Toast.LENGTH_LONG).show();
         }
         catch (Exception e) {
             call("Save failed: " + e.getMessage());
-            Toast.makeText(context, "Failed to save log: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            Toast.makeText(context, R.string.debug_log_save_failed, Toast.LENGTH_LONG).show();
         }
     }
 
@@ -279,7 +279,7 @@ public class DebugDialog extends ContentDialog implements Callback<String> {
                 pendingLines = 0;
             }
             if (logFile == null || !logFile.exists() || logFile.length() == 0) {
-                Toast.makeText(context, "No log file to share yet", Toast.LENGTH_SHORT).show();
+                Toast.makeText(context, R.string.debug_log_empty, Toast.LENGTH_SHORT).show();
                 return;
             }
 
@@ -288,14 +288,14 @@ public class DebugDialog extends ContentDialog implements Callback<String> {
             Intent shareIntent = new Intent(Intent.ACTION_SEND);
             shareIntent.setType("text/plain");
             shareIntent.putExtra(Intent.EXTRA_STREAM, uri);
-            shareIntent.putExtra(Intent.EXTRA_SUBJECT, "WinXclipse Backend Log");
-            shareIntent.putExtra(Intent.EXTRA_TEXT, "Backend log from WinXclipse");
+            shareIntent.putExtra(Intent.EXTRA_SUBJECT, context.getString(R.string.debug_log_subject));
+            shareIntent.putExtra(Intent.EXTRA_TEXT, context.getString(R.string.debug_log_text));
             shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            context.startActivity(Intent.createChooser(shareIntent, "Share log"));
+            context.startActivity(Intent.createChooser(shareIntent, context.getString(R.string.debug_share_log)));
         }
         catch (Exception e) {
             call("Share failed: " + e.getMessage());
-            Toast.makeText(context, "Failed to share log: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            Toast.makeText(context, R.string.debug_log_share_failed, Toast.LENGTH_LONG).show();
         }
     }
 

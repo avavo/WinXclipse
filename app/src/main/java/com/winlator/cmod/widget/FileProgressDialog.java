@@ -83,6 +83,10 @@ public class FileProgressDialog {
         update(fileName, currentBytes, totalBytes, currentStr + " / " + totalStr);
     }
 
+    public void updateItems(String fileName, long current, long total) {
+        update(fileName, current, total, activity.getString(R.string.file_transfer_item, current, total));
+    }
+
     public void update(String fileName, long current, long total, String customProgressText) {
         activity.runOnUiThread(() -> {
             if (dialog == null || !dialog.isShowing()) return;

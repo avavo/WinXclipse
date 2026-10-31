@@ -128,7 +128,7 @@ public class WinlatorHUD extends View {
     private String strGpu = "N/A", strCpu = "N/A", strRam = "N/A";
     private String strPwr = "N/A", strTmp = "", strCTmp = "", strGTmp = "", strFps = "0", strPct = "";
     private String strRend = "OpenGL", strWrapper = "WineD3D", strPhoneGpu = "Unknown GPU";
-    private String strFgLatency = "N/A", strFgStatus = "FG Off";
+    private String strFgLatency = "N/A", strFgStatus = "";
     private final String rawSoc;
     private String rawPhoneGpu = "Unknown GPU";
     private String strSoc, strDevice, strDriver = "System";
@@ -206,6 +206,7 @@ public class WinlatorHUD extends View {
 
     private WinlatorHUD(Context context, AttributeSet attrs, String id) {
         super(context, attrs);
+        strFgStatus = "FG " + context.getString(R.string.hud_fg_off);
         panelId = id;
         prefs = context.getSharedPreferences("primary".equals(id) ? PREFS : PREFS + "_" + id, Context.MODE_PRIVATE);
         hudStyle = Math.max(0, Math.min(2, prefs.getInt("style", 0)));
@@ -476,9 +477,8 @@ public class WinlatorHUD extends View {
 
     private void showRamWarning() {
         ContentDialog dialog = new ContentDialog(getContext());
-        dialog.setTitle("High RAM Usage");
-        dialog.setMessage("RAM usage is currently " + Math.max(0, snapRam) + "%. "
-                + "At " + ramWarningThreshold + "% or higher, the game may run out of memory and crash.");
+        dialog.setTitle(R.string.hud_ram_high_title);
+        dialog.setMessage(getResources().getString(R.string.hud_ram_high_message, Math.max(0, snapRam), ramWarningThreshold));
         dialog.findViewById(R.id.BTCancel).setVisibility(View.GONE);
         dialog.show();
     }
@@ -1364,7 +1364,7 @@ public class WinlatorHUD extends View {
             apexSampleTimeNanos = System.nanoTime();
             apexMultiplier = Math.max(1.0f, Math.min(4.0f, multiplier));
             String safeBackend = backend == null || backend.trim().isEmpty()
-                    ? "Unknown" : backend.trim();
+                    ? getResources().getString(R.string.hud_hardware_unknown) : backend.trim();
             String safeState = state == null || state.trim().isEmpty()
                     ? (active ? "Starting" : "Off") : state.trim();
             String safeFailure = failure == null ? "" : failure.trim();
@@ -1373,19 +1373,19 @@ public class WinlatorHUD extends View {
                     || "Fallback".equalsIgnoreCase(safeState));
             strFgLatency = active && latencyMs > 0
                     ? String.format(Locale.US, "FG LAT ~%.1f ms%s", latencyMs,
-                            lowLatencyMode ? " (low)" : "")
+                            lowLatencyMode ? " " + getResources().getString(R.string.hud_fg_low_latency) : "")
                     : "FG LAT N/A";
             if (!safeFailure.isEmpty()) {
                 if (safeFailure.length() > 72) safeFailure = safeFailure.substring(0, 72);
-                strFgStatus = "FG " + safeState + ": " + safeFailure;
+                strFgStatus = "FG " + localizedFgState(safeState) + ": " + safeFailure;
             }
             else if (active && "Active".equalsIgnoreCase(safeState)) {
                 strFgStatus = "FG " + safeBackend + " · SRC " + Math.round(apexRealFps)
                         + " · GEN "
                         + Math.round(apexGeneratedFps) + " FPS"
-                        + (apexGeneratedFps < 0.5f ? " (no output)" : "");
+                        + (apexGeneratedFps < 0.5f ? " " + getResources().getString(R.string.hud_fg_no_output) : "");
             }
-            else strFgStatus = "FG " + safeBackend + " " + safeState;
+            else strFgStatus = "FG " + safeBackend + " " + localizedFgState(safeState);
             if (this.apexActive != active) {
                 this.apexActive = active;
                 layoutDirty = true;
@@ -1401,6 +1401,19 @@ public class WinlatorHUD extends View {
 
     public void setRenderer(String name) {
         if (name != null && !name.isEmpty()) rendererLabel = name;
+    }
+
+    private String localizedFgState(String state) {
+        int label;
+        switch (state.toLowerCase(Locale.ROOT)) {
+            case "starting": label = R.string.hud_fg_starting; break;
+            case "off": label = R.string.hud_fg_off; break;
+            case "active": label = R.string.hud_fg_active; break;
+            case "error": label = R.string.hud_fg_error; break;
+            case "fallback": label = R.string.hud_fg_fallback; break;
+            default: return state;
+        }
+        return getResources().getString(label);
     }
     public void setWrapperName(String name) {
         if (name != null && !name.isEmpty()) {
@@ -1444,6 +1457,7 @@ public class WinlatorHUD extends View {
     private void updateHardwareLabels() {
         strSoc = HardwareLabel.format(rawSoc, socFormat);
         strPhoneGpu = HardwareLabel.format(rawPhoneGpu, gpuFormat);
+        if ("Unknown GPU".equals(strPhoneGpu)) strPhoneGpu = getResources().getString(R.string.hud_unknown_gpu);
         ExynosDevices.Profile device = ExynosDevices.find(Build.MODEL);
         strDevice = device == null ? Build.MODEL : deviceFamily ? HardwareLabel.family(device.device) : device.shortLabel();
         if (strDevice == null) strDevice = "";

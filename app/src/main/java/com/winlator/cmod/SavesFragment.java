@@ -194,7 +194,7 @@ public class SavesFragment extends Fragment {
                     FileUtils.delete(tempDir);
                 }
                 if (!tempDir.mkdirs()) {
-                    AppUtils.showToast(getContext(), "Failed to create temporary directory.");
+                    AppUtils.showToast(getContext(), R.string.save_temp_failed);
                     preloaderDialog.closeOnUiThread();
                     return;
                 }
@@ -202,7 +202,7 @@ public class SavesFragment extends Fragment {
                 // Use TarCompressorUtils to extract the archive
                 boolean success = TarCompressorUtils.extract(TarCompressorUtils.Type.XZ, fragmentContext, archiveUri, tempDir);
                 if (!success) {
-                    AppUtils.showToast(getContext(), "Failed to decompress archive.");
+                    AppUtils.showToast(getContext(), R.string.save_archive_failed);
                     preloaderDialog.closeOnUiThread();
                     return;
                 }
@@ -210,7 +210,7 @@ public class SavesFragment extends Fragment {
                 // Navigate to the extracted directory, assuming there's only one directory inside tempDir
                 File[] extractedFiles = tempDir.listFiles();
                 if (extractedFiles == null || extractedFiles.length != 1 || !extractedFiles[0].isDirectory()) {
-                    AppUtils.showToast(getContext(), "Unexpected archive structure.");
+                    AppUtils.showToast(getContext(), R.string.save_archive_structure_invalid);
                     preloaderDialog.closeOnUiThread();
                     return;
                 }
@@ -220,7 +220,7 @@ public class SavesFragment extends Fragment {
                 // Find the JSON file within the extracted directory
                 File[] jsonFiles = extractedDir.listFiles((dir, name) -> name.endsWith(".json"));
                 if (jsonFiles == null || jsonFiles.length != 1) {
-                    AppUtils.showToast(getContext(), "JSON file not found in the archive.");
+                    AppUtils.showToast(getContext(), R.string.save_manifest_missing);
                     preloaderDialog.closeOnUiThread();
                     return;
                 }
@@ -255,7 +255,7 @@ public class SavesFragment extends Fragment {
 
                         // Ensure the full directory structure exists
                         if (!destSaveDir.getParentFile().exists() && !destSaveDir.getParentFile().mkdirs()) {
-                            AppUtils.showToast(fragmentContext, "Failed to create directories for save path.");
+                            AppUtils.showToast(fragmentContext, R.string.save_target_create_failed);
                             preloaderDialog.closeOnUiThread();
                             return;
                         }
@@ -263,7 +263,7 @@ public class SavesFragment extends Fragment {
                         // Copy the contents of the extracted directory to the correct location
                         File saveDirectoryToCopy = new File(extractedDir, new File(savePath).getName());
                         if (!FileUtils.copy(saveDirectoryToCopy, destSaveDir)) {
-                            AppUtils.showToast(fragmentContext, "Failed to copy save files.");
+                            AppUtils.showToast(fragmentContext, R.string.save_copy_failed);
                             preloaderDialog.closeOnUiThread();
                             return;
                         }
@@ -271,10 +271,11 @@ public class SavesFragment extends Fragment {
                         // Create the new save with the adjusted path
                         saveManager.addSave(title, destSaveDir.getAbsolutePath(), selectedContainer);
 
-                        AppUtils.showToast(fragmentContext, "Save imported successfully.");
+                        AppUtils.showToast(fragmentContext, R.string.save_import_complete);
                         loadSavesList();
                     } catch (IOException e) {
-                        AppUtils.showToast(fragmentContext, "Failed to import save: " + e.getMessage());
+                        android.util.Log.e("SavesFragment", "Failed to import save", e);
+                        AppUtils.showToast(fragmentContext, R.string.save_import_failed);
                     } finally {
                         FileUtils.delete(tempDir);
                         preloaderDialog.closeOnUiThread();
@@ -284,7 +285,7 @@ public class SavesFragment extends Fragment {
                     preloaderDialog.closeOnUiThread();
                 }));
             } catch (Exception e) {
-                AppUtils.showToast(fragmentContext, "Import failed: " + e.getMessage());
+                AppUtils.showToast(fragmentContext, R.string.save_import_failed);
                 e.printStackTrace(); // Log the error to console
                 preloaderDialog.closeOnUiThread();
             }
@@ -388,19 +389,19 @@ public class SavesFragment extends Fragment {
                 try {
                     File saveDirectory = new File(save.path);
                     if (!saveDirectory.exists() || !saveDirectory.isDirectory()) {
-                        AppUtils.showToast(getContext(), "Save directory is invalid.");
+                        AppUtils.showToast(getContext(), R.string.save_directory_invalid);
                         return;
                     }
 
                     File saveJsonFile = saveManager.getSaveJsonFile(save);
                     if (!saveJsonFile.exists()) {
-                        AppUtils.showToast(getContext(), "Save .json file is missing.");
+                        AppUtils.showToast(getContext(), R.string.save_manifest_missing);
                         return;
                     }
 
                     File exportDirectory = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Winlator/Saves");
                     if (!exportDirectory.exists() && !exportDirectory.mkdirs()) {
-                        AppUtils.showToast(getContext(), "Failed to create export directory.");
+                        AppUtils.showToast(getContext(), R.string.save_export_folder_failed);
                         return;
                     }
 
@@ -410,20 +411,20 @@ public class SavesFragment extends Fragment {
 
                     File tempExportDir = new File(exportDirectory, "temp_" + save.getTitle() + "_" + timestamp);
                     if (!tempExportDir.exists() && !tempExportDir.mkdirs()) {
-                        AppUtils.showToast(getContext(), "Failed to create temporary directory.");
+                        AppUtils.showToast(getContext(), R.string.save_temp_failed);
                         return;
                     }
 
                     // Copy the .json file and the save directory to the temp directory
                     File copiedJsonFile = new File(tempExportDir, saveJsonFile.getName());
                     if (!FileUtils.copy(saveJsonFile, copiedJsonFile)) {
-                        AppUtils.showToast(getContext(), "Failed to copy .json file.");
+                        AppUtils.showToast(getContext(), R.string.save_manifest_copy_failed);
                         return;
                     }
 
                     File copiedSaveDirectory = new File(tempExportDir, saveDirectory.getName());
                     if (!FileUtils.copy(saveDirectory, copiedSaveDirectory)) {
-                        AppUtils.showToast(getContext(), "Failed to copy save directory.");
+                        AppUtils.showToast(getContext(), R.string.save_copy_failed);
                         return;
                     }
 
@@ -434,7 +435,8 @@ public class SavesFragment extends Fragment {
                     // Clean up the temporary directory
                     FileUtils.delete(tempExportDir);
 
-                    AppUtils.showToast(getContext(), "Save exported to " + exportFile.getAbsolutePath());
+                    Context context = getContext();
+                    if (context != null) AppUtils.showToast(context, context.getString(R.string.save_exported_to, exportFile.getAbsolutePath()));
 
                     makeFileVisible(exportFile);
 
@@ -442,7 +444,7 @@ public class SavesFragment extends Fragment {
                         shareExportedFile(exportFile);
                     }
                 } catch (Exception e) {
-                    AppUtils.showToast(getContext(), "Failed to export save.");
+                    AppUtils.showToast(getContext(), R.string.save_export_failed);
                 } finally {
                     preloaderDialog.closeOnUiThread();
                 }
@@ -499,9 +501,10 @@ public class SavesFragment extends Fragment {
                         try {
                             saveManager.transferSave(save, selectedContainer);
                             loadSavesList();
-                            AppUtils.showToast(getContext(), "Transfer complete");
+                            AppUtils.showToast(getContext(), R.string.save_transfer_complete);
                         } catch (IOException e) {
-                            AppUtils.showToast(getContext(), "Transfer failed: " + e.getMessage());
+                            android.util.Log.e("SavesFragment", "Failed to transfer save", e);
+                            AppUtils.showToast(getContext(), R.string.save_transfer_failed);
                         }
                     })
                     .setNegativeButton(android.R.string.cancel, null)

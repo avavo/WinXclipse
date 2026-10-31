@@ -1,6 +1,6 @@
 # WinXclipse v0.9.6 — development changelog
 
-Updated October 31, 2026. Source changes through batch 31.
+Updated October 31, 2026. Source changes through batch 32.
 These notes describe implemented changes. Android gameplay validation remains pending;
 they do not claim that every FPS drop, shutdown or stalled game has been resolved.
 No new APK/AAB, release or tag has been produced for this work.
@@ -41,6 +41,7 @@ No new APK/AAB, release or tag has been produced for this work.
 
 - Add English, Portuguese and Spanish resources. Follow Portuguese/Spanish system languages on first use and use English otherwise; allow a persistent manual choice or system-language selection.
 - Localize community details/actions, container-folder imports, backup/restore messages and update prompts. Keep compatibility identifiers and author-provided configuration values unchanged across languages.
+- Localize File Manager menus/help/properties, save and shortcut messages, RAM warnings, displayed frame-generation states and log actions. Format file-property dates/numbers using the app language; retain original process diagnostics and exported commands.
 - Share the Exynos device table between the toolbar, community metadata and HUD. Recognize the requested S26/S26+/S26 FE B/N variants.
 - Identify S24 FE as Exynos 2400e, S25 FE as Exynos 2400 and S26 FE as Exynos 2500. Preserve the `e` in the S24 FE HUD label.
 - Show a short 0.9.6 update notice once after an upgrade, with fresh-install suppression.
@@ -94,7 +95,7 @@ No new APK/AAB, release or tag has been produced for this work.
 
 # Validation and remaining work
 
-- Latest full local suite: 423 cases, 421 passed, zero failures/errors and two skipped for Windows symlink permissions. Java/Kotlin/resources and EN/PT/ES coverage checks passed (1237 strings and 11 display arrays per language).
+- Latest full local suite: 423 cases, 421 passed, zero failures/errors and two skipped for Windows symlink permissions. Java/Kotlin/resources and EN/PT/ES coverage checks passed (1315 strings and 11 display arrays per language).
 - Hosted community authentication, uploads, moderation and migrated archive integrity were checked; the complete Android interaction still needs device validation.
 - Remaining implementation/review includes legacy hardcoded English messages, the older device-family audit, full visual/transition review and the remaining comparison of fork optimizations. Import recovery is covered by checkpoint/restart tests; terminating the app during a real Android import still needs validation.
 - Android checks remain for clean installs/upgrades, first shortcut launches, VulkanRT/ABI integration, sustained FPS and shutdown reports, DX9/11/12, stock/Quasar/RADV, FSR/frame generation, real refresh rate, input, sensors, USB/SD and installation timings. Local tests do not establish that these hardware-dependent reports are resolved.

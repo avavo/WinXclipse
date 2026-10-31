@@ -152,10 +152,12 @@ public abstract class AppUtils {
     }
 
     public static Toast showToast(Context context, int textResId) {
+        if (context == null) return null;
         return showToast(context, context.getString(textResId));
     }
 
     public static Toast showToast(final Context context, final String text) {
+        if (context == null) return null;
         if (!isUiThread()) {
             if (context instanceof Activity) {
                 ((Activity)context).runOnUiThread(() -> showToast(context, text));

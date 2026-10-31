@@ -670,7 +670,7 @@ public class FileManagerFragment extends Fragment {
     private void handleDriveCSelection() {
         ArrayList<Container> containers = containerManager.getContainers();
         if (containers.isEmpty()) {
-            ContentDialog.alert(getContext(), "You need to create a container first to access Drive C:.", null);
+            ContentDialog.alert(getContext(), R.string.file_container_drive_required, null);
             return;
         }
 
@@ -683,7 +683,7 @@ public class FileManagerFragment extends Fragment {
             if (driveC.exists()) {
                 openStorage(driveC, getString(R.string.drive_c) + " · " + container.getName(), R.drawable.ic_drive_wine);
             } else {
-                ContentDialog.alert(getContext(), "The Wine system files for '" + container.getName() + "' have not been initialized yet.", null);
+                ContentDialog.alert(getContext(), getString(R.string.file_wine_not_initialized, container.getName()), null);
             }
         });
     }
@@ -703,23 +703,23 @@ public class FileManagerFragment extends Fragment {
         } else {
             if (nameLower.endsWith(".exe")) {
                 popupMenu.getMenu().add(0, 1, 0, R.string.run);
-                popupMenu.getMenu().add(0, 10, 0, "Create Shortcut");
+                popupMenu.getMenu().add(0, 10, 0, R.string.file_create_shortcut);
             }
             if (nameLower.endsWith(".tar") || nameLower.endsWith(".tar.xz") || nameLower.endsWith(".tar.zst") ||
                 nameLower.endsWith(".txz") || nameLower.endsWith(".tzst") || nameLower.endsWith(".zip")) {
-                popupMenu.getMenu().add(0, 9, 0, "Extract");
+                popupMenu.getMenu().add(0, 9, 0, R.string.file_extract);
             }
         }
         popupMenu.getMenu().add(0, 2, 0, R.string.rename);
-        popupMenu.getMenu().add(0, 3, 0, "Delete");
-        // Use literal English labels to avoid mixed auto-translation (Copy was showing as Copiar)
-        popupMenu.getMenu().add(0, 4, 0, "Copy");
-        popupMenu.getMenu().add(0, 5, 0, "Cut");
+        popupMenu.getMenu().add(0, 3, 0, R.string.remove);
+        // Localize labels only; action IDs and file paths stay unchanged.
+        popupMenu.getMenu().add(0, 4, 0, R.string.copy);
+        popupMenu.getMenu().add(0, 5, 0, R.string.cut);
         // Dedicated Move for Drive C (same as Cut but labelled Move for clarity inside the emulated C:)
         boolean isDriveCFile = file.getAbsolutePath().contains(".wine/drive_c")
                 || currentDir.getAbsolutePath().contains(".wine/drive_c");
-        if (isDriveCFile) popupMenu.getMenu().add(0, 12, 0, "Move");
-        if (!selectedFiles.isEmpty()) popupMenu.getMenu().add(0, 11, 0, "Apply to selected (" + selectedFiles.size() + ")");
+        if (isDriveCFile) popupMenu.getMenu().add(0, 12, 0, R.string.file_move);
+        if (!selectedFiles.isEmpty()) popupMenu.getMenu().add(0, 11, 0, getString(R.string.file_apply_selected, selectedFiles.size()));
         popupMenu.getMenu().add(0, 6, 0, R.string.share);
         popupMenu.getMenu().add(0, 7, 0, R.string.properties);
 
@@ -749,7 +749,7 @@ public class FileManagerFragment extends Fragment {
             } else if (itemId == 12) {
                 // Move inside Drive C – same operation as Cut, just clearer label
                 cutFiles(Collections.singletonList(file));
-                Toast.makeText(getContext(), "Cut for move: choose destination then tap Paste", Toast.LENGTH_SHORT).show();
+                Toast.makeText(getContext(), R.string.file_cut_ready, Toast.LENGTH_SHORT).show();
                 return true;
             } else if (itemId == 6) {
                 shareFile(file);
@@ -772,7 +772,7 @@ public class FileManagerFragment extends Fragment {
     private void selectContainerForFile(File file) {
         ArrayList<Container> containers = containerManager.getContainers();
         if (containers.isEmpty()) {
-            ContentDialog.alert(getContext(), "You need to create a container first to run .exe files.", null);
+            ContentDialog.alert(getContext(), R.string.file_container_run_required, null);
             return;
         }
         if (containers.size() == 1) {
@@ -792,7 +792,7 @@ public class FileManagerFragment extends Fragment {
     private void selectContainerForShortcut(File file) {
         ArrayList<Container> containers = containerManager.getContainers();
         if (containers.isEmpty()) {
-            ContentDialog.alert(getContext(), "You need to create a container first to create a shortcut.", null);
+            ContentDialog.alert(getContext(), R.string.file_container_shortcut_required, null);
             return;
         }
         if (containers.size() == 1) {
@@ -817,7 +817,7 @@ public class FileManagerFragment extends Fragment {
             
             File desktopDir = container.getDesktopDir();
             if (!desktopDir.exists() && !desktopDir.mkdirs()) {
-                Toast.makeText(getContext(), "Could not create desktop directory", Toast.LENGTH_SHORT).show();
+                Toast.makeText(getContext(), R.string.file_desktop_create_failed, Toast.LENGTH_SHORT).show();
                 return;
             }
             
@@ -832,10 +832,10 @@ public class FileManagerFragment extends Fragment {
                     + "Icon=" + displayName + "\n"
                     + "container_id=" + container.id + "\n";
             if (!Shortcut.writeDesktopFileWithBackup(desktopFile, content)) {
-                Toast.makeText(getContext(), "Failed to create shortcut", Toast.LENGTH_SHORT).show();
+                Toast.makeText(getContext(), R.string.file_shortcut_failed, Toast.LENGTH_SHORT).show();
                 return;
             }
-            Toast.makeText(getContext(), "Shortcut created on container desktop!", Toast.LENGTH_SHORT).show();
+            Toast.makeText(getContext(), R.string.file_shortcut_created, Toast.LENGTH_SHORT).show();
 
             if (file.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".exe")) {
                 File iconDir64 = container.getIconsDir(64);
@@ -859,7 +859,7 @@ public class FileManagerFragment extends Fragment {
             }
             catch (Exception ignored) {}
         } catch (Exception e) {
-            Toast.makeText(getContext(), "Failed to create shortcut", Toast.LENGTH_SHORT).show();
+            Toast.makeText(getContext(), R.string.file_shortcut_failed, Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -938,7 +938,7 @@ public class FileManagerFragment extends Fragment {
             if (file.renameTo(newFile)) {
                 loadFiles();
             } else {
-                Toast.makeText(getContext(), "Rename failed", Toast.LENGTH_SHORT).show();
+                Toast.makeText(getContext(), R.string.file_rename_failed, Toast.LENGTH_SHORT).show();
             }
         });
     }
@@ -961,7 +961,7 @@ public class FileManagerFragment extends Fragment {
             long count = deletedCount.incrementAndGet();
             long currentTime = System.currentTimeMillis();
             if (currentTime - lastUIUpdateTime > 100) {
-                fileProgressDialog.update(fileName, count, totalItems, count + " / " + totalItems + " items");
+                fileProgressDialog.updateItems(fileName, count, totalItems);
                 lastUIUpdateTime = currentTime;
             }
         }
@@ -1100,7 +1100,7 @@ public class FileManagerFragment extends Fragment {
     }
 
     private void removeFiles(java.util.Collection<File> files) {
-        ContentDialog.confirm(getContext(), "Do you want to delete " + files.size() + " items?", () -> {
+        ContentDialog.confirm(getContext(), getString(R.string.file_delete_selected, files.size()), () -> {
             if (!transferActive.compareAndSet(false, true)) return;
             fileProgressDialog.show(R.string.deleting_file);
             isCancelled.set(false);
@@ -1138,11 +1138,11 @@ public class FileManagerFragment extends Fragment {
                         fileProgressDialog.dismiss();
                         clearSelection();
                         if (isCancelled.get()) {
-                            Toast.makeText(getContext(), "Operation cancelled", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(getContext(), R.string.file_cancelled, Toast.LENGTH_SHORT).show();
                         } else if (finalSuccess) {
                             loadFiles();
                         } else {
-                            Toast.makeText(getContext(), "Remove failed for some items", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(getContext(), R.string.file_remove_failed, Toast.LENGTH_SHORT).show();
                             loadFiles();
                         }
                     });
@@ -1153,20 +1153,20 @@ public class FileManagerFragment extends Fragment {
 
     private void showSelectionOptions(View anchor) {
         PopupMenu popupMenu = new PopupMenu(requireContext(), anchor);
-        popupMenu.getMenu().add(0, 1, 0, "Copy");
-        popupMenu.getMenu().add(0, 2, 0, "Cut");
+        popupMenu.getMenu().add(0, 1, 0, R.string.copy);
+        popupMenu.getMenu().add(0, 2, 0, R.string.cut);
         // Also expose Move when selection is inside Drive C
         boolean anyOnDriveC = false;
         for (File f : selectedFiles) if (f.getAbsolutePath().contains(".wine/drive_c")) { anyOnDriveC = true; break; }
-        if (anyOnDriveC) popupMenu.getMenu().add(0, 5, 0, "Move");
-        popupMenu.getMenu().add(0, 3, 0, "Delete");
-        popupMenu.getMenu().add(0, 4, 0, "Clear Selection");
+        if (anyOnDriveC) popupMenu.getMenu().add(0, 5, 0, R.string.file_move);
+        popupMenu.getMenu().add(0, 3, 0, R.string.remove);
+        popupMenu.getMenu().add(0, 4, 0, R.string.file_clear_selection);
 
         popupMenu.setOnMenuItemClickListener(item -> {
             int itemId = item.getItemId();
             if (itemId == 1) copyFiles(new ArrayList<>(selectedFiles));
             else if (itemId == 2) cutFiles(new ArrayList<>(selectedFiles));
-            else if (itemId == 5) { cutFiles(new ArrayList<>(selectedFiles)); Toast.makeText(getContext(), "Cut for move: choose destination then tap Paste", Toast.LENGTH_SHORT).show(); }
+            else if (itemId == 5) { cutFiles(new ArrayList<>(selectedFiles)); Toast.makeText(getContext(), R.string.file_cut_ready, Toast.LENGTH_SHORT).show(); }
             else if (itemId == 3) removeFiles(new ArrayList<>(selectedFiles));
             else if (itemId == 4) clearSelection();
             return true;
@@ -1195,7 +1195,7 @@ public class FileManagerFragment extends Fragment {
             if (!newDir.exists() && newDir.mkdirs()) {
                 loadFiles();
             } else {
-                Toast.makeText(getContext(), "Failed to create folder", Toast.LENGTH_SHORT).show();
+                Toast.makeText(getContext(), R.string.file_folder_create_failed, Toast.LENGTH_SHORT).show();
             }
         });
     }
@@ -1208,7 +1208,7 @@ public class FileManagerFragment extends Fragment {
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             startActivity(Intent.createChooser(intent, getString(R.string.share)));
         } catch (Exception e) {
-            Toast.makeText(getContext(), "Failed to share file", Toast.LENGTH_SHORT).show();
+            Toast.makeText(getContext(), R.string.file_share_failed, Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -1216,7 +1216,7 @@ public class FileManagerFragment extends Fragment {
         if (file.isFile()) {
             displayProperties(file, file.length(), 0, 0);
         } else {
-            Toast.makeText(getContext(), "Calculating folder size...", Toast.LENGTH_SHORT).show();
+            Toast.makeText(getContext(), R.string.file_calculating_size, Toast.LENGTH_SHORT).show();
             new Thread(() -> {
                 long[] info = getDirectoryInfo(file, new java.util.HashSet<>());
                 if (getActivity() != null) {
@@ -1227,22 +1227,10 @@ public class FileManagerFragment extends Fragment {
     }
 
     private void showHelpDialog() {
-        String html = "<b>Navigation:</b><br/>" +
-                "• <b>Tap Folder:</b> Open and navigate into it.<br/>" +
-                "• <b>Tap File:</b> Open actions menu (Run, Rename, Delete, etc.).<br/>" +
-                "• <b>Back Gesture:</b> Go up one folder level.<br/><br/>" +
-                "<b>Selection & Clipboard:</b><br/>" +
-                "• <b>Long Press:</b> Start multi-selecting items.<br/>" +
-                "• <b>Hold Selected:</b> Open menu for all selected items.<br/>" +
-                "• <b>Hold Paste Button:</b> Clear the clipboard.<br/><br/>" +
-                "<b>Features:</b><br/>" +
-                "• <b>Drive Selector:</b> Switch between D: (Downloads), Internal Storage, C: (Wine), and Z: (System).<br/>" +
-                "• <b>Sorting & View:</b> Change sort order or toggle hidden files in the Drive menu.<br/>" +
-                "• <b>Archives:</b> Extract files into a new folder named after the archive.<br/>" +
-                "• <b>Search:</b> Deep search files in the current folder.";
+        String html = getString(R.string.file_help_html);
 
         ContentDialog dialog = new ContentDialog(requireContext());
-        dialog.setTitle("Usage Instructions");
+        dialog.setTitle(R.string.file_help_title);
         dialog.setMessage(html);
         dialog.findViewById(R.id.BTCancel).setVisibility(View.GONE);
         dialog.show();
@@ -1260,7 +1248,7 @@ public class FileManagerFragment extends Fragment {
         File outputDir = new File(currentDir, folderName);
         if (!outputDir.exists()) outputDir.mkdirs();
 
-        Toast.makeText(getContext(), "Extracting to " + folderName + "...", Toast.LENGTH_SHORT).show();
+        Toast.makeText(getContext(), getString(R.string.file_extracting_to, folderName), Toast.LENGTH_SHORT).show();
         
         TarCompressorUtils.Type finalType = type;
         new Thread(() -> {
@@ -1276,10 +1264,10 @@ public class FileManagerFragment extends Fragment {
             if (getActivity() != null) {
                 getActivity().runOnUiThread(() -> {
                     if (success) {
-                        Toast.makeText(getContext(), "Extraction complete", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(getContext(), R.string.file_extract_complete, Toast.LENGTH_SHORT).show();
                         loadFiles();
                     } else {
-                        Toast.makeText(getContext(), "Extraction failed", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(getContext(), R.string.file_extract_failed, Toast.LENGTH_SHORT).show();
                     }
                 });
             }
@@ -1290,18 +1278,20 @@ public class FileManagerFragment extends Fragment {
         if (getContext() == null) return;
         StringBuilder sb = new StringBuilder();
         sb.append(getString(R.string.name)).append(": ").append(file.getName()).append("\n");
-        sb.append("Path: ").append(file.getAbsolutePath()).append("\n");
+        sb.append(getString(R.string.file_property_path, file.getAbsolutePath())).append("\n");
 
         sb.append(getString(R.string.size)).append(": ").append(Formatter.formatFileSize(getContext(), totalSize));
-        sb.append(" (").append(java.text.NumberFormat.getInstance().format(totalSize)).append(" bytes)\n");
+        java.util.Locale locale = getResources().getConfiguration().getLocales().get(0);
+        sb.append(" (").append(java.text.NumberFormat.getInstance(locale).format(totalSize)).append(" bytes)\n");
 
         if (file.isDirectory()) {
-            sb.append("Contents: ").append(totalDirs).append(" folders, ").append(totalFiles).append(" files\n");
+            sb.append(getString(R.string.file_property_contents, totalDirs, totalFiles)).append("\n");
         } else {
-            sb.append("Executable: ").append(file.canExecute() ? "Yes" : "No").append("\n");
+            sb.append(getString(R.string.file_property_executable, getString(file.canExecute() ? R.string.yes : R.string.no))).append("\n");
         }
 
-        sb.append("Last Modified: ").append(java.text.DateFormat.getDateTimeInstance().format(new java.util.Date(file.lastModified())));
+        sb.append(getString(R.string.file_property_modified, java.text.DateFormat.getDateTimeInstance(
+                java.text.DateFormat.DEFAULT, java.text.DateFormat.DEFAULT, locale).format(new java.util.Date(file.lastModified()))));
 
         ContentDialog dialog = new ContentDialog(requireContext());
         dialog.setTitle(R.string.properties);

@@ -63,3 +63,16 @@ Os testes medem geometria e eventos do Android em JVM; não comprovam aparência
 final, antialiasing, gestos em hardware ou desempenho da GPU. Não há dispositivo
 ADB conectado. A revisão visual completa do app e os cenários físicos da Parte 12
 continuam pendentes.
+
+## Mensagens e idioma — lote 32
+
+File Manager, saves, atalhos, alerta de RAM, estados exibidos do FG e ações de
+logs usam recursos EN/PT/ES. Menus de arquivos deixaram de impor rótulos em inglês;
+datas/números das propriedades usam o locale do contexto, inclusive com idioma
+manual diferente do sistema. IDs de ação, dados de saves/atalhos, configurações,
+caminhos e estados internos de FG não são traduzidos.
+
+Detalhes técnicos de falha permanecem nos logs; as mensagens de ação exibidas ao
+usuário são localizadas. A cobertura chegou a 1315 strings e 11 listas por idioma.
+Outros diálogos de controles/container/sessão continuam na auditoria da Parte 5,
+e a revisão visual em aparelho segue na Parte 12.
