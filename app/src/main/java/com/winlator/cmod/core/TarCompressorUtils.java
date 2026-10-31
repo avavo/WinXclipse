@@ -219,14 +219,23 @@ if (entry.isDirectory()) {
                     else {
                         File parent = file.getParentFile();
                         if (parent != null && !parent.isDirectory() && !parent.mkdirs()) return false;
-                        try (BufferedOutputStream outStream = new BufferedOutputStream(new FileOutputStream(file), StreamUtils.BUFFER_SIZE)) {
-                            if (!StreamUtils.copy(tar, outStream)) return false;
+                        if (entry.getRealSize() >= SparseFileWriter.MIN_FILE_SIZE) {
+                            SparseFileWriter.copy(tar, file, entry.getRealSize());
+                        } else {
+                            try (BufferedOutputStream outStream = new BufferedOutputStream(new FileOutputStream(file), StreamUtils.BUFFER_SIZE)) {
+                                if (!StreamUtils.copy(tar, outStream)) return false;
+                            }
                         }
                     }
                 }
 
                 FileUtils.chmod(file, 0771);
             }
+            // Tar EOF may precede trailing padding and the compressor footer.
+            // Read to the compression stream's EOF so truncated frames/CRC errors
+            // cannot be accepted merely because the tar entries were readable.
+            byte[] trailing = new byte[StreamUtils.BUFFER_SIZE];
+            while (inStream.read(trailing) != -1) {}
             return true;
         }
         catch (IOException e) {
