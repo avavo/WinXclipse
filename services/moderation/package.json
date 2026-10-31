@@ -1,0 +1,10 @@
+{
+  "name": "winxclipse-private-moderation",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/moderation.test.mjs",
+    "build": "node scripts/build.mjs",
+    "validate": "node scripts/validate-artifact.mjs"
+  }
+}

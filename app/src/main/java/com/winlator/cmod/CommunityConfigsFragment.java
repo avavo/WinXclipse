@@ -45,6 +45,8 @@ import com.winlator.cmod.container.CommunityConfigManager;
 import com.winlator.cmod.contents.Downloader;
 import com.winlator.cmod.core.AppUtils;
 import com.winlator.cmod.core.FileUtils;
+import com.winlator.cmod.core.CommunityService;
+import com.winlator.cmod.core.PreloaderDialog;
 import com.winlator.cmod.core.ShortcutArtworkManager;
 
 import org.json.JSONArray;
@@ -65,7 +67,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** Read-only in-app catalog backed by the project's community-configs release. */
+/** Hosted community catalog, with the curated GitHub release as a fallback. */
 public class CommunityConfigsFragment extends Fragment {
     private static final String RELEASE_API =
             "https://api.github.com/repos/avavo/WinXclipse/releases/tags/community-configs";
@@ -92,6 +94,7 @@ public class CommunityConfigsFragment extends Fragment {
         File archive;
         JSONObject manifest;
         JSONObject metadata;
+        CommunityService.Entry serviceEntry;
         // Assigned from catalog provenance, never from fields supplied by an exported ZIP.
         boolean verified;
     }
@@ -224,15 +227,33 @@ public class CommunityConfigsFragment extends Fragment {
         new Thread(() -> {
             List<GameItem> loaded = new ArrayList<>();
             try {
+                CommunityService.Catalog service = CommunityService.load(appContext);
                 JSONObject release = loadReleaseIndex(appContext);
                 JSONArray assets = release.optJSONArray("assets");
                 Map<String, String> covers = collectReleaseCovers(assets);
                 Map<String, GameItem> games = new LinkedHashMap<>();
+                Set<String> suppressedLegacyCache = new HashSet<>();
+                for (CommunityService.Entry entry : service.entries) {
+                    if (entry.deleted) continue;
+                    ConfigOption option = new ConfigOption();
+                    option.serviceEntry = entry; option.assetName = entry.metadata.optString("gameName") + ".zip";
+                    option.url = entry.downloadUrl; option.coverUrl = entry.coverUrl;
+                    option.updatedAt = java.time.Instant.ofEpochMilli(entry.updatedAt).toString();
+                    option.metadata = new JSONObject(entry.metadata.toString()); option.verified = entry.verified;
+                    option.manifest = new JSONObject().put("metadata", option.metadata);
+                    CommunityConfigManager.normalizeDeviceMetadata(option.metadata);
+                    addOption(games, option);
+                }
                 if (assets != null) {
                     for (int i = 0; i < assets.length(); i++) {
                         JSONObject asset = assets.getJSONObject(i);
                         String assetName = asset.optString("name", "");
                         if (!assetName.toLowerCase(Locale.ENGLISH).endsWith(".zip")) continue;
+                        String source = asset.optString("browser_download_url", "");
+                        if (service.managedSources.contains(source)) {
+                            suppressedLegacyCache.add(Integer.toHexString((source + "|" + asset.optString("updated_at", "")).hashCode()) + ".zip");
+                            continue;
+                        }
                         ConfigOption option = loadOption(appContext, asset, covers);
                         if (option == null) continue;
                         addOption(games, option);
@@ -241,8 +262,8 @@ public class CommunityConfigsFragment extends Fragment {
 
                 // Last-resort offline mode. The validated ZIP cache is enough to
                 // rebuild the cards even when both GitHub endpoints are unavailable.
-                if (games.isEmpty()) {
-                    for (ConfigOption option : loadCachedOptions(appContext)) {
+                if (games.isEmpty() && service.managedSources.isEmpty()) {
+                    for (ConfigOption option : loadCachedOptions(appContext, suppressedLegacyCache)) {
                         addOption(games, option);
                     }
                 }
@@ -254,8 +275,11 @@ public class CommunityConfigsFragment extends Fragment {
                 if (!customArtDir.isDirectory()) customArtDir.mkdirs();
                 for (GameItem game : games.values()) {
                     game.configs.sort((a, b) -> b.updatedAt.compareTo(a.updatedAt));
+                    StringBuilder artworkRevision = new StringBuilder(game.key);
+                    for (ConfigOption option : game.configs) if (option.serviceEntry != null)
+                        artworkRevision.append('|').append(option.serviceEntry.id).append(':').append(option.serviceEntry.revision);
                     game.coverFile = new File(artDir,
-                            Integer.toHexString(game.key.hashCode()) + ".png");
+                            Integer.toHexString(artworkRevision.toString().hashCode()) + ".png");
                     game.customCoverFile = new File(customArtDir,
                             Integer.toHexString(game.key.hashCode()) + ".png");
                     // Always inspect every config belonging to this game before
@@ -390,13 +414,14 @@ public class CommunityConfigsFragment extends Fragment {
         return release;
     }
 
-    private static List<ConfigOption> loadCachedOptions(Context context) {
+    private static List<ConfigOption> loadCachedOptions(Context context, Set<String> suppressed) {
         List<ConfigOption> options = new ArrayList<>();
         File directory = new File(context.getCacheDir(), "community_config_catalog");
         File[] archives = directory.listFiles((dir, name) ->
                 name.toLowerCase(Locale.ENGLISH).endsWith(".zip"));
         if (archives == null) return options;
         for (File archive : archives) {
+            if (suppressed.contains(archive.getName())) continue;
             try {
                 ConfigOption option = new ConfigOption();
                 option.archive = archive;
@@ -430,7 +455,10 @@ public class CommunityConfigsFragment extends Fragment {
             games.put(key, game);
         }
         for (ConfigOption existing : game.configs) {
-            if (existing.manifest.toString().equals(option.manifest.toString())) return;
+            if (existing.serviceEntry != null || option.serviceEntry != null) {
+                if (existing.serviceEntry != null && option.serviceEntry != null
+                        && existing.serviceEntry.id.equals(option.serviceEntry.id)) return;
+            } else if (existing.manifest.toString().equals(option.manifest.toString())) return;
         }
         game.configs.add(option);
     }
@@ -676,11 +704,14 @@ public class CommunityConfigsFragment extends Fragment {
         containerDetails.setVisibility(View.GONE);
         showConfig.setOnClickListener(v -> {
             if (selected[0] == null) return;
-            showingContainerConfig[0] = !showingContainerConfig[0];
-            containerDetails.setText(formatContainerDetails(selected[0]));
-            containerDetails.setVisibility(showingContainerConfig[0] ? View.VISIBLE : View.GONE);
-            showConfig.setText(showingContainerConfig[0]
-                    ? "Hide configuration" : "Show configuration");
+            ConfigOption option = selected[0];
+            withManifest(option, () -> {
+                if (!dialogVisible(body) || selected[0] != option) return;
+                showingContainerConfig[0] = !showingContainerConfig[0];
+                containerDetails.setText(formatContainerDetails(option));
+                containerDetails.setVisibility(showingContainerConfig[0] ? View.VISIBLE : View.GONE);
+                showConfig.setText(showingContainerConfig[0] ? "Hide configuration" : "Show configuration");
+            });
         });
 
         if (game.configs.size() > 1) {
@@ -792,6 +823,37 @@ public class CommunityConfigsFragment extends Fragment {
     }
 
     private void openInstaller(ConfigOption option) {
+        withManifest(option, () -> openPreparedInstaller(option));
+    }
+
+    private static boolean dialogVisible(View body) {
+        return body.getTag() instanceof AlertDialog && ((AlertDialog)body.getTag()).isShowing();
+    }
+
+    private void withManifest(ConfigOption option, Runnable ready) {
+        if (option.serviceEntry == null || option.archive != null) { ready.run(); return; }
+        android.app.Activity host = getActivity();
+        if (host == null || host.isFinishing()) return;
+        Context app = host.getApplicationContext();
+        PreloaderDialog progress = new PreloaderDialog(host); progress.show(R.string.community_loading);
+        new Thread(() -> {
+            File archive = null; JSONObject manifest = null;
+            try {
+                archive = CommunityService.archive(app, option.serviceEntry);
+                manifest = CommunityConfigManager.readConfig(archive);
+            } catch (Exception error) { android.util.Log.w("CommunityConfig", "Config download failed", error); }
+            File result = archive; JSONObject parsed = manifest;
+            host.runOnUiThread(() -> {
+                progress.close();
+                if (!isAdded() || host.isFinishing() || host.isDestroyed()) return;
+                if (parsed == null) { Toast.makeText(host, R.string.community_download_failed, Toast.LENGTH_LONG).show(); return; }
+                option.archive = result; option.manifest = parsed;
+                ready.run();
+            });
+        }, "CommunityConfigDownload").start();
+    }
+
+    private void openPreparedInstaller(ConfigOption option) {
         // ContentsFragment used to clear the shared Android cache as it was
         // destroyed during this navigation. Persist only the already-validated
         // manifest before switching screens so the install cannot lose its

@@ -38,6 +38,8 @@ import com.winlator.cmod.container.ContainerManager;
 import com.winlator.cmod.core.AppUtils;
 import com.winlator.cmod.core.CommunityCover;
 import com.winlator.cmod.core.InterfaceMotion;
+import com.winlator.cmod.core.CommunityService;
+import com.winlator.cmod.core.PreloaderDialog;
 import com.winlator.cmod.core.ShortcutArtworkManager;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -47,7 +49,7 @@ import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-/** One editable draft used by ZIP export and ordinary Android sharing. */
+/** One editable draft used by ZIP export, Android sharing and community publication. */
 public final class CommunityConfigExportDialogFragment extends DialogFragment {
     private static final String TAG = "CommunityConfigExport";
     private static final ExecutorService IO = Executors.newFixedThreadPool(2);
@@ -87,7 +89,9 @@ public final class CommunityConfigExportDialogFragment extends DialogFragment {
         game = field(fields, R.string.config_export_game, value(state, "game"));
         game.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(160)});
         author = field(fields, R.string.config_export_author, value(state, "author"));
+        author.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(160)});
         fps = field(fields, R.string.config_export_fps, value(state, "fps"));
+        fps.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(64)});
         fps.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
         CommunityConfigManager.DeviceProfile profile = CommunityConfigManager.getCurrentDeviceProfile();
         TextView device = new TextView(context); device.setText(profile.fullLabel());
@@ -107,6 +111,7 @@ public final class CommunityConfigExportDialogFragment extends DialogFragment {
             showCover(null); updateExportButton();
         });
         notes = field(fields, R.string.config_export_notes, value(state, "notes"));
+        notes.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(8192)});
         notes.setSingleLine(false); notes.setMinLines(2); notes.setMaxLines(5);
         TextView status = new TextView(context); status.setText(R.string.config_export_compatibility);
         status.setPadding(0, dp(12), 0, dp(4)); fields.addView(status);
@@ -318,6 +323,7 @@ public final class CommunityConfigExportDialogFragment extends DialogFragment {
                 new AlertDialog.Builder(host).setTitle(R.string.config_export_complete)
                         .setMessage(getString(R.string.config_export_saved, result.getAbsolutePath()))
                         .setPositiveButton(R.string.config_export_share, (d, which) -> share(host, result))
+                        .setNeutralButton(R.string.community_publish, (d, which) -> publish(host, result))
                         .setNegativeButton(android.R.string.ok, null).show();
                 dismiss();
             });
@@ -332,5 +338,28 @@ public final class CommunityConfigExportDialogFragment extends DialogFragment {
         catch (android.content.ActivityNotFoundException unavailable) {
             Toast.makeText(host, R.string.config_export_share_unavailable, Toast.LENGTH_LONG).show();
         }
+    }
+
+    private static void publish(android.app.Activity host, File output) {
+        if (host.isFinishing() || host.isDestroyed()) return;
+        PreloaderDialog progress = new PreloaderDialog(host); progress.show(R.string.community_publishing);
+        Context app = host.getApplicationContext();
+        IO.execute(() -> {
+            int message = R.string.community_publish_success;
+            try { CommunityService.publish(app, output); }
+            catch (CommunityService.ServiceException error) {
+                message = error.status == 429 ? R.string.community_publish_limited : R.string.community_publish_failed;
+            } catch (Exception error) { message = R.string.community_publish_failed; }
+            int result = message;
+            host.runOnUiThread(() -> {
+                progress.close();
+                if (host.isFinishing() || host.isDestroyed()) return;
+                new AlertDialog.Builder(host).setTitle(R.string.community_publish).setMessage(result)
+                        .setPositiveButton(android.R.string.ok, null)
+                        .setNeutralButton(R.string.config_export_share, (d,w) -> share(host, output))
+                        .setNegativeButton(result == R.string.community_publish_success ? R.string.cancel : R.string.community_retry_action,
+                                (d,w) -> { if (result != R.string.community_publish_success) publish(host, output); }).show();
+            });
+        });
     }
 }

@@ -28,7 +28,13 @@
     <string name="config_export_share">Share ZIP</string>
     <string name="config_export_share_unavailable">No sharing app is available. The ZIP remains saved in Downloads/WinXclipse/CommunityConfigs.</string>
     <string name="config_export_share_title">Share your configuration</string>
-    <string name="config_export_catalog_tip">In Containers, choose Export Community Config to edit the game name, review the cover and save a ZIP. You can share it with any app. Configs curated in the GitHub catalog have a verified badge.</string>
+    <string name="config_export_catalog_tip">In Containers, choose Export Community Config to edit the game name and cover. After saving the ZIP, choose Publish to community or share it with any app. New uploads start without verification; the maintainer can review them.</string>
     <string name="community_verified_badge">✓ Verified</string>
-    <string name="community_verified_detail">Verified · Curated GitHub catalog</string>
+    <string name="community_verified_detail">Verified by the maintainer</string>
+    <string name="community_publish">Publish to community</string>
+    <string name="community_publishing">Publishing configuration…</string>
+    <string name="community_publish_success">Configuration published. It appears in the community catalog without a verification badge until the maintainer reviews it.</string>
+    <string name="community_publish_failed">Could not publish this configuration. Check your connection and try again. Your ZIP remains saved in Downloads/WinXclipse/CommunityConfigs.</string>
+    <string name="community_publish_limited">Upload limit reached. Try again later. Your ZIP remains saved.</string>
+    <string name="community_download_failed">Could not download and verify this config. Check your connection and try again.</string>
 </resources>

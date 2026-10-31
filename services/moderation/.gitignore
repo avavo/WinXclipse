@@ -1,0 +1,6 @@
+dist/
+site.tar.gz
+outputs/
+.env
+.env.*
+!.env.example

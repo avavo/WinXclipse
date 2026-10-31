@@ -28,7 +28,13 @@
     <string name="config_export_share">Compartir ZIP</string>
     <string name="config_export_share_unavailable">No hay una aplicación para compartir. El ZIP sigue guardado en Downloads/WinXclipse/CommunityConfigs.</string>
     <string name="config_export_share_title">Comparte tu configuración</string>
-    <string name="config_export_catalog_tip">En Contenedores, elige Exportar configuración de la comunidad para editar el nombre del juego, revisar la portada y guardar un ZIP. Puedes compartirlo con cualquier aplicación. Las configuraciones seleccionadas en el catálogo de GitHub tienen una insignia de verificación.</string>
+    <string name="config_export_catalog_tip">En Contenedores, elige Exportar configuración de la comunidad para editar el nombre del juego y la portada. Tras guardar el ZIP, elige Publicar en la comunidad o compártelo con cualquier aplicación. Los nuevos envíos aparecen sin verificación hasta que el mantenedor los revise.</string>
     <string name="community_verified_badge">✓ Verificada</string>
-    <string name="community_verified_detail">Verificada · Catálogo seleccionado de GitHub</string>
+    <string name="community_verified_detail">Verificada por el mantenedor</string>
+    <string name="community_publish">Publicar en la comunidad</string>
+    <string name="community_publishing">Publicando configuración…</string>
+    <string name="community_publish_success">Configuración publicada. Aparece en el catálogo de la comunidad sin insignia de verificación hasta que el mantenedor la revise.</string>
+    <string name="community_publish_failed">No se pudo publicar la configuración. Comprueba la conexión e inténtalo de nuevo. Tu ZIP sigue guardado en Downloads/WinXclipse/CommunityConfigs.</string>
+    <string name="community_publish_limited">Límite de envíos alcanzado. Inténtalo más tarde. Tu ZIP sigue guardado.</string>
+    <string name="community_download_failed">No se pudo descargar y verificar la configuración. Comprueba la conexión e inténtalo de nuevo.</string>
 </resources>

@@ -1,0 +1,8 @@
+dist/
+site.tar.gz
+outputs/
+.wrangler/
+.env
+.env.*
+!.env.example
+*.sqlite

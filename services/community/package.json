@@ -1,0 +1,10 @@
+{
+  "name": "winxclipse-community-service",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node --test tests/community.test.mjs",
+    "validate": "node scripts/validate-artifact.mjs"
+  }
+}

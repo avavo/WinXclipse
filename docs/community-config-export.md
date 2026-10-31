@@ -35,9 +35,11 @@ catálogo, não de um campo que o autor possa inserir no ZIP. O selo aparece na 
 e nos detalhes. Isso prepara a distinção entre o catálogo existente e futuros
 envios públicos sem verificação.
 
-Publicação direta, identidade estável dos envios e moderação remota ainda precisam
-do serviço de comunidade descrito na Parte 6. Este lote não apresenta o
-compartilhamento Android como publicação automática no catálogo.
+Após salvar, o usuário pode compartilhar o ZIP ou escolher **Publicar na comunidade**.
+A publicação usa exatamente o ZIP revisado e preserva o arquivo local se a rede
+falhar. Novos envios começam sem verificação e recebem uma identidade estável;
+repetir o envio com a mesma credencial/ZIP recupera a mesma publicação. O serviço
+e o painel de moderação estão descritos em [community-service.md](community-service.md).
 
 Validação: compilação Java/Kotlin/recursos e 252 casos JUnit, sem falhas e com um
 ignorado por permissão de symlink no Windows. Sete novos casos cobrem conteúdo do

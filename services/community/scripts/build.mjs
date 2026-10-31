@@ -1,0 +1,11 @@
+import { cpSync, mkdirSync, rmSync } from 'node:fs';
+import { resolve } from 'node:path';
+const output = resolve('dist');
+if (output !== resolve(process.cwd(), 'dist')) throw new Error('Invalid build path');
+rmSync(output, { recursive: true, force: true });
+mkdirSync(resolve(output, 'server'), { recursive: true });
+mkdirSync(resolve(output, '.openai'), { recursive: true });
+cpSync('worker/index.js', resolve(output, 'server/index.js'));
+cpSync('.openai/hosting.json', resolve(output, '.openai/hosting.json'));
+cpSync('drizzle', resolve(output, '.openai/drizzle'), { recursive: true });
+console.log('Built community Worker and D1 migrations');

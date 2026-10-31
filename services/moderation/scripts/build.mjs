@@ -1,0 +1,10 @@
+import { cpSync, mkdirSync, rmSync } from 'node:fs';
+import { resolve } from 'node:path';
+const output = resolve('dist');
+if (output !== resolve(process.cwd(), 'dist')) throw new Error('Invalid build path');
+rmSync(output, { recursive: true, force: true });
+mkdirSync(resolve(output, 'server'), { recursive: true });
+mkdirSync(resolve(output, '.openai'), { recursive: true });
+cpSync('worker/index.js', resolve(output, 'server/index.js'));
+cpSync('.openai/hosting.json', resolve(output, '.openai/hosting.json'));
+console.log('Built private moderation Worker');

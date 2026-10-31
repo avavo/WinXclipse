@@ -28,7 +28,13 @@
     <string name="config_export_share">Compartilhar ZIP</string>
     <string name="config_export_share_unavailable">Nenhum app de compartilhamento disponível. O ZIP continua salvo em Downloads/WinXclipse/CommunityConfigs.</string>
     <string name="config_export_share_title">Compartilhe sua configuração</string>
-    <string name="config_export_catalog_tip">Em Containers, escolha Exportar Config da Comunidade para editar o nome do jogo, revisar a capa e salvar um ZIP. Você pode compartilhá-lo em qualquer app. Configs selecionadas no catálogo do GitHub têm um selo de verificação.</string>
+    <string name="config_export_catalog_tip">Em Containers, escolha Exportar Config da Comunidade para editar o nome do jogo e a capa. Depois de salvar o ZIP, escolha Publicar na comunidade ou compartilhe em qualquer app. Novos envios começam sem verificação e podem ser revisados pelo mantenedor.</string>
     <string name="community_verified_badge">✓ Verificada</string>
-    <string name="community_verified_detail">Verificada · Catálogo selecionado do GitHub</string>
+    <string name="community_verified_detail">Verificada pelo mantenedor</string>
+    <string name="community_publish">Publicar na comunidade</string>
+    <string name="community_publishing">Publicando configuração…</string>
+    <string name="community_publish_success">Configuração publicada. Ela aparece no catálogo da comunidade sem selo de verificação até a revisão do mantenedor.</string>
+    <string name="community_publish_failed">Não foi possível publicar a configuração. Confira a conexão e tente novamente. Seu ZIP continua salvo em Downloads/WinXclipse/CommunityConfigs.</string>
+    <string name="community_publish_limited">Limite de envios atingido. Tente novamente mais tarde. Seu ZIP continua salvo.</string>
+    <string name="community_download_failed">Não foi possível baixar e verificar a config. Confira a conexão e tente novamente.</string>
 </resources>
