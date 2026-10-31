@@ -11,7 +11,7 @@
     <LinearLayout
         style="@style/AppTheme.Dark"
         android:id="@+id/LLContent"
-        android:layout_width="340dp"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:padding="8dp">
@@ -20,7 +20,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="(Experimental)"
+            android:text="@string/experimental"
             android:textSize="18sp"
             android:textStyle="bold"
             android:paddingBottom="8dp" />

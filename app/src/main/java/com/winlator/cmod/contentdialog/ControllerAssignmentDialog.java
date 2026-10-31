@@ -197,7 +197,7 @@ public class ControllerAssignmentDialog {
             btnTestVibration.setOnClickListener(v -> {
                 boolean masterOn = controllerManager.isMasterVibrationEnabled();
                 if (!masterOn) {
-                    android.widget.Toast.makeText(dialog.getContext(), "Vibration OFF", android.widget.Toast.LENGTH_SHORT).show();
+                    android.widget.Toast.makeText(dialog.getContext(), R.string.vibration_off, android.widget.Toast.LENGTH_SHORT).show();
                     return;
                 }
                 boolean didVibrate = false;

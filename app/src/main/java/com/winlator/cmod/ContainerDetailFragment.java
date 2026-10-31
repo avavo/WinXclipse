@@ -313,7 +313,7 @@ public class ContainerDetailFragment extends Fragment {
                         openDirectoryCallback.call(path);
                     }
                 } else {
-                    Toast.makeText(getContext(), "The selected storage is unavailable. For USB drives, enable All Files Access and reconnect the drive.", Toast.LENGTH_LONG).show();
+                    Toast.makeText(getContext(), R.string.container_storage_unavailable, Toast.LENGTH_LONG).show();
                 }
             }
             openDirectoryCallback = null;
@@ -1375,8 +1375,8 @@ public class ContainerDetailFragment extends Fragment {
 
     public static void showWrapperV2Comparison(Context context) {
         new androidx.appcompat.app.AlertDialog.Builder(context)
-                .setTitle("Compare CMOD v1 and v2")
-                .setMessage("CMOD v1 is the original WinXclipse path. CMOD v2 uses an alternative rendering path. Test the same scene with both and keep the one with better stability and frame pacing for that game. Wrapper-Default is the recommended starting point.")
+                .setTitle(R.string.wrapper_comparison_title)
+                .setMessage(R.string.wrapper_comparison_help)
                 .setPositiveButton(android.R.string.ok, null)
                 .show();
     }

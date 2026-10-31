@@ -242,8 +242,8 @@ public class ContainersFragment extends Fragment {
                 if (fav == null) {
                     new AlertDialog.Builder(getContext())
                             .setTitle(R.string.favorite)
-                            .setMessage("No favorite assigned. Choose one now?")
-                            .setPositiveButton("Choose", (d, w) -> {
+                            .setMessage(R.string.favorite_unassigned)
+                            .setPositiveButton(R.string.choose_action, (d, w) -> {
                                 getParentFragmentManager().beginTransaction()
                                         .setCustomAnimations(R.anim.slide_in_up, R.anim.slide_out_down,
                                                 R.anim.slide_in_down, R.anim.slide_out_up)
@@ -685,7 +685,7 @@ public class ContainersFragment extends Fragment {
             if (!destDirFile.exists()) {
                 if (!destDirFile.mkdirs()) {
                     // If directory creation fails, show an error and exit
-                    android.widget.Toast.makeText(requireActivity(), "Failed to create destination directory.", android.widget.Toast.LENGTH_SHORT).show();
+                    android.widget.Toast.makeText(requireActivity(), R.string.dev_library_destination_failed, android.widget.Toast.LENGTH_SHORT).show();
                     return;
                 }
             }
@@ -693,7 +693,7 @@ public class ContainersFragment extends Fragment {
             // List all files in the assets/devLibs folder
             String[] files = assetManager.list(sourceDir);
             if (files == null || files.length == 0) {
-                android.widget.Toast.makeText(requireActivity(), "No dev libs found in assets.", android.widget.Toast.LENGTH_SHORT).show();
+                android.widget.Toast.makeText(requireActivity(), R.string.dev_libraries_missing, android.widget.Toast.LENGTH_SHORT).show();
                 return;
             }
 
@@ -737,12 +737,12 @@ public class ContainersFragment extends Fragment {
             }
 
             // If the loop completes without throwing an exception, it was successful
-            android.widget.Toast.makeText(requireActivity(), "Dev libs copied successfully!", android.widget.Toast.LENGTH_SHORT).show();
+            android.widget.Toast.makeText(requireActivity(), R.string.dev_libraries_copied, android.widget.Toast.LENGTH_SHORT).show();
 
         } catch (java.io.IOException e) {
             // If any file fails, show a general error message
             android.util.Log.e("CopyDevLibs", "An error occurred during asset copying.", e);
-            android.widget.Toast.makeText(requireActivity(), "Error copying dev libs.", android.widget.Toast.LENGTH_SHORT).show();
+            android.widget.Toast.makeText(requireActivity(), R.string.dev_libraries_copy_failed, android.widget.Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -1043,8 +1043,8 @@ public class ContainersFragment extends Fragment {
         if (fav == null) {
             new AlertDialog.Builder(getContext())
                     .setTitle(R.string.favorite)
-                    .setMessage("No favorite assigned. Choose one now?")
-                    .setPositiveButton("Choose", (d, w) -> {
+                    .setMessage(R.string.favorite_unassigned)
+                    .setPositiveButton(R.string.choose_action, (d, w) -> {
                         getParentFragmentManager().beginTransaction()
                                 .setCustomAnimations(R.anim.slide_in_up, R.anim.slide_out_down,
                                         R.anim.slide_in_down, R.anim.slide_out_up)

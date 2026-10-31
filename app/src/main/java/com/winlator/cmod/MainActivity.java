@@ -521,8 +521,8 @@ public class MainActivity extends LocalizedActivity implements NavigationView.On
         if (allAccessFilesDialogDismissed || isFinishing()) return;
         allAccessFilesDialogDismissed = true;
         ContentDialog dialog = new ContentDialog(this);
-        dialog.setTitle("USB Storage Access");
-        dialog.setMessage("To use additional storage devices such as USB drives, grant All Files Access. You can leave it disabled if you do not need USB storage support.");
+        dialog.setTitle(R.string.usb_storage_access_title);
+        dialog.setMessage(R.string.usb_storage_access_help);
         dialog.setOnConfirmCallback(() -> {
             Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
             intent.setData(Uri.parse("package:" + getPackageName()));

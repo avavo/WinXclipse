@@ -17,6 +17,7 @@ import androidx.preference.PreferenceManager;
 import com.winlator.cmod.R;
 import com.winlator.cmod.XServerDisplayActivity;
 import com.winlator.cmod.core.Callback;
+import com.winlator.cmod.core.FileUtils;
 import com.winlator.cmod.inputcontrols.ExternalController;
 
 import org.json.JSONArray;
@@ -24,9 +25,9 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -42,6 +43,13 @@ public class GamepadConfiguratorDialog {
     private final HashMap<Byte, Spinner> mappingSpinners = new HashMap<>();
 
     private String currentProfileName;
+
+    /** A localized empty-list row has no profile identity; user names are never sentinels. */
+    private static final class ProfileItem {
+        final String name, label;
+        ProfileItem(String name, String label) { this.name = name; this.label = label; }
+        @Override public String toString() { return label; }
+    }
 
 
     public GamepadConfiguratorDialog(Context context, ExternalController externalController, ContentDialog dialog) {
@@ -205,7 +213,7 @@ public class GamepadConfiguratorDialog {
         // Update triggerType in WinHandler
 //        ((XServerDisplayActivity) context).getWinHandler().updateTriggerType(externalController.getTriggerType());
 
-        Toast.makeText(context, "Mappings saved!", Toast.LENGTH_SHORT).show();
+        Toast.makeText(context, R.string.gamepad_mappings_saved, Toast.LENGTH_SHORT).show();
         ((XServerDisplayActivity) context).getWinHandler().refreshControllerMappings();
     }
 
@@ -240,30 +248,33 @@ public class GamepadConfiguratorDialog {
         profileSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                currentProfileName = profileSpinner.getSelectedItem().toString();
+                Object selected = profileSpinner.getSelectedItem();
+                currentProfileName = selected instanceof ProfileItem ? ((ProfileItem)selected).name : null;
+                loadProfileButton.setEnabled(currentProfileName != null);
             }
 
             @Override
             public void onNothingSelected(AdapterView<?> parent) {
                 currentProfileName = null;
+                loadProfileButton.setEnabled(false);
             }
         });
 
         saveProfileButton.setOnClickListener(v -> {
-            if (currentProfileName != null && !currentProfileName.equals("-- No Profiles --")) {
+            if (currentProfileName != null) {
                 // Ask the user if they want to overwrite or save as a new profile
                 new AlertDialog.Builder(context)
                         .setTitle(R.string.save_profile)
-                        .setMessage("Do you want to overwrite the current profile or save as a new profile?")
-                        .setPositiveButton("Overwrite", (dialog, which) -> {
-                            saveProfile(currentProfileName); // Overwrite with the current name
-                            Toast.makeText(context, "Profile saved!", Toast.LENGTH_SHORT).show();
+                        .setMessage(R.string.gamepad_profile_replace_message)
+                        .setPositiveButton(R.string.gamepad_profile_overwrite, (dialog, which) -> {
+                            if (saveProfile(currentProfileName))
+                                Toast.makeText(context, R.string.gamepad_profile_saved, Toast.LENGTH_SHORT).show();
                         })
-                        .setNegativeButton("Save as New", (dialog, which) -> {
+                        .setNegativeButton(R.string.gamepad_profile_save_as_new, (dialog, which) -> {
                             promptForProfileName(name -> {
-                                saveProfile(name);  // Save with a new name
+                                if (!saveProfile(name)) return;
                                 currentProfileName = name;
-                                Toast.makeText(context, "Profile saved as new!", Toast.LENGTH_SHORT).show();
+                                Toast.makeText(context, R.string.gamepad_profile_saved, Toast.LENGTH_SHORT).show();
                                 loadProfileSpinner(profileSpinner); // Refresh spinner with the new profile
                             });
                         })
@@ -271,9 +282,9 @@ public class GamepadConfiguratorDialog {
             } else {
                 // No current profile name, prompt for a new name
                 promptForProfileName(name -> {
-                    saveProfile(name);
+                    if (!saveProfile(name)) return;
                     currentProfileName = name;
-                    Toast.makeText(context, "Profile saved!", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(context, R.string.gamepad_profile_saved, Toast.LENGTH_SHORT).show();
                     loadProfileSpinner(profileSpinner); // Refresh spinner with the new profile
                 });
             }
@@ -281,10 +292,10 @@ public class GamepadConfiguratorDialog {
 
 
         loadProfileButton.setOnClickListener(v -> {
-            String profileName = profileSpinner.getSelectedItem().toString();
-            loadProfile(profileName);
-            refreshSpinners();
-            Toast.makeText(context, "Profile loaded!", Toast.LENGTH_SHORT).show();
+            if (currentProfileName != null && loadProfile(currentProfileName)) {
+                refreshSpinners();
+                Toast.makeText(context, R.string.gamepad_profile_loaded, Toast.LENGTH_SHORT).show();
+            }
         });
     }
 
@@ -296,7 +307,7 @@ public class GamepadConfiguratorDialog {
 
         // Set up the input
         final EditText input = new EditText(dialog.getContext());
-        input.setHint("Profile Name");
+        input.setHint(R.string.profile_name);
         builder.setView(input);
 
         // Set up the buttons
@@ -305,7 +316,7 @@ public class GamepadConfiguratorDialog {
             if (!profileName.isEmpty()) {
                 callback.call(profileName); // Pass the name back to the callback
             } else {
-                Toast.makeText(context, "Profile name cannot be empty", Toast.LENGTH_SHORT).show();
+                Toast.makeText(context, R.string.gamepad_profile_name_empty, Toast.LENGTH_SHORT).show();
             }
         });
         builder.setNegativeButton(R.string.cancel, (dialogInterface, which) -> dialogInterface.cancel());
@@ -316,14 +327,20 @@ public class GamepadConfiguratorDialog {
 
     private void loadProfileSpinner(Spinner profileSpinner) {
         Set<String> profiles = preferences.getStringSet("gamepad_profiles", new LinkedHashSet<>());
-        ArrayList<String> items = new ArrayList<>(profiles);
-
-        if (items.isEmpty()) {
-            items.add("-- No Profiles --");
+        ArrayList<ProfileItem> items = new ArrayList<>();
+        int selected = 0;
+        for (String name : profiles) {
+            if (name.equals(currentProfileName)) selected = items.size();
+            items.add(new ProfileItem(name, name));
         }
-
-        ArrayAdapter<String> adapter = new com.winlator.cmod.widget.ThemedSpinnerAdapter<>(profileSpinner.getContext(), items);
+        if (items.isEmpty()) {
+            items.add(new ProfileItem(null, context.getString(R.string.gamepad_profiles_empty)));
+        }
+        ArrayAdapter<ProfileItem> adapter = new com.winlator.cmod.widget.ThemedSpinnerAdapter<>(profileSpinner.getContext(), items);
         profileSpinner.setAdapter(adapter);
+        profileSpinner.setSelection(selected);
+        currentProfileName = items.get(selected).name;
+        dialog.findViewById(R.id.btn_load_profile).setEnabled(currentProfileName != null);
     }
 
 
@@ -333,7 +350,16 @@ public class GamepadConfiguratorDialog {
         return profilesDir;
     }
 
-    public void saveProfile(String profileName) {
+    private File profileFile(String name) throws IOException {
+        if (name == null || name.trim().isEmpty() || name.contains("/") || name.contains("\\") || name.indexOf('\0') >= 0)
+            throw new IOException("Invalid gamepad profile name");
+        File root = getProfilesDir().getCanonicalFile();
+        File file = new File(root, name + ".json").getCanonicalFile();
+        if (!root.equals(file.getParentFile())) throw new IOException("Gamepad profile is outside its directory");
+        return file;
+    }
+
+    public boolean saveProfile(String profileName) {
         try {
             JSONObject profileData = new JSONObject();
             JSONArray buttonMappings = new JSONArray();
@@ -342,7 +368,9 @@ public class GamepadConfiguratorDialog {
                 JSONObject mapping = new JSONObject();
                 mapping.put("buttonIndex", entry.getKey());
                 String mappedButtonName = (String) entry.getValue().getSelectedItem();
+                if (mappedButtonName == null) throw new IOException("A gamepad mapping is not selected");
                 byte mappedButtonIdx = (byte) externalController.getButtonIdxByName(mappedButtonName);
+                if (mappedButtonIdx < 0 || mappedButtonIdx >= 12) throw new IOException("Invalid gamepad mapping");
                 mapping.put("mappedIndex", mappedButtonIdx);
                 buttonMappings.put(mapping);
             }
@@ -351,46 +379,49 @@ public class GamepadConfiguratorDialog {
             profileData.put("buttonMappings", buttonMappings);
 
             // Save profile data to file
-            File profileFile = new File(getProfilesDir(), profileName + ".json");
-            try (FileOutputStream fos = new FileOutputStream(profileFile)) {
-                fos.write(profileData.toString().getBytes());
-            }
+            File profileFile = profileFile(profileName);
+            if (!FileUtils.writeStringAtomic(profileFile, profileData.toString()))
+                throw new IOException("Could not write gamepad profile");
 
             // Add new profile name to SharedPreferences
             Set<String> profiles = new LinkedHashSet<>(preferences.getStringSet("gamepad_profiles", new LinkedHashSet<>()));
             profiles.add(profileName);
             preferences.edit().putStringSet("gamepad_profiles", profiles).apply();
+            return true;
 
         } catch (JSONException | IOException e) {
             Log.e("GamepadConfiguratorDialog", "Error saving gamepad profile", e);
+            Toast.makeText(context, R.string.gamepad_profile_save_failed, Toast.LENGTH_SHORT).show();
+            return false;
         }
     }
 
 
-    public void loadProfile(String profileName) {
-        File profileFile = new File(getProfilesDir(), profileName + ".json");
-        if (!profileFile.exists()) {
-            Toast.makeText(context, "Profile not found", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        try (FileInputStream fis = new FileInputStream(profileFile)) {
-            byte[] data = new byte[(int) profileFile.length()];
-            fis.read(data);
-            String json = new String(data);
-
+    public boolean loadProfile(String profileName) {
+        try {
+            File profileFile = profileFile(profileName);
+            if (!profileFile.isFile() || profileFile.length() > 64 * 1024)
+                throw new IOException("Gamepad profile is unavailable or too large");
+            String json = new String(Files.readAllBytes(profileFile.toPath()), StandardCharsets.UTF_8);
             JSONObject profileData = new JSONObject(json);
             JSONArray buttonMappings = profileData.getJSONArray("buttonMappings");
-
+            HashMap<Byte, Byte> restored = new HashMap<>();
             for (int i = 0; i < buttonMappings.length(); i++) {
                 JSONObject mapping = buttonMappings.getJSONObject(i);
-                byte buttonIndex = (byte) mapping.getInt("buttonIndex");
-                byte mappedIndex = (byte) mapping.getInt("mappedIndex");
-                externalController.setButtonMapping(buttonIndex, mappedIndex);
+                int buttonIndex = mapping.getInt("buttonIndex");
+                int mappedIndex = mapping.getInt("mappedIndex");
+                if (buttonIndex < 0 || buttonIndex >= 12 || mappedIndex < 0 || mappedIndex >= 12
+                        || mapping.getDouble("buttonIndex") != buttonIndex || mapping.getDouble("mappedIndex") != mappedIndex
+                        || restored.put((byte)buttonIndex, (byte)mappedIndex) != null)
+                    throw new IOException("Invalid gamepad button mapping");
             }
+            for (Map.Entry<Byte, Byte> entry : restored.entrySet())
+                externalController.setButtonMapping(entry.getKey(), entry.getValue());
+            return true;
         } catch (IOException | JSONException e) {
             Log.e("GamepadConfiguratorDialog", "Error loading gamepad profile", e);
-            Toast.makeText(context, "Error loading profile", Toast.LENGTH_SHORT).show();
+            Toast.makeText(context, R.string.gamepad_profile_load_failed, Toast.LENGTH_SHORT).show();
+            return false;
         }
     }
 

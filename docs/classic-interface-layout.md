@@ -76,3 +76,26 @@ Detalhes técnicos de falha permanecem nos logs; as mensagens de ação exibidas
 usuário são localizadas. A cobertura chegou a 1315 strings e 11 listas por idioma.
 Outros diálogos de controles/container/sessão continuam na auditoria da Parte 5,
 e a revisão visual em aparelho segue na Parte 12.
+
+## Diálogos e perfis de gamepad — lote 33
+
+Perfis, vibração, USB, comparação de wrappers, bloqueio de entrada durante uma
+instalação, limite de FPS e erro de arquivos do terminal usam recursos EN/PT/ES.
+O corpo de configuração do gamepad usa a largura disponível, em vez de 340 dp
+fixos. A revisão visual completa continua pendente.
+
+O seletor guarda o nome real do perfil separado do rótulo traduzido da lista
+vazia. Um perfil chamado `-- No Profiles --` ou com o próprio texto traduzido
+continua selecionável. Sem perfis, carregar fica desabilitado.
+
+A leitura confere todos os mapeamentos antes de aplicá-los: índice inválido,
+fracionário, repetido ou ausente não deixa uma aplicação parcial. Arquivos ausentes
+ou maiores que 64 KiB mostram erro e mantêm os mapeamentos. A gravação usa UTF-8
+e substituição por arquivo temporário; só depois de gravar adiciona o nome à lista.
+Falhas não mostram confirmação de sucesso. Nomes/caminhos que escapam da pasta
+privada de perfis são recusados. O formato JSON e os nomes de botões permanecem
+compatíveis com os perfis existentes.
+
+`GamepadProfileDialogTest` exercita arquivos reais e os callbacks dos botões em
+Robolectric, sem iniciar Wine. Isso verifica os fluxos de erro e preservação dos
+dados; não comprova interação física com um controle nem a aparência final.

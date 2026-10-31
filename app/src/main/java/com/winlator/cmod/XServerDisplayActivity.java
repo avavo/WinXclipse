@@ -498,10 +498,10 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         super.onCreate(savedInstanceState);
         if (ContentOperationRegistry.hasActiveOperations()) {
             launchBlockedByContentOperation = true;
+            Log.i("XServerDisplayActivity", "Launch blocked by content operations: " + ContentOperationRegistry.describe());
             new androidx.appcompat.app.AlertDialog.Builder(this)
-                    .setTitle("Content operation in progress")
-                    .setMessage("Wait for downloads and installations to finish before entering Wine. Active: "
-                            + ContentOperationRegistry.describe())
+                    .setTitle(R.string.content_operation_title)
+                    .setMessage(R.string.content_operation_wait)
                     .setCancelable(false)
                     .setPositiveButton(android.R.string.ok, (dialog, which) -> finish())
                     .show();
@@ -3803,7 +3803,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         final int[] values = {24, 30, 45, 60, 75, 90, 120};
         final String[] labels = {
                 "24 FPS", "30 FPS", "45 FPS", "60 FPS",
-                "75 FPS", "90 FPS", "120 FPS", "Custom…"
+                "75 FPS", "90 FPS", "120 FPS", getString(R.string.custom) + "…"
         };
         int configured = getConfiguredFpsLimit();
         int checked = labels.length - 1;
@@ -3814,7 +3814,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
             }
         }
         new androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle("FPS Limiter")
+                .setTitle(R.string.fps_limit)
                 .setSingleChoiceItems(labels, checked, (dialog, which) -> {
                     dialog.dismiss();
                     if (which < values.length) {
@@ -3840,8 +3840,8 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         androidx.appcompat.app.AlertDialog dialog =
                 new androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle("FPS Limiter")
-                .setMessage("Choose a limit from 15 to 240 FPS. The main tile turns it on or off.")
+                .setTitle(R.string.fps_limit)
+                .setMessage(R.string.fps_limit_help)
                 .setView(holder)
                 .setPositiveButton(R.string.ok, null)
                 .setNegativeButton(R.string.cancel, null)
@@ -4129,7 +4129,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
                 btTestVibration.setEnabled(enabled));
         btTestVibration.setOnClickListener(view -> {
             if (!cbMasterVibration.isChecked()) {
-                Toast.makeText(this, "Vibration OFF", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, R.string.vibration_off, Toast.LENGTH_SHORT).show();
                 return;
             }
             testControllerVibration(controllerManager);

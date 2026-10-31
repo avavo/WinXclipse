@@ -40,7 +40,7 @@ public class TerminalActivity extends LocalizedActivity {
         // Initialize ImageFs and XEnvironment
         imageFs = ImageFs.find(this);
         if (!imageFs.isValid()) {
-            outputTextView.setText("Error: Invalid ImageFs.");
+            outputTextView.setText(R.string.terminal_imagefs_invalid);
             return;
         }
         xEnvironment = new XEnvironment(this, imageFs);
