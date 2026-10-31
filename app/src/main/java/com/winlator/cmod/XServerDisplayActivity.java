@@ -2319,6 +2319,14 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
                 shortcut
         );
         bionicLauncher.setStartupFailureCallback(this::showWineStartupFailure);
+        bionicLauncher.setDependencyStageCallback(phase -> {
+            if (preloaderDialog == null || "stop".equals(phase) || "wait".equals(phase)) return;
+            int message = "complete".equals(phase) ? R.string.starting_up
+                    : "install".equals(phase) ? R.string.vulkanrt_installing
+                    : phase.startsWith("native-") ? R.string.vulkanrt_verifying
+                    : R.string.vulkanrt_checking_wine;
+            preloaderDialog.setMessage(message);
+        });
         bionicLauncher.setPrefixUpdatedCallback(() -> {
             // wineboot owns the runtime upgrade. Reapply app-managed/native
             // components afterwards, while no Wine process can overwrite them.

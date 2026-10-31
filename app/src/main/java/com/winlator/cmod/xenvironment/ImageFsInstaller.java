@@ -24,6 +24,7 @@ import com.winlator.cmod.core.PreloaderDialog;
 import com.winlator.cmod.core.TarCompressorUtils;
 import com.winlator.cmod.core.WineInfo;
 import com.winlator.cmod.core.RuntimeFiles;
+import com.winlator.cmod.core.VulkanRuntimePayload;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -97,6 +98,8 @@ public abstract class ImageFsInstaller {
                     throw new IOException("Required Wine/Proton extraction failed");
                 }
                 activity.runOnUiThread(() -> dialog.setProgress(93));
+                VulkanRuntimePayload.prepare(new File(activity.getFilesDir(), "dependencies"),
+                        () -> activity.getAssets().open(VulkanRuntimePayload.ASSET));
                 SettingsFragment.resetEmulatorsVersion(activity);
                 resetContainerImgVersions(activity);
                 imageFs.getConfigDir().mkdirs();
@@ -176,9 +179,7 @@ public abstract class ImageFsInstaller {
     }
 
     public static void installIfNeeded(final MainActivity activity) {
-        ImageFs imageFs = ImageFs.find(activity);
-        if (!imageFs.isValid() || imageFs.getVersion() < LATEST_VERSION
-                || !hasRequiredWine(activity, imageFs.getRootDir())) installFromAssets(activity);
+        installIfNeeded(activity, null);
     }
 
     public static void installIfNeeded(final MainActivity activity, final Runnable onCompletion) {
@@ -187,8 +188,21 @@ public abstract class ImageFsInstaller {
                 || !hasRequiredWine(activity, imageFs.getRootDir())) {
             installFromAssets(activity, onCompletion);
         }
-        else if (onCompletion != null) {
-            onCompletion.run();
+        else {
+            // Existing installations receive new dependency payloads without
+            // reextracting ImageFS or running Windows programs on Android's UI.
+            new Thread(() -> {
+                try {
+                    VulkanRuntimePayload.prepare(new File(activity.getFilesDir(), "dependencies"),
+                            () -> activity.getAssets().open(VulkanRuntimePayload.ASSET));
+                    activity.runOnUiThread(() -> {
+                        if (!activity.isFinishing() && !activity.isDestroyed() && onCompletion != null) onCompletion.run();
+                    });
+                } catch (IOException failure) {
+                    Log.e("ImageFsInstaller", "Dependency preparation failed", failure);
+                    activity.runOnUiThread(() -> AppUtils.showToast(activity, R.string.unable_to_install_system_files));
+                }
+            }, "BasicDependencyPreparation").start();
         }
     }
 

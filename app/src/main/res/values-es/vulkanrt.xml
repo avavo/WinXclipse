@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="vulkanrt_checking_wine">Comprobando compatibilidad con Vulkan…</string>
+    <string name="vulkanrt_installing">Instalando runtime de Vulkan…</string>
+    <string name="vulkanrt_verifying">Verificando runtime de Vulkan…</string>
+</resources>

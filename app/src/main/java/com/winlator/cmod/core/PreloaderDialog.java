@@ -76,6 +76,13 @@ public class PreloaderDialog {
         });
     }
 
+    public void setMessage(int resourceId) {
+        activity.runOnUiThread(() -> {
+            if (dialog != null && !activity.isFinishing() && !activity.isDestroyed())
+                ((TextView)dialog.findViewById(R.id.TextView)).setText(resourceId);
+        });
+    }
+
     public void setIndeterminate() {
         activity.runOnUiThread(() -> {
             if (dialog != null) {

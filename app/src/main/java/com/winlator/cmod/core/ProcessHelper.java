@@ -150,10 +150,18 @@ public abstract class ProcessHelper {
     public static int execAndWait(String[] command, String[] envp, File workingDir,
                                   long timeoutMs, BooleanSupplier cancelled)
             throws IOException, InterruptedException {
+        return execAndWait(command, envp, workingDir, timeoutMs, cancelled, null);
+    }
+
+    /** Setup diagnostics can capture merged output without pipe backpressure. */
+    public static int execAndWait(String[] command, String[] envp, File workingDir,
+                                  long timeoutMs, BooleanSupplier cancelled, File capture)
+            throws IOException, InterruptedException {
         if (cancelled.getAsBoolean()) throw new IOException("Wine preparation cancelled");
         long generation = getDebugSessionGeneration();
         emitDebugLine("[prefix] " + Arrays.toString(command), generation);
         ProcessBuilder builder = new ProcessBuilder(command).directory(workingDir);
+        if (capture != null) builder.redirectErrorStream(true).redirectOutput(capture);
         for (String value : envp) {
             int separator = value.indexOf('=');
             if (separator > 0) builder.environment().put(value.substring(0, separator), value.substring(separator + 1));
@@ -161,8 +169,10 @@ public abstract class ProcessHelper {
         java.lang.Process process = builder.start();
         // pid() is not available on all supported Android versions. The phase
         // marker identifies bootstrap output without hidden-field reflection.
-        createDebugThread(process.getInputStream(), "prefix stdout", -1, generation);
-        createDebugThread(process.getErrorStream(), "prefix stderr", -1, generation);
+        if (capture == null) {
+            createDebugThread(process.getInputStream(), "prefix stdout", -1, generation);
+            createDebugThread(process.getErrorStream(), "prefix stderr", -1, generation);
+        }
         long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs);
         try {
             while (!process.waitFor(200, TimeUnit.MILLISECONDS)) {

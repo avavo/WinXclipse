@@ -33,6 +33,8 @@ import com.winlator.cmod.core.WinePrefixBootstrap;
 import com.winlator.cmod.core.WinePrefixState;
 import com.winlator.cmod.core.WineRuntimeLayout;
 import com.winlator.cmod.core.ContentOperationRegistry;
+import com.winlator.cmod.core.VulkanRuntimePayload;
+import com.winlator.cmod.core.VulkanRuntimeInstaller;
 import com.winlator.cmod.MainActivity;
 import android.net.Uri;
 import java.io.FileOutputStream;
@@ -76,8 +78,10 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
     private Callback<String> startupFailureCallback;
     private Runnable prefixUpdatedCallback;
     private boolean startupMemoryCleanupEnabled;
+    private Callback<String> dependencyStageCallback;
 
     public void setStartupMemoryCleanupEnabled(boolean enabled) { startupMemoryCleanupEnabled = enabled; }
+    public void setDependencyStageCallback(Callback<String> callback) { dependencyStageCallback = callback; }
 
     public void setStartupFailureCallback(Callback<String> callback) { startupFailureCallback = callback; }
     public void setPrefixUpdatedCallback(Runnable callback) { prefixUpdatedCallback = callback; }
@@ -655,6 +659,43 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
             if (this.envVars != null) envVars.putAll(this.envVars);
             envVars.put("WINEPREFIX", prefix.getAbsolutePath());
             envVars.put("WINEARCH", wineInfo.isWin64() ? "win64" : "win32");
+            if (!stopped) {
+                File payload = VulkanRuntimePayload.prepare(new File(context.getFilesDir(), "dependencies"),
+                        () -> context.getAssets().open(VulkanRuntimePayload.ASSET));
+                String identity = WinePrefixState.fingerprint(container.getWineVersion(),
+                        WinePrefixState.wineExecutable(bin), new File(wineRoot, "share/wine/wine.inf"))
+                        + "|" + container.getGraphicsDriverConfig();
+                boolean installed = VulkanRuntimeInstaller.prepare(prefix, payload, wineInfo.isWin64(), identity,
+                        (phase, arguments, timeout) -> {
+                            if (dependencyStageCallback != null) dependencyStageCallback.call(phase);
+                            boolean cleanup = "stop".equals(phase) || "wait".equals(phase);
+                            EnvVars dependencyEnv = new EnvVars();
+                            dependencyEnv.putAll(setupEnv);
+                            String current = dependencyEnv.get("WINEDLLOVERRIDES");
+                            dependencyEnv.put("WINEDLLOVERRIDES", (current.isEmpty() ? "" : current + ";")
+                                    + "winevulkan=b;vulkan-1=" + (phase.startsWith("native-") ? "n" : "b"));
+                            dependencyEnv.put("WINEDEBUG", "+loaddll");
+                            ArrayList<String> args = new ArrayList<>();
+                            if (!wineInfo.usesNativeArm64()) args.add(new File(imageFs.getBinDir(), "box64").getAbsolutePath());
+                            args.add(cleanup ? new File(bin, "wineserver").getAbsolutePath()
+                                    : WinePrefixState.wineExecutable(bin).getAbsolutePath());
+                            java.util.Collections.addAll(args, arguments);
+                            File logs = new File(prefix, ".winxclipse-vulkanrt-logs");
+                            if (!logs.isDirectory() && !logs.mkdirs()) throw new IOException("Cannot create VulkanRT diagnostic directory");
+                            File output = new File(logs, phase + ".txt");
+                            long phaseStarted = android.os.SystemClock.elapsedRealtime();
+                            int status = ProcessHelper.execAndWait(args.toArray(new String[0]), dependencyEnv.toStringArray(),
+                                    rootDir, timeout, () -> stopped && !cleanup, output);
+                            Log.i("VulkanRT", phase + " exit=" + status + " elapsedMs="
+                                    + (android.os.SystemClock.elapsedRealtime() - phaseStarted));
+                            String report = "";
+                            if (output.length() <= 1024 * 1024) report = new String(java.nio.file.Files.readAllBytes(output.toPath()),
+                                    java.nio.charset.StandardCharsets.UTF_8);
+                            return new VulkanRuntimeInstaller.Result(status, report);
+                        });
+                Log.i("BionicStartup", installed ? "VulkanRT verified in selected Wine" : "VulkanRT unverified; original Wine bridge preserved");
+                if (dependencyStageCallback != null) dependencyStageCallback.call("complete");
+            }
         } catch (IOException | InterruptedException failure) {
             if (failure instanceof InterruptedException) Thread.currentThread().interrupt();
             failStartup(failure.getMessage());
