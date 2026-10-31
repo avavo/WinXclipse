@@ -6,7 +6,7 @@ public class VKD3DVersionItem {
 
     public VKD3DVersionItem(String verName, int verCode) {
         this.identifier = verName + "-" + verCode; // Unique ID
-        this.displayName = verName; // Display only the version name
+        this.displayName = verName + "-" + verCode; // Distinguish installed builds sharing a name.
     }
 
     public VKD3DVersionItem(String identifier, String displayName) {
@@ -16,6 +16,14 @@ public class VKD3DVersionItem {
 
     public String getIdentifier() {
         return identifier;
+    }
+
+    public static int retainSelection(java.util.List<VKD3DVersionItem> items, String identifier) {
+        if (identifier == null || identifier.isEmpty()) return 0;
+        for (int i = 0; i < items.size(); i++)
+            if (items.get(i).getIdentifier().equals(identifier)) return i;
+        items.add(new VKD3DVersionItem(identifier, identifier));
+        return items.size() - 1;
     }
 
     @Override

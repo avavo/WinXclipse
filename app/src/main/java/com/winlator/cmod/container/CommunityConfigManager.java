@@ -181,8 +181,7 @@ public final class CommunityConfigManager {
 
         public boolean isMissing() { return exact == null; }
         public String requestedName() {
-            return reference.optString("entryName",
-                    reference.optString("versionName", "Unknown"));
+            return referenceSelection(reference);
         }
     }
 
@@ -375,10 +374,9 @@ public final class CommunityConfigManager {
         catch (RuntimeException error) {
             Log.w("CommunityConfig", "Could not load remote content catalog", error);
         }
-        JSONArray refs = manifest.optJSONArray("contents");
-        if (refs == null) refs = manifest.getJSONObject("container").optJSONArray("contentRefs");
+        JSONArray refs = importReferences(context, manifest);
+        applyBundledImportSelections(context, manifest.getJSONObject("container"), refs);
         List<ContentResolution> result = new ArrayList<>();
-        if (refs == null) refs = new JSONArray();
         // Schema-v1 configs did not export driver/wrapper references. Recover
         // those selections from container data without requiring re-export.
         JSONObject driverRef = externalReference(manifest, refs, "graphicsDriver");
@@ -386,8 +384,15 @@ public final class CommunityConfigManager {
         if (driverRef != null && !ensureGraphicsDriver(context, manifest, driverRef, session)) {
             result.add(new ContentResolution(driverRef, null, null, -1, session.failure("graphicsDriver")));
         }
-        if (wrapperRef != null && !ensureWrapper(context, manifest, wrapperRef, session)) {
-            result.add(new ContentResolution(wrapperRef, null, null, -1, session.failure("wrapper")));
+        if (wrapperRef != null) {
+            if (!ensureWrapper(context, manifest, wrapperRef, session)) {
+                result.add(new ContentResolution(wrapperRef, null, null, -1, session.failure("wrapper")));
+            } else {
+                // The portable reference is authoritative, even if the exporting
+                // container still contains an older wrapper identifier.
+                manifest.getJSONObject("container").put("graphicsDriver", CustomWrapperManager.toIdentifier(
+                        referenceSelection(wrapperRef)));
+            }
         }
 
         // The installed profiles on disk are authoritative. If an exact package
@@ -418,8 +423,8 @@ public final class CommunityConfigManager {
         for (int i = 0; i < refs.length(); i++) {
             JSONObject ref = refs.optJSONObject(i);
             if (ref != null && !isExternalReference(ref)
-                    && !isDisabledValue(ref.optString("versionName", ref.optString("entryName", "")))
-                    && !isBundledReference(context, ref.optString("role", ""), ref.optString("entryName", ref.optString("versionName", "")))
+                    && !isDisabledReference(ref)
+                    && !isBundledReference(context, ref)
                     && findExactInstalled(manager, ref) == null) needsRemoteCatalog = true;
         }
         if (needsRemoteCatalog) {
@@ -438,8 +443,8 @@ public final class CommunityConfigManager {
             for (int i = 0; i < refs.length(); i++) {
                 JSONObject ref = refs.optJSONObject(i);
                 if (ref == null || isExternalReference(ref)) continue;
-                String selectedName = ref.optString("entryName", ref.optString("versionName", ""));
-                if (isDisabledValue(selectedName) || isBundledReference(context, ref.optString("role"), selectedName)) continue;
+                String selectedName = referenceSelection(ref);
+                if (isDisabledReference(ref) || isBundledReference(context, ref)) continue;
                 if (findExactInstalled(manager, ref) != null) continue;
                 if (recoverRemoteContent(context, manager, ref, session)) recoveredRemote = true;
             }
@@ -459,7 +464,7 @@ public final class CommunityConfigManager {
             if (ref == null || isExternalReference(ref)) continue;
             String id = ref.optString("contentId", "");
             String type = ref.optString("type", "");
-            String name = ref.optString("entryName", ref.optString("versionName", ""));
+            String name = referenceSelection(ref);
             String role = ref.optString("role", "");
             String requestedRuntimeArch = "wineRuntime".equals(role)
                     ? runtimeArchitecture(name) : "";
@@ -469,8 +474,8 @@ public final class CommunityConfigManager {
             // unresolved external content, causing a freshly exported default
             // container to ask for "none", the bundled DXVK and the bundled Proton.
             // Keep the value already stored in the container and do not resolve it.
-            if (isDisabledValue(name)
-                    || isBundledReference(context, ref.optString("role", ""), name)) {
+            if (isDisabledReference(ref)
+                    || isBundledReference(context, ref)) {
                 continue;
             }
             ContentProfile exact = null;
@@ -509,6 +514,182 @@ public final class CommunityConfigManager {
     private static boolean isExternalReference(JSONObject ref) {
         String role = ref.optString("role", "");
         return "graphicsDriver".equals(role) || "wrapper".equals(role);
+    }
+
+    private static final List<String> IMPORT_ROLES = java.util.Collections.unmodifiableList(
+            java.util.Arrays.asList("wineRuntime", "box64", "fexcore", "dxvk", "vkd3d", "graphicsDriver", "wrapper"));
+
+    /** Recover legacy selections before deciding that a configuration has no dependencies. */
+    static JSONArray importReferences(Context context, JSONObject manifest) throws JSONException {
+        JSONArray original = manifest.optJSONArray("contents");
+        JSONObject data = manifest.getJSONObject("container");
+        if (original == null) original = data.optJSONArray("contentRefs");
+        JSONArray refs = original == null ? new JSONArray() : new JSONArray(original.toString());
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (int i = 0; i < refs.length(); i++) {
+            JSONObject ref = refs.getJSONObject(i);
+            String role = ref.optString("role", "");
+            if (!IMPORT_ROLES.contains(role) || !seen.add(role))
+                throw new JSONException("Unsupported or duplicate dependency role: " + role);
+            String type = ref.optString("type", "");
+            if (type.isEmpty() && "wineRuntime".equals(role)) {
+                type = runtimeReferenceType(referenceSelection(ref));
+                if (!type.isEmpty()) ref.put("type", type);
+            }
+            if (!isExternalReference(ref) && !type.isEmpty()) {
+                ContentProfile declared = new ContentProfile();
+                declared.type = ContentProfile.ContentType.getTypeByName(type);
+                if (!isCompatibleProfile(declared, type, role))
+                    throw new JSONException("Dependency type contradicts role: " + role);
+            }
+        }
+        for (String role : IMPORT_ROLES) {
+            if (seen.contains(role) || "graphicsDriver".equals(role) || "wrapper".equals(role)) continue;
+            String selection = importSelection(data, role);
+            addReference(context, refs, role, null, "wineRuntime".equals(role), selection);
+        }
+        return refs;
+    }
+
+    static boolean isDisabledReference(JSONObject ref) {
+        String selected = referenceSelection(ref);
+        if (selected.isEmpty() && ref.has("contentId") && !ref.isNull("contentId")
+                && !ref.optString("contentId", "").isEmpty()) return false;
+        return isDisabledValue(selected);
+    }
+
+    private static String referenceSelection(JSONObject ref) {
+        String entry = clean(ref.optString("entryName", ""));
+        return entry.isEmpty() ? clean(ref.optString("versionName", "")) : entry;
+    }
+
+    private static String runtimeReferenceType(String selection) {
+        String name = clean(selection).toLowerCase(Locale.ENGLISH);
+        if (name.matches("^proton[-_ ].*")) return "Proton";
+        if (name.matches("^wine[-_ ].*")) return "Wine";
+        return "";
+    }
+
+    static void applyBundledImportSelections(Context context, JSONObject data, JSONArray refs) throws JSONException {
+        for (int i = 0; i < refs.length(); i++) {
+            JSONObject ref = refs.getJSONObject(i);
+            if (isExternalReference(ref) || !isBundledReference(context, ref)) continue;
+            String role = ref.getString("role"), selected = referenceSelection(ref);
+            if (selected.isEmpty()) continue;
+            if (isDisabledValue(selected)) selected = "none";
+            else if (!"wineRuntime".equals(role)) selected = importSelection(new JSONObject(), role);
+            else if (selected.equalsIgnoreCase(WineInfo.MAIN_WINE_VERSION.identifier()))
+                selected = WineInfo.MAIN_WINE_VERSION.identifier();
+            else if (context != null) {
+                for (String known : context.getResources().getStringArray(com.winlator.cmod.R.array.wine_entries))
+                    if (known.equalsIgnoreCase(selected)) { selected = known; break; }
+            }
+            // A built-in reference is still a choice. Do not keep a conflicting
+            // version that happens to be left over in the container fields.
+            setImportSelection(data, role, selected);
+        }
+    }
+
+    private static void setImportSelection(JSONObject data, String role, String selected) throws JSONException {
+        switch (role) {
+            case "wineRuntime": data.put("wineVersion", selected); break;
+            case "box64": data.put("box64Version", selected); break;
+            case "fexcore": data.put("fexcoreVersion", selected); break;
+            case "dxvk":
+            case "vkd3d": data.put("dxwrapperConfig", replaceConfigValue(data.optString("dxwrapperConfig", ""),
+                    "dxvk".equals(role) ? "version" : "vkd3dVersion", selected)); break;
+            case "graphicsDriver": data.put("graphicsDriverConfig", replaceSemicolonConfigValue(
+                    data.optString("graphicsDriverConfig", ""), "version", selected)); break;
+            case "wrapper": data.put("graphicsDriver", selected); break;
+            default: throw new JSONException("Unsupported dependency role: " + role);
+        }
+    }
+
+    public static String importSelection(JSONObject data, String role) {
+        switch (role) {
+            case "wineRuntime": return data.optString("wineVersion", WineInfo.MAIN_WINE_VERSION.identifier());
+            case "box64": return data.optString("box64Version", DefaultVersion.BOX64);
+            case "fexcore": return data.optString("fexcoreVersion", DefaultVersion.FEXCORE);
+            case "dxvk": {
+                String value = configValue(data.optString("dxwrapperConfig", ""), "version");
+                return value.isEmpty() ? DefaultVersion.DXVK : value;
+            }
+            case "vkd3d": {
+                String value = configValue(data.optString("dxwrapperConfig", ""), "vkd3dVersion");
+                return value.isEmpty() ? DefaultVersion.VKD3D : value;
+            }
+            case "graphicsDriver": {
+                String value = semicolonConfigValue(data.optString("graphicsDriverConfig", ""), "version");
+                return value.isEmpty() ? DefaultVersion.WRAPPER : value;
+            }
+            case "wrapper": return data.optString("graphicsDriver", Container.DEFAULT_GRAPHICS_DRIVER);
+            default: throw new IllegalArgumentException("Unknown dependency role: " + role);
+        }
+    }
+
+    public static final class DependencyReview {
+        public final String role, requested, selected;
+        public final boolean missing, substituted;
+        DependencyReview(String role, String requested, String selected, boolean missing, boolean substituted) {
+            this.role = role; this.requested = requested; this.selected = selected;
+            this.missing = missing; this.substituted = substituted;
+        }
+    }
+
+    /** Includes built-ins and successfully recovered external packages, not only missing WCPs. */
+    public static List<DependencyReview> reviewDependencies(JSONObject manifest,
+            List<ContentResolution> resolutions, List<ContentProfile> choices) throws JSONException {
+        JSONObject data = choices == null ? manifest.getJSONObject("container")
+                : previewResolution(manifest, resolutions, choices);
+        List<DependencyReview> rows = new ArrayList<>();
+        for (String role : IMPORT_ROLES) {
+            String selected = importSelection(data, role), requested = selected;
+            boolean missing = false, substituted = false;
+            for (int i = 0; i < resolutions.size(); i++) {
+                ContentResolution resolved = resolutions.get(i);
+                if (!role.equals(resolved.reference.optString("role", ""))) continue;
+                requested = resolved.requestedName();
+                missing = choices == null && resolved.isMissing();
+                substituted = choices != null && choices.get(i) != resolved.exact;
+                // null explicitly selects a built-in/default when the exact package is absent.
+                substituted |= choices != null && resolved.isMissing();
+                if (choices == null && resolved.exact != null) {
+                    String entry = ContentsManager.getEntryName(resolved.exact);
+                    selected = "wineRuntime".equals(role) ? entry : tail(entry);
+                }
+                if (missing) selected = "";
+                break;
+            }
+            rows.add(new DependencyReview(role, requested, selected, missing, substituted));
+        }
+        return rows;
+    }
+
+    /** Recheck after the review: the user may remove a package from another screen. */
+    public static void validateImportSelections(Context context, JSONObject manifest,
+            List<ContentResolution> resolutions, List<ContentProfile> choices) throws IOException, JSONException {
+        JSONObject data = previewResolution(manifest, resolutions, choices);
+        ContentsManager installed = new ContentsManager(context);
+        installed.syncContents();
+        for (int i = 0; i < resolutions.size(); i++) {
+            ContentProfile selected = choices.get(i);
+            if (selected != null && installed.getInstalledProfileByEntryName(ContentsManager.getEntryName(selected)) == null)
+                throw new IOException("Dependency is no longer installed: " + ContentsManager.getEntryName(selected));
+        }
+        JSONArray refs = importReferences(context, manifest);
+        JSONObject driver = externalReference(manifest, refs, "graphicsDriver");
+        String driverSelection = importSelection(data, "graphicsDriver");
+        if (driver != null && !DefaultVersion.WRAPPER.equalsIgnoreCase(driverSelection)) {
+            XclipseDriverManager drivers = new XclipseDriverManager(context);
+            String id = drivers.findExactInstalledDriverId(driver.optString("versionName", driver.optString("entryName", "")),
+                    driver.optString("driverVersion", ""), driver.optString("sha256", ""));
+            if (id.isEmpty() || !id.equals(driverSelection)) throw new IOException("Selected driver is no longer available");
+        }
+        JSONObject wrapper = externalReference(manifest, refs, "wrapper");
+        String wrapperSelection = importSelection(data, "wrapper");
+        if (wrapper != null && !isBundledWrapper(wrapperSelection)
+                && !new CustomWrapperManager(context).matchesInstalled(wrapperSelection, wrapper.optString("sha256", "")))
+            throw new IOException("Selected wrapper is no longer available");
     }
 
     private static JSONObject externalReference(JSONObject manifest, JSONArray refs, String role)
@@ -586,7 +767,7 @@ public final class CommunityConfigManager {
     private static boolean ensureWrapper(Context context, JSONObject manifest, JSONObject ref,
             DependencyImportSession session) throws DependencyImportSession.Stopped {
         session.update(DependencyImportSession.Stage.LOCAL, ref.optString("versionName"), 0);
-        String requested = CustomWrapperManager.toIdentifier(ref.optString("entryName", ref.optString("versionName", "")));
+        String requested = CustomWrapperManager.toIdentifier(referenceSelection(ref));
         if (isBundledWrapper(requested)) return true;
         String sha256 = ref.optString("sha256", "");
         CustomWrapperManager manager = new CustomWrapperManager(context);
@@ -656,6 +837,17 @@ public final class CommunityConfigManager {
     public static JSONObject applyResolution(Context context, JSONObject manifest,
                                              List<ContentResolution> resolutions,
                                              List<ContentProfile> choices) throws IOException, JSONException {
+        JSONObject data = previewResolution(manifest, resolutions, choices);
+        clearImportedPrefixState(data);
+        restoreCustomPresets(context, manifest.optJSONObject("presets"), data);
+        return data;
+    }
+
+    /** Side-effect-free configuration shown by the review and used by the actual import. */
+    public static JSONObject previewResolution(JSONObject manifest, List<ContentResolution> resolutions,
+                                               List<ContentProfile> choices) throws JSONException {
+        if (choices == null || choices.size() != resolutions.size())
+            throw new JSONException("Every dependency requires an explicit selection");
         JSONObject data = new JSONObject(manifest.getJSONObject("container").toString());
         data.remove("id");
         data.remove("contentRefs");
@@ -665,45 +857,14 @@ public final class CommunityConfigManager {
             ContentProfile selected = choices.get(i);
             String role = resolution.reference.optString("role", "");
             if (selected == null) {
-                if ("graphicsDriver".equals(role)) {
-                    data.put("graphicsDriverConfig", replaceSemicolonConfigValue(
-                            data.optString("graphicsDriverConfig", ""), "version", DefaultVersion.WRAPPER));
-                }
-                else if ("wrapper".equals(role)) {
-                    data.put("graphicsDriver", Container.DEFAULT_GRAPHICS_DRIVER);
-                }
-                else if ("wineRuntime".equals(role)) {
-                    data.put("wineVersion", WineInfo.MAIN_WINE_VERSION.identifier());
-                }
-                else if ("box64".equals(role)) {
-                    data.put("box64Version", DefaultVersion.BOX64);
-                }
-                else if ("fexcore".equals(role)) {
-                    data.put("fexcoreVersion", DefaultVersion.FEXCORE);
-                }
-                else if ("dxvk".equals(role) || "vkd3d".equals(role)) {
-                    String config = data.optString("dxwrapperConfig", "");
-                    String key = "dxvk".equals(role) ? "version" : "vkd3dVersion";
-                    String fallback = "dxvk".equals(role) ? DefaultVersion.DXVK : DefaultVersion.VKD3D;
-                    data.put("dxwrapperConfig", replaceConfigValue(config, key, fallback));
-                }
+                setImportSelection(data, role, importSelection(new JSONObject(), role));
                 continue;
             }
+            if (!isCompatibleProfile(selected, resolution.reference.optString("type", ""), role))
+                throw new JSONException("Incompatible dependency selection: " + role);
             String entry = ContentsManager.getEntryName(selected);
-            if ("wineRuntime".equals(role)) data.put("wineVersion", entry);
-            else if ("box64".equals(role)) data.put("box64Version", tail(entry));
-            else if ("fexcore".equals(role)) data.put("fexcoreVersion", tail(entry));
-            else if ("dxvk".equals(role) || "vkd3d".equals(role)) {
-                String config = data.optString("dxwrapperConfig", "");
-                String key = "dxvk".equals(role) ? "version" : "vkd3dVersion";
-                // Keep the installed profile's versionCode in the selector. It
-                // disambiguates duplicate versions and lets VKD3D resolve the
-                // profile instead of falling through to a nonexistent APK asset.
-                data.put("dxwrapperConfig", replaceConfigValue(config, key, tail(entry)));
-            }
+            setImportSelection(data, role, "wineRuntime".equals(role) ? entry : tail(entry));
         }
-        clearImportedPrefixState(data);
-        restoreCustomPresets(context, manifest.optJSONObject("presets"), data);
         return data;
     }
 
@@ -716,7 +877,8 @@ public final class CommunityConfigManager {
                 "desktopTheme", "audioDriver", "startupSelectionApplied", "wfmFixVersion",
                 "controllerFixVersion", "arm64ecInputDllsVersion", "lastInstalledMainWrapper",
                 "lastInstalledMainWrapperRevision", "graphicsDriver", "fexcoreVersion",
-                "box64Version", "commonPatchRevision"
+                "box64Version", "commonPatchRevision", "dxwrapperIntegrityVersion",
+                "ddrawIntegrityVersion", "bcnLayerVersion"
         };
         for (String key : transientKeys) extra.remove(key);
     }
@@ -821,8 +983,10 @@ public final class CommunityConfigManager {
             // Legacy/custom content may have no profile. Preserve its visible
             // filename so import can offer a fuzzy local replacement.
             ref.put("contentId", JSONObject.NULL);
-            ref.put("type", "");
-            ref.put("versionName", fallbackName);
+            ref.put("type", "wineRuntime".equals(role) ? runtimeReferenceType(fallbackName) : "");
+            // A legacy selector may include its manifest code (2610-2246).
+            // It is an entry, not a verName: let matching compare both forms.
+            ref.put("versionName", "");
             ref.put("versionCode", JSONObject.NULL);
             ref.put("entryName", fallbackName);
         }
@@ -833,6 +997,16 @@ public final class CommunityConfigManager {
         String normalized = clean(value).toLowerCase(Locale.ENGLISH);
         return normalized.isEmpty() || "none".equals(normalized)
                 || "disabled".equals(normalized) || "-- disabled --".equals(normalized);
+    }
+
+    static boolean isBundledReference(Context context, JSONObject ref) {
+        // A selected WCP with a build/id is not the APK's built-in package just
+        // because both advertise the same visible version. Resolve its manifest.
+        if ((ref.has("versionCode") && !ref.isNull("versionCode"))
+                || (ref.has("contentId") && !ref.isNull("contentId")
+                && !ref.optString("contentId", "").isEmpty())) return false;
+        return isBundledReference(context, ref.optString("role", ""),
+                referenceSelection(ref));
     }
 
     /** Values distributed inside the base APK/imagefs and therefore portable without a content package. */
@@ -907,13 +1081,7 @@ public final class CommunityConfigManager {
 
     private static boolean isCompatibleProfile(ContentProfile profile, String type, String role) {
         if (profile == null || profile.type == null) return false;
-        if (!type.isEmpty()) {
-            if (profile.type.toString().equalsIgnoreCase(type)) return true;
-            return "wineRuntime".equals(role)
-                    && (profile.type == ContentProfile.ContentType.CONTENT_TYPE_WINE
-                    || profile.type == ContentProfile.ContentType.CONTENT_TYPE_PROTON)
-                    && ("Wine".equalsIgnoreCase(type) || "Proton".equalsIgnoreCase(type));
-        }
+        if (!type.isEmpty() && !profile.type.toString().equalsIgnoreCase(type)) return false;
         switch (role) {
             case "wineRuntime":
                 return profile.type == ContentProfile.ContentType.CONTENT_TYPE_WINE
@@ -945,8 +1113,8 @@ public final class CommunityConfigManager {
             JSONObject ref = refs.optJSONObject(index);
             if (ref == null || isExternalReference(ref)) continue;
             String role = ref.optString("role", "");
-            String requested = ref.optString("entryName", ref.optString("versionName", ""));
-            if (isDisabledValue(requested) || isBundledReference(context, role, requested)
+            String requested = referenceSelection(ref);
+            if (isDisabledReference(ref) || isBundledReference(context, ref)
                     || findExactInstalled(manager, ref) != null) continue;
 
             List<File> candidates = new ArrayList<>(packages);

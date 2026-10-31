@@ -289,14 +289,14 @@ public final class FEXCoreManager {
         LinkedHashSet<String> versions = new LinkedHashSet<>(Arrays.asList(originalItems));
         for (ContentProfile profile : contentsManager.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_FEXCORE)) {
             if (!contentsManager.isInstalledProfile(profile)) continue;
-            versions.add(profile.verName);
+            versions.add(profile.verName + "-" + profile.verCode);
         }
         List<String> itemList = new ArrayList<>(versions);
         spinner.setAdapter(new com.winlator.cmod.widget.ThemedSpinnerAdapter<>(spinner.getContext(), itemList));
         if (container != null)
-            AppUtils.setSpinnerSelectionFromValue(spinner, container.getFEXCoreVersion());
+            AppUtils.setContentVersionSelection(spinner, container.getFEXCoreVersion());
         else
-            AppUtils.setSpinnerSelectionFromValue(spinner, DefaultVersion.FEXCORE);
+            AppUtils.setContentVersionSelection(spinner, DefaultVersion.FEXCORE);
     }
 
     public static void loadFEXCoreVersion(Context context, ContentsManager contentsManager, Spinner spinner, Shortcut shortcut) {
@@ -304,11 +304,11 @@ public final class FEXCoreManager {
         LinkedHashSet<String> versions = new LinkedHashSet<>(Arrays.asList(originalItems));
         for (ContentProfile profile : contentsManager.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_FEXCORE)) {
             if (!contentsManager.isInstalledProfile(profile)) continue;
-            versions.add(profile.verName);
+            versions.add(profile.verName + "-" + profile.verCode);
         }
         List<String> itemList = new ArrayList<>(versions);
         spinner.setAdapter(new com.winlator.cmod.widget.ThemedSpinnerAdapter<>(spinner.getContext(), itemList));
-        AppUtils.setSpinnerSelectionFromValue(spinner, shortcut.getExtra("fexcoreVersion", shortcut.container.getFEXCoreVersion()));
+        AppUtils.setContentVersionSelection(spinner, shortcut.getExtra("fexcoreVersion", shortcut.container.getFEXCoreVersion()));
     }
 
     public static void createAppConfigFiles(Context ctx) {

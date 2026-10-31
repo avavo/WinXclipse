@@ -4,6 +4,28 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class ContentVersionTest {
+    @Test public void reopeningASelectorKeepsTheImportedBuildWhenNamesAreDuplicated() {
+        java.util.List<String> rows = new java.util.ArrayList<>(java.util.Arrays.asList("2.6.1", "2.6.1-41", "2.6.1-42"));
+        assertEquals(2, ContentVersion.retainSelection(rows, "2.6.1-42"));
+        String saved = rows.get(2);
+        assertEquals(2, ContentVersion.retainSelection(rows, saved));
+        assertEquals(3, rows.size());
+    }
+
+    @Test public void aRemovedPackageDoesNotTurnIntoTheFirstDefaultWhenEditing() {
+        java.util.List<String> rows = new java.util.ArrayList<>(java.util.Arrays.asList("2610", "2610-2246"));
+        int selected = ContentVersion.retainSelection(rows, "2608-2245");
+        assertEquals("2608-2245", rows.get(selected));
+        assertEquals(selected, ContentVersion.retainSelection(rows, "2608-2245"));
+        assertEquals(3, rows.size());
+    }
+
+    @Test public void legacyWineIdentifiersKeepTheirExactSpellingAndZeroBuildSuffix() {
+        java.util.List<String> rows = new java.util.ArrayList<>(java.util.Arrays.asList("proton-9.0-arm64ec", "Proton-10.0-arm64-18"));
+        assertEquals("Proton-9.0-arm64ec-0", rows.get(ContentVersion.retainSelection(rows, "Proton-9.0-arm64ec-0")));
+        assertEquals("Proton-10.0-arm64-18", rows.get(ContentVersion.retainSelection(rows, "Proton-10.0-arm64-18")));
+    }
+
     @Test public void acceptsCaseAndSeparatorAliases() {
         assertTrue(ContentVersion.matches("10.0-4-arm64ec", 0,
                 "Proton_10.0-4-arm64ec.wcp", "", 0, false));

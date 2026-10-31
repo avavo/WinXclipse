@@ -294,6 +294,16 @@ public abstract class AppUtils {
         return false;
     }
 
+    /** String version selectors must not replace an unavailable saved build with row zero. */
+    public static void setContentVersionSelection(Spinner spinner, String identifier) {
+        java.util.List<String> versions = new java.util.ArrayList<>();
+        for (int i = 0; i < spinner.getCount(); i++) versions.add(spinner.getItemAtPosition(i).toString());
+        int selected = ContentVersion.retainSelection(versions, identifier);
+        if (versions.size() != spinner.getCount())
+            spinner.setAdapter(new com.winlator.cmod.widget.ThemedSpinnerAdapter<>(spinner.getContext(), versions));
+        spinner.setSelection(selected, false);
+    }
+
     public static boolean setSpinnerSelectionFromIdentifier(Spinner spinner, String identifier) {
         spinner.setSelection(0, false);
         for (int i = 0; i < spinner.getCount(); i++) {

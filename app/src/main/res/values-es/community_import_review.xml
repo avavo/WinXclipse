@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="community_review_title">Revisar dependencias de la config</string>
+    <string name="community_review_missing">No se pudieron instalar algunas versiones exactas. Revisa lo disponible y elige cada sustitución explícitamente.</string>
+    <string name="community_review_ready">Estas son las versiones que se guardarán en el nuevo contenedor. Las sustituciones que elegiste se indican a continuación.</string>
+    <string name="community_review_counts">Disponibles: %1$d · Sin resolver: %2$d</string>
+    <string name="community_review_not_found">Sin resolver: %1$s</string>
+    <string name="community_review_available">Disponible: %1$s</string>
+    <string name="community_review_substitution">Solicitada: %1$s\nSustitución elegida: %2$s</string>
+    <string name="community_review_choose">Elegir sustituciones</string>
+    <string name="community_review_create">Crear contenedor</string>
+</resources>

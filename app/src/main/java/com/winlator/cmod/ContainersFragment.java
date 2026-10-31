@@ -93,6 +93,7 @@ public class ContainersFragment extends Fragment {
     private TextView importProgressText;
     private ProgressBar importProgressBar;
     private boolean importDialogHidden, showingResolution;
+    private boolean observedImportApplying;
     private final PendingConfigImport.Observer importObserver = () -> {
         View view = getView();
         if (view != null) view.post(this::refreshImportProgress);
@@ -130,6 +131,7 @@ public class ContainersFragment extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
         pendingImport.observe(importObserver);
+        observedImportApplying |= pendingImport.state() == PendingConfigImport.State.APPLYING;
         importDialogHidden = false;
         manager = new ContainerManager(getContext());
         loadContainersList();
@@ -354,13 +356,18 @@ public class ContainersFragment extends Fragment {
         PendingConfigImport.State state = pendingImport.state();
         if (state == PendingConfigImport.State.IDLE || state == PendingConfigImport.State.CANCELLED) {
             if (importDialog != null) { importDialog.dismiss(); importDialog = null; }
+            if (observedImportApplying && state == PendingConfigImport.State.IDLE) {
+                manager.reloadContainers();
+                loadContainersList();
+            }
+            observedImportApplying = false;
             return;
         }
         if (state == PendingConfigImport.State.READY) {
             if (importDialog != null) { importDialog.dismiss(); importDialog = null; }
             if (!showingResolution) {
                 showingResolution = true;
-                resolveImportedContents(pendingImport.manifest(), pendingImport.resolutions(), new ArrayList<>(), 0);
+                showImportDependencyReview(pendingImport.manifest(), pendingImport.resolutions(), null);
             }
             return;
         }
@@ -387,15 +394,21 @@ public class ContainersFragment extends Fragment {
             });
         }
         boolean running = pendingImport.isRunning();
+        boolean applying = state == PendingConfigImport.State.APPLYING;
+        observedImportApplying |= applying;
         boolean stopping = state == PendingConfigImport.State.STOPPING;
         DependencyImportSession.Stage phase = pendingImport.stage();
         boolean installing = running && phase == DependencyImportSession.Stage.INSTALLING;
         importDialog.getButton(DialogInterface.BUTTON_POSITIVE).setText(running ? R.string.download_pause : R.string.download_resume);
         importDialog.getButton(DialogInterface.BUTTON_POSITIVE).setEnabled(!stopping && !installing);
         importDialog.getButton(DialogInterface.BUTTON_NEGATIVE).setEnabled(!installing);
+        importDialog.getButton(DialogInterface.BUTTON_POSITIVE).setVisibility(applying ? View.GONE : View.VISIBLE);
+        importDialog.getButton(DialogInterface.BUTTON_NEGATIVE).setVisibility(applying ? View.GONE : View.VISIBLE);
+        importDialog.setCancelable(!applying);
         importProgressBar.setIndeterminate(running && phase != DependencyImportSession.Stage.DOWNLOADING);
         importProgressBar.setProgress(pendingImport.percent());
-        int label = state == PendingConfigImport.State.PAUSED ? R.string.community_import_paused
+        int label = applying ? R.string.creating_container
+                : state == PendingConfigImport.State.PAUSED ? R.string.community_import_paused
                 : state == PendingConfigImport.State.FAILED ? R.string.community_import_retry
                 : stopping ? R.string.download_stopping
                 : phase == DependencyImportSession.Stage.CATALOG ? R.string.community_import_catalog
@@ -416,6 +429,61 @@ public class ContainersFragment extends Fragment {
         if (importDialog != null) { importDialog.dismiss(); importDialog = null; }
     }
 
+    private void showImportDependencyReview(JSONObject manifest,
+            List<CommunityConfigManager.ContentResolution> resolutions,
+            List<com.winlator.cmod.contents.ContentProfile> choices) {
+        try {
+            List<CommunityConfigManager.DependencyReview> rows =
+                    CommunityConfigManager.reviewDependencies(manifest, resolutions, choices);
+            long missing = rows.stream().filter(row -> row.missing).count();
+            if (choices == null && missing == 0) {
+                resolveImportedContents(manifest, resolutions, new ArrayList<>(), 0);
+                return;
+            }
+            StringBuilder text = new StringBuilder(getString(choices == null
+                    ? R.string.community_review_missing : R.string.community_review_ready));
+            text.append("\n\n").append(getString(R.string.community_review_counts, rows.size() - (int)missing, (int)missing));
+            for (CommunityConfigManager.DependencyReview row : rows) {
+                text.append("\n\n").append(importRoleLabel(row.role)).append("\n");
+                if (row.missing) text.append(getString(R.string.community_review_not_found, row.requested));
+                else if (row.substituted) text.append(getString(R.string.community_review_substitution, row.requested, row.selected));
+                else text.append(getString(R.string.community_review_available, row.selected));
+            }
+            TextView details = new TextView(requireContext());
+            int padding = (int)com.winlator.cmod.core.UnitUtils.dpToPx(24);
+            details.setPadding(padding, padding / 2, padding, padding / 2);
+            details.setTextSize(15);
+            details.setText(text);
+            details.setTextIsSelectable(true);
+            ScrollView scroll = new ScrollView(requireContext());
+            scroll.addView(details);
+            AlertDialog dialog = new AlertDialog.Builder(requireContext()).setTitle(R.string.community_review_title)
+                    .setView(scroll)
+                    .setPositiveButton(choices == null ? R.string.community_review_choose : R.string.community_review_create,
+                            (d, which) -> {
+                                if (choices == null) resolveImportedContents(manifest, resolutions, new ArrayList<>(), 0);
+                                else installImportedConfiguration(manifest, resolutions, choices);
+                            })
+                    .setNegativeButton(R.string.cancel, (d, which) -> abortCommunityImport()).create();
+            showCommunityDialog(dialog);
+        } catch (Exception failure) {
+            Log.e("ContainersFragment", "Unable to review dependencies", failure);
+            showImportApplyFailure(R.string.community_apply_failed);
+        }
+    }
+
+    private String importRoleLabel(String role) {
+        switch (role) {
+            case "wineRuntime": return getString(R.string.wine_and_proton);
+            case "box64": return "Box64";
+            case "fexcore": return "FEXCore";
+            case "dxvk": return "DXVK";
+            case "vkd3d": return "VKD3D";
+            case "graphicsDriver": return getString(R.string.graphics_driver);
+            default: return getString(R.string.wrappers);
+        }
+    }
+
     private void resolveImportedContents(JSONObject manifest,
                                          List<CommunityConfigManager.ContentResolution> resolutions,
                                          List<com.winlator.cmod.contents.ContentProfile> choices,
@@ -427,7 +495,7 @@ public class ContainersFragment extends Fragment {
             List<CommunityConfigManager.ContentResolution> resolutions,
             List<com.winlator.cmod.contents.ContentProfile> choices, int index, boolean chooseAlternative) {
         if (index >= resolutions.size()) {
-            installImportedConfiguration(manifest, resolutions, choices);
+            showImportDependencyReview(manifest, resolutions, choices);
             return;
         }
         CommunityConfigManager.ContentResolution current = resolutions.get(index);
@@ -543,44 +611,56 @@ public class ContainersFragment extends Fragment {
     private void installImportedConfiguration(JSONObject manifest,
                                               List<CommunityConfigManager.ContentResolution> resolutions,
                                               List<com.winlator.cmod.contents.ContentProfile> choices) {
-        ContentOperationRegistry.Token operation = null;
-        try {
-            JSONObject config = CommunityConfigManager.applyResolution(
-                    requireContext(), manifest, resolutions, choices);
-            JSONObject metadata = manifest.optJSONObject("metadata");
-            String gameName = metadata != null ? metadata.optString("gameName", "") : "";
-            if (!gameName.trim().isEmpty()) config.put("name", gameName.trim());
-            operation = ContentOperationRegistry.begin(ContentOperationRegistry.Kind.INSTALL);
-            ContentOperationRegistry.Token activeOperation = operation;
-            preloaderDialog.allowBackground();
-            preloaderDialog.show(R.string.creating_container);
-            com.winlator.cmod.contents.ContentsManager contents =
-                    new com.winlator.cmod.contents.ContentsManager(requireContext());
-            contents.syncContents();
-            manager.createContainerAsync(config, contents, created -> {
-                activeOperation.close();
-                preloaderDialog.close();
-                if (created != null) pendingImport.complete();
-                showingResolution = false;
-                if (!isAdded() || getView() == null) return;
-                if (created == null) {
-                    showImportApplyFailure(R.string.community_create_failed);
-                } else {
-                    loadContainersList();
-                    Toast.makeText(requireContext(), getString(R.string.community_import_complete), Toast.LENGTH_SHORT).show();
-                }
-            });
-        } catch (Exception e) {
-            if (operation != null) operation.close();
-            Log.e("ContainersFragment", "Unable to apply community config", e);
-            showingResolution = false;
-            showImportApplyFailure(R.string.community_apply_failed);
-        }
+        if (!pendingImport.beginApply()) return;
+        refreshImportProgress();
+        Context appContext = requireContext().getApplicationContext();
+        ContainerManager targetManager = manager;
+        android.os.Handler main = new android.os.Handler(android.os.Looper.getMainLooper());
+        ContentOperationRegistry.Token operation = ContentOperationRegistry.begin(ContentOperationRegistry.Kind.INSTALL);
+        new Thread(() -> {
+            try {
+                CommunityConfigManager.validateImportSelections(appContext, manifest, resolutions, choices);
+                JSONObject config = CommunityConfigManager.applyResolution(appContext, manifest, resolutions, choices);
+                JSONObject metadata = manifest.optJSONObject("metadata");
+                String gameName = metadata != null ? metadata.optString("gameName", "") : "";
+                if (!gameName.trim().isEmpty()) config.put("name", gameName.trim());
+                com.winlator.cmod.contents.ContentsManager contents =
+                        new com.winlator.cmod.contents.ContentsManager(appContext);
+                contents.syncContents();
+                targetManager.createContainerAsync(config, contents, created -> {
+                    operation.close();
+                    // Complete the retained operation even if this Fragment was destroyed.
+                    if (created != null) pendingImport.complete();
+                    else pendingImport.applyFailed();
+                    if (!isAdded() || getView() == null) return;
+                    showingResolution = created == null;
+                    if (created == null) {
+                        showImportApplyFailure(R.string.community_create_failed);
+                    } else {
+                        loadContainersList();
+                        Toast.makeText(appContext, getString(R.string.community_import_complete), Toast.LENGTH_SHORT).show();
+                    }
+                });
+            } catch (Exception failure) {
+                operation.close();
+                Log.e("ContainersFragment", "Unable to apply community config", failure);
+                main.post(() -> {
+                    pendingImport.applyFailed();
+                    if (!isAdded() || getView() == null) return;
+                    showImportApplyFailure(R.string.community_apply_failed);
+                });
+            }
+        }, "ConfigImportApply").start();
     }
 
     private void showImportApplyFailure(int message) {
+        showingResolution = true;
+        if (importDialog != null) { importDialog.dismiss(); importDialog = null; }
         AlertDialog dialog = new AlertDialog.Builder(requireContext()).setMessage(message)
-                .setPositiveButton(R.string.community_retry_action, (d, w) -> pendingImport.start())
+                .setPositiveButton(R.string.community_retry_action, (d, w) -> {
+                    showingResolution = false;
+                    pendingImport.start();
+                })
                 .setNegativeButton(R.string.cancel, (d, w) -> abortCommunityImport()).create();
         showCommunityDialog(dialog);
     }

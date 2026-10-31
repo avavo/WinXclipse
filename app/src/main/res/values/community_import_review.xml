@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="community_review_title">Review config dependencies</string>
+    <string name="community_review_missing">Some exact versions could not be installed. Review what is available, then choose each replacement explicitly.</string>
+    <string name="community_review_ready">These are the versions that will be saved in the new container. Any replacement you selected is listed below.</string>
+    <string name="community_review_counts">Available: %1$d · Unresolved: %2$d</string>
+    <string name="community_review_not_found">Unresolved: %1$s</string>
+    <string name="community_review_available">Available: %1$s</string>
+    <string name="community_review_substitution">Requested: %1$s\nChosen replacement: %2$s</string>
+    <string name="community_review_choose">Choose replacements</string>
+    <string name="community_review_create">Create container</string>
+</resources>

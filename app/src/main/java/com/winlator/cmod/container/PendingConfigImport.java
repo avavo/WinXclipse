@@ -15,12 +15,15 @@ import java.util.concurrent.Executors;
 
 /** Retains a pending config independently of a Fragment/Activity and of process restarts. */
 public final class PendingConfigImport {
-    public enum State { IDLE, RUNNING, STOPPING, PAUSED, READY, FAILED, CANCELLED }
+    public enum State { IDLE, RUNNING, STOPPING, PAUSED, READY, APPLYING, FAILED, CANCELLED }
     public interface Observer { void changed(); }
+    interface Resolver {
+        List<CommunityConfigManager.ContentResolution> resolve(JSONObject manifest, DependencyImportSession session) throws Exception;
+    }
     private static PendingConfigImport instance;
-    private final Context context;
     private final File receipt;
-    private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private final ExecutorService worker;
+    private final Resolver resolver;
     private Observer observer;
     private boolean running;
     private long generation;
@@ -33,8 +36,15 @@ public final class PendingConfigImport {
     private List<CommunityConfigManager.ContentResolution> resolutions;
 
     private PendingConfigImport(Context context) {
-        this.context = context.getApplicationContext();
-        receipt = new File(this.context.getFilesDir(), "pending-config-import.json");
+        this(new File(context.getApplicationContext().getFilesDir(), "pending-config-import.json"),
+                Executors.newSingleThreadExecutor(), (manifest, session) ->
+                        CommunityConfigManager.resolveContents(context.getApplicationContext(), manifest, session));
+    }
+
+    PendingConfigImport(File receipt, ExecutorService worker, Resolver resolver) {
+        this.receipt = receipt;
+        this.worker = worker;
+        this.resolver = resolver;
         state = receipt.isFile() ? State.PAUSED : State.IDLE;
     }
 
@@ -56,7 +66,9 @@ public final class PendingConfigImport {
 
     public synchronized void offer(JSONObject config) throws IOException {
         if (running) throw new IOException("Another configuration import is still running");
-        if (!FileUtils.writeString(receipt, config.toString())) throw new IOException("Could not save pending configuration");
+        try { config = new JSONObject(config.toString()); }
+        catch (org.json.JSONException invalid) { throw new IOException("Invalid pending configuration", invalid); }
+        if (!FileUtils.writeStringAtomic(receipt, config.toString())) throw new IOException("Could not save pending configuration");
         manifest = config;
         resolutions = null;
         state = State.PAUSED;
@@ -74,7 +86,7 @@ public final class PendingConfigImport {
             error = "";
             percent = 0;
             attempt = ++generation;
-            session = active = new DependencyImportSession(new File(context.getFilesDir(), "content-downloads"),
+            session = active = new DependencyImportSession(new File(receipt.getParentFile(), "content-downloads"),
                     (phase, label, progress) -> {
                         synchronized (PendingConfigImport.this) {
                             if (attempt != generation || state != State.RUNNING) return;
@@ -89,12 +101,14 @@ public final class PendingConfigImport {
                 JSONObject config;
                 synchronized (this) { config = manifest; }
                 if (config == null) config = new JSONObject(FileUtils.readString(receipt));
-                List<CommunityConfigManager.ContentResolution> resolved = CommunityConfigManager.resolveContents(context, config, active);
+                List<CommunityConfigManager.ContentResolution> resolved = resolver.resolve(config, active);
                 synchronized (this) {
                     if (attempt != generation) return;
                     active.checkRunning();
                     manifest = config;
                     resolutions = resolved;
+                    running = false;
+                    session = null;
                     state = State.READY;
                 }
             } catch (DependencyImportSession.Stopped stopped) {
@@ -106,7 +120,7 @@ public final class PendingConfigImport {
                     if (attempt == generation) { state = State.FAILED; error = failure.getMessage(); }
                 }
             } finally {
-                synchronized (this) { running = false; if (session == active) session = null; }
+                synchronized (this) { if (session == active) { running = false; session = null; } }
                 notifyObserver();
             }
         });
@@ -114,7 +128,7 @@ public final class PendingConfigImport {
 
     public void pause() {
         synchronized (this) {
-            if (!running) return;
+            if (!running || state == State.APPLYING) return;
             state = State.STOPPING;
             if (session != null) session.pause();
         }
@@ -123,6 +137,7 @@ public final class PendingConfigImport {
 
     public void cancel() {
         synchronized (this) {
+            if (state == State.APPLYING) return;
             generation++;
             if (session != null) session.cancel();
             receipt.delete();
@@ -134,7 +149,29 @@ public final class PendingConfigImport {
     }
 
     public void complete() {
-        synchronized (this) { receipt.delete(); state = State.IDLE; manifest = null; resolutions = null; }
+        synchronized (this) { receipt.delete(); running = false; state = State.IDLE; manifest = null; resolutions = null; }
+        notifyObserver();
+    }
+
+    /** Exactly one creation can consume a ready import, including after Activity recreation. */
+    public boolean beginApply() {
+        synchronized (this) {
+            if (running || state != State.READY) return false;
+            running = true;
+            state = State.APPLYING;
+            stage = DependencyImportSession.Stage.INSTALLING;
+            name = "";
+        }
+        notifyObserver();
+        return true;
+    }
+
+    public void applyFailed() {
+        synchronized (this) {
+            if (state != State.APPLYING) return;
+            running = false;
+            state = State.READY;
+        }
         notifyObserver();
     }
 

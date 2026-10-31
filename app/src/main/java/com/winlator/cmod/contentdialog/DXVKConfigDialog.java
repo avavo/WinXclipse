@@ -169,7 +169,6 @@ public class DXVKConfigDialog extends ContentDialog {
     private final View llAsyncCache;
     private final Context context;
     private final boolean arm64EC;
-    private List<String> dxvkVersions;
     private final CustomConf customConf;
     private TextView tvDxvkConfStatus;
     private View btRemoveDxvkConf;
@@ -249,10 +248,10 @@ public class DXVKConfigDialog extends ContentDialog {
         sVkd3dFeatureLevel.setAdapter(featureAdapter);
 
         KeyValueSet config = parseConfig(anchor.getTag());
-        if (!arm64EC && config.get("version").toLowerCase(Locale.ENGLISH).contains("arm64ec")) {
+        if (!arm64EC && DefaultVersion.DXVK.equals(config.get("version"))) {
             config.put("version", DefaultVersion.DXVK_X86);
         }
-        AppUtils.setSpinnerSelectionFromIdentifier(sVersion, config.get("version"));
+        AppUtils.setContentVersionSelection(sVersion, config.get("version"));
         AppUtils.setSpinnerSelectionFromIdentifier(sFramerate, config.get("framerate"));
         AppUtils.setSpinnerSelectionFromIdentifier(sDDrawWrapper, config.get("ddrawrapper"));
         setVkd3dSelectionByIdentifier(sVkd3dVersion, config.get("vkd3dVersion"));
@@ -267,7 +266,7 @@ public class DXVKConfigDialog extends ContentDialog {
                     ContentProfile.ContentType.CONTENT_TYPE_DXVK.ordinal(), () -> {
                         contentsManager.syncContents();
                         loadDxvkVersionSpinner(contentsManager, sVersion);
-                        AppUtils.setSpinnerSelectionFromIdentifier(sVersion, selected);
+                        AppUtils.setContentVersionSelection(sVersion, selected);
                     });
         });
         findViewById(R.id.BTDownloadVKD3DContent).setOnClickListener(v -> {
@@ -378,7 +377,7 @@ public class DXVKConfigDialog extends ContentDialog {
     }
 
     private int getDXVKType(int pos) {
-        final String v = dxvkVersions.get(pos);
+        final String v = String.valueOf(((Spinner)findViewById(R.id.SVersion)).getItemAtPosition(pos));
         int dxvkType = DXVK_TYPE_NONE;
         if (v.contains("gplasync"))
             dxvkType = DXVK_TYPE_GPLASYNC;
@@ -583,28 +582,25 @@ public class DXVKConfigDialog extends ContentDialog {
             if (arm64EC || !version.toLowerCase(Locale.ENGLISH).contains("arm64ec")) itemList.add(version);
         }
 
-        /* Content profiles join the static list under their clean version name
-         * (profile.verName, e.g. "1.7.2" or "2.6.2-arm64ec-gplasync") instead of
-         * the raw "name-<verCode>" entry form, and duplicates are suppressed so
-         * a bundled .wcp never shows up twice next to its array entry. */
+        // Keep the manifest build in the saved selector. Visible-name-only rows
+        // made imported name-code selections fall back to the first bundled DXVK.
         for (ContentProfile profile : manager.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_DXVK)) {
             if (!manager.isInstalledProfile(profile)) continue;
             String verName = profile.verName;
             if (verName != null && !verName.isEmpty()
                     && (arm64EC || !verName.toLowerCase(Locale.ENGLISH).contains("arm64ec"))
-                    && !itemList.contains(verName))
-                itemList.add(verName);
+                    && !itemList.contains(verName + "-" + profile.verCode))
+                itemList.add(verName + "-" + profile.verCode);
         }
 
         spinner.setAdapter(new ThemedSpinnerAdapter<>(context, itemList));
-        dxvkVersions = itemList;
     }
 
     private void loadVkd3dVersionSpinner(ContentsManager manager, Spinner spinner) {
         List<VKD3DVersionItem> items = new ArrayList<>();
-        items.add(new VKD3DVersionItem("none", "None"));
+        items.add(new VKD3DVersionItem("none", context.getString(R.string.none)));
         for (String version : context.getResources().getStringArray(R.array.vkd3d_version_entries)) {
-            items.add(new VKD3DVersionItem(version, 0));
+            items.add(new VKD3DVersionItem(version, version));
         }
         for (ContentProfile profile : manager.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_VKD3D)) {
             if (!manager.isInstalledProfile(profile)) continue;
@@ -622,12 +618,6 @@ public class DXVKConfigDialog extends ContentDialog {
     }
 
     private void setVkd3dSelectionByIdentifier(Spinner spinner, String identifier) {
-        for (int i = 0; i < spinner.getCount(); i++) {
-            VKD3DVersionItem item = (VKD3DVersionItem) spinner.getItemAtPosition(i);
-            if (item.getIdentifier().equals(identifier)) {
-                spinner.setSelection(i);
-                return;
-            }
-        }
+        VKD3DConfigDialog.setSpinnerSelectionByIdentifier(spinner, identifier);
     }
 }

@@ -173,11 +173,14 @@ public class ContainerManager {
     }
 
     public void createContainerAsync(final JSONObject data, ContentsManager contentsManager, Callback<Container> callback) {
-        final Handler handler = new Handler();
-        Executors.newSingleThreadExecutor().execute(() -> {
-            final Container container = createContainer(data, contentsManager);
+        final Handler handler = new Handler(Looper.getMainLooper());
+        new Thread(() -> {
+            Container result = null;
+            try { result = createContainer(data, contentsManager); }
+            catch (RuntimeException failure) { Log.e("ContainerManager", "Unable to create container", failure); }
+            final Container container = result;
             handler.post(() -> callback.call(container));
-        });
+        }, "ContainerCreation").start();
     }
 
     public void duplicateContainerAsync(Container container, Runnable callback) {
@@ -214,6 +217,7 @@ public class ContainerManager {
     }
 
     private Container createContainer(JSONObject data, ContentsManager contentsManager) {
+        File staging = null;
         try {
             // Don't rely on instance maxId which can be stale (0) when this
             // manager was created before xuser-1 existed. Scan filesystem
@@ -240,6 +244,8 @@ public class ContainerManager {
             }
             data.put("id", id);
 
+            File destination = containerDir;
+            staging = containerDir = new File(homeDir, ".container-create-" + java.util.UUID.randomUUID());
             if (!containerDir.mkdirs()) return null;
 
             Container container = new Container(id, this);
@@ -270,11 +276,18 @@ public class ContainerManager {
                 FileUtils.delete(containerDir);
                 return null;
             }
-            maxContainerId++;
+            // A recreated Activity must never see a half-created prefix and
+            // recover it with the default runtime. Publish only after config save.
+            // No REPLACE_EXISTING: another creation cannot overwrite this container.
+            java.nio.file.Files.move(containerDir.toPath(), destination.toPath());
+            container.setRootDir(destination);
+            maxContainerId = id;
             containers.add(container);
             return container;
-        } catch (JSONException e) {
-            e.printStackTrace();
+        } catch (JSONException | IOException | RuntimeException failure) {
+            Log.e("ContainerManager", "Could not prepare new container", failure);
+        } finally {
+            if (staging != null && staging.exists()) FileUtils.delete(staging);
         }
         return null;
     }

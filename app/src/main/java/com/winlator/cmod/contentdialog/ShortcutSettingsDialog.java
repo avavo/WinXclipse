@@ -500,10 +500,10 @@ public class ShortcutSettingsDialog extends ContentDialog {
         // Add this part to set the initial spinner selection based on the shortcut
         String currentBox64Version = shortcut.getExtra("box64Version", shortcut.container.getBox64Version());
         if (currentBox64Version != null) {
-            AppUtils.setSpinnerSelectionFromValue(sBox64Version, currentBox64Version);
+            AppUtils.setContentVersionSelection(sBox64Version, currentBox64Version);
         } else {
             // Default selection or use a preferred default version
-            AppUtils.setSpinnerSelectionFromValue(sBox64Version, DefaultVersion.BOX64);
+            AppUtils.setContentVersionSelection(sBox64Version, DefaultVersion.BOX64);
         }
 
         // Set OnItemSelectedListener for the Box64 version spinner
@@ -531,7 +531,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
                         contentsManager.syncContents();
                         loadBox64VersionSpinner(context, contentsManager, sBox64Version,
                                 wineInfo.usesNativeArm64());
-                        AppUtils.setSpinnerSelectionFromValue(sBox64Version, selected);
+                        AppUtils.setContentVersionSelection(sBox64Version, selected);
                     });
         });
         findViewById(R.id.BTManageWowBox64ContentShortcut).setOnClickListener(v ->

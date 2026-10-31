@@ -1766,7 +1766,7 @@ public class ContainerDetailFragment extends Fragment {
                 addUniqueWineVersion(wineVersions, ContentsManager.getEntryName(profile));
         }
         sWineVersion.setAdapter(new ThemedSpinnerAdapter<>(context, wineVersions));
-        if (isEditMode()) AppUtils.setSpinnerSelectionFromValue(sWineVersion, container.getWineVersion());
+        if (isEditMode()) AppUtils.setContentVersionSelection(sWineVersion, container.getWineVersion());
     }
 
     /**
@@ -1894,9 +1894,9 @@ public class ContainerDetailFragment extends Fragment {
         }
         spinner.setAdapter(new ThemedSpinnerAdapter<>(context, itemList));
         if (container != null)
-            AppUtils.setSpinnerSelectionFromValue(spinner, container.getBox64Version());
+            AppUtils.setContentVersionSelection(spinner, container.getBox64Version());
         else
-            AppUtils.setSpinnerSelectionFromValue(spinner, DefaultVersion.BOX64);
+            AppUtils.setContentVersionSelection(spinner, DefaultVersion.BOX64);
     }
 
 }

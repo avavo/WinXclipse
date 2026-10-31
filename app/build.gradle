@@ -148,6 +148,8 @@ android {
 
 dependencies {
     testImplementation 'junit:junit:4.13.2'
+    // Real JSON parsing in JVM import tests; Android keeps its platform implementation.
+    testImplementation 'org.json:json:20240303'
     // Winlator’s dependencies (androidx UI bumped for compileSdk 34 / AGP 8.8;
     // versions mirrored in gradle/libs.versions.toml)
     implementation 'androidx.appcompat:appcompat:1.7.0'

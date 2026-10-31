@@ -69,14 +69,16 @@ public class VKD3DConfigDialog extends ContentDialog {
     private void loadVkd3dVersionSpinner(ContentsManager manager, Spinner spinner) {
         List<VKD3DVersionItem> itemList = new ArrayList<>();
 
+        itemList.add(new VKD3DVersionItem("none", context.getString(R.string.none)));
         // Add predefined versions
         String[] originalItems = context.getResources().getStringArray(R.array.vkd3d_version_entries);
         for (String version : originalItems) {
-            itemList.add(new VKD3DVersionItem(version, 0)); // For predefined versions, use 0 as verCode
+            itemList.add(new VKD3DVersionItem(version, version)); // Built-ins use their asset identifier.
         }
 
         // Add installed content profiles
         for (ContentProfile profile : manager.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_VKD3D)) {
+            if (!manager.isInstalledProfile(profile)) continue;
             String displayName = profile.verName;  // Display name for the spinner
             int versionCode = profile.verCode;     // Unique version code if available
             itemList.add(new VKD3DVersionItem(displayName, versionCode));
@@ -87,13 +89,12 @@ public class VKD3DConfigDialog extends ContentDialog {
     }
 
     // Method to set spinner selection by identifier
-    private void setSpinnerSelectionByIdentifier(Spinner spinner, String identifier) {
-        for (int i = 0; i < spinner.getCount(); i++) {
-            VKD3DVersionItem item = (VKD3DVersionItem) spinner.getItemAtPosition(i);
-            if (item.getIdentifier().equals(identifier)) {
-                spinner.setSelection(i);
-                break;
-            }
-        }
+    static void setSpinnerSelectionByIdentifier(Spinner spinner, String identifier) {
+        List<VKD3DVersionItem> items = new ArrayList<>();
+        for (int i = 0; i < spinner.getCount(); i++) items.add((VKD3DVersionItem)spinner.getItemAtPosition(i));
+        int selected = VKD3DVersionItem.retainSelection(items, identifier);
+        if (items.size() != spinner.getCount())
+            spinner.setAdapter(new com.winlator.cmod.widget.ThemedSpinnerAdapter<>(spinner.getContext(), items));
+        spinner.setSelection(selected, false);
     }
 }

@@ -6,6 +6,15 @@ import java.util.Locale;
 public final class ContentVersion {
     private ContentVersion() {}
 
+    /** Preserve an explicit saved version even when its package is currently unavailable. */
+    public static int retainSelection(java.util.List<String> versions, String saved) {
+        if (saved == null || saved.isEmpty()) return 0;
+        int existing = versions.indexOf(saved);
+        if (existing >= 0) return existing;
+        versions.add(saved);
+        return versions.size() - 1;
+    }
+
     public static String canonical(String value) {
         return (value == null ? "" : value.trim()).toLowerCase(Locale.ENGLISH)
                 .replaceFirst("\\.(?:wcp(?:\\.(?:xz|zst))?|txz|tzst|xz|zst|tar\\.(?:xz|zst)|zip)$", "")
