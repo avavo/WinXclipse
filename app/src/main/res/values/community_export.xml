@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="config_export_game">Game name (required)</string>
+    <string name="config_export_author">Author or nickname (optional)</string>
+    <string name="config_export_fps">Expected average FPS (optional)</string>
+    <string name="config_export_notes">Notes: fixes, presets or variables (optional)</string>
+    <string name="config_export_cover">Game cover preview</string>
+    <string name="config_export_find_cover">Find or change online cover</string>
+    <string name="config_export_own_cover">Choose your own image</string>
+    <string name="config_export_no_cover">Export without a cover</string>
+    <string name="config_export_compatibility">Compatibility status</string>
+    <string name="config_export_crashes">Boots but crashes</string>
+    <string name="config_export_menu_only">Menu only</string>
+    <string name="config_export_playable">Playable</string>
+    <string name="config_export_explanation">Review the game name and cover before saving. The ZIP includes configuration only, without the game or saves. Sharing does not require Discord.</string>
+    <string name="config_export_cover_empty">No cover selected</string>
+    <string name="config_export_cover_preview">This cover will be included in the ZIP</string>
+    <string name="config_export_cover_loading">Preparing cover…</string>
+    <string name="config_export_cover_failed">Could not use this image. Your previous selection was kept. Choose another image or export without a cover.</string>
+    <string name="config_export_game_required">Enter the actual game name</string>
+    <string name="config_export_searching">Searching for covers…</string>
+    <string name="config_export_search_empty">No covers could be loaded. Check the game name or choose your own image.</string>
+    <string name="config_export_choose_cover">Choose a cover</string>
+    <string name="config_export_status_required">Select a compatibility status</string>
+    <string name="config_export_failed">Could not export this configuration. Check available space and try again.</string>
+    <string name="config_export_complete">Configuration exported</string>
+    <string name="config_export_saved">Saved to:\n%1$s</string>
+    <string name="config_export_share">Share ZIP</string>
+    <string name="config_export_share_unavailable">No sharing app is available. The ZIP remains saved in Downloads/WinXclipse/CommunityConfigs.</string>
+    <string name="config_export_share_title">Share your configuration</string>
+    <string name="config_export_catalog_tip">In Containers, choose Export Community Config to edit the game name, review the cover and save a ZIP. You can share it with any app. Configs curated in the GitHub catalog have a verified badge.</string>
+    <string name="community_verified_badge">✓ Verified</string>
+    <string name="community_verified_detail">Verified · Curated GitHub catalog</string>
+</resources>

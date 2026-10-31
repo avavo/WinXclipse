@@ -71,6 +71,9 @@ public final class CommunityConfigManager {
         public String discord = "";
         public String notes = "";
         public String compatibility = "";
+        /** Prepared local cover; never serialize private device paths into the manifest. */
+        public File coverFile;
+        public boolean useAutomaticCover = true;
 
         public Metadata() {
             DeviceProfile profile = getCurrentDeviceProfile();
@@ -251,28 +254,27 @@ public final class CommunityConfigManager {
 
         String game = clean(metadata.gameName);
         if (game.isEmpty()) game = container.getName();
-        String base = game.replaceAll("[^A-Za-z0-9._-]+", "-").replaceAll("^-+|-+$", "");
-        if (base.isEmpty()) base = "WinXclipse-config";
         String model = clean(metadata.model).replaceAll("[^A-Za-z0-9._-]+", "-")
                 .replaceAll("^-+|-+$", "");
-        File output = uniqueFile(dir, base + (model.isEmpty() ? "" : "-" + model), ".zip");
-
-        try (ZipOutputStream zip = new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(output)))) {
-            byte[] text = manifest.toString(2).getBytes(StandardCharsets.UTF_8);
-            putEntry(zip, "config.txt", text);
-
-            // Reuse the same shortcut artwork chosen by the browser/EXE/custom
-            // policy, when this container already has one available.
-            Shortcut artShortcut = bestShortcut(container, game);
-            Bitmap cover = artShortcut != null ? artShortcut.getCoverArt() : null;
-            if (cover != null) {
-                ByteArrayOutputStream png = new ByteArrayOutputStream();
-                if (cover.compress(Bitmap.CompressFormat.PNG, 100, png)) {
-                    putEntry(zip, "cover.png", png.toByteArray());
-                }
+        byte[] cover = null;
+        if (metadata.coverFile != null) {
+            // An explicitly selected missing/broken image is an error, not permission
+            // to silently export a different cover than the preview.
+            try (InputStream input = new FileInputStream(metadata.coverFile)) {
+                Bitmap bitmap = com.winlator.cmod.core.CommunityCover.decode(input);
+                try { cover = com.winlator.cmod.core.CommunityCover.png(bitmap); }
+                finally { bitmap.recycle(); }
             }
+        } else if (metadata.useAutomaticCover) {
+            cover = com.winlator.cmod.core.CommunityCover.png(defaultCover(container, game));
         }
-        return output;
+        return CommunityConfigArchive.write(dir, game + (model.isEmpty() ? "" : "-" + model),
+                manifest.toString(2).getBytes(StandardCharsets.UTF_8), cover);
+    }
+
+    public static Bitmap defaultCover(Container container, String game) {
+        Shortcut shortcut = bestShortcut(container, game);
+        return shortcut == null ? null : shortcut.getCoverArt();
     }
 
     public static JSONObject readConfig(Context context, Uri uri) throws IOException, JSONException {
@@ -1130,7 +1132,7 @@ public final class CommunityConfigManager {
         if (container.getManager() == null) return null;
         Shortcut best = null;
         int score = -1;
-        for (Shortcut shortcut : container.getManager().loadShortcuts()) {
+        for (Shortcut shortcut : container.getManager().loadShortcutsForContainer(container)) {
             if (shortcut.container.id != container.id || shortcut.getCoverArt() == null) continue;
             int current = similarity(normalize(gameName), normalize(shortcut.name));
             if (current > score) { score = current; best = shortcut; }
@@ -1147,12 +1149,6 @@ public final class CommunityConfigManager {
             throw new JSONException("Unsupported community config schema: " + schema);
         }
         return root;
-    }
-
-    private static void putEntry(ZipOutputStream zip, String name, byte[] bytes) throws IOException {
-        zip.putNextEntry(new ZipEntry(name));
-        zip.write(bytes);
-        zip.closeEntry();
     }
 
     private static String readLimited(InputStream input) throws IOException {
@@ -1190,13 +1186,6 @@ public final class CommunityConfigManager {
         } catch (IOException ignored) {
             return false;
         }
-    }
-
-    private static File uniqueFile(File dir, String base, String extension) {
-        File file = new File(dir, base + extension);
-        int suffix = 2;
-        while (file.exists()) file = new File(dir, base + "-" + suffix++ + extension);
-        return file;
     }
 
     private static String clean(String value) { return value == null ? "" : value.trim(); }

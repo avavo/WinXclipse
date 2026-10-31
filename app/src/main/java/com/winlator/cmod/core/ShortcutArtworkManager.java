@@ -197,13 +197,63 @@ public final class ShortcutArtworkManager {
         }
     }
 
-    private static Bitmap fetchBrowserArtwork(Context context, String gameName) throws Exception {
+    private static String artworkApiKey(Context context) {
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
         String key = BUILT_IN_API_KEY;
         if (prefs.getBoolean("enable_custom_api_key", false)) {
             String custom = prefs.getString("custom_api_key", "");
             if (custom != null && !custom.trim().isEmpty()) key = custom.trim();
         }
+        return key;
+    }
+
+    public static final class CoverChoice {
+        public final String game, url, thumbnail;
+        private CoverChoice(String game, String url, String thumbnail) {
+            this.game = game; this.url = url; this.thumbnail = thumbnail;
+        }
+    }
+
+    /** Worker-thread search; the export dialog lets the user inspect alternatives. */
+    public static List<CoverChoice> findCoverChoices(Context context, String gameName) throws Exception {
+        String key = artworkApiKey(context), query = cleanSearchName(gameName);
+        SteamGridDBApi api = getSteamGridApi();
+        retrofit2.Response<SteamGridSearchResponse> response = api.searchGame("Bearer " + key, query).execute();
+        if (!response.isSuccessful() || response.body() == null || response.body().data == null)
+            throw new java.io.IOException("Artwork search unavailable");
+        List<SteamGridSearchResponse.GameData> games = new ArrayList<>(response.body().data);
+        games.sort((a, b) -> Integer.compare(searchMatchScore(query, b == null ? null : b.name),
+                searchMatchScore(query, a == null ? null : a.name)));
+        List<CoverChoice> choices = new ArrayList<>();
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        int fetched = 0;
+        for (SteamGridSearchResponse.GameData game : games) {
+            if (game == null || searchMatchScore(query, game.name) < MIN_BROWSER_MATCH_SCORE) continue;
+            if (fetched++ >= MAX_BROWSER_GRID_FETCHES || choices.size() >= 24) break;
+            retrofit2.Response<SteamGridGridsResponse> grids = api.getGridsByGameId("Bearer " + key,
+                    game.id, "alternate,blurred,material", "600x900", "static").execute();
+            if (!grids.isSuccessful() || grids.body() == null || grids.body().data == null) continue;
+            int added = 0;
+            for (SteamGridGridsResponse.Grid grid : grids.body().data) {
+                if (grid == null || grid.url == null || !grid.url.startsWith("https://") || !seen.add(grid.url)) continue;
+                choices.add(new CoverChoice(game.name, grid.url,
+                        grid.thumb != null && grid.thumb.startsWith("https://") ? grid.thumb : grid.url));
+                if (++added >= 8 || choices.size() >= 24) break;
+            }
+        }
+        return choices;
+    }
+
+    public static Bitmap loadCoverChoice(String url) throws Exception {
+        if (url == null || !url.startsWith("https://")) throw new java.io.IOException("Invalid cover URL");
+        try (Response response = HTTP_CLIENT.newCall(new Request.Builder().url(url).build()).execute()) {
+            if (!response.isSuccessful() || response.body() == null) throw new java.io.IOException("Cover unavailable");
+            try (InputStream input = response.body().byteStream()) { return CommunityCover.decode(input); }
+        }
+    }
+
+    private static Bitmap fetchBrowserArtwork(Context context, String gameName) throws Exception {
+        String key = artworkApiKey(context);
 
         SteamGridDBApi api = getSteamGridApi();
         String query = cleanSearchName(gameName);

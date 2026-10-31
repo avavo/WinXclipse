@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="config_export_game">Nome do jogo (obrigatório)</string>
+    <string name="config_export_author">Autor ou apelido (opcional)</string>
+    <string name="config_export_fps">Média de FPS esperada (opcional)</string>
+    <string name="config_export_notes">Notas: correções, presets ou variáveis (opcional)</string>
+    <string name="config_export_cover">Prévia da capa do jogo</string>
+    <string name="config_export_find_cover">Buscar ou trocar capa online</string>
+    <string name="config_export_own_cover">Escolher imagem própria</string>
+    <string name="config_export_no_cover">Exportar sem capa</string>
+    <string name="config_export_compatibility">Estado de compatibilidade</string>
+    <string name="config_export_crashes">Inicia, mas fecha inesperadamente</string>
+    <string name="config_export_menu_only">Apenas o menu</string>
+    <string name="config_export_playable">Jogável</string>
+    <string name="config_export_explanation">Confira o nome do jogo e a capa antes de salvar. O ZIP inclui apenas a configuração, sem o jogo nem os saves. Compartilhar não exige Discord.</string>
+    <string name="config_export_cover_empty">Nenhuma capa selecionada</string>
+    <string name="config_export_cover_preview">Esta capa será incluída no ZIP</string>
+    <string name="config_export_cover_loading">Preparando capa…</string>
+    <string name="config_export_cover_failed">Não foi possível usar esta imagem. A seleção anterior foi mantida. Escolha outra imagem ou exporte sem capa.</string>
+    <string name="config_export_game_required">Digite o nome do jogo</string>
+    <string name="config_export_searching">Buscando capas…</string>
+    <string name="config_export_search_empty">Não foi possível carregar capas. Confira o nome do jogo ou escolha uma imagem própria.</string>
+    <string name="config_export_choose_cover">Escolher capa</string>
+    <string name="config_export_status_required">Selecione o estado de compatibilidade</string>
+    <string name="config_export_failed">Não foi possível exportar a configuração. Confira o espaço livre e tente novamente.</string>
+    <string name="config_export_complete">Configuração exportada</string>
+    <string name="config_export_saved">Salvo em:\n%1$s</string>
+    <string name="config_export_share">Compartilhar ZIP</string>
+    <string name="config_export_share_unavailable">Nenhum app de compartilhamento disponível. O ZIP continua salvo em Downloads/WinXclipse/CommunityConfigs.</string>
+    <string name="config_export_share_title">Compartilhe sua configuração</string>
+    <string name="config_export_catalog_tip">Em Containers, escolha Exportar Config da Comunidade para editar o nome do jogo, revisar a capa e salvar um ZIP. Você pode compartilhá-lo em qualquer app. Configs selecionadas no catálogo do GitHub têm um selo de verificação.</string>
+    <string name="community_verified_badge">✓ Verificada</string>
+    <string name="community_verified_detail">Verificada · Catálogo selecionado do GitHub</string>
+</resources>

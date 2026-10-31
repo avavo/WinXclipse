@@ -92,6 +92,8 @@ public class CommunityConfigsFragment extends Fragment {
         File archive;
         JSONObject manifest;
         JSONObject metadata;
+        // Assigned from catalog provenance, never from fields supplied by an exported ZIP.
+        boolean verified;
     }
 
     private static final class GameItem {
@@ -158,18 +160,9 @@ public class CommunityConfigsFragment extends Fragment {
         preferences.edit().putBoolean(FIRST_VISIT_NOTICE, true).apply();
 
         AlertDialog dialog = new AlertDialog.Builder(requireContext())
-                .setTitle("Share your configuration")
-                .setMessage("You can export a tested game configuration and send the ZIP "
-                        + "to our Discord so it can be published for everyone.")
-                .setPositiveButton("Open Discord", (ignored, which) -> {
-                    try {
-                        startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(DISCORD_URL)));
-                    }
-                    catch (Exception error) {
-                        Toast.makeText(requireContext(), DISCORD_URL, Toast.LENGTH_LONG).show();
-                    }
-                })
-                .setNegativeButton("Later", null)
+                .setTitle(R.string.config_export_share_title)
+                .setMessage(R.string.config_export_catalog_tip)
+                .setPositiveButton(android.R.string.ok, null)
                 .create();
         showCommunityDialog(dialog);
     }
@@ -407,6 +400,7 @@ public class CommunityConfigsFragment extends Fragment {
             try {
                 ConfigOption option = new ConfigOption();
                 option.archive = archive;
+                option.verified = true; // This private cache contains the curated GitHub catalog only.
                 option.manifest = CommunityConfigManager.readConfig(archive);
                 option.metadata = option.manifest.optJSONObject("metadata");
                 if (option.metadata == null) option.metadata = new JSONObject();
@@ -458,6 +452,7 @@ public class CommunityConfigsFragment extends Fragment {
         try {
             ConfigOption option = new ConfigOption();
             option.assetName = assetName;
+            option.verified = true; // Only the repository owner can publish release assets.
             option.url = url;
             option.updatedAt = updatedAt;
             option.archive = archive;
@@ -508,6 +503,8 @@ public class CommunityConfigsFragment extends Fragment {
         public void onBindViewHolder(@NonNull Holder holder, int position) {
             GameItem item = items.get(position);
             holder.title.setText(item.name);
+            holder.verified.setVisibility(!item.configs.isEmpty() && item.configs.stream().allMatch(option -> option.verified)
+                    ? View.VISIBLE : View.GONE);
             String compatibility = latestCompatibilityLabel(item);
             holder.detail.setText(compatibility);
             holder.detail.setTextColor(compatibilityColor(compatibility));
@@ -532,6 +529,7 @@ public class CommunityConfigsFragment extends Fragment {
         final TextView title;
         final TextView detail;
         final TextView count;
+        final TextView verified;
 
         Holder(View view) {
             super(view);
@@ -540,6 +538,7 @@ public class CommunityConfigsFragment extends Fragment {
             title = view.findViewById(R.id.TVVersionName);
             detail = view.findViewById(R.id.TVVersionCode);
             count = view.findViewById(R.id.TVConfigCount);
+            verified = view.findViewById(R.id.TVConfigVerified);
         }
     }
 
@@ -824,7 +823,8 @@ public class CommunityConfigsFragment extends Fragment {
 
     private String formatDetails(ConfigOption option) {
         JSONObject data = option.metadata;
-        return "Compatibility: " + compatibilityLabel(option)
+        return (option.verified ? getString(R.string.community_verified_detail) + "\n" : "")
+                + "Compatibility: " + compatibilityLabel(option)
                 + "\nPhone: " + valueOrUnknown(phoneLabel(option))
                 + "\nRAM: " + valueOrUnknown(data.optString("ram"))
                 + "\nGPU: " + valueOrUnknown(data.optString("gpu"))
