@@ -2802,6 +2802,8 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         touchpadView.setFourFingersTapCallback(() -> {
             if (!drawerLayout.isDrawerOpen(GravityCompat.START)) drawerLayout.openDrawer(GravityCompat.START);
         });
+        // Three-finger tap: the phone keyboard, e.g. when a game asks for a name.
+        touchpadView.setThreeFingersTapCallback(() -> AppUtils.showKeyboard(this));
         rootView.addView(touchpadView);
 
 
@@ -2935,6 +2937,15 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         View inputMore = sidebar.findViewById(R.id.BTSidebarInputMore);
         input.setOnClickListener(this::showSidebarInputMenu);
         inputMore.setOnClickListener(this::showSidebarInputMenu);
+        sidebar.findViewById(R.id.BTSidebarKeyboard).setOnClickListener(v -> {
+            drawerLayout.closeDrawers();
+            AppUtils.showKeyboard(this);
+        });
+        // Once: how to get the phone keyboard, since games cannot ask Android for it.
+        if (!preferences.getBoolean("keyboard_tip_shown", false)) {
+            preferences.edit().putBoolean("keyboard_tip_shown", true).apply();
+            Toast.makeText(this, R.string.sb_keyboard_tip, Toast.LENGTH_LONG).show();
+        }
 
         sidebar.findViewById(R.id.BTSidebarController).setOnClickListener(v -> {
             if (inputControlsView.getProfile() != null) {
@@ -3930,6 +3941,15 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
     }
 
     private ControlsProfile getSidebarControllerProfile() {
+        // A game with its own controls (e.g. keyboard & mouse picked for a Steam game) toggles those.
+        String shortcutProfile = shortcut != null ? shortcut.getExtra("controlsProfile") : "";
+        if (!shortcutProfile.isEmpty()) {
+            try {
+                ControlsProfile profile = inputControlsManager.getProfile(Integer.parseInt(shortcutProfile));
+                if (profile != null) return profile;
+            }
+            catch (NumberFormatException ignored) {}
+        }
         ArrayList<ControlsProfile> profiles = inputControlsManager.getProfiles(true);
         int preferredId = preferences.getInt("sidebar_controller_profile_id", -1);
         ControlsProfile fallback = null;
@@ -4180,7 +4200,11 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
             if (position > 0) {
                 showInputControls(inputControlsManager.getProfiles().get(position - 1));
             }
-            else hideInputControls();
+            else {
+                // "Disabled" turns off the physical-controller bindings too, unlike hiding.
+                hideInputControls();
+                inputControlsView.setPhysicalProfile(null);
+            }
         };
 
         dialog.findViewById(R.id.BTSettings).setOnClickListener((v) -> {
@@ -4630,6 +4654,8 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         inputControlsView.setVisibility(View.VISIBLE);
         inputControlsView.requestFocus();
         inputControlsView.setProfile(profile);
+        // Its physical-controller bindings keep working if the overlay is hidden later.
+        inputControlsView.setPhysicalProfile(profile);
 
         touchpadView.setSensitivity(profile.getCursorSpeed() * globalCursorSpeed);
         touchpadView.setPointerButtonRightEnabled(false);
@@ -5434,6 +5460,11 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
             return handledByWinHandler || super.dispatchGenericMotionEvent(event);
         }
 
+        // A controls profile that maps this pad's sticks/triggers to keyboard or mouse gets
+        // the motion before XInput does (same order as key events below); unmapped pads
+        // fall through to WinHandler unchanged.
+        if (inputControlsView != null && ExternalController.isJoystickDevice(event)
+                && inputControlsView.onPhysicalMotionEvent(event)) return true;
         if (winHandler != null && winHandler.onGenericMotionEvent(event)) return true;
         if (touchpadView != null && touchpadView.onExternalMouseEvent(event)) return true;
         return super.dispatchGenericMotionEvent(event);

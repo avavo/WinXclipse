@@ -63,6 +63,14 @@ public final class ShortcutArtworkManager {
 
     private ShortcutArtworkManager() {}
 
+    public static File getHeroFile(Shortcut shortcut) {
+        return new File(shortcut.getGeneratedCoverArtFile().getParentFile(), shortcut.name + "_hero.img");
+    }
+
+    public static File getLogoFile(Shortcut shortcut) {
+        return new File(shortcut.getGeneratedCoverArtFile().getParentFile(), shortcut.name + "_logo.img");
+    }
+
     public interface Callback {
         void onComplete(boolean success);
     }

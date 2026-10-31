@@ -47,6 +47,7 @@ public class TouchpadView extends View {
     private boolean scrolling = false;
     private final XServer xServer;
     private Runnable fourFingersTapCallback;
+    private Runnable threeFingersTapCallback;
     private final float[] xform = XForm.getInstance();
     private boolean simTouchScreen = false;
     private boolean continueClick = true;
@@ -493,6 +494,14 @@ public class TouchpadView extends View {
                 Finger finger2 = findSecondFinger(finger1);
                 if (finger2 != null && finger1.isTap()) pressPointerButtonRight(finger1);
                 break;
+            case 3:
+                if (threeFingersTapCallback != null) {
+                    for (byte i = 0; i < 3; i++) {
+                        if (fingers[i] != null && !fingers[i].isTap()) return;
+                    }
+                    threeFingersTapCallback.run();
+                }
+                break;
             case 4:
                 if (fourFingersTapCallback != null) {
                     for (byte i = 0; i < 4; i++) {
@@ -618,6 +627,10 @@ public class TouchpadView extends View {
 
     public void setFourFingersTapCallback(Runnable fourFingersTapCallback) {
         this.fourFingersTapCallback = fourFingersTapCallback;
+    }
+
+    public void setThreeFingersTapCallback(Runnable threeFingersTapCallback) {
+        this.threeFingersTapCallback = threeFingersTapCallback;
     }
 
     public boolean onExternalMouseEvent(MotionEvent event) {

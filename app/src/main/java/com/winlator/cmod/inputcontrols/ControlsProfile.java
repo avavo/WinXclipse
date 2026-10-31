@@ -1,6 +1,7 @@
 package com.winlator.cmod.inputcontrols;
 
 import android.content.Context;
+import android.view.InputDevice;
 
 import androidx.annotation.NonNull;
 
@@ -63,13 +64,20 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
     public ExternalController addController(String id) {
         ExternalController controller = getController(id);
         if (controller == null) {
-            controller = ExternalController.getController(id);
+            controller = ExternalController.ANY_ID.equals(id)
+                    ? ExternalController.createAnyController(context)
+                    : ExternalController.getController(id);
             // getController() returns null for devices that are not currently
             // connected; never insert null into the list or callers will crash.
             if (controller != null) controllers.add(controller);
         }
         controllersLoaded = true;
         return controller;
+    }
+
+    public List<ExternalController> getControllers() {
+        if (!controllersLoaded) loadControllers();
+        return Collections.unmodifiableList(controllers);
     }
 
     public void removeController(ExternalController controller) {
@@ -83,9 +91,19 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
         return null;
     }
 
+    /**
+     * The bindings for a device: its own entry if the profile has one, otherwise the
+     * "any controller" entry (id "*", the same convention GameNative's profiles use),
+     * which applies to every gamepad.
+     */
     public ExternalController getController(int deviceId) {
         if (!controllersLoaded) loadControllers();
-        for (ExternalController controller : controllers) if (controller.getDeviceId() == deviceId) return controller;
+        ExternalController anyController = null;
+        for (ExternalController controller : controllers) {
+            if (controller.isAnyController()) anyController = controller;
+            else if (controller.getDeviceId() == deviceId) return controller;
+        }
+        if (anyController != null && ExternalController.isGameController(InputDevice.getDevice(deviceId))) return anyController;
         return null;
     }
 

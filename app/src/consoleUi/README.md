@@ -1,8 +1,8 @@
 # Interface de console — reservada para a 1.0.0
 
 A interface nova está preservada neste diretório, com o código e os recursos
-do commit `57a049e`. Ela não foi descartada e não precisa ser recuperada do
-histórico para continuar o desenvolvimento.
+do commit `57a049e`, mais as telas Steam/GOG integradas pelo PR #9. Ela não foi
+descartada e não precisa ser recuperada do histórico para continuar o desenvolvimento.
 
 ## Build 0.9.6
 
@@ -13,7 +13,10 @@ usando a interface clássica de `src/main`, sem entrada no menu para a nova UI.
 
 ## Conteúdo preservado
 
-- `java/com/winlator/cmod/home/`: as 11 telas/componentes Kotlin originais.
+- `java/com/winlator/cmod/home/`: telas/componentes Kotlin originais e as novas
+  telas de lojas, autenticação e bibliotecas do PR #9.
+- `java/com/winlator/cmod/store/StoreCompositionLocal.kt`: estado de artwork
+  específico de Compose, separado dos modelos/serviços de loja de `src/main`.
 - `res/`: fontes, drawables, licenças, cores, textos e os layouts de menu e
   sidebar da interface nova. Os nomes originais dos recursos foram mantidos.
 - `AndroidManifest.xml`: declaração da `HomeActivity` para o futuro merge.
@@ -24,6 +27,7 @@ usando a interface clássica de `src/main`, sem entrada no menu para a nova UI.
 ## Retomar na 1.0.0
 
 Ao concluir a interface, registrar este source set (código, recursos e
-manifest), reativar Kotlin/Compose e revisar a integração de navegação usando
+manifest), reativar Compose e revisar a integração de navegação usando
 `integration.patch`. Preservar as correções de RAM Fix feitas depois do commit
-de referência. O patch não deve ser aplicado à build 0.9.6.
+de referência. O patch não deve ser aplicado à build 0.9.6. Kotlin já participa
+da compilação dos serviços de loja; isso não registra nem ativa `consoleUi`.

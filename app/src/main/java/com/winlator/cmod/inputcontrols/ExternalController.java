@@ -66,6 +66,41 @@ public class ExternalController {
         return id;
     }
 
+    /** Id of the profile entry whose bindings apply to every gamepad. */
+    public static final String ANY_ID = "*";
+
+    public boolean isAnyController() {
+        return ANY_ID.equals(id);
+    }
+
+    public static ExternalController createAnyController(Context context) {
+        ExternalController controller = new ExternalController();
+        controller.setId(ANY_ID);
+        controller.setName(context.getString(com.winlator.cmod.R.string.any_controller));
+        return controller;
+    }
+
+    /** Whether events from [device] belong to this entry. */
+    public boolean matches(InputDevice device) {
+        if (device == null) return false;
+        return isAnyController() ? isGameController(device) : device.getId() == getDeviceId();
+    }
+
+    /**
+     * Whether any binding comes from a stick, the d-pad hat or an analog trigger, i.e. from
+     * motion events. Then the profile owns this pad's motion instead of XInput.
+     */
+    public boolean hasMotionBindings() {
+        for (ExternalControllerBinding binding : controllerBindings) {
+            int keyCode = binding.getKeyCodeForAxis();
+            if (binding.getBinding() == Binding.NONE) continue;
+            if (keyCode < 0 || keyCode == KeyEvent.KEYCODE_BUTTON_L2 || keyCode == KeyEvent.KEYCODE_BUTTON_R2
+                    || keyCode == KeyEvent.KEYCODE_DPAD_UP || keyCode == KeyEvent.KEYCODE_DPAD_DOWN
+                    || keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) return true;
+        }
+        return false;
+    }
+
     public void setId(String id) {
         this.id = id;
     }
@@ -227,7 +262,7 @@ public class ExternalController {
 
 
     public int getDeviceId() {
-        if (this.deviceId == -1) {
+        if (this.deviceId == -1 && !isAnyController()) {
             for (int deviceId : InputDevice.getDeviceIds()) {
                 InputDevice device = InputDevice.getDevice(deviceId);
                 if (device != null && device.getDescriptor().equals(id)) {
@@ -242,7 +277,8 @@ public class ExternalController {
     public boolean isConnected() {
         for (int deviceId : InputDevice.getDeviceIds()) {
             InputDevice device = InputDevice.getDevice(deviceId);
-            if (device != null && device.getDescriptor().equals(id)) return true;
+            if (device == null) continue;
+            if (isAnyController() ? isGameController(device) : device.getDescriptor().equals(id)) return true;
         }
         return false;
     }

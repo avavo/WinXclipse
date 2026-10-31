@@ -95,4 +95,5 @@ object WxIcons {
     val Lines: ImageVector by lazy { svg("lines", "M4 6h16M4 12h10M4 18h7M17 15l3 3-3 3") }
     val ChevronLeft: ImageVector by lazy { svg("chevronLeft", "M15 5l-7 7 7 7") }
     val ChevronRight: ImageVector by lazy { svg("chevronRight", "M9 5l7 7-7 7") }
+    val Download: ImageVector by lazy { svg("download", "M12 4v11M7 10l5 5 5-5M5 20h14") }
 }

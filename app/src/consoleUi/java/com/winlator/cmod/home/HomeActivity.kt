@@ -18,8 +18,10 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.res.stringResource
 import androidx.core.view.WindowCompat
@@ -33,12 +35,26 @@ import com.winlator.cmod.ShortcutsFragment
 import com.winlator.cmod.XServerDisplayActivity
 import com.winlator.cmod.container.Container
 import com.winlator.cmod.container.ContainerManager
+import com.winlator.cmod.container.Shortcut
 import com.winlator.cmod.XrActivity
 import com.winlator.cmod.contentdialog.ControllerAssignmentDialog
 import com.winlator.cmod.core.ShortcutArtworkManager
+import com.winlator.cmod.gog.GogArt
+import com.winlator.cmod.gog.GogDownloads
+import com.winlator.cmod.gog.GogGame
+import com.winlator.cmod.gog.GogLauncher
+import com.winlator.cmod.gog.GogSession
+import com.winlator.cmod.steam.SteamArt
+import com.winlator.cmod.steam.SteamGame
+import com.winlator.cmod.steam.SteamInstall
+import com.winlator.cmod.steam.SteamDownloads
+import com.winlator.cmod.steam.SteamLauncher
+import com.winlator.cmod.steam.SteamSession
+import com.winlator.cmod.store.LibraryEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 
 /**
  * Console-style front end (Xbox / PS5 / Steam Deck inspired): home with the game row and
@@ -52,6 +68,11 @@ class HomeActivity : ComponentActivity() {
         data object Settings : Route
         data object Containers : Route
         data class ContainerEdit(val id: Int) : Route
+        data object Stores : Route
+        data object SteamLogin : Route
+        data object SteamLibrary : Route
+        data object GogLogin : Route
+        data object GogLibrary : Route
     }
 
     private var games by mutableStateOf<List<HomeGame>?>(null)
@@ -59,10 +80,16 @@ class HomeActivity : ComponentActivity() {
     private var containerManager: ContainerManager? = null
     private var containerCards by mutableStateOf<List<ContainerCard>?>(null)
     private var busy by mutableStateOf(false)
+    private var storePicker by mutableStateOf<StorePick?>(null)
+    private var containerNames by mutableStateOf<Map<Store, Map<String, String>>>(emptyMap())
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enterImmersiveMode()
+        SteamSession.init(this)
+        SteamDownloads.init(this)
+        GogSession.init(this)
+        GogDownloads.init(this)
         // B / Back on the home screen behaves like a console: leave the app, keep it running.
         onBackPressedDispatcher.addCallback(this) { moveTaskToBack(true) }
 
@@ -129,11 +156,86 @@ class HomeActivity : ComponentActivity() {
                             onOpenSettings = { route = Route.Settings },
                             onOpenContainers = { openContainers() },
                             onOpenClassic = ::openClassic,
-                            onOpenStores = {
-                                Toast.makeText(this@HomeActivity, R.string.home_stores_coming_soon, Toast.LENGTH_SHORT).show()
-                            },
+                            onOpenStores = { route = Route.Stores },
                             onOpenControllers = { ControllerAssignmentDialog.show(this@HomeActivity) },
                         )
+                        Route.Stores -> StoresScreen(
+                            steamAccount = SteamSession.account.collectAsState().value,
+                            onBack = { route = Route.Home },
+                            onConnectSteam = { route = Route.SteamLogin },
+                            onOpenSteamLibrary = ::openSteamLibrary,
+                            onSignOutSteam = { SteamSession.signOut() },
+                            gogAccount = GogSession.account.collectAsState().value,
+                            onConnectGog = { route = Route.GogLogin },
+                            onOpenGogLibrary = ::openGogLibrary,
+                            onSignOutGog = {
+                                GogSession.signOut()
+                                clearGogWebSession()
+                            },
+                        )
+                        Route.SteamLogin -> SteamLoginScreen(
+                            login = SteamSession,
+                            onBack = { route = Route.Stores },
+                            onSignedIn = { openSteamLibrary() },
+                        )
+                        Route.SteamLibrary -> {
+                            val library = SteamSession.library.collectAsState().value
+                            val entries = remember(library) {
+                                library.map { LibraryEntry(it.appId.toString(), it.name, it.sizeBytes, it.playtimeMinutes, it.lastPlayed) }
+                            }
+                            fun game(entry: LibraryEntry) = library.firstOrNull { it.appId.toString() == entry.key }
+                            StoreLibraryScreen(
+                                title = stringResource(R.string.steam_lib_title),
+                                locationHint = stringResource(R.string.steam_lib_location),
+                                emptyText = stringResource(R.string.steam_lib_empty),
+                                art = SteamArt.source,
+                                account = SteamSession.account.collectAsState().value,
+                                games = entries,
+                                installs = SteamDownloads.installs.collectAsState().value.mapKeys { it.key.toString() },
+                                loading = SteamSession.libraryLoading.collectAsState().value,
+                                error = SteamSession.libraryError.collectAsState().value,
+                                onBack = { route = Route.Stores },
+                                onRefresh = { SteamSession.refreshLibrary() },
+                                onInstall = { entry -> game(entry)?.let { SteamDownloads.start(it) } },
+                                onPause = { entry -> entry.key.toIntOrNull()?.let { SteamDownloads.pause(it) } },
+                                onPlay = { entry, installed -> game(entry)?.let { playSteam(it, installed) } },
+                                containerNames = containerNames[Store.STEAM].orEmpty(),
+                                onChooseContainer = { entry, installed -> game(entry)?.let { playSteam(it, installed, forceChoice = true) } },
+                                picker = storePicker?.let { pick -> SteamContainerPicker(pick.gameName, pick.containers.map { it.id to it.name }) },
+                                onPickContainer = ::pickContainer,
+                                onDismissPicker = { storePicker = null },
+                            )
+                        }
+                        Route.GogLogin -> GogLoginScreen(
+                            onBack = { route = Route.Stores },
+                            onSignedIn = { openGogLibrary() },
+                        )
+                        Route.GogLibrary -> {
+                            val library = GogSession.library.collectAsState().value
+                            val entries = remember(library) { library.map { LibraryEntry(it.id.toString(), it.title) } }
+                            fun game(entry: LibraryEntry) = library.firstOrNull { it.id.toString() == entry.key }
+                            StoreLibraryScreen(
+                                title = stringResource(R.string.gog_lib_title),
+                                locationHint = stringResource(R.string.gog_lib_location),
+                                emptyText = stringResource(R.string.gog_lib_empty),
+                                art = GogArt.source,
+                                account = GogSession.account.collectAsState().value,
+                                games = entries,
+                                installs = GogDownloads.installs.collectAsState().value.mapKeys { it.key.toString() },
+                                loading = GogSession.libraryLoading.collectAsState().value,
+                                error = GogSession.libraryError.collectAsState().value,
+                                onBack = { route = Route.Stores },
+                                onRefresh = { GogSession.refreshLibrary() },
+                                onInstall = { entry -> game(entry)?.let { GogDownloads.start(it) } },
+                                onPause = { entry -> entry.key.toLongOrNull()?.let { GogDownloads.pause(it) } },
+                                onPlay = { entry, installed -> game(entry)?.let { playGog(it, installed) } },
+                                containerNames = containerNames[Store.GOG].orEmpty(),
+                                onChooseContainer = { entry, installed -> game(entry)?.let { playGog(it, installed, forceChoice = true) } },
+                                picker = storePicker?.let { pick -> SteamContainerPicker(pick.gameName, pick.containers.map { it.id to it.name }) },
+                                onPickContainer = ::pickContainer,
+                                onDismissPicker = { storePicker = null },
+                            )
+                        }
                         is Route.Game -> {
                             val game = games?.firstOrNull { it.key == current.key }
                             if (game == null) {
@@ -160,6 +262,110 @@ class HomeActivity : ComponentActivity() {
         enterImmersiveMode()
         // Reload on every return so playtime and "last played" follow the session that just ended.
         reloadGames()
+    }
+
+    private fun openSteamLibrary() {
+        route = Route.SteamLibrary
+        SteamSession.refreshLibrary()
+        loadContainerNames(Store.STEAM)
+    }
+
+    private fun openGogLibrary() {
+        route = Route.GogLibrary
+        GogSession.refreshLibrary()
+        loadContainerNames(Store.GOG)
+    }
+
+    /** A store library; prefs remember the container each of its games last ran in. */
+    private enum class Store(val prefsName: String, val driveAdded: Int) {
+        STEAM("steam_launch", R.string.steam_play_drive_added),
+        GOG("gog_launch", R.string.gog_play_drive_added),
+    }
+
+    private class StorePick(val gameName: String, val containers: List<Container>, val play: (Container) -> Unit)
+
+    private fun prefs(store: Store) = getSharedPreferences(store.prefsName, MODE_PRIVATE)
+
+    private fun pickContainer(id: Int) {
+        val pick = storePicker
+        storePicker = null
+        pick?.containers?.firstOrNull { it.id == id }?.let(pick.play)
+    }
+
+    /** Names of the containers each game of the store was last launched in. */
+    private fun loadContainerNames(store: Store) {
+        lifecycleScope.launch {
+            val names = withContext(Dispatchers.IO) {
+                val containers = ContainerManager(this@HomeActivity).containers
+                prefs(store).all.mapNotNull { (key, value) ->
+                    if (!key.startsWith("container_")) return@mapNotNull null
+                    val name = containers.firstOrNull { it.id == value as? Int }?.name ?: return@mapNotNull null
+                    key.removePrefix("container_") to name
+                }.toMap()
+            }
+            containerNames = containerNames + (store to names)
+        }
+    }
+
+    /** SteamLauncher sets up the Steam emulator and the shortcut. */
+    private fun playSteam(game: SteamGame, installed: SteamInstall.Installed, chosen: Container? = null, forceChoice: Boolean = false) {
+        playStoreGame(Store.STEAM, game.appId.toString(), game.name, chosen, forceChoice, { playSteam(game, installed, chosen = it) }) {
+            SteamLauncher.prepare(this, game, File(installed.path), it).let { prepared -> prepared.shortcut to prepared.addedDrive }
+        }
+    }
+
+    private fun playGog(game: GogGame, installed: SteamInstall.Installed, chosen: Container? = null, forceChoice: Boolean = false) {
+        playStoreGame(Store.GOG, game.id.toString(), game.title, chosen, forceChoice, { playGog(game, installed, chosen = it) }) {
+            GogLauncher.prepare(this, game, File(installed.path), it).let { prepared -> prepared.shortcut to prepared.addedDrive }
+        }
+    }
+
+    /**
+     * Runs an installed store game: in the container it last used, the only one there is, or
+     * one the user picks ([playIn] runs it again with the choice); [prepare] writes its
+     * shortcut and returns it with the drive letter it had to add, if any.
+     */
+    private fun playStoreGame(
+        store: Store,
+        key: String,
+        name: String,
+        chosen: Container?,
+        forceChoice: Boolean,
+        playIn: (Container) -> Unit,
+        prepare: suspend (Container) -> Pair<Shortcut, String?>,
+    ) {
+        lifecycleScope.launch {
+            val containers = withContext(Dispatchers.IO) { ContainerManager(this@HomeActivity).containers.toList() }
+            if (containers.isEmpty()) {
+                Toast.makeText(this@HomeActivity, R.string.steam_play_no_container, Toast.LENGTH_LONG).show()
+                openContainers()
+                return@launch
+            }
+            val prefs = prefs(store)
+            val saved = prefs.getInt("container_$key", -1)
+            val container = chosen ?: if (forceChoice) null
+            else containers.firstOrNull { it.id == saved } ?: containers.singleOrNull()
+            if (container == null) {
+                storePicker = StorePick(name, containers, playIn)
+                return@launch
+            }
+            prefs.edit().putInt("container_$key", container.id).apply()
+            containerNames = containerNames + (store to (containerNames[store].orEmpty() + (key to container.name)))
+            Toast.makeText(this@HomeActivity, getString(R.string.steam_play_preparing, name), Toast.LENGTH_SHORT).show()
+            val (shortcut, addedDrive) = try {
+                prepare(container)
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not prepare ${store.name} game $key", e)
+                val reason = e.message ?: e.javaClass.simpleName
+                Toast.makeText(this@HomeActivity, getString(R.string.steam_play_failed, reason), Toast.LENGTH_LONG).show()
+                return@launch
+            }
+            addedDrive?.let {
+                Toast.makeText(this@HomeActivity, getString(store.driveAdded, it, container.name), Toast.LENGTH_LONG).show()
+            }
+            reloadGames()
+            launchShortcut(shortcut)
+        }
     }
 
     private fun openContainers(editId: Int? = null) {
@@ -269,8 +475,9 @@ class HomeActivity : ComponentActivity() {
     }
 
     /** Same extras as ShortcutsFragment.runFromShortcut(). */
-    private fun launchGame(game: HomeGame) {
-        val shortcut = game.shortcut
+    private fun launchGame(game: HomeGame) = launchShortcut(game.shortcut)
+
+    private fun launchShortcut(shortcut: Shortcut) {
         if (XrActivity.isEnabled(this)) {
             XrActivity.openIntent(this, shortcut.container.id, shortcut.file.path)
             return

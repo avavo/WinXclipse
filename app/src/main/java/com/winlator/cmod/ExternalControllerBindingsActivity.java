@@ -134,7 +134,7 @@ public class ExternalControllerBindingsActivity extends LocalizedActivity {
 
     @Override
     public boolean dispatchGenericMotionEvent(MotionEvent event) {
-        if (event.getDeviceId() == controller.getDeviceId() && controller.updateStateFromMotionEvent(event)) {
+        if (controller.matches(event.getDevice()) && controller.updateStateFromMotionEvent(event)) {
             if (controller.state.isPressed(ExternalController.IDX_BUTTON_L2)) updateControllerBinding(KeyEvent.KEYCODE_BUTTON_L2, Binding.NONE);
             if (controller.state.isPressed(ExternalController.IDX_BUTTON_R2)) updateControllerBinding(KeyEvent.KEYCODE_BUTTON_R2, Binding.NONE);
             processJoystickInput();
@@ -145,7 +145,7 @@ public class ExternalControllerBindingsActivity extends LocalizedActivity {
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-        if (event.getDeviceId() == controller.getDeviceId() && event.getRepeatCount() == 0) {
+        if (controller.matches(event.getDevice()) && event.getRepeatCount() == 0) {
             if (event.getAction() == KeyEvent.ACTION_DOWN) updateControllerBinding(event.getKeyCode(), Binding.NONE);
             return true;
         }

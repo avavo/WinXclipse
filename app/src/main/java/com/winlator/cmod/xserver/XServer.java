@@ -240,6 +240,12 @@ public class XServer {
     }
 
     public void injectPointerMove(int x, int y) {
+        // A force-fullscreen game is drawn stretched: aim at what the user touched.
+        int[] mapped = renderer != null ? renderer.mapToForcedWindow(x, y) : null;
+        if (mapped != null) {
+            x = mapped[0];
+            y = mapped[1];
+        }
         try (XLock lock = lock(Lockable.WINDOW_MANAGER, Lockable.INPUT_DEVICE)) {
             pointer.setPosition(x, y);
         }
