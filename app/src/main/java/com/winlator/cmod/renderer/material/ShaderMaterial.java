@@ -11,6 +11,7 @@ public class ShaderMaterial {
     private final ArrayMap<String, Integer> uniforms = new ArrayMap<>();
     private static final int UNRESOLVED = Integer.MIN_VALUE;
     private long contextEpoch = Long.MIN_VALUE;
+    private RuntimeException buildFailure;
 
     public void setUniformNames(String... names) {
         uniforms.clear();
@@ -67,7 +68,16 @@ public class ShaderMaterial {
 
     public void use() {
         if (contextEpoch != com.winlator.cmod.renderer.GLContextEpoch.current()) invalidateContext();
-        if (programId == 0) programId = buildProgram();
+        if (buildFailure != null) throw buildFailure;
+        if (programId == 0) {
+            try {
+                programId = buildProgram();
+                if (programId == 0) throw new IllegalStateException("Shader program was not created");
+            } catch (RuntimeException failure) {
+                buildFailure = failure;
+                throw failure;
+            }
+        }
         bindProgram(programId);
 
         for (int i = 0; i < uniforms.size(); i++) {
@@ -80,6 +90,8 @@ public class ShaderMaterial {
     }
 
     protected int buildProgram() { return compileShaders(getVertexShader(), getFragmentShader()); }
+    /** Explicit compositor retry; a failed build has no linked program to delete. */
+    public void retryFailedBuild() { if (programId == 0) buildFailure = null; }
     protected void bindProgram(int program) { GLES20.glUseProgram(program); }
     protected int locateUniform(int program, String name) { return GLES20.glGetUniformLocation(program, name); }
     protected void deleteProgram(int program) { GLES20.glDeleteProgram(program); }
@@ -101,6 +113,7 @@ public class ShaderMaterial {
 
     public void invalidateContext() {
         programId = 0;
+        buildFailure = null;
         contextEpoch = com.winlator.cmod.renderer.GLContextEpoch.current();
         for (int i = 0; i < uniforms.size(); i++) uniforms.setValueAt(i, UNRESOLVED);
     }

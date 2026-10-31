@@ -169,6 +169,7 @@ public class EffectComposer {
 
     public synchronized void addEffect(Effect effect) {
         if (!effects.contains(effect)) {
+            retryPipeline();
             // EASU must always run first: it consumes the reduced-resolution
             // scene buffer. Frame generation must always run last because it
             // captures the fully processed image.
@@ -183,7 +184,7 @@ public class EffectComposer {
 //            Log.d(TAG, "Effect already present: " + effect.getClass().getSimpleName());
         }
         // Move this call to the end of a batch effect addition or modification to prevent immediate rendering
-        renderer.xServerView.requestRender();
+        requestRender();
     }
 
 
@@ -212,12 +213,13 @@ public class EffectComposer {
     // Removes a specific effect from the composer
     public synchronized void removeEffect(Effect effect) {
         if (effects.remove(effect)) {
+            retryPipeline();
             retire(effect);
 //            Log.d(TAG, "Effect removed: " + effect.getClass().getSimpleName());
         } else {
 //            Log.d(TAG, "Effect not found for removal: " + effect.getClass().getSimpleName());
         }
-        renderer.xServerView.requestRender();
+        requestRender();
     }
 
     /**
@@ -244,6 +246,8 @@ public class EffectComposer {
     }
 
     private void configureScene(boolean enabled, float factor, int width, int height) {
+        if (sceneUpscale != enabled || sceneScale != factor || sceneTargetWidth != width || sceneTargetHeight != height)
+            retryPipeline();
         sceneUpscale = enabled;
         sceneScale = factor;
         sceneTargetWidth = width;
@@ -251,6 +255,7 @@ public class EffectComposer {
     }
 
     private void replaceFsrPasses(FSREasuEffect easu, FSREffect rcas) {
+        retryPipeline();
         // FSR changes what the history images contain, even when the physical
         // surface dimensions are unchanged (quality/guest-resolution switches).
         renderer.getLSFGManager().notifySceneChangePending();
@@ -269,7 +274,7 @@ public class EffectComposer {
                 effects.add(lsfgIndex >= 0 ? lsfgIndex : effects.size(), rcas);
             }
         }
-        renderer.xServerView.requestRender();
+        requestRender();
     }
 
     private int indexOfLSFG() {
@@ -285,6 +290,7 @@ public class EffectComposer {
      * reusing them would render black until the surface size changes.
      */
     public synchronized void invalidateBuffers() {
+        retryPipeline();
         // This callback runs in the NEW context. Deleting old numeric names
         // here could delete a newly allocated object that reused the same ID.
         if (readBuffer != null) readBuffer.invalidateContext();
@@ -312,140 +318,174 @@ public class EffectComposer {
     }
 
     // Renders all the effects in the composer
+    private long failedEpoch = Long.MIN_VALUE;
+    private int failedWidth, failedHeight;
+    private String runtimeFailure = "";
+    private boolean directFailureLogged;
+
+    public synchronized String getRuntimeFailure() { return runtimeFailure; }
+
+    private boolean pipelineBlocked() {
+        return !runtimeFailure.isEmpty() && failedEpoch == GLContextEpoch.current()
+                && failedWidth == surfaceWidth() && failedHeight == surfaceHeight();
+    }
+
+    private void retryPipeline() {
+        if (!runtimeFailure.isEmpty()) for (Effect effect : effects) effect.retryFailedMaterial();
+        runtimeFailure = "";
+        directFailureLogged = false;
+    }
+
+    protected int surfaceWidth() { return renderer.getSurfaceWidth(); }
+    protected int surfaceHeight() { return renderer.getSurfaceHeight(); }
+    protected void requestRender() { renderer.xServerView.requestRender(); }
+    protected void reportFrameGenerationFailure() { renderer.onApexRuntimeFailure(); }
+    protected void restoreCursor() { renderer.setRenderCursorEnabled(true); }
+
+    // A rejected shader/FBO is not retried on every game Present. Preferences
+    // and effect objects survive, allowing a deliberate retry or a fresh context.
     public synchronized void render() {
-        // Check for recursive rendering
-        if (isRendering) {
-//            Log.d(TAG, "Render already in progress, skipping.");
+        if (isRendering) return;
+        isRendering = true;
+        LSFGEffect lsfg = getEffect(LSFGEffect.class);
+        try {
+            if (pipelineBlocked()) {
+                drawDirect();
+                return;
+            }
+            retryPipeline();
+            renderPipeline(lsfg, lsfg != null && lsfg.getManager().isActive());
+        } catch (Throwable error) {
+            // The direct path can also fail (e.g. a core window shader). Keep
+            // the original cause and avoid writing a stack trace per frame.
+            boolean firstFailure = !pipelineBlocked();
+            if (firstFailure) {
+                failedEpoch = GLContextEpoch.current();
+                failedWidth = surfaceWidth(); failedHeight = surfaceHeight();
+                String message = error.getMessage();
+                runtimeFailure = message == null || message.isEmpty() ? error.getClass().getSimpleName() : message;
+                Log.e(TAG, "Post-processing suspended; using direct rendering", error);
+                if (lsfg != null) {
+                    effects.remove(lsfg);
+                    try { lsfg.destroy(); }
+                    catch (Throwable cleanup) { Log.w(TAG, "Unable to release frame generation", cleanup); }
+                    reportFrameGenerationFailure();
+                }
+                try { releaseBuffers(); }
+                catch (Throwable cleanup) { Log.w(TAG, "Unable to release post-processing buffers", cleanup); }
+            }
+            if (firstFailure) {
+                try { drawDirect(); }
+                catch (Throwable fallback) {
+                    directFailureLogged = true;
+                    Log.e(TAG, "Direct-render recovery failed", fallback);
+                }
+            } else if (!directFailureLogged) {
+                directFailureLogged = true;
+                Log.e(TAG, "Direct rendering failed after post-processing was suspended", error);
+            }
+        } finally {
+            isRendering = false;
+            restoreCursor();
+        }
+    }
+
+    protected void drawDirect() {
+        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
+        GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
+        GLES20.glEnable(GLES20.GL_BLEND);
+        GLES20.glViewport(0, 0, surfaceWidth(), surfaceHeight());
+        renderer.setRenderTargetSize(surfaceWidth(), surfaceHeight());
+        renderer.setViewportNeedsUpdate(true);
+        renderer.setRenderCursorEnabled(true);
+        renderer.drawScene(false);
+    }
+
+    protected void renderPipeline(LSFGEffect lsfg, boolean frameGenerationActive) {
+        boolean generatedFrame = frameGenerationActive && lsfg.getManager().isGeneratedFrame();
+        initBuffers();
+        if (readBuffer == null || writeBuffer == null
+                || !readBuffer.isComplete() || !writeBuffer.isComplete()
+                || (sceneUpscale && (sceneBuffer == null || !sceneBuffer.isComplete()))) {
+            throw new IllegalStateException("Post-processing framebuffer is incomplete");
+        }
+
+        if (generatedFrame) {
+            renderer.setRenderTargetSize(bufferWidth, bufferHeight);
+            GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
+            GLES20.glDisable(GLES20.GL_BLEND);
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
+            GLES20.glViewport(0, 0, bufferWidth, bufferHeight);
+            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+            renderEffect(lsfg, false);
+            GLES20.glEnable(GLES20.GL_BLEND);
+            renderer.drawCursorExplicitly();
             return;
         }
 
-        isRendering = true;
-        LSFGEffect lsfg = getEffect(LSFGEffect.class);
-        boolean frameGenerationActive = lsfg != null && lsfg.getManager().isActive();
-        boolean generatedFrame = frameGenerationActive && lsfg.getManager().isGeneratedFrame();
+        boolean useScene = sceneUpscale && sceneBuffer != null;
+        renderer.setRenderCursorEnabled(!frameGenerationActive);
+        if (useScene) {
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, sceneBuffer.getFramebuffer());
+            renderer.setRenderTargetSize(sceneBufferWidth, sceneBufferHeight);
+            ViewTransformation vt = renderer.viewTransformation;
+            sceneViewOffsetX = vt.viewOffsetX;
+            sceneViewOffsetYGl = vt.viewOffsetY;
+            sceneViewWidth = vt.viewWidth;
+            sceneViewHeight = vt.viewHeight;
+        }
+        else {
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, readBuffer.getFramebuffer());
+        }
 
-        try {
-            initBuffers();
-            if (readBuffer == null || writeBuffer == null
-                    || !readBuffer.isComplete() || !writeBuffer.isComplete()
-                    || (sceneUpscale && (sceneBuffer == null || !sceneBuffer.isComplete()))) {
-                // Preserve compatibility on drivers that reject offscreen targets.
-                if (frameGenerationActive) {
-                    effects.remove(lsfg);
-                    lsfg.destroy();
-                    renderer.onApexRuntimeFailure();
-                    renderer.setRenderCursorEnabled(true);
-                }
-                renderer.drawScene(false);
-                return;
-            }
+        renderer.drawScene(false);
 
-            if (generatedFrame) {
-                renderer.setRenderTargetSize(bufferWidth, bufferHeight);
-                GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
-                GLES20.glDisable(GLES20.GL_BLEND);
-                GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
-                GLES20.glViewport(0, 0, bufferWidth, bufferHeight);
-                GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
-                renderEffect(lsfg, false);
-                GLES20.glEnable(GLES20.GL_BLEND);
-                renderer.drawCursorExplicitly();
-                return;
-            }
-
-            boolean useScene = sceneUpscale && sceneBuffer != null;
-            renderer.setRenderCursorEnabled(!frameGenerationActive);
-            if (useScene) {
-                GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, sceneBuffer.getFramebuffer());
-                renderer.setRenderTargetSize(sceneBufferWidth, sceneBufferHeight);
-                ViewTransformation vt = renderer.viewTransformation;
-                sceneViewOffsetX = vt.viewOffsetX;
-                sceneViewOffsetYGl = vt.viewOffsetY;
-                sceneViewWidth = vt.viewWidth;
-                sceneViewHeight = vt.viewHeight;
-            }
-            else {
-                GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, readBuffer.getFramebuffer());
-            }
-
-            renderer.drawScene(false);
-
-            int sceneConsumer = -1;
-            if (useScene) {
-                sceneConsumer = 0;
-                for (int i = 0; i < effects.size(); i++) {
-                    if (effects.get(i) instanceof FSREasuEffect) {
-                        sceneConsumer = i;
-                        break;
-                    }
-                }
-            }
-
-            GLES20.glDisable(GLES20.GL_BLEND);
+        int sceneConsumer = -1;
+        if (useScene) {
+            sceneConsumer = 0;
             for (int i = 0; i < effects.size(); i++) {
-                Effect effect = effects.get(i);
-                if (effect instanceof LSFGEffect) continue;
-
-                boolean renderToScreen = !frameGenerationActive
-                        && effect == effects.get(effects.size() - 1);
-                if (useScene) renderer.setRenderTargetSize(bufferWidth, bufferHeight);
-                GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER,
-                        renderToScreen ? 0 : writeBuffer.getFramebuffer());
-                GLES20.glViewport(0, 0, bufferWidth, bufferHeight);
-                renderer.setViewportNeedsUpdate(true);
-                GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
-                renderEffect(effect, i <= sceneConsumer);
-                swapBuffers();
+                if (effects.get(i) instanceof FSREasuEffect) {
+                    sceneConsumer = i;
+                    break;
+                }
             }
+        }
 
-            if (frameGenerationActive) {
-                renderer.setRenderTargetSize(bufferWidth, bufferHeight);
-                lsfg.onPreRender(readBuffer, null);
-                GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
-                GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
-                GLES20.glViewport(0, 0, bufferWidth, bufferHeight);
-                GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
-                renderEffect(lsfg, false);
-                GLES20.glEnable(GLES20.GL_BLEND);
-                renderer.setRenderCursorEnabled(true);
-                renderer.drawCursorExplicitly();
-            }
-            else {
-                GLES20.glEnable(GLES20.GL_BLEND);
-            }
+        GLES20.glDisable(GLES20.GL_BLEND);
+        for (int i = 0; i < effects.size(); i++) {
+            Effect effect = effects.get(i);
+            if (effect instanceof LSFGEffect) continue;
 
+            boolean renderToScreen = !frameGenerationActive
+                    && effect == effects.get(effects.size() - 1);
             if (useScene) renderer.setRenderTargetSize(bufferWidth, bufferHeight);
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER,
+                    renderToScreen ? 0 : writeBuffer.getFramebuffer());
+            GLES20.glViewport(0, 0, bufferWidth, bufferHeight);
+            renderer.setViewportNeedsUpdate(true);
+            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+            renderEffect(effect, i <= sceneConsumer);
+            swapBuffers();
         }
-        catch (Throwable error) {
-            Log.e(TAG, "Post-processing failed; disabling experimental frame generation", error);
-            if (lsfg != null) {
-                effects.remove(lsfg);
-                try {
-                    lsfg.destroy();
-                }
-                catch (Throwable cleanupError) {
-                    Log.w(TAG, "Unable to fully release frame-generation resources", cleanupError);
-                }
-            }
-            renderer.onApexRuntimeFailure();
-            // Restore a known GLES state and draw the Wine surface directly.
-            // This keeps the container alive if a device rejects a compute/FBO path.
-            try {
-                GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
-                GLES20.glEnable(GLES20.GL_BLEND);
-                renderer.setRenderTargetSize(renderer.getSurfaceWidth(), renderer.getSurfaceHeight());
-                renderer.setViewportNeedsUpdate(true);
-                renderer.setRenderCursorEnabled(true);
-                renderer.drawScene(false);
-            }
-            catch (Throwable fallbackError) {
-                Log.e(TAG, "Direct-render recovery failed", fallbackError);
-            }
-        }
-        finally {
+
+        if (frameGenerationActive) {
+            renderer.setRenderTargetSize(bufferWidth, bufferHeight);
+            lsfg.onPreRender(readBuffer, null);
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
+            GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
+            GLES20.glViewport(0, 0, bufferWidth, bufferHeight);
+            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+            renderEffect(lsfg, false);
+            GLES20.glEnable(GLES20.GL_BLEND);
             renderer.setRenderCursorEnabled(true);
-            isRendering = false;
+            renderer.drawCursorExplicitly();
         }
+        else {
+            GLES20.glEnable(GLES20.GL_BLEND);
+        }
+
+        if (useScene) renderer.setRenderTargetSize(bufferWidth, bufferHeight);
+
     }
 
     // Renders a single effect
@@ -564,7 +604,7 @@ public class EffectComposer {
             addEffect(new ToonEffect()); // Add if not present
             Log.d(TAG, "ToonEffect added");
         }
-        renderer.xServerView.requestRender();
+        requestRender();
     }
 
     /** Enables/disables Apex only on the GL thread. Unsupported devices stay off. */
@@ -582,12 +622,13 @@ public class EffectComposer {
             if (effect != null) {
                 effects.remove(effect);
                 effect.destroy();
-                renderer.xServerView.requestRender();
+                requestRender();
             }
             else renderer.getLSFGManager().setEnabled(false);
             return true;
         }
 
+        retryPipeline();
         if (!supportsGLES31()) {
             Log.e(TAG, "GLES 3.1 is required for experimental frame generation");
             renderer.getLSFGManager().reportBackendFailure(
@@ -626,7 +667,7 @@ public class EffectComposer {
                 }
             }
             renderer.getLSFGManager().setEnabled(false);
-            renderer.xServerView.requestRender();
+            requestRender();
             return false;
         }
     }

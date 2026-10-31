@@ -42,4 +42,6 @@ public abstract class Effect {
     public void invalidateContext() {
         if (material != null) { material.invalidateContext(); material = null; }
     }
+
+    public void retryFailedMaterial() { if (material != null) material.retryFailedBuild(); }
 }
