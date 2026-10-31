@@ -152,7 +152,7 @@ public class ControllerManager {
 
         for (InputDevice.MotionRange r : d.getMotionRanges()) {
             int src = r.getSource();
-            if ((src & (InputDevice.SOURCE_JOYSTICK | InputDevice.SOURCE_GAMEPAD)) == 0) continue;
+            if (!com.winlator.cmod.core.InputSources.controller(src)) continue;
 
             c.anyJoyAxis = true;
             switch (r.getAxis()) {
@@ -199,9 +199,8 @@ public class ControllerManager {
         if (d == null) return false;
 
         int s = d.getSources();
-        boolean hasControllerBits =
-                ((s & InputDevice.SOURCE_JOYSTICK) != 0) ||
-                        ((s & InputDevice.SOURCE_GAMEPAD)  != 0);
+        boolean hasControllerBits = com.winlator.cmod.core.InputSources.controller(s);
+        if (d.isVirtual() || !hasControllerBits) return false;
 
         boolean pointer = isPointerLike(d);
         Caps c = analyzeCaps(d);

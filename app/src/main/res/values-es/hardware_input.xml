@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pointer_capture_temporarily_released">Puntero del ratón liberado durante 10 segundos.</string>
+</resources>

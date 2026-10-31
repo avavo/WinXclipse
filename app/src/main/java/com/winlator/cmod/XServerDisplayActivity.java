@@ -252,7 +252,10 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
     private short taskAffinityMask = 0;
     private short taskAffinityMaskWoW64 = 0;
     private int frameRatingWindowId = -1;
-    private boolean pointerCaptureRequested = false; // Flag to track if pointer capture was requested
+    private boolean pointerCaptureRequested;
+    private boolean pointerActivityResumed, pointerReleaseKeyHeld;
+    private long pointerCaptureSuppressedUntil;
+    private Runnable pendingPointerCapture;
     private final float[] xform = XForm.getInstance();
     private ContentsManager contentsManager;
     private boolean navigationFocused = false;
@@ -596,6 +599,8 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
 
         drawerLayout.addDrawerListener(new DrawerLayout.SimpleDrawerListener() {
             @Override public void onDrawerOpened(@NonNull View drawerView) {
+                releasePointerCaptureIfNeeded("drawer-opened");
+                if (xServer != null) xServer.keyboard.releaseHardwareKeys();
                 if (xServerView != null) {
                     updateSidebarFrameGenerationState(xServerView.getRenderer());
                 }
@@ -603,7 +608,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
             @Override public void onDrawerClosed(@NonNull View drawerView) {
                 // If the user left Relative Mouse enabled, recapture.
                 if (isRelativeMouseMovement && !pointerCaptureRequested) {
-                    drawerLayout.postDelayed(() -> ensurePointerCapture("drawer-closed"), 2000);
+                    ensurePointerCapture("drawer-closed");
                 }
             }
         });
@@ -1144,123 +1149,61 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
 
     // Inside XServerDisplayActivity class
     private void handleCapturedPointer(MotionEvent event) {
-        boolean handled = false;
-
-        // Special: mouse 'Back' -> release capture and open drawer
-        if (event.getAction() == MotionEvent.ACTION_BUTTON_PRESS
+        if (touchpadView == null) return;
+        if (event.getActionMasked() == MotionEvent.ACTION_BUTTON_PRESS
                 && event.getActionButton() == MotionEvent.BUTTON_BACK) {
-            if (pointerCaptureRequested && touchpadView != null) {
-                touchpadView.releasePointerCapture();
-                pointerCaptureRequested = false;
-//                Toast.makeText(this, "Capture released", Toast.LENGTH_SHORT).show();
-            }
+            releasePointerCaptureIfNeeded("mouse-back");
             onBackPressed();
             return;
         }
+        touchpadView.onCapturedExternalMouseEvent(event);
+    }
 
-        // Captured primary clicks do not always arrive as BUTTON_PRESS on
-        // Samsung/Android. Route both BUTTON_* and DOWN/UP forms through the
-        // same state-guarded injector used by the non-captured path.
-        if (touchpadView != null && touchpadView.onExternalPrimaryButtonEvent(event)) return;
+    private boolean canCapturePointer() {
+        if (!isRelativeMouseMovement || !pointerActivityResumed || isPaused || sessionStopped.get()
+                || isFinishing() || isDestroyed() || !hasWindowFocus() || touchpadView == null
+                || drawerLayout != null && drawerLayout.isDrawerVisible(GravityCompat.START)) return false;
+        View focus = getCurrentFocus();
+        if (focus != null && focus.isShown() && focus.onCheckIsTextEditor()) return false;
+        androidx.core.view.WindowInsetsCompat insets = androidx.core.view.ViewCompat.getRootWindowInsets(touchpadView);
+        return insets == null || !insets.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime());
+    }
 
-        int actionButton = event.getActionButton();
-        switch (event.getAction()) {
-            case MotionEvent.ACTION_BUTTON_PRESS:
-                if (actionButton == MotionEvent.BUTTON_SECONDARY) {
-                    if (xServer.isRelativeMouseMovement())
-                        xServer.getWinHandler().mouseEvent(MouseEventFlags.RIGHTDOWN, 0, 0, 0);
-                    else
-                        xServer.injectPointerButtonPress(Pointer.Button.BUTTON_RIGHT);
-                } else if (actionButton == MotionEvent.BUTTON_TERTIARY) {
-                    if (xServer.isRelativeMouseMovement())
-                        xServer.getWinHandler().mouseEvent(MouseEventFlags.MIDDLEDOWN, 0, 0, 0);
-                    else
-                        xServer.injectPointerButtonPress(Pointer.Button.BUTTON_MIDDLE); // Add this line for middle mouse button press
-                }
-                handled = true;
-                break;
-            case MotionEvent.ACTION_BUTTON_RELEASE:
-                if (actionButton == MotionEvent.BUTTON_SECONDARY) {
-                    if (xServer.isRelativeMouseMovement())
-                        xServer.getWinHandler().mouseEvent(MouseEventFlags.RIGHTUP, 0, 0, 0);
-                    else
-                        xServer.injectPointerButtonRelease(Pointer.Button.BUTTON_RIGHT);
-                } else if (actionButton == MotionEvent.BUTTON_TERTIARY) {
-                    if (xServer.isRelativeMouseMovement())
-                        xServer.getWinHandler().mouseEvent(MouseEventFlags.MIDDLEUP, 0, 0, 0);
-                    else
-                        xServer.injectPointerButtonRelease(Pointer.Button.BUTTON_MIDDLE); // Add this line for middle mouse button release
-                }
-                handled = true;
-                break;
-            case MotionEvent.ACTION_MOVE:
-            case MotionEvent.ACTION_HOVER_MOVE:
-                float[] transformedPoint = XForm.transformPoint(xform, event.getX(), event.getY());
-                if (xServer.isRelativeMouseMovement())
-                    xServer.getWinHandler().mouseEvent(MouseEventFlags.MOVE, (int)transformedPoint[0], (int)transformedPoint[1], 0);
-                else
-                    xServer.injectPointerMoveDelta((int)transformedPoint[0], (int)transformedPoint[1]);
-                handled = true;
-                break;
-            case MotionEvent.ACTION_SCROLL:
-                float scrollY = event.getAxisValue(MotionEvent.AXIS_VSCROLL);
-                if (scrollY <= -1.0f) {
-                    if (xServer.isRelativeMouseMovement())
-                        xServer.getWinHandler().mouseEvent(MouseEventFlags.WHEEL, 0, 0, (int)scrollY * 270);
-                    else {
-                        xServer.injectPointerButtonPress(Pointer.Button.BUTTON_SCROLL_DOWN);
-                        xServer.injectPointerButtonRelease(Pointer.Button.BUTTON_SCROLL_DOWN);
-                    }
-                } else if (scrollY >= 1.0f) {
-                    if (xServer.isRelativeMouseMovement())
-                        xServer.getWinHandler().mouseEvent(MouseEventFlags.WHEEL, 0, 0,(int)scrollY * 270);
-                    else {
-                        xServer.injectPointerButtonPress(Pointer.Button.BUTTON_SCROLL_UP);
-                        xServer.injectPointerButtonRelease(Pointer.Button.BUTTON_SCROLL_UP);
-                    }
-                }
-                handled = true;
-                break;
-        }
+    private void cancelPendingPointerCapture() {
+        if (pendingPointerCapture != null && touchpadView != null) touchpadView.removeCallbacks(pendingPointerCapture);
+        pendingPointerCapture = null;
     }
 
     private void ensurePointerCapture(String reason) {
-        if (!isRelativeMouseMovement || touchpadView == null) return;
-
-        final int[] tries = {0};
-        Runnable attempt = new Runnable() {
+        cancelPendingPointerCapture();
+        if (!canCapturePointer()) return;
+        pendingPointerCapture = new Runnable() {
+            private int attempts;
             @Override public void run() {
-                if (!hasWindowFocus()) { touchpadView.postDelayed(this, 50); return; }
-                if (!touchpadView.isAttachedToWindow()) { touchpadView.postDelayed(this, 50); return; }
-
-                // Make sure the view can take focus
-                touchpadView.setFocusableInTouchMode(true);
-                touchpadView.requestFocus();
-
+                if (pendingPointerCapture != this) return;
+                if (!canCapturePointer()) { pendingPointerCapture = null; return; }
+                long remaining = pointerCaptureSuppressedUntil - android.os.SystemClock.elapsedRealtime();
+                if (remaining > 0) { touchpadView.postDelayed(this, remaining); return; }
+                if (touchpadView.hasPointerCapture()) { pointerCaptureRequested = true; pendingPointerCapture = null; return; }
+                if (!touchpadView.isAttachedToWindow() || !touchpadView.hasWindowFocus() || !touchpadView.requestFocus()) {
+                    if (++attempts < 10) touchpadView.postDelayed(this, 50);
+                    else pendingPointerCapture = null;
+                    return;
+                }
+                touchpadView.setOnCapturedPointerListener((view, event) -> { handleCapturedPointer(event); return true; });
                 touchpadView.requestPointerCapture();
-                touchpadView.setOnCapturedPointerListener((v, e) -> { handleCapturedPointer(e); return true; });
-                pointerCaptureRequested = true;
+                // Only onPointerCaptureChange confirms that Android granted it.
+                pendingPointerCapture = null;
             }
         };
-        // Try quickly a few times to dodge transient focus transitions
-        touchpadView.postDelayed(attempt, 50); // First attempt
+        touchpadView.postDelayed(pendingPointerCapture, 50);
     }
-
 
     public boolean onCapturedPointerEvent(MotionEvent event) {
         handleCapturedPointer(event);
         return true;
     }
 
-
-
-
-    //    private void setCustomCursor() {
-//        View decorView = getWindow().getDecorView();
-//        Bitmap transparentCursorBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.transparent_cursor);
-//        PointerIcon transparentCursorIcon = PointerIcon.create(transparentCursorBitmap, 0, 0);
-//        decorView.setPointerIcon(transparentCursorIcon);
-//    }
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
@@ -1276,6 +1219,8 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
     @Override
     public void onResume() {
         super.onResume();
+        pointerActivityResumed = true;
+        ensurePointerCapture("resume");
         if (launchBlockedByContentOperation) return;
         if (refreshDisplayManager == null) {
             refreshDisplayManager = (android.hardware.display.DisplayManager) getSystemService(DISPLAY_SERVICE);
@@ -1317,6 +1262,9 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
 
     @Override
     public void onPause() {
+        pointerActivityResumed = false;
+        releasePointerCaptureIfNeeded("pause");
+        if (xServer != null) xServer.keyboard.releaseHardwareKeys();
         super.onPause();
         if (refreshDisplayManager != null) {
             refreshDisplayManager.unregisterDisplayListener(refreshDisplayListener);
@@ -1385,6 +1333,8 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
 
     @Override
     protected void onDestroy() {
+        pointerActivityResumed = false;
+        releasePointerCaptureIfNeeded("destroy");
         pulseSinkHandler.removeCallbacks(pulseSinkReloadRunnable);
         sidebarHandler.removeCallbacks(sidebarStatusRunnable);
         sidebarHandler.removeCallbacks(bcnLayerMapProbe);
@@ -1480,12 +1430,13 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
 
 
     private void releasePointerCaptureIfNeeded(String reason) {
-        if (pointerCaptureRequested && touchpadView != null) {
-            touchpadView.releasePointerCapture();
+        cancelPendingPointerCapture();
+        if (touchpadView != null) {
+            touchpadView.releaseExternalMouseButtons();
+            touchpadView.releasePointerCapture(); // Also cancels a not-yet-granted Android request.
             touchpadView.setOnCapturedPointerListener(null);
-            pointerCaptureRequested = false;
-            Log.d("PointerCapture", "Released: " + reason);
         }
+        pointerCaptureRequested = false;
     }
 
     @Override
@@ -1805,6 +1756,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
                     touchpadView.setOnCapturedPointerListener(null);
                     Toast.makeText(this, R.string.relative_mouse_disabled, Toast.LENGTH_SHORT).show();
                 } else {
+                    ensurePointerCapture("toggle-on");
                     Toast.makeText(this, R.string.relative_mouse_enabled, Toast.LENGTH_SHORT).show();
                 }
                 drawerLayout.closeDrawers();
@@ -1839,6 +1791,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
                     item.setIcon(R.drawable.icon_play);
                 }
                 isPaused = !isPaused;
+                if (isPaused) releasePointerCaptureIfNeeded("manual-pause"); else ensurePointerCapture("manual-resume");
                 drawerLayout.closeDrawers();
                 return true;
 
@@ -2019,16 +1972,11 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         super.onWindowFocusChanged(hasFocus);
         if (!hasFocus) {
             if (inputControlsView != null) inputControlsView.cancelAllTouches();
-            if (pointerCaptureRequested && touchpadView != null) {
-                touchpadView.releasePointerCapture();
-                pointerCaptureRequested = false;
-                Log.d("PointerCapture", "Released due to focus loss.");
-            }
+            releasePointerCaptureIfNeeded("focus-lost");
+            if (xServer != null) xServer.keyboard.releaseHardwareKeys();
         } else {
             applyPreferredRefreshRate();
-            if (isRelativeMouseMovement && !pointerCaptureRequested) {
-                ensurePointerCapture("focus-gained");
-            }
+            ensurePointerCapture("focus-gained");
         }
     }
 
@@ -2796,6 +2744,10 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
 
         globalCursorSpeed = preferences.getFloat("cursor_speed", 1.0f);
         touchpadView = new TouchpadView(this, xServer, timeoutHandler, hideControlsRunnable);
+        touchpadView.setPointerCaptureChangedCallback(captured -> {
+            pointerCaptureRequested = captured;
+            if (captured && !canCapturePointer()) releasePointerCaptureIfNeeded("stale-grant");
+        });
         isMouseDisabled = preferences.getBoolean("touchscreen_mouse_disabled", false);
         touchpadView.setTouchscreenMouseDisabled(isMouseDisabled);
         touchpadView.setSensitivity(globalCursorSpeed);
@@ -3049,6 +3001,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
                     touchpadView.setOnCapturedPointerListener(null);
                     Toast.makeText(this, R.string.relative_mouse_disabled, Toast.LENGTH_SHORT).show();
                 } else {
+                    ensurePointerCapture("toggle-on");
                     Toast.makeText(this, R.string.relative_mouse_enabled, Toast.LENGTH_SHORT).show();
                 }
             }
@@ -4075,6 +4028,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
             sidebarPauseButton.setImageResource(R.drawable.icon_play);
         }
         isPaused = !isPaused;
+        if (isPaused) releasePointerCaptureIfNeeded("manual-pause"); else ensurePointerCapture("manual-resume");
         resetHudFrameBoundaries();
         if (measurementButton != null) measurementButton.setSessionActive(true, isPaused);
     }
@@ -4656,6 +4610,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         inputControlsView.setProfile(profile);
         // Its physical-controller bindings keep working if the overlay is hidden later.
         inputControlsView.setPhysicalProfile(profile);
+        ensurePointerCapture("controls-shown");
 
         touchpadView.setSensitivity(profile.getCursorSpeed() * globalCursorSpeed);
         touchpadView.setPointerButtonRightEnabled(false);
@@ -5451,25 +5406,20 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
 
     @Override
     public boolean dispatchGenericMotionEvent(MotionEvent event) {
-        // If we hold capture, captured events will come through the listener/Activity.
-        // Skip the external path to avoid duplication.
-        if (pointerCaptureRequested &&
-                (event.getSource() & InputDevice.SOURCE_MOUSE) == InputDevice.SOURCE_MOUSE) {
-            // Still allow WinHandler to see gyro/other sources if you rely on it
-            boolean handledByWinHandler = winHandler != null && winHandler.onGenericMotionEvent(event);
-            return handledByWinHandler || super.dispatchGenericMotionEvent(event);
+        if (drawerLayout != null && drawerLayout.isDrawerVisible(GravityCompat.START))
+            return super.dispatchGenericMotionEvent(event);
+        boolean mouse = event.isFromSource(InputDevice.SOURCE_MOUSE) || event.isFromSource(InputDevice.SOURCE_MOUSE_RELATIVE);
+        if (mouse && event.getActionMasked() == MotionEvent.ACTION_BUTTON_PRESS && event.getActionButton() == MotionEvent.BUTTON_BACK) {
+            openXServerDrawer(); return true;
         }
-
-        // A controls profile that maps this pad's sticks/triggers to keyboard or mouse gets
-        // the motion before XInput does (same order as key events below); unmapped pads
-        // fall through to WinHandler unchanged.
-        if (inputControlsView != null && ExternalController.isJoystickDevice(event)
-                && inputControlsView.onPhysicalMotionEvent(event)) return true;
+        if (mouse && touchpadView != null && touchpadView.hasPointerCapture()) return super.dispatchGenericMotionEvent(event);
+        if (mouse && pendingPointerCapture == null) ensurePointerCapture("hardware-mouse");
+        if (inputControlsView != null && com.winlator.cmod.core.InputSources.controller(event.getSource())
+                && ExternalController.isJoystickDevice(event) && inputControlsView.onGenericMotionEvent(event)) return true;
         if (winHandler != null && winHandler.onGenericMotionEvent(event)) return true;
         if (touchpadView != null && touchpadView.onExternalMouseEvent(event)) return true;
         return super.dispatchGenericMotionEvent(event);
     }
-
 
     private static final int RECAPTURE_DELAY_MS = 10000; // 10 seconds
 
@@ -5482,61 +5432,44 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         int eventSource = event.getSource();
         boolean fromMouse = (eventSource & InputDevice.SOURCE_MOUSE) == InputDevice.SOURCE_MOUSE
                 || (eventSource & InputDevice.SOURCE_MOUSE_RELATIVE) == InputDevice.SOURCE_MOUSE_RELATIVE;
-        if (event.getKeyCode() == KeyEvent.KEYCODE_BACK
-                && fromMouse
-                && xServer != null) {
-            boolean pressed = event.getAction() == KeyEvent.ACTION_DOWN;
-            if (xServer.isRelativeMouseMovement()) {
-                xServer.getWinHandler().mouseEvent(
-                        pressed ? MouseEventFlags.RIGHTDOWN : MouseEventFlags.RIGHTUP,
-                        0, 0, 0);
-            }
-            else if (pressed != xServer.pointer.isButtonPressed(Pointer.Button.BUTTON_RIGHT)) {
-                if (pressed) xServer.injectPointerButtonPress(Pointer.Button.BUTTON_RIGHT);
-                else xServer.injectPointerButtonRelease(Pointer.Button.BUTTON_RIGHT);
-            }
+        InputDevice keyDevice = event.getDevice();
+        if (!fromMouse && keyDevice != null && keyDevice.getKeyboardType() != InputDevice.KEYBOARD_TYPE_ALPHABETIC) {
+            int deviceSources = keyDevice.getSources();
+            fromMouse = com.winlator.cmod.core.InputSources.includes(deviceSources, InputDevice.SOURCE_MOUSE)
+                    || com.winlator.cmod.core.InputSources.includes(deviceSources, InputDevice.SOURCE_MOUSE_RELATIVE);
+        }
+        if (event.getKeyCode() == KeyEvent.KEYCODE_BACK && fromMouse && xServer != null
+                && (drawerLayout == null || !drawerLayout.isDrawerVisible(GravityCompat.START))) {
+            if (touchpadView != null) touchpadView.onExternalMouseButtonKey(event.getDeviceId(), MotionEvent.BUTTON_SECONDARY,
+                    event.getAction() == KeyEvent.ACTION_DOWN);
             return true;
         }
 
         // Handle the PlayStation or Xbox Home button to open the drawer
         if (event.getAction() == KeyEvent.ACTION_DOWN) {
-            if (event.getKeyCode() == KeyEvent.KEYCODE_BUTTON_MODE || event.getKeyCode() == KeyEvent.KEYCODE_HOME) {
+            if ((event.getKeyCode() == KeyEvent.KEYCODE_BUTTON_MODE || event.getKeyCode() == KeyEvent.KEYCODE_HOME)
+                    && com.winlator.cmod.core.InputSources.controllerKey(eventSource, KeyEvent.isGamepadButton(event.getKeyCode()))) {
                 openXServerDrawer(); // Method to open the XServer drawer
                 return true; // Indicate the event was handled
             }
         }
 
-        if (event.getAction() == KeyEvent.ACTION_DOWN && event.getKeyCode() == KeyEvent.KEYCODE_VOLUME_DOWN) {
-            // Release pointer capture when Volume Down key is pressed
-            if (touchpadView != null && pointerCaptureRequested) {
-                touchpadView.releasePointerCapture();
-                touchpadView.setOnCapturedPointerListener(null);
-                pointerCaptureRequested = false;
-
-                // Show toast message for pointer release
-                showToast(this, "Pointer capture released for 10 seconds");
-
-                // Schedule recapture after 10 seconds
-                new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                    if (touchpadView != null) {
-                        touchpadView.requestPointerCapture();
-                        touchpadView.setOnCapturedPointerListener(new View.OnCapturedPointerListener() {
-                            @Override
-                            public boolean onCapturedPointer(View view, MotionEvent event) {
-                                handleCapturedPointer(event);
-                                return true;
-                            }
-                        });
-                        pointerCaptureRequested = true;
-
-                        // Show toast message for pointer recapture
-                        showToast(this, "Pointer re-captured. If not working, press again to release and re-capture");
-                    }
-                }, RECAPTURE_DELAY_MS);
-
-                return true; // Indicate that the event was handled
+        if (event.getKeyCode() == KeyEvent.KEYCODE_VOLUME_DOWN) {
+            if (event.getAction() == KeyEvent.ACTION_UP && pointerReleaseKeyHeld) { pointerReleaseKeyHeld = false; return true; }
+            if (event.getAction() == KeyEvent.ACTION_DOWN && touchpadView != null
+                    && (touchpadView.hasPointerCapture() || pointerReleaseKeyHeld)) {
+                pointerReleaseKeyHeld = true;
+                pointerCaptureSuppressedUntil = android.os.SystemClock.elapsedRealtime() + RECAPTURE_DELAY_MS;
+                releasePointerCaptureIfNeeded("volume-release");
+                ensurePointerCapture("volume-recapture");
+                showToast(this, getString(R.string.pointer_capture_temporarily_released));
+                return true;
             }
         }
+        View keyFocus = getCurrentFocus();
+        if (drawerLayout != null && drawerLayout.isDrawerVisible(GravityCompat.START)
+                || keyFocus != null && keyFocus.isShown() && keyFocus.onCheckIsTextEditor())
+            return super.dispatchKeyEvent(event);
 
         // Check if the floating view is visible and forward the key event to it**
 //        if (winetricksFloatingView != null && winetricksFloatingView.getVisibility() == View.VISIBLE) {
@@ -5548,7 +5481,8 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         if (inputControlsView != null && inputControlsView.onKeyEvent(event)) return true;
         if (winHandler != null && winHandler.onKeyEvent(event)) return true;
         if (xServer != null && xServer.keyboard.onKeyEvent(event)) return true;
-        return !ExternalController.isGameController(event.getDevice())
+        return !(ExternalController.isGameController(event.getDevice())
+                && com.winlator.cmod.core.InputSources.controllerKey(eventSource, KeyEvent.isGamepadButton(event.getKeyCode())))
                 && super.dispatchKeyEvent(event);
     }
 

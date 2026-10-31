@@ -544,6 +544,7 @@ public class WinHandler {
     // ========================== Event handling ==============================
 
     public boolean onGenericMotionEvent(MotionEvent event) {
+        if (!com.winlator.cmod.core.InputSources.controller(event.getSource())) return false;
         int deviceId = event.getDeviceId();
         InputDevice device = InputDevice.getDevice(deviceId);
         if (device == null || !ControllerManager.isGameController(device)) return false;
@@ -635,6 +636,8 @@ public class WinHandler {
     }
 
     public boolean onKeyEvent(KeyEvent event) {
+        if (!com.winlator.cmod.core.InputSources.controllerKey(event.getSource(), KeyEvent.isGamepadButton(event.getKeyCode())))
+            return false;
         final boolean isDown = event.getAction() == KeyEvent.ACTION_DOWN;
         final boolean isUp   = event.getAction() == KeyEvent.ACTION_UP;
         final int keyCode    = event.getKeyCode();

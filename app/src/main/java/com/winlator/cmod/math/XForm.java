@@ -98,6 +98,10 @@ public class XForm {
         return transformPoint(xform, x, y, new float[2]);
     }
 
+    public static float[] transformVector(float[] xform, float dx, float dy) {
+        return new float[]{xform[0] * dx + xform[2] * dy, xform[1] * dx + xform[3] * dy};
+    }
+
     public static float[] transformPoint(float[] xform, float x, float y, float[] result) {
         result[0] = xform[0] * x + xform[2] * y + xform[4];
         result[1] = xform[1] * x + xform[3] * y + xform[5];

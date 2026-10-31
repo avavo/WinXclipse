@@ -749,6 +749,8 @@ public class InputControlsView extends View {
     }
 
     public boolean onKeyEvent(KeyEvent event) {
+        if (!com.winlator.cmod.core.InputSources.controllerKey(event.getSource(), KeyEvent.isGamepadButton(event.getKeyCode())))
+            return false;
         ControlsProfile current = controllerProfile();
         if (current != null && !editMode && event.getRepeatCount() == 0) {
             ExternalController controller = current.getController(event.getDeviceId());

@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pointer_capture_temporarily_released">Mouse pointer released for 10 seconds.</string>
+</resources>

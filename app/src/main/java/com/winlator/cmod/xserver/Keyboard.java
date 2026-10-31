@@ -17,6 +17,13 @@ public class Keyboard {
     private final Bitmask modifiersMask = new Bitmask();
     private final XKeycode[] keycodeMap = createKeycodeMap();
     private final ArraySet<Byte> pressedKeys = new ArraySet<>();
+    private final java.util.EnumSet<XKeycode> hardwareKeys = java.util.EnumSet.noneOf(XKeycode.class);
+
+    /** A menu/focus transition must not leave a physical key held inside Wine. */
+    public void releaseHardwareKeys() {
+        for (XKeycode key : hardwareKeys.toArray(new XKeycode[0])) xServer.injectKeyRelease(key);
+        hardwareKeys.clear();
+    }
     private final ArrayList<OnKeyboardListener> onKeyboardListeners = new ArrayList<>();
     private final XServer xServer;
 
@@ -94,16 +101,20 @@ public class Keyboard {
     }
 
     public boolean onKeyEvent(KeyEvent event) {
-        if (ExternalController.isGameController(event.getDevice())) return false;
+        if (ExternalController.isGameController(event.getDevice())
+                && com.winlator.cmod.core.InputSources.controllerKey(event.getSource(), KeyEvent.isGamepadButton(event.getKeyCode()))) return false;
 
         int action = event.getAction();
         int keyCode = event.getKeyCode();
+        if (keyCode < 0 || keyCode >= keycodeMap.length) return false;
 
         if (keyCode == KeyEvent.KEYCODE_TAB || keyCode == KeyEvent.KEYCODE_ESCAPE) {
             if (action == KeyEvent.ACTION_DOWN) {
+                hardwareKeys.add(keycodeMap[keyCode]);
                 xServer.injectKeyPress(keycodeMap[keyCode]);
                 return true; // Consume the event to prevent default focus change
             } else if (action == KeyEvent.ACTION_UP) {
+                hardwareKeys.remove(keycodeMap[keyCode]);
                 xServer.injectKeyRelease(keycodeMap[keyCode]);
                 return true; // Consume the event to prevent default focus change
             }
@@ -113,10 +124,18 @@ public class Keyboard {
 
             if (action == KeyEvent.ACTION_DOWN) {
                 boolean shiftPressed = event.isShiftPressed() || keyCode == KeyEvent.KEYCODE_AT || keyCode == KeyEvent.KEYCODE_STAR || keyCode == KeyEvent.KEYCODE_POUND || keyCode == KeyEvent.KEYCODE_PLUS;
-                if (shiftPressed) xServer.injectKeyPress(XKeycode.KEY_SHIFT_L);
+                if (shiftPressed) {
+                    hardwareKeys.add(XKeycode.KEY_SHIFT_L);
+                    xServer.injectKeyPress(XKeycode.KEY_SHIFT_L);
+                }
+                hardwareKeys.add(xKeycode);
                 xServer.injectKeyPress(xKeycode, xKeycode != XKeycode.KEY_ENTER ? event.getUnicodeChar() : 0);
             } else if (action == KeyEvent.ACTION_UP) {
-                xServer.injectKeyRelease(XKeycode.KEY_SHIFT_L);
+                if (!event.isShiftPressed() || keyCode == KeyEvent.KEYCODE_SHIFT_LEFT) {
+                    hardwareKeys.remove(XKeycode.KEY_SHIFT_L);
+                    xServer.injectKeyRelease(XKeycode.KEY_SHIFT_L);
+                }
+                hardwareKeys.remove(xKeycode);
                 xServer.injectKeyRelease(xKeycode);
             }
         }

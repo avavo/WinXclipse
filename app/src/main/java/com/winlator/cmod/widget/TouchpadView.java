@@ -40,7 +40,12 @@ public class TouchpadView extends View {
     private boolean pointerButtonLeftEnabled = true;
     private boolean pointerButtonRightEnabled = true;
     /** Tracks the physical primary button across Android's touch/generic paths. */
-    private boolean externalPrimaryDown = false;
+    private final com.winlator.cmod.core.HardwareMouseButtons hardwareButtons = new com.winlator.cmod.core.HardwareMouseButtons();
+    private final com.winlator.cmod.core.MouseMotionAccumulator hardwareMotion = new com.winlator.cmod.core.MouseMotionAccumulator();
+    private boolean externalButtonsRelative, absoluteMouseValid;
+    private float absoluteMouseX, absoluteMouseY, hardwareWheel;
+    private int absoluteMouseDevice;
+    private com.winlator.cmod.core.Callback<Boolean> captureChangedCallback;
     private Finger fingerPointerButtonLeft;
     private Finger fingerPointerButtonRight;
     private float scrollAccumY = 0;
@@ -180,7 +185,10 @@ public class TouchpadView extends View {
         // without ever reaching X11. Handle that fallback before touchscreen
         // routing; the state guard prevents duplicates on devices that emit
         // both event forms.
-        if (onExternalPrimaryButtonEvent(event)) return true;
+        if (event.isFromSource(InputDevice.SOURCE_MOUSE) || event.isFromSource(InputDevice.SOURCE_MOUSE_RELATIVE)) {
+            onExternalMouseEvent(event);
+            return true; // Unsupported mouse buttons must not become finger taps.
+        }
 
         // Block finger touches when touchscreen mouse is disabled.
         // Allow external mouse and stylus to pass through.
@@ -363,12 +371,16 @@ public class TouchpadView extends View {
                 fingerPointerButtonLeft = null;
                 fingerPointerButtonRight = null;
                 if (xServer.isRelativeMouseMovement()) {
-                    xServer.getWinHandler().mouseEvent(MouseEventFlags.LEFTUP, 0, 0, 0);
-                    xServer.getWinHandler().mouseEvent(MouseEventFlags.RIGHTUP, 0, 0, 0);
+                    if ((hardwareButtons.state() & MotionEvent.BUTTON_PRIMARY) == 0)
+                        xServer.getWinHandler().mouseEvent(MouseEventFlags.LEFTUP, 0, 0, 0);
+                    if ((hardwareButtons.state() & MotionEvent.BUTTON_SECONDARY) == 0)
+                        xServer.getWinHandler().mouseEvent(MouseEventFlags.RIGHTUP, 0, 0, 0);
                 }
                 else {
-                    xServer.injectPointerButtonRelease(Pointer.Button.BUTTON_LEFT);
-                    xServer.injectPointerButtonRelease(Pointer.Button.BUTTON_RIGHT);
+                    if ((hardwareButtons.state() & MotionEvent.BUTTON_PRIMARY) == 0)
+                        xServer.injectPointerButtonRelease(Pointer.Button.BUTTON_LEFT);
+                    if ((hardwareButtons.state() & MotionEvent.BUTTON_SECONDARY) == 0)
+                        xServer.injectPointerButtonRelease(Pointer.Button.BUTTON_RIGHT);
                 }
                 break;
         }
@@ -403,14 +415,17 @@ public class TouchpadView extends View {
                 continueClick = false;
                 fingerPointerButtonLeft = null;
                 fingerPointerButtonRight = null;
-                externalPrimaryDown = false;
                 if (xServer.isRelativeMouseMovement()) {
-                    xServer.getWinHandler().mouseEvent(MouseEventFlags.LEFTUP, 0, 0, 0);
-                    xServer.getWinHandler().mouseEvent(MouseEventFlags.RIGHTUP, 0, 0, 0);
+                    if ((hardwareButtons.state() & MotionEvent.BUTTON_PRIMARY) == 0)
+                        xServer.getWinHandler().mouseEvent(MouseEventFlags.LEFTUP, 0, 0, 0);
+                    if ((hardwareButtons.state() & MotionEvent.BUTTON_SECONDARY) == 0)
+                        xServer.getWinHandler().mouseEvent(MouseEventFlags.RIGHTUP, 0, 0, 0);
                 }
                 else {
-                    xServer.injectPointerButtonRelease(Pointer.Button.BUTTON_LEFT);
-                    xServer.injectPointerButtonRelease(Pointer.Button.BUTTON_RIGHT);
+                    if ((hardwareButtons.state() & MotionEvent.BUTTON_PRIMARY) == 0)
+                        xServer.injectPointerButtonRelease(Pointer.Button.BUTTON_LEFT);
+                    if ((hardwareButtons.state() & MotionEvent.BUTTON_SECONDARY) == 0)
+                        xServer.injectPointerButtonRelease(Pointer.Button.BUTTON_RIGHT);
                 }
                 break;
         }
@@ -634,121 +649,134 @@ public class TouchpadView extends View {
     }
 
     public boolean onExternalMouseEvent(MotionEvent event) {
-        if (onExternalPrimaryButtonEvent(event)) return true;
-        boolean handled = false;
-        if (event.isFromSource(InputDevice.SOURCE_MOUSE)
-                || event.isFromSource(InputDevice.SOURCE_MOUSE_RELATIVE)) {
-            int actionButton = event.getActionButton();
-            switch (event.getAction()) {
-                case MotionEvent.ACTION_BUTTON_PRESS:
-                    if (actionButton == MotionEvent.BUTTON_SECONDARY) {
-                        if (xServer.isRelativeMouseMovement())
-                            xServer.getWinHandler().mouseEvent(MouseEventFlags.RIGHTDOWN, 0, 0, 0);
-                        else
-                            xServer.injectPointerButtonPress(Pointer.Button.BUTTON_RIGHT);
-                    } else if (actionButton == MotionEvent.BUTTON_TERTIARY) {
-                        if (xServer.isRelativeMouseMovement())
-                            xServer.getWinHandler().mouseEvent(MouseEventFlags.MIDDLEDOWN, 0, 0, 0);
-                        else
-                            xServer.injectPointerButtonPress(Pointer.Button.BUTTON_MIDDLE); // Add this line for middle mouse button press
-                    }
-                    handled = true;
-                    break;
-                case MotionEvent.ACTION_BUTTON_RELEASE:
-                    if (actionButton == MotionEvent.BUTTON_SECONDARY) {
-                        if (xServer.isRelativeMouseMovement())
-                            xServer.getWinHandler().mouseEvent(MouseEventFlags.RIGHTUP, 0, 0, 0);
-                        else
-                            xServer.injectPointerButtonRelease(Pointer.Button.BUTTON_RIGHT);
-                    } else if (actionButton == MotionEvent.BUTTON_TERTIARY) {
-                        if (xServer.isRelativeMouseMovement())
-                            xServer.getWinHandler().mouseEvent(MouseEventFlags.MIDDLEUP, 0, 0, 0);
-                        else
-                            xServer.injectPointerButtonRelease(Pointer.Button.BUTTON_MIDDLE); // Add this line for middle mouse button release
-                    }
-                    handled = true;
-                    break;
-                case MotionEvent.ACTION_MOVE:
-                case MotionEvent.ACTION_HOVER_MOVE:
-                    float[] transformedPoint = XForm.transformPoint(xform, event.getX(), event.getY());
-                    if (xServer.isRelativeMouseMovement())
-                        xServer.getWinHandler().mouseEvent(MouseEventFlags.MOVE, (int)transformedPoint[0], (int)transformedPoint[1], 0);
-                    else
-                        xServer.injectPointerMove((int)transformedPoint[0], (int)transformedPoint[1]);
-                    handled = true;
-                    break;
-                case MotionEvent.ACTION_SCROLL:
-                    float scrollY = event.getAxisValue(MotionEvent.AXIS_VSCROLL);
-                    if (scrollY <= -1.0f) {
-                        if (xServer.isRelativeMouseMovement())
-                            xServer.getWinHandler().mouseEvent(MouseEventFlags.WHEEL, 0, 0, (int)scrollY);
-                        else {
-                            xServer.injectPointerButtonPress(Pointer.Button.BUTTON_SCROLL_DOWN);
-                            xServer.injectPointerButtonRelease(Pointer.Button.BUTTON_SCROLL_DOWN);
-                        }
-                    } else if (scrollY >= 1.0f) {
-                        if (xServer.isRelativeMouseMovement())
-                            xServer.getWinHandler().mouseEvent(MouseEventFlags.WHEEL, 0, 0,(int)scrollY);
-                        else {
-                            xServer.injectPointerButtonPress(Pointer.Button.BUTTON_SCROLL_UP);
-                            xServer.injectPointerButtonRelease(Pointer.Button.BUTTON_SCROLL_UP);
-                        }
-                    }
-                    handled = true;
-                    break;
-            }
-        }
-        return handled;
+        return onHardwareMouseEvent(event, false);
     }
 
-    /**
-     * Handles the primary hardware mouse button across both Android event
-     * shapes. Some devices emit ACTION_BUTTON_PRESS/RELEASE, while Samsung
-     * builds may emit ACTION_DOWN/UP, including while pointer capture is on.
-     */
-    public boolean onExternalPrimaryButtonEvent(MotionEvent event) {
-        if (event == null || (!event.isFromSource(InputDevice.SOURCE_MOUSE)
-                && !event.isFromSource(InputDevice.SOURCE_MOUSE_RELATIVE))) return false;
-
-        int action = event.getActionMasked();
-        if (action == MotionEvent.ACTION_BUTTON_PRESS
-                && event.getActionButton() == MotionEvent.BUTTON_PRIMARY) {
-            dispatchExternalPrimaryButton(true);
-            return true;
-        }
-        if (action == MotionEvent.ACTION_BUTTON_RELEASE
-                && event.getActionButton() == MotionEvent.BUTTON_PRIMARY) {
-            dispatchExternalPrimaryButton(false);
-            return true;
-        }
-        if (action == MotionEvent.ACTION_DOWN) {
-            dispatchExternalPrimaryButton(true);
-            return true;
-        }
-        if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
-            dispatchExternalPrimaryButton(false);
-            return true;
-        }
-
-        return false;
+    public boolean onCapturedExternalMouseEvent(MotionEvent event) {
+        return onHardwareMouseEvent(event, true);
     }
 
-    private void dispatchExternalPrimaryButton(boolean pressed) {
-        if (externalPrimaryDown == pressed) return;
-        externalPrimaryDown = pressed;
-        if (xServer.isRelativeMouseMovement()) {
-            xServer.getWinHandler().mouseEvent(
-                    pressed ? MouseEventFlags.LEFTDOWN : MouseEventFlags.LEFTUP,
-                    0, 0, 0);
+    private boolean onHardwareMouseEvent(MotionEvent event, boolean captured) {
+        if (event == null || !captured && !event.isFromSource(InputDevice.SOURCE_MOUSE)
+                && !event.isFromSource(InputDevice.SOURCE_MOUSE_RELATIVE)) return false;
+        prepareExternalMouseMode();
+        if (!captured && !event.isFromSource(InputDevice.SOURCE_MOUSE_RELATIVE) && !xServer.isRelativeMouseMovement()
+                && (event.getActionMasked() == MotionEvent.ACTION_DOWN || event.getActionMasked() == MotionEvent.ACTION_BUTTON_PRESS)) {
+            float[] point = XForm.transformPoint(xform, event.getX(), event.getY());
+            xServer.injectPointerMove((int)point[0], (int)point[1]);
         }
-        else if (pressed) {
-            xServer.injectPointerButtonPress(Pointer.Button.BUTTON_LEFT);
-        }
-        else {
-            xServer.injectPointerButtonRelease(Pointer.Button.BUTTON_LEFT);
+        com.winlator.cmod.core.HardwareMouseButtons.Change buttons = hardwareButtons.update(
+                event.getDeviceId(), event.getActionMasked(), event.getActionButton(), event.getButtonState());
+        dispatchExternalMouseButtons(buttons.pressed, buttons.released);
+        if (buttons.handled) return true;
+        switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_MOVE:
+            case MotionEvent.ACTION_HOVER_MOVE:
+                boolean delta = captured || event.isFromSource(InputDevice.SOURCE_MOUSE_RELATIVE);
+                float x = event.getX(), y = event.getY();
+                if (delta) {
+                    for (int i = 0; i < event.getHistorySize(); i++) {
+                        x += event.getHistoricalX(i); y += event.getHistoricalY(i);
+                    }
+                    absoluteMouseValid = false;
+                } else if (xServer.isRelativeMouseMovement()) {
+                    float nextX = x, nextY = y;
+                    boolean known = absoluteMouseValid && absoluteMouseDevice == event.getDeviceId();
+                    x -= absoluteMouseX; y -= absoluteMouseY;
+                    absoluteMouseX = nextX; absoluteMouseY = nextY;
+                    absoluteMouseDevice = event.getDeviceId(); absoluteMouseValid = true;
+                    if (!known) return true;
+                    delta = true;
+                }
+                if (delta) {
+                    float[] vector = XForm.transformVector(xform, x, y);
+                    int[] movement = hardwareMotion.add(vector[0], vector[1]);
+                    if (movement[0] != 0 || movement[1] != 0) {
+                        if (xServer.isRelativeMouseMovement()) xServer.getWinHandler().mouseEvent(MouseEventFlags.MOVE, movement[0], movement[1], 0);
+                        else xServer.injectPointerMoveDelta(movement[0], movement[1]);
+                    }
+                } else {
+                    float[] point = XForm.transformPoint(xform, x, y);
+                    xServer.injectPointerMove((int)point[0], (int)point[1]);
+                }
+                return true;
+            case MotionEvent.ACTION_SCROLL:
+                hardwareWheel += event.getAxisValue(MotionEvent.AXIS_VSCROLL);
+                if (xServer.isRelativeMouseMovement()) {
+                    int wheel = (int)(hardwareWheel * 120);
+                    if (wheel != 0) {
+                        xServer.getWinHandler().mouseEvent(MouseEventFlags.WHEEL, 0, 0, wheel);
+                        hardwareWheel -= wheel / 120f;
+                    }
+                } else {
+                    int steps = Math.max(-32, Math.min(32, (int)hardwareWheel));
+                    hardwareWheel -= steps;
+                    Pointer.Button button = steps < 0 ? Pointer.Button.BUTTON_SCROLL_DOWN : Pointer.Button.BUTTON_SCROLL_UP;
+                    for (int i = 0; i < Math.abs(steps); i++) {
+                        xServer.injectPointerButtonPress(button); xServer.injectPointerButtonRelease(button);
+                    }
+                }
+                return true;
+            default: return false;
         }
     }
 
+    public void onExternalMouseButtonKey(int device, int button, boolean pressed) {
+        prepareExternalMouseMode();
+        com.winlator.cmod.core.HardwareMouseButtons.Change change = hardwareButtons.updateKey(device, button, pressed);
+        dispatchExternalMouseButtons(change.pressed, change.released);
+    }
+
+    private void prepareExternalMouseMode() {
+        if (hardwareButtons.state() != 0 && externalButtonsRelative != xServer.isRelativeMouseMovement())
+            releaseExternalMouseButtons();
+        externalButtonsRelative = xServer.isRelativeMouseMovement();
+    }
+
+    private void dispatchExternalMouseButtons(int pressed, int released) {
+        for (int bit = 1; bit <= MotionEvent.BUTTON_TERTIARY; bit <<= 1) {
+            if ((released & bit) != 0) dispatchExternalMouseButton(bit, false);
+            if ((pressed & bit) != 0) dispatchExternalMouseButton(bit, true);
+        }
+    }
+
+    private void dispatchExternalMouseButton(int button, boolean pressed) {
+        if (externalButtonsRelative) {
+            int flag = button == MotionEvent.BUTTON_SECONDARY ? (pressed ? MouseEventFlags.RIGHTDOWN : MouseEventFlags.RIGHTUP)
+                    : button == MotionEvent.BUTTON_TERTIARY ? (pressed ? MouseEventFlags.MIDDLEDOWN : MouseEventFlags.MIDDLEUP)
+                    : (pressed ? MouseEventFlags.LEFTDOWN : MouseEventFlags.LEFTUP);
+            if (xServer.getWinHandler() != null) xServer.getWinHandler().mouseEvent(flag, 0, 0, 0);
+        } else {
+            Pointer.Button target = button == MotionEvent.BUTTON_SECONDARY ? Pointer.Button.BUTTON_RIGHT
+                    : button == MotionEvent.BUTTON_TERTIARY ? Pointer.Button.BUTTON_MIDDLE : Pointer.Button.BUTTON_LEFT;
+            if (pressed) xServer.injectPointerButtonPress(target); else xServer.injectPointerButtonRelease(target);
+        }
+    }
+
+    public void releaseExternalMouseButtons() {
+        dispatchExternalMouseButtons(0, hardwareButtons.reset());
+        resetExternalMouseMotion();
+    }
+
+    private void resetExternalMouseMotion() {
+        hardwareMotion.reset(); absoluteMouseValid = false; hardwareWheel = 0;
+    }
+
+    public void setPointerCaptureChangedCallback(com.winlator.cmod.core.Callback<Boolean> callback) {
+        captureChangedCallback = callback;
+    }
+
+    @Override public void onPointerCaptureChange(boolean captured) {
+        super.onPointerCaptureChange(captured);
+        resetExternalMouseMotion();
+        if (!captured) releaseExternalMouseButtons();
+        if (captureChangedCallback != null) captureChangedCallback.call(captured);
+    }
+
+    @Override protected void onDetachedFromWindow() {
+        releaseExternalMouseButtons();
+        super.onDetachedFromWindow();
+    }
 
     public float[] computeDeltaPoint(float lastX, float lastY, float x, float y) {
         final float[] result = {0, 0};
