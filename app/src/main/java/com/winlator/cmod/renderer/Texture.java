@@ -20,9 +20,22 @@ public class Texture {
     protected byte unpackAlignment = 4; // or add a getter method
     private final int[] dirtyRegion = new int[4];
     private ByteBuffer packedUploadBuffer;
+    private long contextEpoch = Long.MIN_VALUE;
+
+    protected final void ensureContext() {
+        if (contextEpoch != GLContextEpoch.current()) invalidateContext();
+    }
+
+    /** Old context names are already gone. Never delete them in the new context. */
+    public void invalidateContext() {
+        contextEpoch = GLContextEpoch.current();
+        textureId = 0;
+        needsUpdate = true;
+    }
 
 
     public void allocateTexture(short width, short height, ByteBuffer data) {
+        ensureContext();
         int[] textureIds = new int[1];
         GLES20.glGenTextures(1, textureIds, 0);
         textureId = textureIds[0];
@@ -182,10 +195,12 @@ public class Texture {
     }
 
     public boolean isAllocated() {
+        ensureContext();
         return textureId > 0;
     }
 
     public int getTextureId() {
+        ensureContext();
         return textureId;
     }
 
@@ -201,6 +216,7 @@ public class Texture {
     }
 
     public void destroy() {
+        ensureContext();
         if (textureId > 0) {
             int[] textureIds = new int[]{textureId};
             GLES20.glDeleteTextures(textureIds.length, textureIds, 0);
@@ -209,6 +225,7 @@ public class Texture {
     }
 
     protected void generateTextureId() {
+        ensureContext();
         int[] textureIds = new int[1];
         GLES20.glGenTextures(1, textureIds, 0);
         textureId = textureIds[0];

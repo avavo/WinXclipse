@@ -27,6 +27,7 @@ public class EffectComposer {
 
     // Instance fields
     private final List<Effect> effects = new ArrayList<>();
+    private final List<Effect> retiredEffects = new ArrayList<>();
     private RenderTarget readBuffer;
     private RenderTarget writeBuffer;
     private RenderTarget sceneBuffer;
@@ -211,6 +212,7 @@ public class EffectComposer {
     // Removes a specific effect from the composer
     public synchronized void removeEffect(Effect effect) {
         if (effects.remove(effect)) {
+            retire(effect);
 //            Log.d(TAG, "Effect removed: " + effect.getClass().getSimpleName());
         } else {
 //            Log.d(TAG, "Effect not found for removal: " + effect.getClass().getSimpleName());
@@ -253,6 +255,7 @@ public class EffectComposer {
             Effect e = effects.get(i);
             if (e instanceof FSREasuEffect || e instanceof FSREffect) {
                 effects.remove(i);
+                retire(e);
             }
         }
         if (easu != null) effects.add(0, easu);
@@ -279,10 +282,30 @@ public class EffectComposer {
      * reusing them would render black until the surface size changes.
      */
     public synchronized void invalidateBuffers() {
-        releaseBuffers();
+        // This callback runs in the NEW context. Deleting old numeric names
+        // here could delete a newly allocated object that reused the same ID.
+        if (readBuffer != null) readBuffer.invalidateContext();
+        if (writeBuffer != null) writeBuffer.invalidateContext();
+        if (sceneBuffer != null) sceneBuffer.invalidateContext();
+        readBuffer = writeBuffer = sceneBuffer = null;
+        bufferWidth = bufferHeight = sceneBufferWidth = sceneBufferHeight = 0;
+        for (Effect effect : effects) effect.invalidateContext();
+        for (Effect effect : retiredEffects) effect.invalidateContext();
+        retiredEffects.clear();
         // Capability belongs to the current EGL context. Never retain a false
         // result obtained while the old context was absent or still ES 3.0.
         supportsGLES31Cache = null;
+    }
+
+    private void retire(Effect effect) {
+        if (!retiredEffects.contains(effect)) retiredEffects.add(effect);
+    }
+
+    /** UI changes may retire effects; their GL deletion belongs on the render thread. */
+    public synchronized void releaseRetiredEffects() {
+        for (Effect effect : retiredEffects) if (!effects.contains(effect)) effect.destroy();
+        retiredEffects.clear();
+        if (effects.isEmpty()) releaseBuffers();
     }
 
     // Renders all the effects in the composer

@@ -111,6 +111,10 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
 
     @Override
     public void onSurfaceCreated(GL10 gl, EGLConfig config) {
+        GLContextEpoch.beginContext();
+        windowMaterial.invalidateContext();
+        cursorMaterial.invalidateContext();
+        quadVertices.invalidateContext();
         GPUImage.checkIsSupported();
 
         // Keep the Android compositor tear-free even when the guest uses an
@@ -125,8 +129,6 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
         // FBOs/textures from a previous EGL context are dead; force the
         // composer to reallocate against the new context.
         effectComposer.invalidateBuffers();
-        LSFGEffect lsfg = effectComposer.getEffect(LSFGEffect.class);
-        if (lsfg != null) lsfg.resetGLResources();
         lastApexFrameNanos = 0;
 
         GLES20.glFrontFace(GLES20.GL_CCW);
@@ -207,6 +209,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
     }
 
     public void drawFrame() {
+        effectComposer.releaseRetiredEffects();
         // If any post-processing effects are active, delegate entirely to the
         // composer which renders the scene once into an offscreen buffer. The
         // previous implementation drew the scene to screen and then again into

@@ -79,6 +79,9 @@ EGLImageKHR createImageKHR(AHardwareBuffer* hardwareBuffer, int textureId) {
 
     glBindTexture(GL_TEXTURE_2D, 0);
 
+    // EGL owns the client-buffer lifetime until its EGLImages are destroyed.
+    // Balance our temporary reference on success as well as all failure paths.
+    AHardwareBuffer_release(hardwareBuffer);
     return imageKHR;
 }
 

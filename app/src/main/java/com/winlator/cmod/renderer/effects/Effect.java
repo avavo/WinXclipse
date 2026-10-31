@@ -38,4 +38,8 @@ public abstract class Effect {
             material = null;
         }
     }
+
+    public void invalidateContext() {
+        if (material != null) { material.invalidateContext(); material = null; }
+    }
 }

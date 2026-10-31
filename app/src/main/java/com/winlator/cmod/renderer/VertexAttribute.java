@@ -12,6 +12,7 @@ public class VertexAttribute {
     private final String name;
     private final byte itemSize;
     private boolean needsUpdate = true;
+    private int locationProgram;
 
     public VertexAttribute(String name, int itemSize) {
         this.name = name;
@@ -45,7 +46,11 @@ public class VertexAttribute {
 
     public void bind(int programId) {
         update();
-        if (location == -1) location = GLES20.glGetAttribLocation(programId, name);
+        if (location == -1 || locationProgram != programId) {
+            location = GLES20.glGetAttribLocation(programId, name);
+            locationProgram = programId;
+        }
+        if (location < 0) return;
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, bufferId);
         GLES20.glEnableVertexAttribArray(location);
         GLES20.glVertexAttribPointer(location, itemSize, GLES20.GL_FLOAT, false, 0, 0);
@@ -64,6 +69,15 @@ public class VertexAttribute {
             GLES20.glDeleteBuffers(bufferIds.length, bufferIds, 0);
             bufferId = 0;
         }
+        location = -1;
+        locationProgram = 0;
+    }
+
+    public void invalidateContext() {
+        bufferId = 0;
+        location = -1;
+        locationProgram = 0;
+        needsUpdate = true; // Preserve the CPU vertices for uploading in the new context.
     }
 
     public void clear() {

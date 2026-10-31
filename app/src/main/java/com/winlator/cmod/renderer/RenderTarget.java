@@ -28,6 +28,7 @@ public class RenderTarget extends Texture {
 
     // Allocates and initializes the framebuffer and texture with the specified width and height.
     public void allocateFramebuffer(int width, int height) {
+        ensureContext();
         // Check if the framebuffer is already allocated.
         if (framebuffer != 0 && this.width == width && this.height == height) {
             return;
@@ -103,10 +104,12 @@ public class RenderTarget extends Texture {
 
     // Returns the framebuffer ID.
     public int getFramebuffer() {
+        ensureContext();
         return framebuffer;
     }
 
     public boolean isComplete() {
+        ensureContext();
         return complete;
     }
 
@@ -121,6 +124,7 @@ public class RenderTarget extends Texture {
     // Deletes the framebuffer and the attached texture.
     @Override
     public void destroy() {
+        ensureContext();
         if (framebuffer != 0) {
             GLES20.glDeleteFramebuffers(1, new int[]{framebuffer}, 0);
             framebuffer = 0;
@@ -129,5 +133,12 @@ public class RenderTarget extends Texture {
         width = 0;
         height = 0;
         super.destroy();
+    }
+
+    @Override public void invalidateContext() {
+        framebuffer = 0;
+        complete = false;
+        width = height = 0;
+        super.invalidateContext();
     }
 }

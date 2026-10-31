@@ -107,6 +107,11 @@ final class LSFGComputeMaterial {
             GLES31.glDeleteProgram(programId);
             programId = 0;
         }
+        invalidateContext();
+    }
+
+    void invalidateContext() {
+        programId = 0;
         qualityLocation = -1;
         lastError = "";
         setupValidated = false;

@@ -363,13 +363,19 @@ public final class LSFGEffect extends Effect {
         fallbackValidationCountdown = 0;
     }
 
-    public void resetGLResources() {
-        releaseGLResources();
+    @Override public void invalidateContext() {
+        destroyNativeEngine(); // Native Apex is disabled; the active backend owns only GLES resources.
+        computeMaterial.invalidateContext();
+        for (RenderTarget target : frameBuffers) target.invalidateContext();
+        motionVectorTexture = motionVectorHistoryTexture = 0;
+        motionVectorWidth = motionVectorHeight = 0;
+        motionVectorOwnedByNative = false;
+        currentFrameIndex = 0;
         nativeBackendFailed = false;
         usingFallbackAfterNativeFailure = false;
         fallbackValidationCountdown = 0;
         manager.resetTimingState();
-        super.destroy();
+        super.invalidateContext();
     }
 
     private void destroyNativeEngine() {

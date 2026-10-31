@@ -50,17 +50,26 @@ public class GPUImage extends Texture {
         if (hardwareBufferPtr != 0) {
             imageKHRPtr = createImageKHR(hardwareBufferPtr, textureId);
             if (imageKHRPtr == 0) {
-                System.err.println("Error: Failed to create EGL image");
-                destroyHardwareBuffer(hardwareBufferPtr);
-                hardwareBufferPtr = 0;
+                // Drawable.data and Wine may still point into virtualData. Freeing
+                // the buffer here leaves live direct ByteBuffers backed by freed
+                // native memory. Keep ownership and use ordinary pixel uploads.
+                android.util.Log.w("GPUImage", "EGL import failed; retaining mapped pixels for texture uploads");
             }
+        }
+        if (imageKHRPtr == 0) {
+            android.opengl.GLES20.glBindTexture(android.opengl.GLES20.GL_TEXTURE_2D, textureId);
+            android.opengl.GLES20.glTexImage2D(android.opengl.GLES20.GL_TEXTURE_2D, 0, format, width, height, 0,
+                    format, android.opengl.GLES20.GL_UNSIGNED_BYTE, null);
+            android.opengl.GLES20.glBindTexture(android.opengl.GLES20.GL_TEXTURE_2D, 0);
+            needsUpdate = true;
         }
     }
 
     @Override
     public void updateFromDrawable(Drawable drawable) {
         if (!isAllocated()) allocateTexture(drawable.width, drawable.height, null);
-        needsUpdate = false;
+        if (imageKHRPtr == 0) super.updateFromDrawable(drawable);
+        else needsUpdate = false;
     }
 
     public short getStride() {
@@ -74,6 +83,13 @@ public class GPUImage extends Texture {
 
     public ByteBuffer getVirtualData() {
         return virtualData;
+    }
+
+    @Override public void invalidateContext() {
+        // EGLImages are display resources; the Java-owned AHardwareBuffer and
+        // its mapped Wine pixels must survive recreation of the GL texture.
+        if (imageKHRPtr != 0) { destroyImageKHR(imageKHRPtr); imageKHRPtr = 0; }
+        super.invalidateContext();
     }
 
     @Override
