@@ -29,6 +29,11 @@ android {
         buildConfig true
     }
 
+    testOptions {
+        unitTests.includeAndroidResources = true
+        unitTests.all { maxHeapSize = '2g' }
+    }
+
 // Keep the signing certificate stable so future APKs can update these
     // installations in place without deleting containers, saves or settings.
     def keystoreProps = new Properties()
@@ -150,6 +155,7 @@ dependencies {
     testImplementation 'junit:junit:4.13.2'
     // Real JSON parsing in JVM import tests; Android keeps its platform implementation.
     testImplementation 'org.json:json:20240303'
+    testImplementation 'org.robolectric:robolectric:4.14.1'
     // Winlator’s dependencies (androidx UI bumped for compileSdk 34 / AGP 8.8;
     // versions mirrored in gradle/libs.versions.toml)
     implementation 'androidx.appcompat:appcompat:1.7.0'

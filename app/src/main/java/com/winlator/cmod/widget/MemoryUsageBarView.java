@@ -59,6 +59,15 @@ public class MemoryUsageBarView extends View {
     }
 
     @Override
+    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        Paint.FontMetrics title = titlePaint.getFontMetrics(), value = valuePaint.getFontMetrics();
+        int height = Math.max(getSuggestedMinimumHeight(), (int)Math.ceil(
+                title.descent - title.ascent + value.descent - value.ascent + dp(16)));
+        setMeasuredDimension(resolveSizeAndState(Math.round(dp(142)), widthMeasureSpec, 0),
+                resolveSizeAndState(height, heightMeasureSpec, 0));
+    }
+
+    @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
         float inset = dp(1.5f);
@@ -79,11 +88,13 @@ public class MemoryUsageBarView extends View {
 
         Paint.FontMetrics titleFm = titlePaint.getFontMetrics();
         Paint.FontMetrics valueFm = valuePaint.getFontMetrics();
-        float center = getHeight() / 2f;
+        float titleHeight = titleFm.descent - titleFm.ascent;
+        float valueHeight = valueFm.descent - valueFm.ascent;
+        float top = (getHeight() - titleHeight - valueHeight - dp(4)) / 2f;
         canvas.drawText("RAM " + percent + "%", getWidth() / 2f,
-                center - dp(4) - titleFm.descent, titlePaint);
+                top - titleFm.ascent, titlePaint);
         canvas.drawText(memoryText, getWidth() / 2f,
-                center + dp(7) - valueFm.ascent / 2f, valuePaint);
+                top + titleHeight + dp(4) - valueFm.ascent, valuePaint);
     }
 
     private float bytesToGb(long bytes) {

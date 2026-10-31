@@ -7,51 +7,45 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1"
-        android:orientation="horizontal">
+        android:layout_weight="2"
+        android:background="?attr/winxPanelBackground"
+        android:orientation="vertical"
+        android:padding="8dp">
 
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
+        <TextView
+            android:id="@+id/TVInlineCPUTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="CPU"
+            android:textColor="@color/colorAccent"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <com.winlator.cmod.widget.GestureScrollView
+            android:id="@+id/SVInlineCPUInfo"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginTop="3dp"
             android:layout_weight="1"
-            android:background="?attr/winxPanelBackground"
-            android:orientation="vertical"
-            android:padding="8dp">
+            android:fadeScrollbars="false"
+            android:fillViewport="false"
+            android:overScrollMode="always"
+            android:scrollbars="vertical">
 
-            <TextView
-                android:id="@+id/TVInlineCPUTitle"
+            <LinearLayout
+                android:id="@+id/LLInlineCPUInfo"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/task_manager_cpu_frequencies"
-                android:textColor="@color/colorAccent"
-                android:textSize="15sp"
-                android:textStyle="bold" />
-
-            <com.winlator.cmod.widget.GestureScrollView
-                android:id="@+id/SVInlineCPUInfo"
-                android:layout_width="match_parent"
-                android:layout_height="0dp"
-                android:layout_marginTop="3dp"
-                android:layout_weight="1"
-                android:fadeScrollbars="false"
-                android:fillViewport="false"
-                android:overScrollMode="always"
-                android:scrollbars="vertical">
-
-                <LinearLayout
-                    android:id="@+id/LLInlineCPUInfo"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical" />
-            </com.winlator.cmod.widget.GestureScrollView>
-        </LinearLayout>
-
-        <com.winlator.cmod.widget.MemoryUsageBarView
-            android:id="@+id/InlineMemoryUsageBar"
-            android:layout_width="142dp"
-            android:layout_height="match_parent"
-            android:layout_marginStart="7dp" />
+                android:orientation="vertical" />
+        </com.winlator.cmod.widget.GestureScrollView>
     </LinearLayout>
+
+    <com.winlator.cmod.widget.MemoryUsageBarView
+        android:id="@+id/InlineMemoryUsageBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="52dp"
+        android:layout_marginTop="7dp" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -138,7 +132,7 @@
             android:layout_height="match_parent"
             android:layout_weight="1"
             android:gravity="center_vertical"
-            android:text="Processes: 0"
+            android:text="@string/processes"
             android:textColor="@color/colorAccent"
             android:textSize="14sp"
             android:textStyle="bold" />

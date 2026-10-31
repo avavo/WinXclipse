@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout android:orientation="vertical" android:layout_width="wrap_content" android:layout_height="wrap_content"
+<com.winlator.cmod.widget.GestureScrollView android:fillViewport="true" android:layout_width="match_parent" android:layout_height="wrap_content"
   xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
-    <LinearLayout android:orientation="horizontal" android:layout_width="520.0dip" android:layout_height="wrap_content">
-        <LinearLayout android:orientation="vertical" android:layout_width="0.0dip" android:layout_height="wrap_content" android:layout_weight="1.0">
+    <LinearLayout android:orientation="vertical" android:layout_width="match_parent" android:layout_height="wrap_content">
+        <LinearLayout android:orientation="vertical" android:layout_width="match_parent" android:layout_height="wrap_content">
             <FrameLayout android:layout_width="fill_parent" android:layout_height="wrap_content">
                 <LinearLayout style="@style/FieldSet">
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/brightness" />
@@ -18,8 +18,8 @@
                 <TextView android:background="?attr/winxSurfaceColor" android:text="@string/custom_color" style="@style/FieldSetLabel" android:id="@+id/LBLColorAdjustment" />
             </FrameLayout>
         </LinearLayout>
-        <View style="@style/VerticalLine" />
-        <LinearLayout android:orientation="vertical" android:layout_width="0.0dip" android:layout_height="wrap_content" android:layout_weight="1.0">
+        <View style="@style/HorizontalLine" />
+        <LinearLayout android:orientation="vertical" android:layout_width="match_parent" android:layout_height="wrap_content">
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/profile" />
             <LinearLayout android:gravity="center_vertical" android:orientation="horizontal" android:layout_width="fill_parent" android:layout_height="wrap_content">
                 <Spinner android:id="@id/SProfile" android:layout_width="0.0dip" android:layout_height="wrap_content" android:layout_weight="1.0" style="@style/ComboBox" />
@@ -33,4 +33,4 @@
 
         </LinearLayout>
     </LinearLayout>
-</LinearLayout>
+</com.winlator.cmod.widget.GestureScrollView>

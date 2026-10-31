@@ -26,9 +26,12 @@
 
             <ImageView
                 android:id="@+id/BTSettings"
-                android:layout_width="28dp"
-                android:layout_height="28dp"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
                 android:layout_marginStart="8dp"
+                android:padding="10dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/settings"
                 android:src="@drawable/icon_settings"
                 app:tint="@color/colorPrimary" />
         </LinearLayout>

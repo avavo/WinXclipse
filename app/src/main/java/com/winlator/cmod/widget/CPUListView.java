@@ -15,11 +15,13 @@ import androidx.annotation.Nullable;
 import com.winlator.cmod.R;
 
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
 
 public class CPUListView extends LinearLayout {
     private List<String> checkedCPUList;
     private final byte numProcessors;
+    private int columns;
 
     public CPUListView(Context context) {
         this(context, null);
@@ -30,13 +32,41 @@ public class CPUListView extends LinearLayout {
     }
 
     public CPUListView(Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
+        this(context, attrs, defStyleAttr, Runtime.getRuntime().availableProcessors());
+    }
+
+    CPUListView(Context context, @Nullable AttributeSet attrs, int defStyleAttr, int processors) {
         super(context, attrs, defStyleAttr);
         // Each generated group is a row. Keeping the parent horizontal placed
         // the 4-core/5-core groups beside one another and made the grid crooked.
         setOrientation(VERTICAL);
         setGravity(Gravity.CENTER_HORIZONTAL);
-        numProcessors = (byte)Runtime.getRuntime().availableProcessors();
+        numProcessors = (byte)processors;
+        columns = numProcessors > 8 ? 5 : 4;
         refreshContent();
+    }
+
+    @Override
+    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        int available = MeasureSpec.getSize(widthMeasureSpec) - getPaddingLeft() - getPaddingRight();
+        if (MeasureSpec.getMode(widthMeasureSpec) != MeasureSpec.UNSPECIFIED && available > 0) {
+            float density = getResources().getDisplayMetrics().density;
+            float fontScale = Math.max(1f, getResources().getConfiguration().fontScale);
+            int perRow = Math.max(1, Math.min(numProcessors > 8 ? 5 : 4,
+                    (int)(available / (56 * density * fontScale))));
+            if (columns != perRow) {
+                // Reflow preserves choices made on screen, including a partially
+                // selected row, instead of rebuilding the original saved mask.
+                checkedCPUList = new ArrayList<>();
+                for (int i = 0; i < numProcessors; i++) {
+                    CheckBox checkBox = findViewWithTag("CPU" + i);
+                    if (checkBox != null && checkBox.isChecked()) checkedCPUList.add(String.valueOf(i));
+                }
+                columns = perRow;
+                refreshContent();
+            }
+        }
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec);
     }
 
     private void refreshContent() {
@@ -46,7 +76,7 @@ public class CPUListView extends LinearLayout {
 
         /* Wrap cores into centered rows of at most 4-5 so every CPU stays
          * reachable on decacore devices instead of overflowing off-screen. */
-        int perRow = numProcessors > 8 ? 5 : 4;
+        int perRow = columns;
         int rowCount = (numProcessors + perRow - 1) / perRow;
         for (int row = 0; row < rowCount; row++) {
             LinearLayout rowLayout = new LinearLayout(getContext());
@@ -68,8 +98,14 @@ public class CPUListView extends LinearLayout {
                 CheckBox checkBox = itemView.findViewById(R.id.CheckBox);
                 checkBox.setTag(tag);
                 checkBox.setChecked(checkedCPUList == null || checkedCPUList.contains(String.valueOf(i)));
+                checkBox.setContentDescription(tag);
 
-                ((TextView)itemView.findViewById(R.id.TextView)).setText(tag);
+                TextView label = itemView.findViewById(R.id.TextView);
+                label.setText(tag);
+                label.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+                itemView.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+                itemView.setOnClickListener(v -> { if (checkBox.isEnabled()) checkBox.toggle(); });
+                itemView.setFocusable(false);
                 rowLayout.addView(itemView);
             }
             if (missing > 0) addWeightedSpace(rowLayout, missing - missing / 2f);
@@ -85,13 +121,13 @@ public class CPUListView extends LinearLayout {
     }
 
     public void setCheckedCPUList(String checkedCPUList) {
-        this.checkedCPUList = Arrays.asList(checkedCPUList.split(","));
+        this.checkedCPUList = checkedCPUList == null ? null : new ArrayList<>(Arrays.asList(checkedCPUList.split(",")));
         refreshContent();
     }
 
     public void setCheckedCPUList(int from, int to) {
-        checkedCPUList.clear();
-        for (int i = from; i < to; i++) checkedCPUList.add(String.valueOf(i));
+        checkedCPUList = new ArrayList<>();
+        for (int i = Math.max(0, from); i < Math.min(numProcessors, to); i++) checkedCPUList.add(String.valueOf(i));
         refreshContent();
     }
 
