@@ -44,10 +44,9 @@ public class RestoreActivity extends Activity {
         Executors.newSingleThreadExecutor().execute(() -> {
             try {
                 File dataDir = getFilesDir().getParentFile(); // App's data directory
-                File backupFile = FileUtils.getFileFromUri(this, backupUri);
-
-                if (backupFile != null) {
-                    boolean success = TarCompressorUtils.extractTar(backupFile, dataDir, (file, size) -> {
+                boolean success;
+                try (RestoreArchive backup = openBackup(backupUri)) {
+                    success = TarCompressorUtils.extractTar(backup.file, dataDir, (file, size) -> {
                         // Skip symbolic links pointing to critical directories
                         if (isCriticalSymbolicLink(file)) {
                             Log.d("RestoreOp", "Skipping symbolic link: " + file.getAbsolutePath());
@@ -57,21 +56,26 @@ public class RestoreActivity extends Activity {
                         return file;
                     });
 
-                    backupFile.delete(); // Clean up the temp file if it was created
-
-                    if (success) {
-                        onRestoreSuccess();
-                    } else {
-                        throw new IOException("Extraction failed");
-                    }
+                }
+                if (success) {
+                    onRestoreSuccess();
                 } else {
-                    throw new IOException("Failed to obtain file from URI");
+                    throw new IOException("Extraction failed");
                 }
             } catch (Exception e) {
                 Log.e("RestoreOp", "Restore failed", e);
                 onRestoreFailed();
             }
         });
+    }
+
+    private RestoreArchive openBackup(Uri uri) throws IOException {
+        if ("file".equals(uri.getScheme())) {
+            String path = uri.getPath();
+            if (path == null) throw new IOException("Backup file is unavailable");
+            return RestoreArchive.borrow(new File(path));
+        }
+        return RestoreArchive.copy(getContentResolver().openInputStream(uri), getCacheDir());
     }
 
     private boolean isCriticalSymbolicLink(File file) {
