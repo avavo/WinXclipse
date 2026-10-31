@@ -427,7 +427,7 @@ public class MainActivity extends LocalizedActivity implements NavigationView.On
 
     /** Bundled packages keep their original bytes; canonicalize manifest names
      * through the installer's expected-profile path, also used by Downloads. */
-    private static ContentProfile expectedBundledProfile(String asset) {
+    public static ContentProfile expectedBundledProfile(String asset) {
         ContentProfile profile = new ContentProfile();
         if (DefaultVersion.BOX64_ASSET.equals(asset)) {
             profile.type = ContentProfile.ContentType.CONTENT_TYPE_BOX64;

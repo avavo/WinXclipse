@@ -68,4 +68,11 @@ public class ContentVersionTest {
         assertFalse(ContentVersion.matchesReference("different", "2610", 2246, "stable", "", "", null, false));
         assertFalse(ContentVersion.matchesReference("", "2610", 2246, "", "", "", null, false));
     }
+
+    @Test public void cpuArchitectureTokensDoNotMatchBox64OrUnrelatedText() {
+        assertEquals("", ContentVersion.architecture("Box64-0.4.5"));
+        assertEquals("", ContentVersion.architecture("custom-arm64ecpatch-not-an-abi"));
+        assertEquals("arm64ec", ContentVersion.architecture("Proton-10-ARM64_EC"));
+        assertEquals(ContentVersion.canonical("10-arm64ec"), ContentVersion.canonical("10-ARM64_EC"));
+    }
 }

@@ -17,6 +17,7 @@ import com.winlator.cmod.core.OnExtractFileListener;
 import com.winlator.cmod.core.TarCompressorUtils;
 import com.winlator.cmod.core.WineInfo;
 import com.winlator.cmod.core.WinePrefixState;
+import com.winlator.cmod.core.WineRuntimeLayout;
 import com.winlator.cmod.core.DirectoryInstall;
 import com.winlator.cmod.contentdialog.DXVKConfigDialog;
 import com.winlator.cmod.xenvironment.ImageFs;
@@ -464,7 +465,7 @@ public class ContainerManager {
             return;
         }
 
-        File srcDir = new File(wineLibDir, srcName);
+        File srcDir = WineRuntimeLayout.modules(wineLibDir, srcName);
         if (!srcDir.isDirectory()) {
             Log.w("ContainerManager", "Skipping common DLL extraction: missing source dir " + srcDir.getAbsolutePath());
             return;
@@ -495,8 +496,8 @@ public class ContainerManager {
                 skipped++;
                 continue;
             }
-            if (dllName.equals("iexplore.exe") && wineInfo.isArm64EC() && srcName.equals("aarch64-windows")) {
-                File fallbackFile = new File(wineLibDir, "i386-windows/iexplore.exe");
+            if (dllName.equals("iexplore.exe") && wineInfo.usesNativeArm64() && srcName.equals("aarch64-windows")) {
+                File fallbackFile = new File(WineRuntimeLayout.modules(wineLibDir, "i386-windows"), "iexplore.exe");
                 if (fallbackFile.isFile()) file = fallbackFile;
             }
 
@@ -523,12 +524,15 @@ public class ContainerManager {
         File wineLibDir = runtimeProfile != null
                 ? ContentsManager.getSourceFile(context, runtimeProfile, runtimeProfile.wineLibPath)
                 : runtimeRoot != null ? new File(runtimeRoot, "lib/wine") : null;
-        if (wineLibDir != null) {
-            File directArchDir = new File(wineLibDir, "i386-windows");
-            if (!directArchDir.isDirectory()) {
-                File nestedWineDir = new File(wineLibDir, "wine");
-                if (new File(nestedWineDir, "i386-windows").isDirectory()) wineLibDir = nestedWineDir;
-            }
+        File wineBinDir = runtimeProfile != null && runtimeProfile.wineBinPath != null
+                ? ContentsManager.getSourceFile(context, runtimeProfile, runtimeProfile.wineBinPath)
+                : new File(runtimeRoot, "bin");
+        try {
+            WineRuntimeLayout.validateHost(wineInfo.getArch(), wineBinDir);
+            WinePrefixState.wineExecutable(wineBinDir);
+        } catch (java.io.IOException unavailable) {
+            Log.e("ContainerManager", "Selected Wine runtime is unavailable or incompatible", unavailable);
+            return false;
         }
         // Extract into an isolated tree: a rejected/partial pack must never be
         // completed with files copied from whichever container is currently active.
@@ -560,7 +564,7 @@ public class ContainerManager {
             WinePrefixState.ensureRegistries(stagedPrefix, wineInfo.isWin64());
             // Raw runtimes start with their own modules and let wineboot create
             // their registry/layout; no Proton 9 registry is relabelled as win32.
-            if (wineInfo.isArm64EC()) {
+            if (wineInfo.usesNativeArm64()) {
                 extractCommonDlls(wineInfo, wineLibDir, "aarch64-windows", "system32", stagedPrefix, null);
                 extractCommonDlls(wineInfo, wineLibDir, "i386-windows", "syswow64", stagedPrefix, null);
             } else if (!wineInfo.isWin64()) {

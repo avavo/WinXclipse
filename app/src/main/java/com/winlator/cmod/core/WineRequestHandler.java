@@ -246,10 +246,10 @@ public class WineRequestHandler {
             bw.write(String.format("wineVersion: %s\n", wineVersion));
             bw.write(String.format("emulator: %s\n", emulator));
             bw.write(String.format("emulator64: %s\n",
-                    wineInfo != null && wineInfo.isArm64EC() ? "fexcore" : "box64"));
+                    wineInfo != null && wineInfo.usesNativeArm64() ? "fexcore" : "box64"));
             bw.write(String.format("box64Version: %s\n", box64Version));
             bw.write(String.format("box64Preset: [%s]\n", Box86_64PresetManager.getEnvVars("box64", context, box64Preset).print()));
-            if (wineInfo != null && wineInfo.isArm64EC()) {
+            if (wineInfo != null && wineInfo.usesNativeArm64()) {
                 bw.write(String.format("fexcoreVersion: %s\n", fexcoreVersion));
                 bw.write(String.format("fexcorePreset: %s\n", fexcorePreset));
             }

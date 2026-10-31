@@ -29,4 +29,11 @@ public final class RuntimeFiles {
         return wine.isFile() && hasPayload(root, binPath + "/wine")
                 || wine64.isFile() && hasPayload(root, binPath + "/wine64");
     }
+
+    public static boolean samePayload(File source, File applied) {
+        if (source == null || applied == null || !source.isFile() || !applied.isFile()
+                || source.length() == 0 || source.length() != applied.length()) return false;
+        try { return PackageIdentity.sha256(source).equals(PackageIdentity.sha256(applied)); }
+        catch (IOException failure) { return false; }
+    }
 }

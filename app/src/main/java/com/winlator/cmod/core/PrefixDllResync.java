@@ -26,9 +26,9 @@ public final class PrefixDllResync {
 
     private PrefixDllResync() {}
 
-    public static void resync(Container container, WineInfo wineInfo, ImageFs imageFs) {
+    public static void resync(Container container, WineInfo wineInfo, ImageFs imageFs, File libraryRoot) {
         try {
-            repairLegacyRuntimeCopies(container, wineInfo, imageFs);
+            repairLegacyRuntimeCopies(container, wineInfo, imageFs, libraryRoot);
         }
         catch (Throwable error) {
             Log.w(TAG, "Prefix compatibility repair skipped; boot continues", error);
@@ -36,7 +36,7 @@ public final class PrefixDllResync {
     }
 
     private static void repairLegacyRuntimeCopies(Container container, WineInfo wineInfo,
-                                                   ImageFs imageFs) {
+                                                   ImageFs imageFs, File libraryRoot) {
         if (container == null || wineInfo == null || imageFs == null
                 || REPAIR_VERSION.equals(container.getExtra(EXTRA_REPAIR_VERSION))) return;
 
@@ -49,14 +49,11 @@ public final class PrefixDllResync {
         File system32Dir = new File(prefixWindows, "system32");
         if (!system32Dir.isDirectory()) return;
 
-        File wineLibDir = new File(wineRoot, "lib/wine");
-        File nested = new File(wineLibDir, "wine");
-        if (!new File(wineLibDir, "i386-windows").isDirectory()
-                && new File(nested, "i386-windows").isDirectory()) wineLibDir = nested;
+        File wineLibDir = libraryRoot != null ? libraryRoot : new File(wineRoot, "lib");
 
         String systemArch;
         String wowArch = null;
-        if (wineInfo.isArm64EC()) {
+        if (wineInfo.usesNativeArm64()) {
             systemArch = "aarch64-windows";
             wowArch = "i386-windows";
         }
@@ -66,8 +63,8 @@ public final class PrefixDllResync {
         }
         else systemArch = "i386-windows";
 
-        File systemSourceDir = new File(wineLibDir, systemArch);
-        File wowSourceDir = wowArch != null ? new File(wineLibDir, wowArch) : null;
+        File systemSourceDir = WineRuntimeLayout.modules(wineLibDir, systemArch);
+        File wowSourceDir = wowArch != null ? WineRuntimeLayout.modules(wineLibDir, wowArch) : null;
         if (!systemSourceDir.isDirectory()
                 || (wowSourceDir != null && !wowSourceDir.isDirectory())) return;
 

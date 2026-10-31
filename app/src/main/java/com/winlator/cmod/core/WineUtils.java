@@ -107,7 +107,7 @@ public abstract class WineUtils {
             // Match the reference ARM64EC launcher outside Mali: prefer the
             // runtime opengl32 module while retaining Wine's builtin fallback.
             try {
-                if (wineInfo != null && wineInfo.isArm64EC()
+                if (wineInfo != null && wineInfo.usesNativeArm64()
                         && !GPUInformation.getRendererName().contains("Mali"))
                     registryEditor.setStringValue(dllOverridesKey, "opengl32", "native,builtin");
             }

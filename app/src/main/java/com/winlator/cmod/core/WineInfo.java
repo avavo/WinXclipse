@@ -20,7 +20,7 @@ import java.util.regex.Pattern;
 
 public class WineInfo implements Parcelable {
     public static final WineInfo MAIN_WINE_VERSION = new WineInfo("proton", "9.0", "arm64ec");
-    private static final Pattern pattern = Pattern.compile("^(wine|proton|Proton)\\-([0-9\\.]+)\\-?([0-9\\.]+)?\\-(x86|x86_64|arm64ec)$");
+    private static final Pattern pattern = Pattern.compile("^(wine|proton)\\-([0-9\\.]+)\\-?([0-9\\.]+)?\\-(x86|x86_64|arm64ec|arm64|aarch64|amd64|x64)$", Pattern.CASE_INSENSITIVE);
     public final String version;
     public final String type;
     public String subversion;
@@ -67,10 +67,11 @@ public class WineInfo implements Parcelable {
     }
 
     public boolean isWin64() {
-        return arch.equals("x86_64") || arch.equals("arm64ec");
+        return arch.equals("x86_64") || usesNativeArm64();
     }
 
     public boolean isArm64EC() { return arch.equals("arm64ec"); }
+    public boolean usesNativeArm64() { return WineRuntimeLayout.isNativeArm64(arch); }
 
     public String identifier() {
         if (type.equals("proton"))
@@ -128,12 +129,11 @@ public class WineInfo implements Parcelable {
 
         if (identifier.equals(MAIN_WINE_VERSION.identifier())) {
             File mainDir = new File(imageFs.getRootDir(), "opt/" + MAIN_WINE_VERSION.identifier());
-            boolean bakedInPresent = new File(mainDir, "bin/wine").isFile();
+            boolean bakedInPresent = RuntimeFiles.hasWine(mainDir, "bin");
             if (bakedInPresent) return new WineInfo(MAIN_WINE_VERSION.type, MAIN_WINE_VERSION.version, MAIN_WINE_VERSION.arch, mainDir.getPath());
-            // The APK-baked runtime was removed by the user; fall through to
-            // an installed replacement instead of pointing at a missing dir.
+            // A managed copy of this same runtime is valid. Another installed
+            // Wine/Proton must never silently replace the requested version.
             ContentProfile fallback = findInstalledRuntimeProfile(contentsManager, identifier);
-            if (fallback == null) fallback = firstInstalledRuntime(contentsManager);
             if (fallback != null) {
                 Log.i("WineInfo", "Baked-in runtime missing, substituting "
                         + ContentsManager.getEntryName(fallback) + " for " + identifier);
@@ -181,44 +181,34 @@ public class WineInfo implements Parcelable {
                         + " (expected " + path + ")");
             }
 
-            return new WineInfo(matcher.group(1), matcher.group(2), matcher.group(3),
-                    matcher.group(4), path);
+            return new WineInfo(matcher.group(1).toLowerCase(Locale.ENGLISH), matcher.group(2), matcher.group(3),
+                    ContentVersion.architecture(matcher.group(4)), path);
         }
-        else return new WineInfo(MAIN_WINE_VERSION.type, MAIN_WINE_VERSION.version, MAIN_WINE_VERSION.arch, imageFs.getRootDir().getPath() + "/opt/" + MAIN_WINE_VERSION.identifier());
+        if (selectedEntry != null) return wineInfoFromProfile(contentsManager, context, selectedEntry);
+        // Preserve an unavailable selection for the startup error. Do not turn an
+        // unfamiliar identifier into Proton 9 or resolve an arbitrary filesystem path.
+        String safe = identifier.replaceAll("[^A-Za-z0-9._-]", "_");
+        if (safe.equals(".") || safe.equals("..") || safe.isEmpty()) safe = "missing-runtime";
+        String requestedArch = ContentVersion.architecture(identifier);
+        String requestedType = identifier.toLowerCase(Locale.ENGLISH).startsWith("proton") ? "proton" : "wine";
+        return new WineInfo(requestedType, identifier, requestedArch,
+                new File(imageFs.getRootDir(), "opt/" + safe).getPath());
     }
 
     /** Builds a launchable WineInfo from an installed content profile. */
     private static WineInfo wineInfoFromProfile(ContentsManager contentsManager,
                                                 Context context, ContentProfile wineProfile) {
         String profileVersion = wineProfile.verName.toLowerCase(Locale.ENGLISH);
-        String profileArch;
-        if (profileVersion.endsWith("-arm64ec")) profileArch = "arm64ec";
-        else if (profileVersion.endsWith("-x86_64")) profileArch = "x86_64";
-        else if (profileVersion.endsWith("-x86")) profileArch = "x86";
-        else profileArch = profileVersion.contains("arm64ec") ? "arm64ec" : "x86_64";
+        File root = contentsManager.getInstallDir(context, wineProfile);
+        File bin = new File(root, wineProfile.wineBinPath == null ? "bin" : wineProfile.wineBinPath);
+        File libraries = new File(root, wineProfile.wineLibPath == null ? "lib" : wineProfile.wineLibPath);
+        String profileArch = WineRuntimeLayout.architecture(profileVersion, bin, libraries);
 
-        String archSuffix = "-" + profileArch;
-        String version = profileVersion.endsWith(archSuffix)
-                ? profileVersion.substring(0, profileVersion.length() - archSuffix.length())
-                : profileVersion;
+        String version = profileVersion.replaceFirst("(?i)[-_. ](?:arm64[-_ ]?ec|arm64|aarch64|x86[_-]64|amd64|x64|x86)$", "");
         String type = wineProfile.type == ContentProfile.ContentType.CONTENT_TYPE_PROTON
                 ? "proton" : "wine";
         return new WineInfo(type, version, profileArch,
                 contentsManager.getInstallDir(context, wineProfile).getPath());
-    }
-
-    /** First installed Wine/Proton runtime, used when the default is gone. */
-    private static ContentProfile firstInstalledRuntime(ContentsManager contentsManager) {
-        for (ContentProfile.ContentType type : new ContentProfile.ContentType[]{
-                ContentProfile.ContentType.CONTENT_TYPE_PROTON,
-                ContentProfile.ContentType.CONTENT_TYPE_WINE}) {
-            List<ContentProfile> profiles = contentsManager.getProfiles(type);
-            if (profiles == null) continue;
-            for (ContentProfile profile : profiles) {
-                if (contentsManager.isInstalledProfile(profile)) return profile;
-            }
-        }
-        return null;
     }
 
     /** Resolves both current content entry names and the identifiers stored by
@@ -246,7 +236,7 @@ public class WineInfo implements Parcelable {
         List<ContentProfile> profiles = contentsManager.getProfiles(profileType);
         if (profiles == null) return null;
         for (ContentProfile profile : profiles) {
-            if (profileVersion.equalsIgnoreCase(profile.verName)
+            if (ContentVersion.canonical(profileVersion).equals(ContentVersion.canonical(profile.verName))
                     && contentsManager.isInstalledProfile(profile)
                     && (best == null || profile.verCode > best.verCode)) {
                 best = profile;

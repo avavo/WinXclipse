@@ -1019,6 +1019,16 @@ public class ContentsManager {
         return isInstalledProfile(profile) ? profile : null;
     }
 
+    /** Exact full entry or legacy visible version; never choose a different version as fallback. */
+    public ContentProfile getInstalledSelection(ContentProfile.ContentType type, String selection) {
+        ContentProfile full = getInstalledProfileByEntryName(selection);
+        if (full != null && full.type == type) return full;
+        ContentProfile named = getInstalledProfile(type, selection);
+        if (named != null) return named;
+        ContentProfile tail = getInstalledProfileByEntryName(type.toString() + "-" + selection);
+        return tail != null && tail.type == type ? tail : null;
+    }
+
     /** Finds any catalog profile by type and visible version name. */
     public ContentProfile getProfile(ContentProfile.ContentType type, String versionName) {
         ContentProfile bestMatch = null;
@@ -1061,7 +1071,7 @@ public class ContentsManager {
                 File targetFile = new File(getPathFromTemplate(contentFile.target));
                 File sourceFile = new File(getInstallDir(context, profile), contentFile.source);
 
-                if (!sourceFile.isFile()) {
+                if (!sourceFile.isFile() || sourceFile.length() == 0) {
                     Log.e(TAG, "applyContent: missing source file " + sourceFile.getPath());
                     success = false;
                     continue;
@@ -1069,24 +1079,23 @@ public class ContentsManager {
 
                 // Copy to a temporary sibling first so a failed copy never leaves the
                 // target deleted or truncated.
-                File tempFile = new File(targetFile.getParentFile(), targetFile.getName() + ".tmp");
-                FileUtils.delete(tempFile);
-                if (!FileUtils.copy(sourceFile, tempFile)) {
+                File tempFile = new File(targetFile.getParentFile(), "." + targetFile.getName() + "-" + UUID.randomUUID() + ".tmp");
+                if (!FileUtils.copy(sourceFile, tempFile) || tempFile.length() != sourceFile.length()) {
                     Log.e(TAG, "applyContent: failed to copy " + sourceFile.getPath());
                     FileUtils.delete(tempFile);
                     success = false;
                     continue;
                 }
 
-                if (targetFile.exists() && !targetFile.delete()) {
-                    Log.e(TAG, "applyContent: failed to remove old target " + targetFile.getPath());
-                    FileUtils.delete(tempFile);
-                    success = false;
-                    continue;
-                }
-
-                if (!tempFile.renameTo(targetFile)) {
-                    Log.e(TAG, "applyContent: failed to move " + tempFile.getPath());
+                try {
+                    try {
+                        java.nio.file.Files.move(tempFile.toPath(), targetFile.toPath(),
+                                java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                    } catch (java.nio.file.AtomicMoveNotSupportedException unsupported) {
+                        java.nio.file.Files.move(tempFile.toPath(), targetFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                    }
+                } catch (java.io.IOException failure) {
+                    Log.e(TAG, "applyContent: unable to replace " + targetFile.getPath(), failure);
                     FileUtils.delete(tempFile);
                     success = false;
                     continue;
@@ -1110,5 +1119,15 @@ public class ContentsManager {
 //            EvshimPatcher.patchWineTree(context, wineRoot, arm64ec);
         }
         return success;
+    }
+
+    /** Applied translators must contain every payload from the chosen build, not just one bridge DLL. */
+    public boolean isAppliedContent(ContentProfile profile) {
+        if (profile == null || profile.fileList == null || profile.fileList.isEmpty()) return false;
+        File root = getInstallDir(context, profile);
+        for (ContentProfile.ContentFile file : profile.fileList) {
+            if (!RuntimeFiles.samePayload(new File(root, file.source), new File(getPathFromTemplate(file.target)))) return false;
+        }
+        return true;
     }
 }

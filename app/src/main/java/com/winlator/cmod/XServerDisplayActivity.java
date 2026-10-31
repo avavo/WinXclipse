@@ -880,7 +880,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         if (dxwrapper.equals("dxvk") || dxwrapper.equals("vkd3d")) {
             this.dxwrapperConfig = DXVKConfigDialog.parseConfig(dxwrapperConfig);
             String selectedDxvk = this.dxwrapperConfig.get("version", DefaultVersion.DXVK);
-            if (!wineInfo.isArm64EC()
+            if (!wineInfo.usesNativeArm64()
                     && selectedDxvk.toLowerCase(Locale.ENGLISH).contains("arm64ec")) {
                 // ARM64EC DLLs cannot be loaded by conventional x86/x86_64 Wine.
                 // Older containers inherited the ARM64EC default even after the
@@ -1052,6 +1052,12 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
 
                 try {
                     if (sessionStopped.get() || isFinishing() || isDestroyed()) return;
+                    com.winlator.cmod.contents.ContentProfile selectedRuntime = WineInfo.findInstalledRuntimeProfile(contentsManager, container.getWineVersion());
+                    File runtimeBin = selectedRuntime != null && selectedRuntime.wineBinPath != null
+                            ? ContentsManager.getSourceFile(this, selectedRuntime, selectedRuntime.wineBinPath)
+                            : new File(imageFs.getWinePath(), "bin");
+                    com.winlator.cmod.core.WineRuntimeLayout.validateHost(wineInfo.getArch(), runtimeBin);
+                    com.winlator.cmod.core.WinePrefixState.wineExecutable(runtimeBin);
                     WinePrefixState.ensureRegistries(new File(container.getRootDir(), ".wine"), wineInfo.isWin64());
                     setupWineSystemFiles();
                     extractArm64ecInputDLLs();
@@ -2107,7 +2113,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         // It only removes byte-identical icu/tabtip runtime copies and never
         // replaces Wine/Proton modules in a working prefix.
         try {
-            PrefixDllResync.resync(container, wineInfo, imageFs);
+            PrefixDllResync.resync(container, wineInfo, imageFs, wineLibraryRoot());
         } catch (Throwable t) {
             Log.w("PrefixDllResync", "Resync failed; boot continues normally", t);
         }
@@ -2218,13 +2224,13 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
                 if (xidiPresent) {
                     try {
                         File srcDir;
-                        if (wineInfo != null && wineInfo.isArm64EC())
-                            srcDir = new File(imageFs.getWinePath() + "/lib/wine/aarch64-windows");
+                        if (wineInfo != null && wineInfo.usesNativeArm64())
+                            srcDir = com.winlator.cmod.core.WineRuntimeLayout.modules(wineLibraryRoot(), "aarch64-windows");
                         else if (wineInfo != null && !wineInfo.isWin64())
-                            srcDir = new File(imageFs.getWinePath() + "/lib/wine/i386-windows");
+                            srcDir = com.winlator.cmod.core.WineRuntimeLayout.modules(wineLibraryRoot(), "i386-windows");
                         else
-                            srcDir = new File(imageFs.getWinePath() + "/lib/wine/x86_64-windows");
-                        File syswow64SrcDir = new File(imageFs.getWinePath() + "/lib/wine/i386-windows");
+                            srcDir = com.winlator.cmod.core.WineRuntimeLayout.modules(wineLibraryRoot(), "x86_64-windows");
+                        File syswow64SrcDir = com.winlator.cmod.core.WineRuntimeLayout.modules(wineLibraryRoot(), "i386-windows");
                         File syswow64Dir = new File(container.getRootDir(), ".wine/drive_c/windows/syswow64");
                         for (String dll : new String[]{"dinput.dll", "dinput8.dll"}) {
                             FileUtils.copy(new File(srcDir, dll), new File(system32Dir, dll));
@@ -5544,7 +5550,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
                 String identifier = wincomponent[0];
                 boolean useNative = wincomponent[1].equals("1");
 
-                if (!wineInfo.isArm64EC() && identifier.contains("opengl") && useNative)
+                if (!wineInfo.usesNativeArm64() && identifier.contains("opengl") && useNative)
                     continue;
 
                 if (useNative) {
@@ -5567,20 +5573,27 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         catch (JSONException e) {}
     }
 
+    private File wineLibraryRoot() {
+        ContentProfile selected = WineInfo.findInstalledRuntimeProfile(contentsManager, container.getWineVersion());
+        return selected != null && selected.wineLibPath != null
+                ? ContentsManager.getSourceFile(this, selected, selected.wineLibPath)
+                : new File(imageFs.getWinePath(), "lib");
+    }
+
     private void restoreOriginalDllFiles(final String... dlls) {
         File rootDir = imageFs.getRootDir();
         File windowsDir = new File(rootDir, ImageFs.WINEPREFIX+"/drive_c/windows");
         File system32dlls = null;
         File syswow64dlls = null;
 
-        if (wineInfo.isArm64EC())
-            system32dlls = new File(imageFs.getWinePath() + "/lib/wine/aarch64-windows");
+        if (wineInfo.usesNativeArm64())
+            system32dlls = com.winlator.cmod.core.WineRuntimeLayout.modules(wineLibraryRoot(), "aarch64-windows");
         else if (!wineInfo.isWin64())
-            system32dlls = new File(imageFs.getWinePath() + "/lib/wine/i386-windows");
+            system32dlls = com.winlator.cmod.core.WineRuntimeLayout.modules(wineLibraryRoot(), "i386-windows");
         else
-            system32dlls = new File(imageFs.getWinePath() + "/lib/wine/x86_64-windows");
+            system32dlls = com.winlator.cmod.core.WineRuntimeLayout.modules(wineLibraryRoot(), "x86_64-windows");
 
-        syswow64dlls = new File(imageFs.getWinePath() + "/lib/wine/i386-windows");
+        syswow64dlls = com.winlator.cmod.core.WineRuntimeLayout.modules(wineLibraryRoot(), "i386-windows");
 
 
         for (String dll : dlls) {
@@ -5842,9 +5855,9 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
 
     private void removeStaleVkd3dDlls() {
         File windowsDir = new File(imageFs.getRootDir(), ImageFs.WINEPREFIX + "/drive_c/windows");
-        String sysArch = wineInfo.isArm64EC() ? "aarch64-windows" : (!wineInfo.isWin64() ? "i386-windows" : "x86_64-windows");
-        File systemSource = new File(imageFs.getWinePath() + "/lib/wine/" + sysArch);
-        File wow64Source = new File(imageFs.getWinePath() + "/lib/wine/i386-windows");
+        String sysArch = wineInfo.usesNativeArm64() ? "aarch64-windows" : (!wineInfo.isWin64() ? "i386-windows" : "x86_64-windows");
+        File systemSource = com.winlator.cmod.core.WineRuntimeLayout.modules(wineLibraryRoot(), sysArch);
+        File wow64Source = com.winlator.cmod.core.WineRuntimeLayout.modules(wineLibraryRoot(), "i386-windows");
         for (String dll : new String[]{"d3d12.dll", "d3d12core.dll"}) {
             if (!new File(systemSource, dll).exists())
                 FileUtils.delete(new File(windowsDir, "system32/" + dll));

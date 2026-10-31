@@ -31,6 +31,11 @@ import com.winlator.cmod.core.TarCompressorUtils;
 import com.winlator.cmod.core.WineInfo;
 import com.winlator.cmod.core.WinePrefixBootstrap;
 import com.winlator.cmod.core.WinePrefixState;
+import com.winlator.cmod.core.WineRuntimeLayout;
+import com.winlator.cmod.core.ContentOperationRegistry;
+import com.winlator.cmod.MainActivity;
+import android.net.Uri;
+import java.io.FileOutputStream;
 import com.winlator.cmod.inputcontrols.ControllerManager;
 import com.winlator.cmod.sysvshm.SysVSHMConnectionHandler;
 import com.winlator.cmod.sysvshm.SysVSHMRequestHandler;
@@ -90,179 +95,91 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
     public void setContainer(Container container) { this.container = container; }
 
 
-    private boolean extractBox86_64Files() {
-        ImageFs imageFs = environment.getImageFs();
+    private String translatorFailure = "Required CPU translator is missing or incomplete";
+    private String selectedFexBridge = "libwow64fex.dll";
+
+    private ContentProfile selectedTranslator(ContentProfile.ContentType type, String selection, String bundledAsset)
+            throws IOException {
+        ContentProfile profile = contentsManager.getInstalledSelection(type, selection);
+        if (profile != null) return profile;
+        ContentProfile bundled = MainActivity.expectedBundledProfile(bundledAsset);
+        boolean requestsBundle = bundled != null && (selection.equals(bundled.verName)
+                || selection.equals(bundled.verName + "-" + bundled.verCode)
+                || selection.equalsIgnoreCase(ContentsManager.getEntryName(bundled)));
+        if (!requestsBundle) return null;
         Context context = environment.getContext();
-        String box64Version = container.getBox64Version();
-        String originalContainerVersion = box64Version;
-
-        if (shortcut != null) {
-            box64Version = shortcut.getExtra("box64Version", shortcut.container.getBox64Version());
-        }
-
-        Log.i("BionicProgramLauncherComponent", "Extracting required box64 version: " + box64Version);
-        File rootDir = imageFs.getRootDir();
-        File box64File = new File(rootDir, "usr/bin/box64");
-
-        // Prefer the exact content entry (versionName-versionCode). Older
-        // containers can contain only versionName, so resolve that form too.
-        ContentProfile profile = contentsManager.getInstalledProfileByEntryName("box64-" + box64Version);
-        if (profile == null) {
-            profile = contentsManager.getInstalledProfile(
-                    ContentProfile.ContentType.CONTENT_TYPE_BOX64, box64Version);
-            if (profile != null) box64Version = profile.verName + "-" + profile.verCode;
-        }
-        if (profile == null && !DefaultVersion.BOX64.equals(box64Version)) {
-            Log.w("BionicProgramLauncherComponent", "Selected Box64 is no longer bundled; migrating to " + DefaultVersion.BOX64);
-            box64Version = DefaultVersion.BOX64;
-            profile = contentsManager.getInstalledProfileByEntryName("box64-" + box64Version);
-        }
-
-        String installedVersion = PreferenceManager.getDefaultSharedPreferences(context)
-                .getString("current_box64_version", "");
-        // Searching the whole executable for "ld-linux" was a false
-        // positive: Box64 contains those guest-loader strings even in its
-        // Android/bionic build, causing a reinstall on every launch.
-        boolean needsInstall = !box64File.isFile() || box64File.length() == 0
-                || !box64Version.equals(installedVersion);
-        if (needsInstall) {
-            boolean installed;
-            if (profile != null) {
-                installed = contentsManager.applyContent(profile);
+        File copy = File.createTempFile("bundled-translator-", ".wcp", context.getCacheDir());
+        try (ContentOperationRegistry.Token operation = ContentOperationRegistry.begin(ContentOperationRegistry.Kind.INSTALL)) {
+            try (java.io.InputStream input = context.getAssets().open("contents/" + bundledAsset);
+                 FileOutputStream output = new FileOutputStream(copy)) {
+                if (!com.winlator.cmod.core.StreamUtils.copy(input, output)) throw new IOException("Cannot read bundled translator");
             }
-            else {
-                installed = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD,
-                        context, "box86_64/box64-" + box64Version + ".tzst", rootDir);
-            }
-            if (installed && box64File.isFile() && box64File.length() > 0) {
-                PreferenceManager.getDefaultSharedPreferences(context).edit()
-                        .putString("current_box64_version", box64Version).apply();
-            }
-            else {
-                Log.e("BionicStartup", "Box64 installation failed: " + box64Version);
-                return false;
-            }
-        }
-
-        // Persist a resolved fallback only after selecting installed content.
-        // Explicit selections of older installed versions remain available.
-        boolean containerChanged = !box64Version.equals(originalContainerVersion)
-                || !box64Version.equals(container.getExtra("box64Version"));
-        if (containerChanged) {
-            container.setBox64Version(box64Version);
-            container.putExtra("box64Version", box64Version);
-            container.saveData();
-        }
-        if (shortcut != null) {
-            if (!box64Version.equals(shortcut.getExtra("box64Version", ""))) {
-                shortcut.putExtra("box64Version", box64Version);
-                shortcut.saveData();
-            }
-        }
-
-        // Set execute permissions. Do not delete this shared executable before
-        // launch: x86_64 Proton depends on it and not every version has a
-        // legacy assets/box86_64 fallback archive.
-        if (box64File.isFile() && box64File.length() > 0) {
-            FileUtils.chmod(box64File, 0755);
-            return true;
-        }
-        else {
-            Log.e("BionicProgramLauncherComponent",
-                    "Cannot start x86/x86_64 runtime: Box64 " + box64Version + " is missing");
-        }
-    return false;
+            contentsManager.extraContentFile(Uri.fromFile(copy), bundled, new ContentsManager.OnInstallFinishedCallback() {
+                private boolean staged = true;
+                @Override public void onFailed(ContentsManager.InstallFailedReason reason, Exception error) {
+                    Log.e("BionicStartup", "Translator repair failed: " + reason, error);
+                }
+                @Override public void onSucceed(ContentProfile content) {
+                    if (staged) { staged = false; contentsManager.finishInstallContent(content, this); }
+                }
+            });
+            contentsManager.syncContents();
+            return contentsManager.getInstalledSelection(type, selection);
+        } finally { copy.delete(); }
     }
 
-
+    private boolean extractBox86_64Files() {
+        Context context = environment.getContext();
+        boolean shortcutOverride = shortcut != null && shortcut.hasExtra("box64Version");
+        String selected = shortcutOverride ? shortcut.getExtra("box64Version") : container.getBox64Version();
+        if (selected == null || selected.trim().isEmpty()) selected = DefaultVersion.BOX64;
+        translatorFailure = "Box64 " + selected + " is missing or incomplete. Install this exact version in Downloads.";
+        try {
+            ContentProfile profile = selectedTranslator(ContentProfile.ContentType.CONTENT_TYPE_BOX64, selected, DefaultVersion.BOX64_ASSET);
+            if (profile == null) return false;
+            String appliedId = profile.verName + "-" + profile.verCode;
+            String installed = PreferenceManager.getDefaultSharedPreferences(context).getString("current_box64_version", "");
+            if (!appliedId.equals(installed) || !contentsManager.isAppliedContent(profile)) {
+                if (!contentsManager.applyContent(profile) || !contentsManager.isAppliedContent(profile)) return false;
+                PreferenceManager.getDefaultSharedPreferences(context).edit().putString("current_box64_version", appliedId).apply();
+            }
+            File binary = new File(environment.getImageFs().getBinDir(), "box64");
+            FileUtils.chmod(binary, 0755);
+            // A shortcut override applies to that launch, not to its parent container.
+            container.putExtra("box64Version", appliedId);
+            container.saveData();
+            return binary.isFile() && binary.length() > 0;
+        } catch (IOException failure) {
+            Log.e("BionicStartup", translatorFailure, failure);
+            return false;
+        }
+    }
 
     private boolean extractEmulatorsDlls() {
-        Context context = environment.getContext();
-        File rootDir = environment.getImageFs().getRootDir();
-        File system32dir = new File(rootDir + "/home/xuser/.wine/drive_c/windows/system32");
-
-        String fexcoreVersion = container.getFEXCoreVersion();
-
-        boolean shortcutOverridesVersion = shortcut != null
-                && shortcut.hasExtra("fexcoreVersion");
-        if (shortcut != null) {
-            fexcoreVersion = shortcut.getExtra("fexcoreVersion", shortcut.container.getFEXCoreVersion());
-        }
-
-        if (fexcoreVersion == null || fexcoreVersion.trim().isEmpty()) {
-            fexcoreVersion = DefaultVersion.FEXCORE;
-        }
-
-        String fexcorePreset = container.getFEXCorePreset();
-        if (shortcut != null) {
-            fexcorePreset = shortcut.getExtra("fexcorePreset", shortcut.container.getFEXCorePreset());
-        }
-        Log.d("BionicProgramLauncherComponent", "fexcoreVersion in use: " + fexcoreVersion);
-        Log.d("BionicProgramLauncherComponent", "fexcorePreset in use: " + fexcorePreset);
-
-        File fexDll = new File(system32dir, "libwow64fex.dll");
-        File legacyFexDll = new File(system32dir, "libarm64ecfex.dll");
-        boolean ready = fexcoreVersion.equals(container.getExtra("fexcoreVersion"))
-                && (fexDll.isFile() && fexDll.length() > 0
-                || legacyFexDll.isFile() && legacyFexDll.length() > 0);
-        if (!ready) {
-            String effectiveVersion = fexcoreVersion;
-            ContentProfile profile = contentsManager.getInstalledProfile(
-                    ContentProfile.ContentType.CONTENT_TYPE_FEXCORE, fexcoreVersion);
-            if (profile == null && !DefaultVersion.FEXCORE.equals(fexcoreVersion)) {
-                profile = contentsManager.getInstalledProfile(
-                        ContentProfile.ContentType.CONTENT_TYPE_FEXCORE, DefaultVersion.FEXCORE);
-                if (profile != null) {
-                    effectiveVersion = DefaultVersion.FEXCORE;
-                    Log.w("BionicProgramLauncherComponent", "FEXCore " + fexcoreVersion
-                            + " is not installed; falling back to " + effectiveVersion);
-                }
-            }
-            if (profile == null) {
-                java.util.List<ContentProfile> candidates = contentsManager.getProfiles(
-                        ContentProfile.ContentType.CONTENT_TYPE_FEXCORE);
-                if (candidates != null) {
-                    for (ContentProfile candidate : candidates) {
-                        if (contentsManager.isInstalledProfile(candidate)) {
-                            profile = candidate;
-                            effectiveVersion = candidate.verName;
-                            Log.w("BionicProgramLauncherComponent", "FEXCore " + fexcoreVersion
-                                    + " is not installed; using available " + effectiveVersion);
-                            break;
-                        }
-                    }
-                }
-            }
-
-            boolean applied = profile != null && contentsManager.applyContent(profile);
-            if (!applied && profile == null) {
-                // Compatibility path for older APKs that bundled .tzst files
-                // instead of installing a WCP during MainActivity startup.
-                applied = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context,
-                        "fexcore/fexcore-" + effectiveVersion + ".tzst", system32dir);
-            }
-
-            if (applied && (fexDll.isFile() && fexDll.length() > 0
-                    || legacyFexDll.isFile() && legacyFexDll.length() > 0)) {
-                ready = true;
-                if (!shortcutOverridesVersion
-                        && !effectiveVersion.equals(container.getFEXCoreVersion())) {
-                    container.setFEXCoreVersion(effectiveVersion);
-                }
-                container.putExtra("fexcoreVersion", effectiveVersion);
+        boolean shortcutOverride = shortcut != null && shortcut.hasExtra("fexcoreVersion");
+        String selected = shortcutOverride ? shortcut.getExtra("fexcoreVersion") : container.getFEXCoreVersion();
+        if (selected == null || selected.trim().isEmpty()) selected = DefaultVersion.FEXCORE;
+        translatorFailure = "FEXCore " + selected + " is missing or incomplete. Install this exact version in Downloads.";
+        try {
+            ContentProfile profile = selectedTranslator(ContentProfile.ContentType.CONTENT_TYPE_FEXCORE, selected, DefaultVersion.FEXCORE_ASSET);
+            if (profile == null) return false;
+            String appliedId = profile.verName + "-" + profile.verCode;
+            if (!appliedId.equals(container.getExtra("fexcoreVersion")) || !contentsManager.isAppliedContent(profile)) {
+                if (!contentsManager.applyContent(profile) || !contentsManager.isAppliedContent(profile)) return false;
+                container.putExtra("fexcoreVersion", appliedId);
                 container.saveData();
-                if (shortcutOverridesVersion && shortcut != null
-                        && !effectiveVersion.equals(fexcoreVersion)) {
-                    shortcut.putExtra("fexcoreVersion", effectiveVersion);
-                    shortcut.saveData();
-                }
             }
-            else {
-                Log.e("BionicProgramLauncherComponent", "Cannot apply installed FEXCore "
-                        + effectiveVersion + "; keeping the previous bridge/version marker");
+            selectedFexBridge = "";
+            for (ContentProfile.ContentFile file : profile.fileList) {
+                if (file.target.endsWith("/libwow64fex.dll")) { selectedFexBridge = "libwow64fex.dll"; break; }
+                if (file.target.endsWith("/libarm64ecfex.dll")) selectedFexBridge = "libarm64ecfex.dll";
             }
+            if (selectedFexBridge.isEmpty()) return false;
+            return true;
+        } catch (IOException failure) {
+            Log.e("BionicStartup", translatorFailure, failure);
+            return false;
         }
-        return ready;
     }
 
     private void populateSysWow64() {
@@ -288,7 +205,7 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
             File wineLibRoot = wineProfile != null && wineProfile.wineLibPath != null
                     ? ContentsManager.getSourceFile(context, wineProfile, wineProfile.wineLibPath)
                     : new File(environment.getImageFs().getWinePath(), "lib");
-            File i386Dir = new File(wineLibRoot, "wine/i386-windows");
+            File i386Dir = WineRuntimeLayout.modules(wineLibRoot, "i386-windows");
             if (!new File(i386Dir, "kernel32.dll").isFile()) return;
 
             File[] dlls = i386Dir.listFiles((dir, name) -> name.toLowerCase().endsWith(".dll"));
@@ -315,12 +232,12 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
     public void start() {
         if (stopped) return;
         synchronized (lock) {
-            boolean translatorReady = wineInfo.isArm64EC()
+            boolean translatorReady = wineInfo.usesNativeArm64()
                     ? extractEmulatorsDlls() : extractBox86_64Files();
             if (!translatorReady) {
                 pid = -1;
                 Log.e("BionicStartup", "Wine launch stopped: required translator is incomplete");
-                failStartup("Required CPU translator is missing or incomplete");
+                failStartup(translatorFailure);
                 return;
             }
             populateSysWow64();
@@ -329,7 +246,7 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
 //            EvshimPatcher.patchWineTree(
 //                    environment.getContext(),
 //                    new File(environment.getImageFs().getWinePath()),
-//                    wineInfo.isArm64EC());
+//                    wineInfo.usesNativeArm64());
         }
         // Prefix preparation can take minutes on its first boot. Keep it outside
         // the process lock so leaving the session can cancel it immediately.
@@ -495,9 +412,9 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         // User-installed ARM64EC Wine/Proton packages follow the proven Mali
         // launcher path. They are always started through FEXCore; this avoids
         // interpreting a newer package with an incompatible WOWBox runtime.
-        if (wineInfo.isArm64EC()) emulator = "fexcore";
+        if (wineInfo.usesNativeArm64()) emulator = "fexcore";
 
-        if (wineInfo.isArm64EC()) {
+        if (wineInfo.usesNativeArm64()) {
             if (emulator.equalsIgnoreCase("fexcore")) {
                 String activeFEXCorePreset = container.getFEXCorePreset();
                 if (shortcut != null) {
@@ -510,20 +427,14 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
                 // Proton 9.0 arm64ec resolves its FEX bridge through
                 // libwow64fex.dll; requesting the legacy libarm64ecfex.dll
                 // name silently kills the guest before any window appears.
-                File system32Dir = new File(rootDir,
-                        "/home/xuser/.wine/drive_c/windows/system32");
-                envVars.put("HODLL",
-                        new File(system32Dir, "libwow64fex.dll").isFile()
-                                ? "libwow64fex.dll"
-                                : new File(system32Dir, "libarm64ecfex.dll").isFile()
-                                        ? "libarm64ecfex.dll" : "libwow64fex.dll");
+                envVars.put("HODLL", selectedFexBridge);
             }
             else {
                 envVars.put("HODLL", "wowbox64.dll");
             }
         }
 
-        if (envVars.get("BOX64_MMAP32").equals("1") && !wineInfo.isArm64EC())
+        if (envVars.get("BOX64_MMAP32").equals("1") && !wineInfo.usesNativeArm64())
             envVars.put("WRAPPER_DISABLE_PLACED", "1");
 
         // Setting up essential environment variables for Wine
@@ -538,19 +449,19 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         ArrayList<String> box64LibraryPaths = new ArrayList<>();
         ArrayList<String> wineDllPaths = new ArrayList<>();
         for (String architecture : new String[]{"aarch64-unix", "x86_64-unix", "i386-unix"}) {
-            File moduleDir = new File(wineLibRoot, "wine/" + architecture);
+            File moduleDir = WineRuntimeLayout.modules(wineLibRoot, architecture);
             if (moduleDir.isDirectory()) {
                 wineDllPaths.add(moduleDir.getAbsolutePath());
                 if (architecture.equals("aarch64-unix")) {
-                    if (wineInfo.isArm64EC()) nativeLibraryPaths.add(moduleDir.getAbsolutePath());
+                    if (wineInfo.usesNativeArm64()) nativeLibraryPaths.add(moduleDir.getAbsolutePath());
                 }
-                else if (!wineInfo.isArm64EC()) {
+                else if (!wineInfo.usesNativeArm64()) {
                     box64LibraryPaths.add(moduleDir.getAbsolutePath());
                 }
             }
         }
         if (wineLibRoot.isDirectory()) {
-            if (wineInfo.isArm64EC()) nativeLibraryPaths.add(wineLibRoot.getAbsolutePath());
+            if (wineInfo.usesNativeArm64()) nativeLibraryPaths.add(wineLibRoot.getAbsolutePath());
             else box64LibraryPaths.add(wineLibRoot.getAbsolutePath());
         }
         // LD_LIBRARY_PATH is consumed by Android's native arm64 linker. Never
@@ -559,7 +470,7 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         nativeLibraryPaths.add(rootDir.getPath() + "/usr/lib");
         nativeLibraryPaths.add("/system/lib64");
         envVars.put("LD_LIBRARY_PATH", String.join(":", nativeLibraryPaths));
-        if (!wineInfo.isArm64EC()) {
+        if (!wineInfo.usesNativeArm64()) {
             File guestSystemLibs = new File(rootDir, "usr/lib/x86_64-linux-gnu");
             if (guestSystemLibs.isDirectory()) box64LibraryPaths.add(guestSystemLibs.getAbsolutePath());
             envVars.put("BOX64_LD_LIBRARY_PATH", String.join(":", box64LibraryPaths));
@@ -698,7 +609,7 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         }
 
         // Ensure the shared Box64 emulator is executable.
-        if (!wineInfo.isArm64EC()) {
+        if (!wineInfo.usesNativeArm64()) {
             File box64File = new File(rootDir, "/usr/bin/box64");
             if (box64File.exists()) {
                 FileUtils.chmod(box64File, 0755);
@@ -718,7 +629,7 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
             File wineRoot = bin.getParentFile();
             WinePrefixBootstrap.prepare(prefix, wineInfo.isWin64(),
                     container.getWineVersion(), bin, new File(wineRoot, "share/wine/wine.inf"),
-                    wineInfo.isArm64EC() ? null : new File(imageFs.getBinDir(), "box64"),
+                    wineInfo.usesNativeArm64() ? null : new File(imageFs.getBinDir(), "box64"),
                     (args, timeout) -> {
                         String option = args[args.length - 1];
                         boolean cleanup = "-k".equals(option) || "-w".equals(option);
@@ -730,6 +641,11 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
                     () -> {
                         if (stopped) throw new IOException("Wine preparation cancelled");
                         if (prefixUpdatedCallback != null) prefixUpdatedCallback.run();
+                        // A runtime update can materialize its own bridge files.
+                        // Verify/reapply the chosen translator after Wine is off
+                        // so the first game uses the selected build as well.
+                        boolean ready = wineInfo.usesNativeArm64() ? extractEmulatorsDlls() : extractBox86_64Files();
+                        if (!ready) throw new IOException(translatorFailure);
                         if (stopped) throw new IOException("Wine preparation cancelled");
                     });
             // The post-update installer can add environment overrides too.
@@ -748,7 +664,7 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
                 String wine = WinePrefixState.wineExecutable(new File(winePath)).getAbsolutePath().replace(" ", "\\ ");
                 String args = guestExecutable.equals("wine") ? "" : guestExecutable.startsWith("wine ")
                         ? guestExecutable.substring(4) : " " + guestExecutable;
-                command = (wineInfo.isArm64EC() ? "" : imageFs.getBinDir() + "/box64 ") + wine + args;
+                command = (wineInfo.usesNativeArm64() ? "" : imageFs.getBinDir() + "/box64 ") + wine + args;
             } catch (IOException failure) {
                 failStartup(failure.getMessage());
                 return -1;

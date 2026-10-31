@@ -12,15 +12,16 @@ public final class ContentVersion {
                 .replaceFirst("^(?:wine|proton|dxvk|vkd3d|box64|fexcore)[\\s._-]+", "")
                 .replaceAll("[^a-z0-9]+", "-").replaceAll("^-+|-+$", "")
                 .replaceAll("(^|-)aarch64(?=-|$)", "$1arm64")
+                .replaceAll("(^|-)arm64-ec(?=-|$)", "$1arm64ec")
                 .replaceAll("(^|-)(?:amd64|x64)(?=-|$)", "$1x86-64");
     }
 
     public static String architecture(String value) {
         String name = (value == null ? "" : value).toLowerCase(Locale.ENGLISH)
-                .replace('-', '_').replace(' ', '_');
-        if (name.contains("arm64ec")) return "arm64ec";
-        if (name.contains("arm64") || name.contains("aarch64")) return "arm64";
-        if (name.contains("x86_64") || name.contains("amd64") || name.contains("x64")) return "x86_64";
+                .replaceAll("[^a-z0-9]", "_");
+        if (name.matches(".*(?:^|_)arm64_?ec(?:$|_).*")) return "arm64ec";
+        if (name.matches(".*(?:^|_)(?:arm64|aarch64)(?:$|_).*")) return "arm64";
+        if (name.matches(".*(?:^|_)(?:x86_64|amd64|x64)(?:$|_).*")) return "x86_64";
         if (name.matches(".*(?:^|_)x86(?:$|_).*")) return "x86";
         return "";
     }

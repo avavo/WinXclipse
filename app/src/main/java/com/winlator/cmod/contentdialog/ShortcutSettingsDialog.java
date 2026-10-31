@@ -170,7 +170,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
         vDXWrapperConfig.setTag(shortcut.getExtra("dxwrapperConfig", shortcut.container.getDXWrapperConfig()));
 
         boolean arm64ECWine = WineInfo.fromIdentifier(context, contentsManager,
-                shortcut.container.getWineVersion()).isArm64EC();
+                shortcut.container.getWineVersion()).usesNativeArm64();
         dxvkConfState = new DXVKConfigDialog.CustomConf(shortcut.getDxvkConfFile(), this::openDxvkConfPicker);
         ContainerDetailFragment.setupDXWrapperSpinner(sDXWrapper, vDXWrapperConfig, arm64ECWine,
                 dxvkConfState, dlg -> {
@@ -483,7 +483,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
         FrameLayout fexcoreFL = findViewById(R.id.fexcoreFrame);
         String wineVersion = shortcut.container.getWineVersion();
         WineInfo wineInfo = WineInfo.fromIdentifier(context, contentsManager, wineVersion);
-        if (wineInfo.isArm64EC()) {
+        if (wineInfo.usesNativeArm64()) {
             fexcoreFL.setVisibility(View.VISIBLE);
             sEmulator.setEnabled(true);
             sEmulator64.setSelection(0);
@@ -495,7 +495,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
             sEmulator64.setSelection(1);
         }
 
-        loadBox64VersionSpinner(context, contentsManager, sBox64Version, wineInfo.isArm64EC());
+        loadBox64VersionSpinner(context, contentsManager, sBox64Version, wineInfo.usesNativeArm64());
 
         // Add this part to set the initial spinner selection based on the shortcut
         String currentBox64Version = shortcut.getExtra("box64Version", shortcut.container.getBox64Version());
@@ -530,7 +530,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
                     ContentProfile.ContentType.CONTENT_TYPE_BOX64.ordinal(), () -> {
                         contentsManager.syncContents();
                         loadBox64VersionSpinner(context, contentsManager, sBox64Version,
-                                wineInfo.isArm64EC());
+                                wineInfo.usesNativeArm64());
                         AppUtils.setSpinnerSelectionFromValue(sBox64Version, selected);
                     });
         });

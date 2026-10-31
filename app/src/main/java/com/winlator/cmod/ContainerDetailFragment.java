@@ -1439,7 +1439,7 @@ public class ContainerDetailFragment extends Fragment {
                     vDXWrapperConfig.setOnClickListener((v) -> {
                         String wineIdentifier = String.valueOf(sWineVersion.getSelectedItem());
                         boolean arm64EC = WineInfo.fromIdentifier(v.getContext(), contentsManager,
-                                wineIdentifier).isArm64EC();
+                                wineIdentifier).usesNativeArm64();
                         DXVKConfigDialog dialog = new DXVKConfigDialog(vDXWrapperConfig, arm64EC, customConf);
                         if (onDialogShown != null) onDialogShown.call(dialog);
                         dialog.show();
@@ -1708,7 +1708,7 @@ public class ContainerDetailFragment extends Fragment {
                 sEmulator64.setEnabled(false);
                 String wineVersion = sWineVersion.getSelectedItem().toString();
                 WineInfo wineInfo = WineInfo.fromIdentifier(context, contentsManager, wineVersion);
-                if (wineInfo.isArm64EC()) {
+                if (wineInfo.usesNativeArm64()) {
                     fexcoreFL.setVisibility(View.VISIBLE);
                     sEmulator.setEnabled(true);
                     sEmulator64.setSelection(0);
@@ -1720,7 +1720,7 @@ public class ContainerDetailFragment extends Fragment {
                     sEmulator.setSelection(1);
                     sEmulator64.setSelection(1);
                 }
-                loadBox64VersionSpinner(context, container, contentsManager, sBox64Version, wineInfo.isArm64EC());
+                loadBox64VersionSpinner(context, container, contentsManager, sBox64Version, wineInfo.usesNativeArm64());
                 cbWoW64Mode.setEnabled(true); // Always allow user to toggle WoW64 mode
             }
             @Override
@@ -1731,7 +1731,7 @@ public class ContainerDetailFragment extends Fragment {
                 sEmulator64.setEnabled(false);
                 String wineVersion = sWineVersion.getSelectedItem().toString();
                 WineInfo wineInfo = WineInfo.fromIdentifier(context, contentsManager, wineVersion);
-                if (wineInfo.isArm64EC()) {
+                if (wineInfo.usesNativeArm64()) {
                     fexcoreFL.setVisibility(View.VISIBLE);
                     sEmulator.setEnabled(true);
                     sEmulator64.setSelection(0);
@@ -1742,7 +1742,7 @@ public class ContainerDetailFragment extends Fragment {
                     sEmulator.setSelection(1);
                     sEmulator64.setSelection(1);
                 }
-                loadBox64VersionSpinner(context, container, contentsManager, sBox64Version, wineInfo.isArm64EC());
+                loadBox64VersionSpinner(context, container, contentsManager, sBox64Version, wineInfo.usesNativeArm64());
             }
         });
 

@@ -53,4 +53,15 @@ public class RuntimeFilesTest {
         assertFalse(RuntimeFiles.hasPayload(root, ""));
         assertFalse(RuntimeFiles.hasPayload(root, "."));
     }
+
+    @Test public void appliedPayloadRequiresMatchingBytesNotJustMatchingSize() throws Exception {
+        File expected = temp.newFile("expected.dll"), applied = temp.newFile("applied.dll");
+        Files.write(expected.toPath(), new byte[]{1, 2, 3});
+        Files.write(applied.toPath(), new byte[]{1, 2, 4});
+        assertFalse(RuntimeFiles.samePayload(expected, applied));
+        Files.write(applied.toPath(), new byte[]{1, 2, 3});
+        assertTrue(RuntimeFiles.samePayload(expected, applied));
+        Files.write(applied.toPath(), new byte[0]);
+        assertFalse(RuntimeFiles.samePayload(expected, applied));
+    }
 }
