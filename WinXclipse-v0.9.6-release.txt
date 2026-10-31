@@ -1,46 +1,104 @@
-# WinXclipse v0.9.6
+# WinXclipse v0.9.6 — development changelog
 
-WinXclipse v0.9.6 is a focused compatibility and reliability update for Exynos/Xclipse devices. It fixes duplicate file moves, slow shortcut launches, stale runtime selection, and several paths that could close or crash a game before its real process started.
+Updated October 31, 2026. Source changes through batch 28, commit `2050307`.
+These notes describe implemented changes. Android gameplay validation remains pending;
+they do not claim that every FPS drop, shutdown or stalled game has been resolved.
+No new APK/AAB, release or tag has been produced for this work.
 
-# Highlights
+# Changes
+
+### Startup, Wine and Proton
+
+- Validate runtime payloads, launchers, preloaders, core modules and FEX bridge DLLs before recording a successful installation. Incomplete packages can be repaired through staging and rollback.
+- Repair an incomplete bundled Proton without resetting the ImageFS or existing containers. Base updates preserve user data and legacy runtimes; concurrent preparation is serialized.
+- Prepare each prefix with its selected Wine/Proton before launching the game, wait for that prefix's wineserver, reapply configured components and record completion only after success.
+- Preserve existing registries and architecture instead of silently replacing them or copying another container's prefix. Runtime changes do not bulk-copy a different Proton generation over a working prefix.
+- Preserve launcher-to-game hand-off handling and automatic shutdown of genuinely empty Wine sessions. A finished `start.exe` is not treated as proof that the game started.
+- Keep `RpcSs` available in Normal and Essential startup profiles and deterministic X server lock ordering.
+
+### Runtime defaults, downloads and installation
+
+- Use FEXCore 2610 and Box64 0.4.5 as new defaults. FEXCore 2608 and Box64 0.4.3 remain available from the existing content releases.
+- Combine Wine and Proton installation into one category while retaining each package's version, build and architecture.
+- Add a shared download queue with pause, resume, retry and cancel. Preserve partial files and validate HTTP resume responses and remote file identity before appending data.
+- Give each installer its own reference to cached downloads so concurrent cleanup cannot remove a package still in use. Reject incomplete downloads before installation.
+- Prepare the supplied VulkanRT 1.3.283.0 package during app initialization. Install and verify it inside the selected Wine prefix before gameplay, once the X server and driver are available; preserve the original Wine Vulkan integration and recovery backups.
+- Reduce writes when extracting large zero-filled tar entries while preserving their complete logical contents. Validate the compressed stream through its footer, including truncated XZ detection.
+
+### Drivers and graphics
+
+- Keep driver names and descriptions separate and preserve display-name capitalization. Reimporting a driver can replace its binaries through staging and rollback.
+- Query extensions and API support from the selected driver in an isolated process. A failed custom-driver query no longer presents stock-driver capabilities as its result.
+- Offer Vulkan 1.4 based on the selected driver's reported support. Add JimVulkan/radv-xclipse and remove ExynosTools/MdiEx download sources.
+- Default new or unspecified VKD3D feature levels to `12_2`, preserving explicit choices.
+- Validate DXVK/D3D9, VKD3D, DirectDraw and nGlide DLL sets before applying them. Restore previous files after installation failures and remove stale companion overrides when switching wrappers.
+- Correct FSR quality-mode handling, aspect ratio and EASU/RCAS sampling at the game viewport edges.
+- Rebuild graphics resources after context loss and reset frame-generation history after resize or effect changes. Release unused effect buffers and fix an extra AHardwareBuffer reference.
+- Suspend a failed optional effect for that context/configuration instead of recompiling it every frame. Preserve settings and allow recovery after a context, surface or configuration change.
+- Request the appropriate display refresh mode in both the Android interface and game surface, including resume and surface recreation. Actual refresh rate and game FPS still require device testing.
+
+### Languages, devices and update notice
+
+- Add English, Portuguese and Spanish resources. Follow Portuguese/Spanish system languages on first use and use English otherwise; allow a persistent manual choice or system-language selection.
+- Share the Exynos device table between the toolbar, community metadata and HUD. Recognize the requested S26/S26+/S26 FE B/N variants.
+- Identify S24 FE as Exynos 2400e, S25 FE as Exynos 2400 and S26 FE as Exynos 2500. Preserve the `e` in the S24 FE HUD label.
+- Show a short 0.9.6 update notice once after an upgrade, with fresh-install suppression.
+
+### Community configurations
+
+- Review and edit the game name and cover before exporting, sharing or publishing the same ZIP. Choose another search result, import a custom image or export without a cover.
+- Publish configurations directly from the app to the hosted community service. The existing 25 GitHub configurations were migrated as verified; new submissions start unverified.
+- Provide a private moderation panel for verification, name/cover edits and removal. Hosting does not require the maintainer's PC to stay on.
+- Resolve exact installed, local and downloadable dependencies before offering an explicit alternative. Preserve version, build and ABI across Wine/Proton, DXVK, VKD3D, FEX, Box64, drivers and wrappers.
+- Show dependency and final-version reviews before creating the container. Stage the prefix and configuration together and prevent duplicate creation during Activity recreation.
+- Keep offline catalog snapshots and ZIP sharing, with revision/hash checks for downloaded community archives.
+
+### Classic interface and input
+
+- Add the bottom circular `+` menu for creating a container or importing a ZIP/community configuration. Remove the Big Picture and favorite-star controls; show the tab title and device model in the toolbar.
+- Improve container fields, section labels, purple CPU selection borders, responsive CPU cells, configuration dialogs and video controls.
+- Fix sidebar/Input Controls scrolling and give CPU/GPU information the available width. Add restrained press feedback while respecting disabled Android animations.
+- Correct mouse/keyboard source classification, physical-button deduplication, relative motion scaling/rotation, wheel units and pointer-capture lifecycle handling related to issue #5.
+- Preserve the unfinished console interface in `app/src/consoleUi`, excluded from the active 0.9.6 build.
 
 ### File Manager
 
-- Moving or copying onto an existing file now performs a true replacement instead of creating a second file with a suffix in its name.
-- Large-file progress uses symlink-aware accounting and remains accurate for saves and game folders.
+- Start on a drive/storage selection screen, with available C:, D:, Z:, E:, internal storage and added locations. Return through the back/up action or location selector.
+- Show used/free internal storage in GB by default, with a percentage option in Settings.
+- Improve local transfers with reusable buffers, same-volume rename and staging before replacement. Keep the source until a moved copy is successfully published.
+- Browse Android document trees without a direct filesystem path, with folders, sorting, filtering, selection and supported file actions. Remember locations with persistent permission.
+- Share the clipboard between document storage and local drives. URI transfers verify size/checksum, confirm replacements and support cancellation, backup and rollback, subject to provider capabilities.
 
-### Wine, Proton and FEXCore
+### HUDs and gameplay measurements
 
-- Runtime and content selectors resolve only installed packages, so a catalog entry cannot be passed to Wine as if it were already available.
-- FEXCore extraction updates the saved version only after a successful install and bridge-DLL check, with a safe installed fallback for old containers.
-- Prefix repair no longer copies an entire runtime over a working prefix. It only removes byte-identical legacy copies that are safe to fall back to Wine builtins, avoiding mixed Proton generations.
-- Published Proton/FEX archive names and manifest version codes are synchronized with the runtime catalog, preventing dead downloads and repeated install prompts.
-- Empty or missing runtime identifiers are handled as a recoverable configuration state instead of aborting startup.
+- Add MangoHUD 1 with the visual style of the supplied references and retain the previous overlay as MangoHUD 2. This is an app-rendered overlay, not a port of CMOD's native GLIBC MangoHUD binary.
+- Support independent HUD panels and combinations with the DXVK HUD. Add an optional driver name and device model/family choice; enable the model and battery percentage by default while leaving SoC and wrapper labels off.
+- Offer independent full-name, model-number and brand-only formats for SoC/GPU labels, including `2400e`, `Exynos` and `Xclipse`.
+- Add per-core CPU usage/frequency and optional Cortex names, GPU frequency, RAM used/free in percent or GB, and available battery charge. Display unavailable sensors without inventing readings.
+- Add a start/stop measurement button with duration, average FPS, 1% low, minimum/maximum FPS and available battery/power measurements. Distinguish real/generated frames and handle pauses.
+- Optionally save measurement reports to `Download/WinXclipse` as TXT.
 
-### Launch and compatibility
+### Memory and CPU options
 
-- `start.exe` finishing is no longer counted as proof that the game was observed. Launcher-to-game hand-offs receive a 30-second idle window, while genuinely dead shortcuts retain the independent stale-launch timeout.
-- `RpcSs` remains available in Normal and Essential startup profiles for COM-dependent games and installers.
-- X server multi-locks use a deterministic order, avoiding lock inversion during concurrent rendering and input work.
-- Imported Vulkan 1.4 requests are clamped to Vulkan 1.3 when the device does not expose 1.4.
+- Keep RAM Fix enabled by default for all games and preserve explicit memory limits. RAM HUD warnings no longer trigger paging during gameplay.
+- Replace Android Aggressive paging of active heaps with allocator-supported purging of unused memory; keep the option experimental and opt-in.
+- Add an optional bounded prelaunch memory preparation inspired by Winlator Mali, without periodic multi-GiB pressure waves during gameplay.
+- Add Ludashi's `Sync with Wine` CPU-topology option to container/shortcut Advanced settings, with inheritance and export support.
 
-### Memory behavior
+# Validation and remaining work
 
-- RAM Fix remains enabled by default.
-- NRAMV paging is no longer applied to every session; it runs only when the user explicitly enables its Experimental Performance option.
+- Latest full local suite: 396 cases, 395 passed, zero failures/errors and one skipped for Windows symlink permissions. Java/Kotlin/resources and EN/PT/ES coverage checks passed (1196 strings and 11 display arrays per language).
+- Hosted community authentication, uploads, moderation and migrated archive integrity were checked; the complete Android interaction still needs device validation.
+- Remaining implementation/review includes legacy hardcoded English messages, the older device-family audit, a durable import journal for abrupt process death, full visual/transition review and the remaining comparison of fork optimizations.
+- Android checks remain for clean installs/upgrades, first shortcut launches, VulkanRT/ABI integration, sustained FPS and shutdown reports, DX9/11/12, stock/Quasar/RADV, FSR/frame generation, real refresh rate, input, sensors, USB/SD and installation timings. Local tests do not establish that these hardware-dependent reports are resolved.
+- Progress and individual validation limits are tracked in `docs/0.9.6-roadmap.md`.
 
-# Compatibility note
+# Package configuration
 
-Existing prefixes are never bulk-rewritten with another Proton generation. When changing Proton major versions, create a fresh prefix if the runtime package requires it.
+- Main application ID: `com.win.xclipse`; version `0.9.6`; version code `27`; arm64-v8a.
+- These are source/configuration notes, not an APK publication announcement.
 
-# Package
-
-- Main WinXclipse APK: `com.win.xclipse`, version `0.9.6`, version code `27`, arm64-v8a.
-- This release publishes one APK only.
-
-# Status
-
-WinXclipse remains experimental. Results vary with the device, Android firmware, runtime, wrapper, driver, container and game. Include the device, configuration and logs when reporting a regression.
+When reporting a regression, include the device, Android version, runtime, driver, wrapper, container settings, game and logs.
 
 # Credits
 
