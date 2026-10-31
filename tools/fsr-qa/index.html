@@ -1,0 +1,37 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Validação dos shaders FSR</title>
+<style>body{background:#17131d;color:#f5edff;font:17px system-ui;max-width:900px;margin:40px auto;padding:20px}canvas{width:256px;height:256px;image-rendering:pixelated;border:1px solid #a589cd}pre{white-space:pre-wrap;line-height:1.7}</style>
+<h1>Validação dos shaders FSR</h1><canvas id="scene" width="8" height="8"></canvas><pre id="result">Executando…</pre>
+<script type="module">
+const result=document.querySelector('#result'),canvas=document.querySelector('canvas');
+try{
+const source=await(await fetch('fsr-shaders.json')).json();
+const gl=canvas.getContext('webgl',{antialias:false,preserveDrawingBuffer:true});
+if(!gl)throw Error('WebGL indisponível neste navegador');
+const reports=[];let passed=0;
+function check(value,label){if(!value)throw Error(label);reports.push('PASS · '+label);passed++;}
+function shader(type,text){let s=gl.createShader(type);gl.shaderSource(s,text);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(s));return s;}
+function program(fragment){let p=gl.createProgram(),v=shader(gl.VERTEX_SHADER,source.vertex),f=shader(gl.FRAGMENT_SHADER,fragment);gl.attachShader(p,v);gl.attachShader(p,f);gl.linkProgram(p);gl.deleteShader(v);gl.deleteShader(f);if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(p));return p;}
+function draw(p,pixels,w,h,uniforms){
+ gl.useProgram(p);gl.viewport(0,0,8,8);gl.disable(gl.BLEND);let buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([0,0,1,0,0,1,1,1]),gl.STATIC_DRAW);let position=gl.getAttribLocation(p,'position');gl.enableVertexAttribArray(position);gl.vertexAttribPointer(position,2,gl.FLOAT,false,0,0);
+ let texture=gl.createTexture();gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,texture);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,w,h,0,gl.RGBA,gl.UNSIGNED_BYTE,pixels);
+ gl.uniform1i(gl.getUniformLocation(p,'screenTexture'),0);
+ for(const [name,value]of Object.entries(uniforms)){let location=gl.getUniformLocation(p,name);if(Array.isArray(value))gl['uniform'+value.length+'fv'](location,value);else gl.uniform1f(location,value);}
+ gl.drawArrays(gl.TRIANGLE_STRIP,0,4);let output=new Uint8Array(8*8*4);gl.readPixels(0,0,8,8,gl.RGBA,gl.UNSIGNED_BYTE,output);check(gl.getError()===gl.NO_ERROR,'draw sem erro GL');gl.deleteTexture(texture);gl.deleteBuffer(buffer);return output;
+}
+let easu=program(source.easu),rcas=program(source.rcas);check(true,'EASU e RCAS compilados e ligados');
+let pixels=new Uint8Array(4*4*4);for(let y=0;y<4;y++)for(let x=0;x<4;x++)pixels.set(x>=1&&x<3&&y>=1&&y<3?[64,128,192,255]:[0,0,0,255],(y*4+x)*4);
+let uniforms={uCon0:[.5,.5,.75,.75],uDstRect:[2,2,4,4],uOutH:8,uTexel:[.25,.25],uSourceBounds:[1.5,1.5,2.5,2.5]};
+let upscaled=draw(easu,pixels,4,4,uniforms);
+function easuDifferences(bytes){let n=0;for(let y=0;y<8;y++)for(let x=0;x<8;x++){let expected=x>=2&&x<6&&y>=2&&y<6?[64,128,192]:[0,0,0];for(let c=0;c<3;c++)if(Math.abs(bytes[(y*8+x)*4+c]-expected[c])>1)n++;}return n;}
+check(easuDifferences(upscaled)===0,'EASU preserva a cor até as quatro bordas e mantém as barras pretas');
+let oldSource=source.easu.replace('clamp(corner + off, uSourceBounds.xy - vec2(0.5), uSourceBounds.zw - vec2(0.5))','corner + off');check(oldSource!==source.easu,'controle anterior reconstruído');
+let old=program(oldSource);check(easuDifferences(draw(old,pixels,4,4,uniforms))>0,'controle anterior reproduz contaminação nas bordas');gl.deleteProgram(old);
+let image=new Uint8Array(8*8*4);for(let y=0;y<8;y++)for(let x=0;x<8;x++)image.set(x>=2&&x<6&&y>=2&&y<6?[50+x*17,60+y*15,70+((x+y)%3)*24,255]:[0,0,0,255],(y*8+x)*4);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+function pixel(x,y){return Array.from(image.slice((clamp(y,2,5)*8+clamp(x,2,5))*4,(clamp(y,2,5)*8+clamp(x,2,5))*4+3),v=>v/255);}
+function reference(x,y){if(x<2||x>5||y<2||y>5)return[0,0,0];const center=pixel(x,y),ring=[pixel(x,y-1),pixel(x-1,y),pixel(x+1,y),pixel(x,y+1)],luma=c=>c[0]*.5+c[1]+c[2]*.5,values=[...ring,center].map(luma);let noise=clamp(Math.abs(ring.reduce((a,c)=>a+luma(c),0)*.25-luma(center))/Math.max(1e-6,Math.max(...values)-Math.min(...values)),0,1);let lobes=center.map((v,c)=>{let lo=Math.min(...ring.map(p=>p[c])),hi=Math.max(...ring.map(p=>p[c]));return Math.max(-Math.min(lo,v)/Math.max(1e-6,4*hi),(1-Math.max(hi,v))/Math.min(-1e-6,4*lo-4));});let lobe=Math.max(-.1875,Math.min(0,Math.max(...lobes)))*Math.pow(2,-.8)*(1-.5*noise);return center.map((v,c)=>255*clamp((v+lobe*ring.reduce((a,p)=>a+p[c],0))/(1+4*lobe),0,1));}
+let sharpened=draw(rcas,image,8,8,{resolution:[8,8],uSampleBounds:[2.5,2.5,5.5,5.5]}),maximum=0;for(let y=0;y<8;y++)for(let x=0;x<8;x++){let expected=reference(x,y);for(let c=0;c<3;c++)maximum=Math.max(maximum,Math.abs(sharpened[(y*8+x)*4+c]-expected[c]));}
+check(maximum<=2,'RCAS confere com referência CPU nas bordas e no interior (erro '+maximum.toFixed(3)+' / 255)');
+gl.deleteProgram(easu);gl.deleteProgram(rcas);result.textContent=reports.join('\n')+'\n\n'+passed+' verificações aprovadas. Execução WebGL; não é teste da GPU Android.';document.body.dataset.status='passed';
+}catch(error){result.textContent='FALHOU · '+error.message;document.body.dataset.status='failed';}
+</script></html>

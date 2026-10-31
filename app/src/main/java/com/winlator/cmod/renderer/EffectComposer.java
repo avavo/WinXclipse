@@ -251,6 +251,9 @@ public class EffectComposer {
     }
 
     private void replaceFsrPasses(FSREasuEffect easu, FSREffect rcas) {
+        // FSR changes what the history images contain, even when the physical
+        // surface dimensions are unchanged (quality/guest-resolution switches).
+        renderer.getLSFGManager().notifySceneChangePending();
         for (int i = effects.size() - 1; i >= 0; i--) {
             Effect e = effects.get(i);
             if (e instanceof FSREasuEffect || e instanceof FSREffect) {
@@ -510,11 +513,22 @@ public class EffectComposer {
             material.setUniformVec4("uDstRect", easu.getDstRect());
             material.setUniformFloat("uOutH", easu.getOutHeight());
             material.setUniformVec2("uTexel", 1.0f / sceneBufferWidth, 1.0f / sceneBufferHeight);
+            material.setUniformVec4("uSourceBounds", easu.getSourceBounds());
 
             GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, sceneBuffer.getTextureId());
             material.setUniformInt("screenTexture", 0);
         } else {
+            if (effect instanceof FSREffect) {
+                FSREffect rcas = (FSREffect)effect;
+                ViewTransformation vt = renderer.viewTransformation;
+                boolean full = renderer.isFullscreen()
+                        || (XrActivity.isEnabled(null) && XrActivity.getInstance().getImmersive());
+                rcas.setSampleBounds(bufferWidth, bufferHeight, full ? 0 : vt.viewOffsetX,
+                        full ? 0 : vt.viewOffsetY, full ? bufferWidth : vt.viewWidth,
+                        full ? bufferHeight : vt.viewHeight);
+                material.setUniformVec4("uSampleBounds", rcas.getSampleBounds());
+            }
             material.setUniformVec2("resolution", renderer.surfaceWidth, renderer.surfaceHeight);
             GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D,

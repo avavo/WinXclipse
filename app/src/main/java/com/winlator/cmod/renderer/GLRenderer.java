@@ -52,7 +52,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
     private final ArrayList<RenderableWindow> renderableWindows = new ArrayList<>();
     private String forceFullscreenWMClass = null;
     private boolean fullscreen = false;
-    private boolean toggleFullscreen = false;
+    private volatile boolean toggleFullscreen = false;
     public boolean viewportNeedsUpdate = true;
     private boolean cursorVisible = true;
     private boolean rootWindowDownsized = false;
@@ -153,6 +153,7 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
             magnifierEnabled = false;
         }
 
+        if (surfaceWidth != width || surfaceHeight != height) lsfgManager.notifySceneChangePending();
         surfaceWidth = width;
         surfaceHeight = height;
         renderTargetWidth = width;
@@ -188,14 +189,17 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
         // on the GL compositor thread: a real Present can arrive while it is
         // blocked and lose the very frame time Apex is meant to preserve.
         lastApexFrameNanos = System.nanoTime();
-        lsfgManager.prepareFrame();
-
         if (toggleFullscreen) {
             fullscreen = !fullscreen;
             toggleFullscreen = false;
             viewportNeedsUpdate = true;
+            lsfgManager.notifySceneChangePending();
 
         }
+
+        // Geometry changes must invalidate temporal samples before deciding
+        // whether this draw can reuse them for a generated frame.
+        lsfgManager.prepareFrame();
 
         long sequence = sourceSequence.get();
         drawFrame();

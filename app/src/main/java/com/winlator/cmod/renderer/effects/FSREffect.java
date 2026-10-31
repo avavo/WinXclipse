@@ -2,6 +2,7 @@ package com.winlator.cmod.renderer.effects;
 
 import com.winlator.cmod.renderer.material.ScreenMaterial;
 import com.winlator.cmod.renderer.material.ShaderMaterial;
+import com.winlator.cmod.renderer.FsrViewport;
 
 /**
  * AMD FidelityFX Super Resolution 1.0 - [RCAS] Robust Contrast Adaptive
@@ -14,10 +15,16 @@ public class FSREffect extends Effect {
     /** Sharpness in FSR stops: exp2(-stops). Lower internal resolution
      * (Performance) pairs with stronger sharpening. */
     private final float stops;
+    private final float[] sampleBounds = new float[4];
     public FSREffect(float stops) {
         super();
         this.stops = stops;
     }
+
+    public void setSampleBounds(int width, int height, int x, int y, int viewWidth, int viewHeight) {
+        FsrViewport.sampleBounds(sampleBounds, width, height, x, y, viewWidth, viewHeight);
+    }
+    public float[] getSampleBounds() { return sampleBounds; }
 
     @Override
     protected ShaderMaterial createMaterial() {
@@ -27,6 +34,7 @@ public class FSREffect extends Effect {
     private class FSRCASMaterial extends ScreenMaterial {
         FSRCASMaterial() {
             super();
+            setUniformNames("screenTexture", "resolution", "uSampleBounds");
         }
 
         @Override
@@ -37,15 +45,20 @@ public class FSREffect extends Effect {
                     "#define FSR_RCAS_LIMIT (0.25-(1.0/16.0))",
                     "uniform sampler2D screenTexture;",
                     "uniform vec2 resolution;",
+                    "uniform vec4 uSampleBounds;",
                     "float rcpF1(float x){ return 1.0 / (abs(x)<1.0e-6 ? (x<0.0 ? -1.0e-6 : 1.0e-6) : x); }",
                     "float satF1(float x){ return clamp(x, 0.0, 1.0); }",
                     "float max3F1(float x,float y,float z){ return max(x, max(y, z)); }",
                     "float min3F1(float x,float y,float z){ return min(x, min(y, z)); }",
                     "vec3 fetch(vec2 pixelOffset){",
                     "    vec2 invResolution = 1.0 / max(resolution, vec2(1.0));",
-                    "    return texture2D(screenTexture, (gl_FragCoord.xy + pixelOffset) * invResolution).rgb;",
+                    "    return texture2D(screenTexture, clamp(gl_FragCoord.xy + pixelOffset, uSampleBounds.xy, uSampleBounds.zw) * invResolution).rgb;",
                     "}",
                     "void main(){",
+                    "    if (any(lessThan(gl_FragCoord.xy, uSampleBounds.xy)) || any(greaterThan(gl_FragCoord.xy, uSampleBounds.zw))) {",
+                    "        gl_FragColor = texture2D(screenTexture, gl_FragCoord.xy / max(resolution, vec2(1.0)));",
+                    "        return;",
+                    "    }",
                     "    // Algorithm uses minimal 3x3 pixel neighborhood.",
                     "    //    b ",
                     "    //  d e f",

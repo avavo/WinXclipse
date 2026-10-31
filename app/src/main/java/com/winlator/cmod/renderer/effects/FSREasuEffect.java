@@ -2,6 +2,7 @@ package com.winlator.cmod.renderer.effects;
 
 import com.winlator.cmod.renderer.material.ScreenMaterial;
 import com.winlator.cmod.renderer.material.ShaderMaterial;
+import com.winlator.cmod.renderer.FsrViewport;
 
 /**
  * AMD FidelityFX SUPER RESOLUTION [FSR1] ::: EASU Edge-Adaptive Spatial
@@ -15,6 +16,7 @@ import com.winlator.cmod.renderer.material.ShaderMaterial;
 public class FSREasuEffect extends Effect {
     private final float[] con0 = new float[4];
     private final float[] dstRect = new float[4];
+    private final float[] sourceBounds = new float[4];
     private float outHeight;
 
     /**
@@ -50,11 +52,13 @@ public class FSREasuEffect extends Effect {
         dstRect[2] = dstViewW;
         dstRect[3] = dstViewH;
         outHeight = surfaceH;
+        FsrViewport.sampleBounds(sourceBounds, inW, inH, srcOffX, srcOffY, srcViewW, srcViewH);
     }
 
     public float[] getCon0() { return con0; }
     public float[] getDstRect() { return dstRect; }
     public float getOutHeight() { return outHeight; }
+    public float[] getSourceBounds() { return sourceBounds; }
 
     @Override
     protected ShaderMaterial createMaterial() {
@@ -67,7 +71,7 @@ public class FSREasuEffect extends Effect {
             // No "resolution" uniform: the EASU shader works from gl_FragCoord,
             // uOutH and the mapping rects instead.
             setUniformNames(new String[]{"screenTexture", "uCon0",
-                    "uDstRect", "uOutH", "uTexel"});
+                    "uDstRect", "uOutH", "uTexel", "uSourceBounds"});
         }
 
         @Override
@@ -80,9 +84,10 @@ public class FSREasuEffect extends Effect {
                 "uniform vec4 uDstRect;",
                 "uniform float uOutH;",
                 "uniform vec2 uTexel;",
+                "uniform vec4 uSourceBounds;",
                 "",
                 "vec3 fetchTap(vec2 corner, vec2 off) {",
-                "    vec2 t = corner + off;",
+                "    vec2 t = clamp(corner + off, uSourceBounds.xy - vec2(0.5), uSourceBounds.zw - vec2(0.5));",
                 "    return texture2D(screenTexture, vec2((t.x + 0.5) * uTexel.x, 1.0 - (t.y + 0.5) * uTexel.y)).rgb;",
                 "}",
                 "",

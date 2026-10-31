@@ -97,4 +97,22 @@ public class LSFGManagerTest {
         realFrame();
         assertTrue(manager.prepareFrame());
     }
+    @Test public void viewportChangesCancelOldBudgetAndRebuildTwoNewSamples() {
+        manager.setMultiplier(2); manager.setEnabled(true); realFrame(); realFrame();
+        assertTrue(manager.shouldScheduleGeneratedFrame()); manager.resetFrameCounts();
+        manager.notifySceneChangePending();
+        assertFalse(manager.prepareFrame()); assertTrue(manager.shouldCaptureFrame());
+        assertTrue(manager.onFrameCaptured()); manager.onPostDraw();
+        assertEquals(1,manager.getRealFramesCaptured()); assertEquals(0,manager.getGameFrameCount());
+        assertEquals(0,manager.getActualRealFrameCount()); assertFalse(manager.shouldScheduleGeneratedFrame());
+        realFrame(); assertEquals(2,manager.getRealFramesCaptured());
+        assertTrue(manager.prepareFrame());
+    }
+    @Test public void viewportChangeDoesNotDiscardAnAlreadyPendingGamePresent() {
+        manager.setEnabled(true); realFrame(); realFrame(); manager.resetFrameCounts();
+        manager.notifyRealFramePending(); manager.notifySceneChangePending();
+        assertFalse(manager.prepareFrame()); assertTrue(manager.onFrameCaptured()); manager.onPostDraw();
+        assertEquals(1,manager.getGameFrameCount()); assertEquals(1,manager.getActualRealFrameCount());
+        assertEquals(0,manager.getGeneratedFrameCount()); assertEquals(1,manager.getRealFramesCaptured());
+    }
 }
