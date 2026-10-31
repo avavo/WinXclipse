@@ -63,17 +63,17 @@ public final class UpdateChecker {
                     preferences.edit().putLong("update_last_prompt",
                             System.currentTimeMillis()).apply();
                     ContentDialog dialog = new ContentDialog(activity, R.layout.update_dialog);
-                    dialog.setTitle("Atualização do WinXclipse");
+                    dialog.setTitle(R.string.winxclipse_update);
 
                     TextView latestVersion = dialog.findViewById(R.id.TVUpdateLatestVersion);
                     TextView installedVersion = dialog.findViewById(R.id.TVUpdateInstalledVersion);
                     latestVersion.setText(tag.startsWith("v") || tag.startsWith("V") ? tag : "v" + tag);
-                    installedVersion.setText("Versão instalada: v" + BuildConfig.VERSION_NAME);
+                    installedVersion.setText(activity.getString(R.string.update_installed_version, BuildConfig.VERSION_NAME));
 
                     Button laterButton = dialog.findViewById(R.id.BTCancel);
                     Button updateButton = dialog.findViewById(R.id.BTConfirm);
-                    laterButton.setText("Depois");
-                    updateButton.setText("Baixar");
+                    laterButton.setText(R.string.update_later);
+                    updateButton.setText(R.string.download_start);
                     updateButton.setBackgroundResource(R.drawable.button_positive);
                     dialog.setOnConfirmCallback(() -> activity.startActivity(
                             new Intent(Intent.ACTION_VIEW, Uri.parse(page))));

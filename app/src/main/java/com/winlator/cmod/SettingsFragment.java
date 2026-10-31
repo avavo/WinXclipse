@@ -908,7 +908,7 @@ public class SettingsFragment extends Fragment {
     private void showBackupConfirmationDialog() {
         new AlertDialog.Builder(getContext())
                 .setTitle(R.string.backup_data)
-                .setMessage("Do you want to create a backup of the app's data directory?")
+                .setMessage(R.string.backup_data_confirmation)
                 .setPositiveButton(R.string.yes, (dialog, which) -> backupAppData())
                 .setNegativeButton(R.string.no, null)
                 .show();
@@ -940,12 +940,12 @@ public class SettingsFragment extends Fragment {
                 });
                 backupActivity.runOnUiThread(() -> {
                     preloaderDialog.closeOnUiThread();
-                    if (isAdded()) AppUtils.showToast(getContext(), "Backup completed: " + backupFile.getPath());
+                    if (isAdded()) AppUtils.showToast(getContext(), getString(R.string.backup_completed, backupFile.getPath()));
                 });
             } catch (Exception e) {
                 backupActivity.runOnUiThread(() -> {
                     preloaderDialog.closeOnUiThread();
-                    if (isAdded()) AppUtils.showToast(getContext(), "Backup failed.");
+                    if (isAdded()) AppUtils.showToast(getContext(), R.string.backup_failed);
                 });
             }
         });
@@ -993,7 +993,8 @@ public class SettingsFragment extends Fragment {
                                     Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                             );
                         } catch (SecurityException e) {
-                            AppUtils.showToast(getContext(), "Unable to take persistable permissions: " + e.getMessage());
+                            AppUtils.showToast(getContext(), R.string.storage_permission_not_persisted);
+                            Log.w("SettingsFragment", "Unable to take persistable permissions", e);
                         }
 
                         // Convert the URI to an absolute path and display it
@@ -1102,7 +1103,7 @@ public class SettingsFragment extends Fragment {
     private void onRestoreSuccess() {
         getActivity().runOnUiThread(() -> {
             preloaderDialog.closeOnUiThread();
-            AppUtils.showToast(getContext(), "Data restored successfully.");
+            AppUtils.showToast(getContext(), R.string.restore_completed);
             AppUtils.restartApplication(getActivity());  // Restart the app to apply changes
         });
     }
@@ -1110,7 +1111,7 @@ public class SettingsFragment extends Fragment {
     private void onRestoreFailed() {
         getActivity().runOnUiThread(() -> {
             preloaderDialog.closeOnUiThread();
-            AppUtils.showToast(getContext(), "Data restore failed.");
+            AppUtils.showToast(getContext(), R.string.restore_failed);
         });
     }
 

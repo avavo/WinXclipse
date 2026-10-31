@@ -89,7 +89,7 @@ public class RestoreActivity extends Activity {
     private void onRestoreSuccess() {
         runOnUiThread(() -> {
             preloaderDialog.closeOnUiThread();
-            AppUtils.showToast(this, "Data restored successfully.");
+            AppUtils.showToast(this, R.string.restore_completed);
             finish();
             // Restart the main application after restore
             Intent intent = getPackageManager().getLaunchIntentForPackage(getPackageName());
@@ -102,7 +102,7 @@ public class RestoreActivity extends Activity {
     private void onRestoreFailed() {
         runOnUiThread(() -> {
             preloaderDialog.closeOnUiThread();
-            AppUtils.showToast(this, "Data restore failed.");
+            AppUtils.showToast(this, R.string.restore_failed);
             finish();
         });
     }

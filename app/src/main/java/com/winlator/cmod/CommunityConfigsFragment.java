@@ -126,8 +126,8 @@ public class CommunityConfigsFragment extends Fragment {
                     RecyclerView.Adapter<?> adapter = recyclerView != null ? recyclerView.getAdapter() : null;
                     if (adapter != null) adapter.notifyDataSetChanged();
                     Toast.makeText(requireContext(), saved
-                            ? "Community cover updated."
-                            : "This image could not be used.", Toast.LENGTH_SHORT).show();
+                            ? R.string.community_cover_updated
+                            : R.string.community_cover_failed, Toast.LENGTH_SHORT).show();
                 });
             }, "CommunityCustomArtwork").start();
         });
@@ -339,10 +339,10 @@ public class CommunityConfigsFragment extends Fragment {
             emptyView.setText(R.string.community_loading);
         }
         else if (!normalizedQuery.isEmpty() && empty) {
-            emptyView.setText("No games match your search.");
+            emptyView.setText(R.string.community_search_empty);
         }
         else {
-            emptyView.setText(empty ? "No valid community configs are published yet." : "");
+            emptyView.setText(empty ? getString(R.string.community_catalog_empty) : "");
         }
         emptyView.setVisibility(empty ? View.VISIBLE : View.GONE);
     }
@@ -534,10 +534,9 @@ public class CommunityConfigsFragment extends Fragment {
             holder.verified.setVisibility(!item.configs.isEmpty() && item.configs.stream().allMatch(option -> option.verified)
                     ? View.VISIBLE : View.GONE);
             String compatibility = latestCompatibilityLabel(item);
-            holder.detail.setText(compatibility);
+            holder.detail.setText(compatibilityDisplayLabel(compatibility));
             holder.detail.setTextColor(compatibilityColor(compatibility));
-            holder.count.setText(item.configs.size() == 1
-                    ? "1 CONFIG" : item.configs.size() + " CONFIGS");
+            holder.count.setText(getString(R.string.community_config_count, item.configs.size()));
             holder.icon.setTag(item.key);
             holder.labelBackground.setTag(item.key);
             holder.icon.setImageResource(R.drawable.cover_art_placeholder);
@@ -666,14 +665,14 @@ public class CommunityConfigsFragment extends Fragment {
         details.setTextSize(15);
         details.setTextIsSelectable(true);
 
-        Button showConfig = createDialogActionButton("Show configuration");
+        Button showConfig = createDialogActionButton(getString(R.string.community_show_config));
         showConfig.setVisibility(selected[0] == null ? View.GONE : View.VISIBLE);
 
         LinearLayout artworkActions = new LinearLayout(requireContext());
         artworkActions.setOrientation(LinearLayout.HORIZONTAL);
         artworkActions.setGravity(Gravity.END);
         artworkActions.setPadding(0, 0, 0, dp(4));
-        Button changeArtwork = createDialogActionButton("Change cover");
+        Button changeArtwork = createDialogActionButton(getString(R.string.community_change_cover));
         changeArtwork.setOnClickListener(v -> {
             pendingArtworkGame = game;
             AlertDialog activeDialog = (AlertDialog) body.getTag();
@@ -681,7 +680,7 @@ public class CommunityConfigsFragment extends Fragment {
             artworkPicker.launch("image/*");
         });
         artworkActions.addView(changeArtwork, actionButtonLayoutParams(false));
-        Button restoreArtwork = createDialogActionButton("Restore cover");
+        Button restoreArtwork = createDialogActionButton(getString(R.string.community_restore_cover));
         restoreArtwork.setVisibility(game.customCoverFile != null
                 && game.customCoverFile.isFile() ? View.VISIBLE : View.GONE);
         restoreArtwork.setOnClickListener(v -> {
@@ -689,7 +688,7 @@ public class CommunityConfigsFragment extends Fragment {
             restoreArtwork.setVisibility(View.GONE);
             RecyclerView.Adapter<?> adapter = recyclerView.getAdapter();
             if (adapter != null) adapter.notifyDataSetChanged();
-            Toast.makeText(requireContext(), "Default cover restored.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(requireContext(), R.string.community_cover_restored, Toast.LENGTH_SHORT).show();
         });
         artworkActions.addView(restoreArtwork, actionButtonLayoutParams(true));
 
@@ -710,13 +709,13 @@ public class CommunityConfigsFragment extends Fragment {
                 showingContainerConfig[0] = !showingContainerConfig[0];
                 containerDetails.setText(formatContainerDetails(option));
                 containerDetails.setVisibility(showingContainerConfig[0] ? View.VISIBLE : View.GONE);
-                showConfig.setText(showingContainerConfig[0] ? "Hide configuration" : "Show configuration");
+                showConfig.setText(showingContainerConfig[0] ? R.string.community_hide_config : R.string.community_show_config);
             });
         });
 
         if (game.configs.size() > 1) {
             TextView prompt = new TextView(requireContext());
-            prompt.setText("Choose the phone configuration:");
+            prompt.setText(R.string.community_choose_phone);
             prompt.setPadding(0, 0, 0, dp(8));
             body.addView(prompt);
             RadioGroup choices = new RadioGroup(requireContext());
@@ -734,7 +733,7 @@ public class CommunityConfigsFragment extends Fragment {
                 details.setVisibility(View.VISIBLE);
                 showingContainerConfig[0] = false;
                 containerDetails.setVisibility(View.GONE);
-                showConfig.setText("Show configuration");
+                showConfig.setText(R.string.community_show_config);
                 showConfig.setVisibility(View.VISIBLE);
                 AlertDialog activeDialog = (AlertDialog) body.getTag();
                 if (activeDialog != null)
@@ -757,7 +756,7 @@ public class CommunityConfigsFragment extends Fragment {
                 .setTitle(game.name)
                 .setView(scroll)
                 .setNegativeButton(R.string.cancel, null)
-                .setPositiveButton("Install", null)
+                .setPositiveButton(R.string.community_install, null)
                 .create();
         body.setTag(dialog);
         dialog.setOnShowListener(ignored -> {
@@ -861,14 +860,14 @@ public class CommunityConfigsFragment extends Fragment {
         File pendingDir = new File(requireContext().getFilesDir(),
                 "pending_community_configs");
         if (!pendingDir.isDirectory() && !pendingDir.mkdirs()) {
-            Toast.makeText(requireContext(), "Could not prepare this configuration.",
+            Toast.makeText(requireContext(), R.string.community_prepare_failed,
                     Toast.LENGTH_LONG).show();
             return;
         }
         File pendingManifest = new File(pendingDir,
                 "pending-" + System.nanoTime() + ".json");
         if (!FileUtils.writeString(pendingManifest, option.manifest.toString())) {
-            Toast.makeText(requireContext(), "Could not prepare this configuration.",
+            Toast.makeText(requireContext(), R.string.community_prepare_failed,
                     Toast.LENGTH_LONG).show();
             return;
         }
@@ -886,38 +885,34 @@ public class CommunityConfigsFragment extends Fragment {
     private String formatDetails(ConfigOption option) {
         JSONObject data = option.metadata;
         return (option.verified ? getString(R.string.community_verified_detail) + "\n" : "")
-                + "Compatibility: " + compatibilityLabel(option)
-                + "\nPhone: " + valueOrUnknown(phoneLabel(option))
-                + "\nRAM: " + valueOrUnknown(data.optString("ram"))
-                + "\nGPU: " + valueOrUnknown(data.optString("gpu"))
-                + "\nCPU: " + valueOrUnknown(data.optString("soc"))
-                + "\nExpected average FPS: " + valueOrUnknown(data.optString("fps"))
-                + "\nTested by: " + discordLabel(data)
-                + "\n\nNotes / fixes / presets / variables:\n"
-                + optionalValue(data.optString("notes"));
+                + getString(R.string.community_config_details,
+                    compatibilityDisplayLabel(compatibilityLabel(option)), phoneLabel(option),
+                    valueOrUnknown(data.optString("ram")), valueOrUnknown(data.optString("gpu")),
+                    valueOrUnknown(data.optString("soc")), valueOrUnknown(data.optString("fps")),
+                    discordLabel(data), optionalValue(data.optString("notes")));
     }
 
     private String formatContainerDetails(ConfigOption option) {
         JSONObject data = option.manifest.optJSONObject("container");
-        if (data == null) return "Container configuration unavailable.";
+        if (data == null) return getString(R.string.community_config_unavailable);
         ArrayList<String> lines = new ArrayList<>();
-        addConfigLine(lines, "Resolution", data.optString("screenSize"));
+        addConfigLine(lines, getString(R.string.screen_size), data.optString("screenSize"));
         addConfigLine(lines, "Wine", data.optString("wineVersion"));
-        addConfigLine(lines, "Emulator", data.optString("emulator"));
-        addConfigLine(lines, "Graphics driver", data.optString("graphicsDriver"));
-        addConfigLine(lines, "Graphics config", data.optString("graphicsDriverConfig"));
-        addConfigLine(lines, "DX wrapper", data.optString("dxwrapper"));
-        addConfigLine(lines, "DX wrapper config", data.optString("dxwrapperConfig"));
+        addConfigLine(lines, getString(R.string.emulator_label), data.optString("emulator"));
+        addConfigLine(lines, getString(R.string.graphics_driver), data.optString("graphicsDriver"));
+        addConfigLine(lines, getString(R.string.graphics_driver_configuration), data.optString("graphicsDriverConfig"));
+        addConfigLine(lines, getString(R.string.dxwrapper), data.optString("dxwrapper"));
+        addConfigLine(lines, getString(R.string.dxwrapper_configuration), data.optString("dxwrapperConfig"));
         addConfigLine(lines, "Box64", data.optString("box64Version"));
-        addConfigLine(lines, "Box64 preset", data.optString("box64Preset"));
+        addConfigLine(lines, getString(R.string.box64_preset), data.optString("box64Preset"));
         addConfigLine(lines, "FEXCore", data.optString("fexcoreVersion"));
-        addConfigLine(lines, "FEXCore preset", data.optString("fexcorePreset"));
-        addConfigLine(lines, "CPU list", data.optString("cpuList"));
-        addConfigLine(lines, "WoW64 CPU list", data.optString("cpuListWoW64"));
-        addConfigLine(lines, "Audio", data.optString("audioDriver"));
-        addConfigLine(lines, "Windows components", data.optString("wincomponents"));
-        addConfigLine(lines, "Environment variables", data.optString("envVars"));
-        return lines.isEmpty() ? "No container settings were included." : String.join("\n", lines);
+        addConfigLine(lines, getString(R.string.fexcore_preset), data.optString("fexcorePreset"));
+        addConfigLine(lines, getString(R.string.community_cpu_list), data.optString("cpuList"));
+        addConfigLine(lines, getString(R.string.community_cpu_list_wow64), data.optString("cpuListWoW64"));
+        addConfigLine(lines, getString(R.string.audio_driver), data.optString("audioDriver"));
+        addConfigLine(lines, getString(R.string.win_components), data.optString("wincomponents"));
+        addConfigLine(lines, getString(R.string.environment_variables), data.optString("envVars"));
+        return lines.isEmpty() ? getString(R.string.community_config_missing) : String.join("\n", lines);
     }
 
     private static void addConfigLine(List<String> lines, String label, String value) {
@@ -940,29 +935,35 @@ public class CommunityConfigsFragment extends Fragment {
         return Color.rgb(105, 240, 174);
     }
 
-    private static String phoneLabel(ConfigOption option) {
+    private String compatibilityDisplayLabel(String compatibility) {
+        if ("Boots but crashes".equals(compatibility)) return getString(R.string.community_boots_crashes);
+        if ("Menu only".equals(compatibility)) return getString(R.string.community_menu_only);
+        return getString(R.string.community_playable);
+    }
+
+    private String phoneLabel(ConfigOption option) {
         String device = option.metadata.optString("device", "").trim();
         String model = option.metadata.optString("model", "").trim();
-        if (device.isEmpty()) return model.isEmpty() ? "Unknown phone" : model;
+        if (device.isEmpty()) return model.isEmpty() ? getString(R.string.community_unknown_phone) : model;
         if (model.isEmpty() || device.toUpperCase(Locale.ENGLISH)
                 .contains(model.toUpperCase(Locale.ENGLISH))) return device;
         return device + " | " + model;
     }
 
-    private static String discordLabel(JSONObject data) {
+    private String discordLabel(JSONObject data) {
         String discord = data.optString("discord", data.optString("author", "")).trim();
-        if (discord.isEmpty()) return "Not provided";
+        if (discord.isEmpty()) return getString(R.string.community_not_provided);
         return discord.startsWith("@") ? discord : "@" + discord;
     }
 
-    private static String valueOrUnknown(String value) {
+    private String valueOrUnknown(String value) {
         String clean = value == null ? "" : value.trim();
-        return clean.isEmpty() ? "Not provided" : clean;
+        return clean.isEmpty() ? getString(R.string.community_not_provided) : clean;
     }
 
-    private static String optionalValue(String value) {
+    private String optionalValue(String value) {
         String clean = value == null ? "" : value.trim();
-        return clean.isEmpty() ? "None" : clean;
+        return clean.isEmpty() ? getString(R.string.none) : clean;
     }
 
     private int dp(int value) {

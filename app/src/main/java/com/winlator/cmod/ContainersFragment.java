@@ -273,7 +273,7 @@ public class ContainersFragment extends Fragment {
             if (uri != null) {
                 File importDir = FileUtils.getFileFromUri(getContext(), uri);
                 if (importDir == null || !importDir.isDirectory()) {
-                    AppUtils.showToast(getContext(), "Invalid container directory.");
+                    AppUtils.showToast(getContext(), R.string.container_directory_invalid);
                 } else showImportConfirmationDialog(uri, importDir);
             }
             return;
@@ -756,10 +756,8 @@ public class ContainersFragment extends Fragment {
     // Show dialog to inform user about the import process
     private void showImportInfoDialog() {
         AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
-        builder.setTitle("Import Container");
-        builder.setMessage("This option will allow you to restore an exported container. To proceed, click OK and select your 'xuser-' directory. " +
-                "The container's settings will need to be configured after a successful import, but all files and shortcuts should be restored if you are restoring a real container. " +
-                "Beware, the directory you select will be copied into the app's storage directory, so be sure you have enough space. You can delete your copy afterward.");
+        builder.setTitle(R.string.container_import_title);
+        builder.setMessage(R.string.container_import_help);
         builder.setPositiveButton(R.string.ok, (dialog, which) -> {
             openFilePicker(); // Proceed to file picker
         });
@@ -770,8 +768,8 @@ public class ContainersFragment extends Fragment {
     // Show confirmation dialog before importing the selected container
     private void showImportConfirmationDialog(Uri uri, File importDir) {
         AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
-        builder.setTitle("Confirm Import");
-        builder.setMessage("You selected: " + importDir.getPath() + ". Proceed to import the container?");
+        builder.setTitle(R.string.container_import_confirm);
+        builder.setMessage(getString(R.string.container_import_selected, importDir.getPath()));
         builder.setPositiveButton(R.string.dxvk_import_conf, (dialog, which) -> {
             importContainer(uri); // Proceed with the import
         });
@@ -792,7 +790,7 @@ public class ContainersFragment extends Fragment {
         // Get the directory path directly from the Uri using FileUtils
         File importDir = FileUtils.getFileFromUri(getContext(), uri);
         if (importDir == null || !importDir.isDirectory()) {
-            AppUtils.showToast(getContext(), "Invalid container directory.");
+            AppUtils.showToast(getContext(), R.string.container_directory_invalid);
             return;
         }
 
@@ -816,14 +814,15 @@ public class ContainersFragment extends Fragment {
                         // Load containers and close preloader dialog on the UI thread
                         if (!isAdded()) return;
                         loadContainersList();
-                        AppUtils.showToast(getContext(), "Container imported successfully.");
+                        AppUtils.showToast(getContext(), R.string.container_import_completed);
                         preloaderDialog.close(); // Move this inside the callback
                     });
                 });
             } catch (Exception e) {
+                Log.e("ContainersFragment", "Could not import container directory", e);
                 importActivity.runOnUiThread(() -> {
                     preloaderDialog.close(); // Ensure dialog closes on error
-                    AppUtils.showToast(getContext(), "Error importing container: " + e.getMessage());
+                    if (isAdded()) AppUtils.showToast(getContext(), R.string.container_import_failed);
                 });
             }
         }).start();
