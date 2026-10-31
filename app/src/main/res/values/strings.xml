@@ -1151,4 +1151,22 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="hud_dxvk_next_launch">Native panels updated. DXVK HUD changes apply on the next launch.</string>
     <string name="hud_vram">VRAM row in MangoHUD 1 (N/A without a GPU memory sensor)</string>
     <string name="hud_frametime_graph">Frametime graph</string>
+
+    <string name="file_folder">Folder</string>
+    <string name="file_checking_transfer">Checking files…</string>
+    <string name="file_refresh">Refresh</string>
+    <string name="file_clipboard_ready">Ready to paste.</string>
+    <string name="file_clipboard_cleared">Clipboard cleared.</string>
+    <string name="file_size_unknown">Size unavailable</string>
+    <string name="file_operation_failed">Could not complete the file operation.</string>
+    <string name="file_source_retained">Copied %1$s; the source was kept.</string>
+    <string name="file_recovery_items">Items kept for recovery in the destination folder: %1$s</string>
+    <string name="file_delete_selected">Delete the selected items (%1$d)?</string>
+    <string name="storage_document_detail">Folder selected in Android</string>
+    <string name="storage_document_unavailable">This location is unavailable. Reconnect the device or select the folder again.</string>
+    <string name="storage_document_help">You can copy or move files between this location and C: or Downloads. To run a program from here, copy it to C: or Downloads first.</string>
+    <string name="storage_remove_location">Remove %1$s from the locations list? The files will be kept.</string>
+    <string name="file_replace_unsupported">Could not replace %1$s in this location. Use a different name or folder.</string>
+    <string name="file_verifying_copy">Verifying the copied file…</string>
+    <string name="file_selected">%1$d selected</string>
 </resources>

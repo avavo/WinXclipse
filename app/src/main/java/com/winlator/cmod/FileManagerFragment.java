@@ -40,6 +40,10 @@ import com.winlator.cmod.core.TarCompressorUtils;
 import com.winlator.cmod.core.ExeIconExtractor;
 import com.winlator.cmod.core.FileUtils;
 import com.winlator.cmod.core.FileTransfer;
+import com.winlator.cmod.core.StorageClipboard;
+import com.winlator.cmod.core.StorageAccess;
+import com.winlator.cmod.core.DocumentTreeStore;
+import com.winlator.cmod.core.DocumentTransferController;
 import com.winlator.cmod.core.StorageUsage;
 import com.winlator.cmod.core.ShortcutArtworkManager;
 import com.winlator.cmod.widget.FileProgressDialog;
@@ -73,8 +77,7 @@ public class FileManagerFragment extends Fragment {
     private ImageView ivDriveIcon;
     private ContainerManager containerManager;
     private FileProgressDialog fileProgressDialog;
-    private static final List<File> clipboardFiles = new ArrayList<>();
-    private static boolean isCutOperation;
+    private DocumentTransferController documentTransfers;
     private com.google.android.material.floatingactionbutton.FloatingActionButton fabPaste;
     private final java.util.Set<File> selectedFiles = new java.util.HashSet<>();
     private final AtomicBoolean isCancelled = new AtomicBoolean(false);
@@ -110,7 +113,11 @@ public class FileManagerFragment extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
         fileProgressDialog = new FileProgressDialog(getActivity());
-        fileProgressDialog.setOnCancelListener(() -> isCancelled.set(true));
+        fileProgressDialog.setOnCancelListener(() -> { isCancelled.set(true); if (documentTransfers != null) documentTransfers.cancel(); });
+        documentTransfers = new DocumentTransferController(this, fileProgressDialog, transferActive, isCancelled, () -> {
+            loadFiles(); refreshStorageUsage();
+            if (getView() != null) fabPaste.setVisibility(currentDir != null && !StorageClipboard.isEmpty() ? View.VISIBLE : View.GONE);
+        });
         
         if (getActivity() instanceof AppCompatActivity activity) {
             if (activity.getSupportActionBar() != null) {
@@ -163,12 +170,12 @@ public class FileManagerFragment extends Fragment {
         fabPaste = view.findViewById(R.id.fabPaste);
         fabPaste.setOnClickListener(v -> pasteFiles());
         fabPaste.setOnLongClickListener(v -> {
-            clipboardFiles.clear();
+            StorageClipboard.clear();
             fabPaste.setVisibility(View.GONE);
-            Toast.makeText(getContext(), "Clipboard cleared", Toast.LENGTH_SHORT).show();
+            Toast.makeText(getContext(), R.string.file_clipboard_cleared, Toast.LENGTH_SHORT).show();
             return true;
         });
-        fabPaste.setVisibility(currentDir != null && !clipboardFiles.isEmpty() ? View.VISIBLE : View.GONE);
+        fabPaste.setVisibility(currentDir != null && !StorageClipboard.isEmpty() ? View.VISIBLE : View.GONE);
 
         requireActivity().getOnBackPressedDispatcher().addCallback(getViewLifecycleOwner(), new OnBackPressedCallback(true) {
             @Override
@@ -210,6 +217,7 @@ public class FileManagerFragment extends Fragment {
     @Override
     public void onDestroyView() {
         isCancelled.set(true);
+        if (documentTransfers != null) documentTransfers.cancel();
         if (fileProgressDialog != null) fileProgressDialog.dismiss();
         if (getActivity() != null) getActivity().getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         super.onDestroyView();
@@ -357,9 +365,10 @@ public class FileManagerFragment extends Fragment {
     private static class StorageEntry {
         final String title, detail;
         final int icon;
-        final Runnable open;
-        StorageEntry(String title, String detail, int icon, Runnable open) {
-            this.title = title; this.detail = detail; this.icon = icon; this.open = open;
+        final Runnable open, remove;
+        StorageEntry(String title, String detail, int icon, Runnable open) { this(title, detail, icon, open, null); }
+        StorageEntry(String title, String detail, int icon, Runnable open, Runnable remove) {
+            this.title = title; this.detail = detail; this.icon = icon; this.open = open; this.remove = remove;
         }
     }
 
@@ -381,6 +390,12 @@ public class FileManagerFragment extends Fragment {
         for (Map.Entry<String, File> entry : getAdditionalStorageRoots().entrySet()) {
             entries.add(new StorageEntry(entry.getKey(), entry.getValue().getAbsolutePath(), R.drawable.ic_drive_storage,
                     () -> openStorage(entry.getValue(), entry.getKey(), R.drawable.ic_drive_storage)));
+        }
+        for (DocumentTreeStore.Entry entry : DocumentTreeStore.list(requireContext())) {
+            entries.add(new StorageEntry(getString(R.string.storage_added, entry.name), getString(R.string.storage_document_detail),
+                    R.drawable.ic_drive_storage, () -> openDocumentStorage(Uri.parse(entry.uri), entry.name), () -> {
+                        DocumentTreeStore.remove(requireContext(), entry.uri); showStorageHome();
+                    }));
         }
         entries.add(new StorageEntry(getString(R.string.storage_add), getString(R.string.storage_add_detail),
                 R.drawable.ic_nav_add_folder, this::addStorageFolder));
@@ -421,6 +436,11 @@ public class FileManagerFragment extends Fragment {
                 holder.tvFileDetails.setText(entry.detail);
                 holder.btFileMenu.setVisibility(View.GONE);
                 holder.itemView.setOnClickListener(v -> entry.open.run());
+                holder.itemView.setOnLongClickListener(v -> {
+                    if (entry.remove == null) return false;
+                    ContentDialog.confirm(requireContext(), getString(R.string.storage_remove_location, entry.title), entry.remove);
+                    return true;
+                });
             }
             @Override public int getItemCount() { return entries.size(); }
         });
@@ -443,10 +463,25 @@ public class FileManagerFragment extends Fragment {
         requireView().findViewById(R.id.BTSearch).setVisibility(View.VISIBLE);
         requireView().findViewById(R.id.BTNewFolder).setVisibility(View.VISIBLE);
         requireView().findViewById(R.id.BTUpDir).setEnabled(true);
-        fabPaste.setVisibility(clipboardFiles.isEmpty() ? View.GONE : View.VISIBLE);
+        fabPaste.setVisibility(StorageClipboard.isEmpty() ? View.GONE : View.VISIBLE);
         currentDir = root;
         updateDriveButtonLabel(root);
         loadFiles();
+    }
+
+    private void openDocumentStorage(Uri uri, String label) {
+        if (!getParentFragmentManager().isStateSaved()) getParentFragmentManager().beginTransaction()
+                .replace(R.id.FLFragmentContainer, DocumentBrowserFragment.create(uri, label)).commit();
+    }
+
+    public boolean handleBack() {
+        if (getView() == null) return false;
+        if (transferActive.get()) return true;
+        if (!selectedFiles.isEmpty()) { clearSelection(); return true; }
+        if (requireView().findViewById(R.id.LLSearchArea).getVisibility() == View.VISIBLE) {
+            requireView().findViewById(R.id.BTCloseSearch).performClick(); return true;
+        }
+        return navigateUp();
     }
 
     private void addStorageFolder() {
@@ -535,8 +570,26 @@ public class FileManagerFragment extends Fragment {
         String path = FileUtils.getFilePathFromUriUsingSAF(requireContext(), uri);
         File folder = path != null ? new File(path) : null;
         if (folder == null || !folder.isDirectory() || !folder.canRead()) {
-            Toast.makeText(requireContext(), "This folder cannot be accessed directly.",
-                    Toast.LENGTH_LONG).show();
+            final Activity owner = requireActivity(); final View operationView = getView();
+            final Context context = requireContext().getApplicationContext();
+            new Thread(() -> {
+                String label = null;
+                try {
+                    com.winlator.cmod.core.TreeTransfer.Info info = new StorageAccess(context.getContentResolver()).tree(uri).info();
+                    if (!info.directory) throw new IOException("Selected document is not a folder");
+                    label = info.name;
+                    boolean persistent = false;
+                    for (android.content.UriPermission grant : context.getContentResolver().getPersistedUriPermissions())
+                        if (grant.getUri().equals(uri) && grant.isReadPermission()) persistent = true;
+                    if (persistent) DocumentTreeStore.put(context, uri, label);
+                } catch (Exception error) { android.util.Log.e("FileManager", "Cannot open selected document tree", error); }
+                final String name = label;
+                owner.runOnUiThread(() -> {
+                    if (getView() != operationView || !isAdded() || owner.isFinishing() || owner.isDestroyed()) return;
+                    if (name == null) Toast.makeText(owner, R.string.storage_document_unavailable, Toast.LENGTH_LONG).show();
+                    else openDocumentStorage(uri, name);
+                });
+            }, "DocumentTreeSelection").start();
             return;
         }
 
@@ -916,20 +969,16 @@ public class FileManagerFragment extends Fragment {
     }
 
     private void copyFiles(java.util.Collection<File> files) {
-        clipboardFiles.clear();
-        clipboardFiles.addAll(files);
-        isCutOperation = false;
+        StorageClipboard.files(files, false);
         fabPaste.setVisibility(View.VISIBLE);
-        Toast.makeText(getContext(), "Copied " + files.size() + " items", Toast.LENGTH_SHORT).show();
+        Toast.makeText(getContext(), R.string.file_clipboard_ready, Toast.LENGTH_SHORT).show();
         clearSelection();
     }
 
     private void cutFiles(java.util.Collection<File> files) {
-        clipboardFiles.clear();
-        clipboardFiles.addAll(files);
-        isCutOperation = true;
+        StorageClipboard.files(files, true);
         fabPaste.setVisibility(View.VISIBLE);
-        Toast.makeText(getContext(), "Cut " + files.size() + " items", Toast.LENGTH_SHORT).show();
+        Toast.makeText(getContext(), R.string.file_clipboard_ready, Toast.LENGTH_SHORT).show();
         clearSelection();
     }
 
@@ -946,21 +995,24 @@ public class FileManagerFragment extends Fragment {
             if (selectedFiles.isEmpty()) {
                 MainActivity.setTabTitle(activity, R.string.file_manager);
             } else {
-                activity.getSupportActionBar().setTitle(selectedFiles.size() + " selected");
+                MainActivity.setTabTitle(activity, getString(R.string.file_selected, selectedFiles.size()));
             }
         }
     }
 
     private void pasteFiles() {
         if (currentDir == null || transferActive.get()) return;
-        if (clipboardFiles.isEmpty()) {
+        if (StorageClipboard.isEmpty()) {
             fabPaste.setVisibility(View.GONE);
             return;
         }
 
+        final StorageClipboard.Snapshot snapshot = StorageClipboard.get();
+        if (snapshot.hasDocuments()) { documentTransfers.paste(StorageAccess.file(currentDir)); return; }
+        final File targetDirectory = currentDir;
         int conflictCount = 0;
         String singleConflictName = null;
-        for (File source : new ArrayList<>(clipboardFiles)) {
+        for (File source : snapshot.files()) {
             File destination = new File(currentDir, source.getName());
             if (pathExists(destination) && !sameCanonicalPath(source, destination)) {
                 conflictCount++;
@@ -969,7 +1021,7 @@ public class FileManagerFragment extends Fragment {
         }
 
         if (conflictCount == 0) {
-            executePaste(currentDir, false);
+            executePaste(targetDirectory, false, snapshot);
             return;
         }
 
@@ -979,14 +1031,15 @@ public class FileManagerFragment extends Fragment {
                 ? getString(R.string.replace_existing_single, singleConflictName)
                 : getString(R.string.replace_existing_multiple, conflictCount));
         ((TextView) dialog.findViewById(R.id.BTConfirm)).setText(R.string.replace);
-        dialog.setOnConfirmCallback(() -> executePaste(currentDir, true));
+        dialog.setOnConfirmCallback(() -> executePaste(targetDirectory, true, snapshot));
         dialog.show();
     }
 
-    private void executePaste(File destinationDir, boolean replaceExisting) {
+    private void executePaste(File destinationDir, boolean replaceExisting, StorageClipboard.Snapshot snapshot) {
+        if (StorageClipboard.get().version != snapshot.version) return;
         if (!transferActive.compareAndSet(false, true)) return;
-        final boolean moveOperation = isCutOperation;
-        final List<File> sources = new ArrayList<>(clipboardFiles);
+        final boolean moveOperation = snapshot.move;
+        final List<File> sources = snapshot.files();
         final View operationView = getView();
         final Activity owner = requireActivity();
         final Context context = requireContext();
@@ -1028,9 +1081,13 @@ public class FileManagerFragment extends Fragment {
                 owner.runOnUiThread(() -> {
                     owner.getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
                     progress.dismiss();
-                    if (moveOperation) clipboardFiles.removeAll(completed);
+                    if (moveOperation) {
+                        List<StorageClipboard.Item> items = new ArrayList<>();
+                        for (File file : completed) items.add(StorageClipboard.Item.file(file));
+                        StorageClipboard.removeCompleted(snapshot, items);
+                    }
                     if (getView() != operationView || !isAdded()) return;
-                    fabPaste.setVisibility(currentDir != null && !clipboardFiles.isEmpty() ? View.VISIBLE : View.GONE);
+                    fabPaste.setVisibility(currentDir != null && !StorageClipboard.isEmpty() ? View.VISIBLE : View.GONE);
                     if (!failures.isEmpty()) ContentDialog.alert(context,
                             (isCancelled.get() ? context.getString(R.string.file_operation_cancelled) + "\n\n" : "")
                                     + context.getString(R.string.file_transfer_errors, String.join("\n", failures)), null);

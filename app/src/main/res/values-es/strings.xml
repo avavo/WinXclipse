@@ -1025,4 +1025,22 @@
     <string name="hud_dxvk_next_launch">Paneles actualizados. Los cambios del HUD de DXVK se aplican al volver a iniciar.</string>
     <string name="hud_vram">Fila VRAM de MangoHUD 1 (N/A sin sensor de memoria de GPU)</string>
     <string name="hud_frametime_graph">Gráfico de frametime</string>
+
+    <string name="file_folder">Carpeta</string>
+    <string name="file_checking_transfer">Comprobando archivos…</string>
+    <string name="file_refresh">Actualizar</string>
+    <string name="file_clipboard_ready">Listo para pegar.</string>
+    <string name="file_clipboard_cleared">Portapapeles vacío.</string>
+    <string name="file_size_unknown">Tamaño no disponible</string>
+    <string name="file_operation_failed">No se pudo completar la operación con los archivos.</string>
+    <string name="file_source_retained">Se copió %1$s; se conservó el original.</string>
+    <string name="file_recovery_items">Elementos conservados para recuperación en la carpeta de destino: %1$s</string>
+    <string name="file_delete_selected">¿Eliminar los elementos seleccionados (%1$d)?</string>
+    <string name="storage_document_detail">Carpeta seleccionada en Android</string>
+    <string name="storage_document_unavailable">Esta ubicación no está disponible. Vuelve a conectar el dispositivo o selecciona la carpeta de nuevo.</string>
+    <string name="storage_document_help">Puedes copiar o mover archivos entre esta ubicación y C: o Descargas. Para ejecutar un programa de aquí, cópialo primero a C: o Descargas.</string>
+    <string name="storage_remove_location">¿Quitar %1$s de la lista de ubicaciones? Se conservarán los archivos.</string>
+    <string name="file_replace_unsupported">No se pudo reemplazar %1$s en esta ubicación. Usa otro nombre u otra carpeta.</string>
+    <string name="file_verifying_copy">Verificando el archivo copiado…</string>
+    <string name="file_selected">%1$d seleccionados</string>
 </resources>

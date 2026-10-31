@@ -630,6 +630,9 @@ public class MainActivity extends LocalizedActivity implements NavigationView.On
 
     @Override
     public void onBackPressed() {
+        Fragment current = getSupportFragmentManager().findFragmentById(R.id.FLFragmentContainer);
+        if (current instanceof DocumentBrowserFragment) { ((DocumentBrowserFragment)current).handleBack(); return; }
+        if (current instanceof FileManagerFragment && ((FileManagerFragment)current).handleBack()) return;
         FragmentManager fragmentManager = getSupportFragmentManager();
         List<Fragment> fragments = fragmentManager.getFragments();
         for (Fragment fragment : fragments) {

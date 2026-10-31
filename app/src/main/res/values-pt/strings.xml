@@ -1025,4 +1025,22 @@
     <string name="hud_dxvk_next_launch">Painéis atualizados. Mudanças no HUD do DXVK valem no próximo lançamento.</string>
     <string name="hud_vram">Linha de VRAM no MangoHUD 1 (N/A sem sensor de memória da GPU)</string>
     <string name="hud_frametime_graph">Gráfico de frametime</string>
+
+    <string name="file_folder">Pasta</string>
+    <string name="file_checking_transfer">Verificando arquivos…</string>
+    <string name="file_refresh">Atualizar</string>
+    <string name="file_clipboard_ready">Pronto para colar.</string>
+    <string name="file_clipboard_cleared">Área de transferência limpa.</string>
+    <string name="file_size_unknown">Tamanho indisponível</string>
+    <string name="file_operation_failed">Não foi possível concluir a operação com os arquivos.</string>
+    <string name="file_source_retained">%1$s foi copiado; a origem foi mantida.</string>
+    <string name="file_recovery_items">Itens mantidos para recuperação na pasta de destino: %1$s</string>
+    <string name="file_delete_selected">Excluir os itens selecionados (%1$d)?</string>
+    <string name="storage_document_detail">Pasta selecionada no Android</string>
+    <string name="storage_document_unavailable">Este local está indisponível. Reconecte o dispositivo ou selecione a pasta novamente.</string>
+    <string name="storage_document_help">Você pode copiar ou mover arquivos entre este local e C: ou Downloads. Para executar um programa daqui, copie-o primeiro para C: ou Downloads.</string>
+    <string name="storage_remove_location">Remover %1$s da lista de locais? Os arquivos serão mantidos.</string>
+    <string name="file_replace_unsupported">Não foi possível substituir %1$s neste local. Use outro nome ou outra pasta.</string>
+    <string name="file_verifying_copy">Verificando o arquivo copiado…</string>
+    <string name="file_selected">%1$d selecionados</string>
 </resources>
