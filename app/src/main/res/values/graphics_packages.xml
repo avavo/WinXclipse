@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="graphics_package_failed">Could not prepare graphics package %1$s. Reinstall the selected package and try again.</string>
+</resources>

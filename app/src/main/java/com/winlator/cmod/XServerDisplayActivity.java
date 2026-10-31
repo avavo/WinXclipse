@@ -91,6 +91,7 @@ import com.winlator.cmod.core.CpuClusters;
 import com.winlator.cmod.core.EnvVars;
 import com.winlator.cmod.core.EnvironmentManager;
 import com.winlator.cmod.core.FileUtils;
+import com.winlator.cmod.core.GraphicsWrapperFiles;
 import com.winlator.cmod.core.GPUInformation;
 import com.winlator.cmod.core.WinXclipsePolicy;
 import com.winlator.cmod.core.RamOptimizerXclipse;
@@ -2026,45 +2027,34 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
 
         String dxwrapper = this.dxwrapper;
         String resolvedWrapper = dxwrapper;
-        boolean resolvedWrapperReady = true;
         if (dxwrapper.equals("dxvk")) {
             String dxvkEntry = "dxvk-" + dxwrapperConfig.get("version", DefaultVersion.DXVK);
             String vkd3dVersion = dxwrapperConfig.get("vkd3dVersion", DefaultVersion.VKD3D);
-            boolean disableVkd3d = "none".equalsIgnoreCase(vkd3dVersion);
-            String vkd3dEntry = disableVkd3d ? null : "vkd3d-" + vkd3dVersion;
-            resolvedWrapper = disableVkd3d ? dxvkEntry : dxvkEntry + "+" + vkd3dEntry;
-            String storedWrapper = container.getExtra("dxwrapper");
-            boolean wrapperFilesReady = hasRequiredDxWrapperFiles(!disableVkd3d);
-            if (!resolvedWrapper.equals(storedWrapper) || !wrapperFilesReady) {
-                extractDXWrapperFiles(dxvkEntry);
-                if (!disableVkd3d) extractDXWrapperFiles(vkd3dEntry);
-                // Some legacy DXVK packs also contain a d3d12.dll. When
-                // VKD3D is explicitly disabled, restore Wine's implementation
-                // after DXVK extraction so the stale file cannot win again.
-                if (disableVkd3d) {
-                    restoreOriginalDllFiles("d3d12.dll", "d3d12core.dll");
-                    removeStaleVkd3dDlls();
-                }
-                wrapperFilesReady = hasRequiredDxWrapperFiles(!disableVkd3d);
+            String vkd3dEntry = "none".equalsIgnoreCase(vkd3dVersion) ? null : "vkd3d-" + vkd3dVersion;
+            resolvedWrapper = vkd3dEntry == null ? dxvkEntry : dxvkEntry + "+" + vkd3dEntry;
+            if (!resolvedWrapper.equals(container.getExtra("dxwrapper"))
+                    || !"1".equals(container.getExtra("dxwrapperIntegrityVersion"))
+                    || !hasRequiredDxWrapperFiles(vkd3dEntry != null)) {
+                installDXWrapperFiles(dxvkEntry, vkd3dEntry);
             }
-            if (!wrapperFilesReady) {
-                resolvedWrapperReady = false;
-                Log.e("DXWrapperExtraction", "Required DXVK/VKD3D DLLs are still missing; installation will retry next launch");
-            }
-        } else if (!resolvedWrapper.equals(container.getExtra("dxwrapper"))) {
-            extractDXWrapperFiles(resolvedWrapper);
+        } else if (!resolvedWrapper.equals(container.getExtra("dxwrapper"))
+                || !"1".equals(container.getExtra("dxwrapperIntegrityVersion"))) {
+            installDXWrapperFiles(resolvedWrapper, null);
         }
-
-        if (resolvedWrapperReady && !resolvedWrapper.equals(container.getExtra("dxwrapper"))) {
+        if (!resolvedWrapper.equals(container.getExtra("dxwrapper"))
+                || !"1".equals(container.getExtra("dxwrapperIntegrityVersion"))) {
             container.putExtra("dxwrapper", resolvedWrapper);
+            container.putExtra("dxwrapperIntegrityVersion", "1");
             containerDataChanged = true;
         }
 
         String ddrawrapper = this.ddrawrapper;
-
-        if (!ddrawrapper.equals(container.getExtra("ddrawrapper"))) {
-            extractDDrawrapperFiles(ddrawrapper);
+        if (!ddrawrapper.equals(container.getExtra("ddrawrapper"))
+                || !"1".equals(container.getExtra("ddrawIntegrityVersion"))
+                || !hasRequiredDDrawFiles(ddrawrapper)) {
+            installDDrawWrapperFiles(ddrawrapper);
             container.putExtra("ddrawrapper", ddrawrapper);
+            container.putExtra("ddrawIntegrityVersion", "1");
             containerDataChanged = true;
         }
 
@@ -5554,6 +5544,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
     }
 
     private static final String TAG = "DXWrapperExtraction";
+    private static final String[] GLIDE_WRAPPER_DLLS = {"glide.dll", "glide2x.dll", "glide3x.dll", "3DfxSpl.dll", "3DfxSpl2.dll", "3DfxSpl3.dll"};
 
     /** Locates a bundled dxwrapper archive, preferring xz over legacy zstd and
      *  probing the "-<build>" suffix variant used by some vkd3d packages. */
@@ -5574,81 +5565,123 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         return TarCompressorUtils.extract(type, this, assetFile, dest, onExtractFileListener);
     }
 
-    private void extractDXWrapperFiles(String dxwrapper) {
-        final String[] dlls = {"d3d10.dll", "d3d10_1.dll", "d3d10core.dll", "d3d11.dll", "d3d12.dll", "d3d12core.dll", "d3d8.dll", "d3d9.dll", "dxgi.dll"};
+    private File wrapperWindows() {
+        return new File(container.getRootDir(), ".wine/drive_c/windows");
+    }
 
-        File rootDir = imageFs.getRootDir();
-        File windowsDir = new File(rootDir, ImageFs.WINEPREFIX + "/drive_c/windows");
+    private File newWrapperStage() throws IOException {
+        return java.nio.file.Files.createTempDirectory(container.getRootDir().toPath(), ".graphics-stage-").toFile();
+    }
 
-        if (dxwrapper.contains("vkd3d")) {
-            ContentProfile profile = contentsManager.getInstalledProfileByEntryName(dxwrapper);
-            if (profile != null) {
-                Log.d(TAG, "Applying user-defined VKD3D content profile: " + dxwrapper);
-                contentsManager.applyContent(profile);
-            } else {
-                // Bundled archives may carry a "-<build>" suffix (e.g. vkd3d-2.14.1-0).
-                String assetFile = findDxWrapperAsset("dxwrapper/" + dxwrapper);
-                Log.d(TAG, "Extracting VKD3D archive: " + assetFile);
-                extractWrapperArchive(assetFile, windowsDir);
+    private void cleanupWrapperStage(File stage) {
+        if (stage == null) return;
+        try { GraphicsWrapperFiles.deleteTree(stage); }
+        catch (IOException error) { Log.w(TAG, "Unable to remove graphics staging directory", error); }
+    }
+
+    private IllegalStateException wrapperFailure(String name, IOException cause) {
+        Log.e(TAG, "Graphics package application failed: " + name, cause);
+        return new IllegalStateException(getString(R.string.graphics_package_failed, name) + "\n" + cause.getMessage(), cause);
+    }
+
+    private void installDXWrapperFiles(String dxvkEntry, String vkd3dEntry) {
+        File stage = null;
+        try {
+            stage = newWrapperStage();
+            java.util.Set<String> removals = new java.util.LinkedHashSet<>();
+            if (dxvkEntry.startsWith("dxvk-")) {
+                stageDXWrapperFiles(dxvkEntry, stage);
+                GraphicsWrapperFiles.requireDxvk(stage, wineInfo.isWin64());
+                if (vkd3dEntry != null) {
+                    stageDXWrapperFiles(vkd3dEntry, stage);
+                    GraphicsWrapperFiles.require(stage, "system32", wineInfo.isWin64(), "d3d12.dll");
+                    if (wineInfo.isWin64()) GraphicsWrapperFiles.require(stage, "syswow64", false, "d3d12.dll");
+                } else stageOriginalDlls(stage, removals, "d3d12.dll", "d3d12core.dll");
+            } else if (dxvkEntry.contains("wined3d")) {
+                stageOriginalDlls(stage, removals, "d3d10.dll", "d3d10_1.dll", "d3d10core.dll", "d3d11.dll",
+                        "d3d12.dll", "d3d12core.dll", "d3d8.dll", "d3d9.dll", "dxgi.dll");
+            } else throw new IOException("Unsupported DX wrapper: " + dxvkEntry);
+            GraphicsWrapperFiles.install(stage, wrapperWindows(), removals, wineInfo.isWin64());
+        } catch (IOException error) { throw wrapperFailure(dxvkEntry, error); }
+        finally { cleanupWrapperStage(stage); }
+    }
+
+    private void stageDXWrapperFiles(String entry, File stage) throws IOException {
+        boolean dxvk = entry.startsWith("dxvk-");
+        ContentProfile.ContentType type = dxvk ? ContentProfile.ContentType.CONTENT_TYPE_DXVK : ContentProfile.ContentType.CONTENT_TYPE_VKD3D;
+        ContentProfile profile = contentsManager.getInstalledProfileByEntryName(entry);
+        if (profile == null) profile = contentsManager.getInstalledProfile(type, entry.substring(entry.indexOf('-') + 1));
+        if (profile != null) {
+            if (profile.type != type || profile.fileList == null || profile.fileList.isEmpty()) throw new IOException("Invalid graphics profile");
+            for (ContentProfile.ContentFile content : profile.fileList) {
+                String relative = GraphicsWrapperFiles.profileTarget(content.target, wineInfo.isWin64());
+                if (relative == null) continue;
+                File source = ContentsManager.getSourceFile(this, profile, content.source);
+                File target = new File(stage, relative);
+                if (!source.isFile() || source.length() == 0) throw new IOException("Missing graphics payload: " + content.source);
+                java.nio.file.Files.createDirectories(target.toPath().getParent());
+                java.nio.file.Files.copy(source.toPath(), target.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                if (source.length() != target.length()) throw new IOException("Incomplete graphics payload: " + content.source);
             }
-            Log.d(TAG, "Finished VKD3D extraction for " + dxwrapper);
-        } else if (dxwrapper.contains("dxvk")) {
-            Log.d(TAG, "Extracting DXVK wrapper files, version: " + dxwrapper);
-
-            ContentProfile profile = contentsManager.getInstalledProfileByEntryName(dxwrapper);
-            if (profile == null) {
-                // Clean selector entries carry no "-<verCode>" suffix (e.g.
-                // "dxvk-1.7.2"), which the entry-name parser cannot split;
-                // fall back to matching by version name alone.
-                profile = contentsManager.getInstalledProfile(ContentProfile.ContentType.CONTENT_TYPE_DXVK,
-                        dxwrapper.substring(dxwrapper.indexOf('-') + 1));
+        } else {
+            String asset = findDxWrapperAsset("dxwrapper/" + entry);
+            if (!extractWrapperArchive(asset, stage)) throw new IOException("Unable to extract " + asset);
+            if (dxvk && compareVersion(StringUtils.parseNumber(entry), "2.4") < 0) {
+                String d8 = findDxWrapperAsset("dxwrapper/d8vk-" + DefaultVersion.D8VK);
+                if (!extractWrapperArchive(d8, stage)) throw new IOException("Unable to extract " + d8);
             }
-            if (profile != null) {
-                Log.d(TAG, "Applying user-defined DXVK content profile: " + dxwrapper);
-                contentsManager.applyContent(profile);
-            } else {
-                Log.d(TAG, "Extracting fallback DXVK archive: " + dxwrapper);
-                extractWrapperArchive(findDxWrapperAsset("dxwrapper/" + dxwrapper), windowsDir);
-
-                if (compareVersion(StringUtils.parseNumber(dxwrapper), "2.4") < 0) {
-                    Log.d(TAG, "Extracting d8vk as part of DXVK version " + dxwrapper);
-                    extractWrapperArchive(findDxWrapperAsset("dxwrapper/d8vk-" + DefaultVersion.D8VK), windowsDir);
-                }
-            }
-        } else if (dxwrapper.contains("wined3d")) {
-            Log.d(TAG, "Restoring original DLL files for wined3d.");
-            restoreOriginalDllFiles(dlls);
         }
     }
 
-    private void extractDDrawrapperFiles(String ddrawrapper) {
-        final String[] dlls = {"ddraw.dll","d3dimm.dll"};
-        final String[] glideDlls = {"glide.dll", "glide2x.dll", "glide3x.dll", "3DfxSpl.dll", "3DfxSpl2.dll", "3DfxSpl3.dll"};
-
-        File rootDir = imageFs.getRootDir();
-        File windowsDir = new File(rootDir, ImageFs.WINEPREFIX + "/drive_c/windows");
-
-        Log.d("XServerDisplayActivity", "Deleting glide dlls before extraction");
-        for (String glideDLL : glideDlls) {
-            FileUtils.delete(new File(windowsDir + "/syswow64/" + glideDLL));
+    private void stageOriginalDlls(File stage, java.util.Set<String> removals, String... names) throws IOException {
+        String architecture = wineInfo.usesNativeArm64() ? "aarch64-windows" : wineInfo.isWin64() ? "x86_64-windows" : "i386-windows";
+        for (String directory : wineInfo.isWin64() ? new String[]{"system32", "syswow64"} : new String[]{"system32"}) {
+            File sourceDir = com.winlator.cmod.core.WineRuntimeLayout.modules(wineLibraryRoot(),
+                    directory.equals("syswow64") ? "i386-windows" : architecture);
+            for (String name : names) {
+                String relative = directory + "/" + name;
+                File source = new File(sourceDir, name), target = new File(stage, relative);
+                if (!source.isFile()) { removals.add(relative); java.nio.file.Files.deleteIfExists(target.toPath()); continue; }
+                java.nio.file.Files.createDirectories(target.toPath().getParent());
+                java.nio.file.Files.copy(source.toPath(), target.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
         }
-
-        // Configs antigas salvavam ddrawrapper vazio (""). Trata como "none"
-        // (builtin) em vez de tentar extrair "ddrawrapper/.tzst" inexistente.
-        if (ddrawrapper == null || ddrawrapper.trim().isEmpty()) ddrawrapper = "none";
-        if (ddrawrapper.equals("wined3d") || ddrawrapper.equals("none")) {
-            Log.d("XserverDisplayActivity", "Restoring original dlls for WineD3D/None");
-            restoreOriginalDllFiles(dlls);
-        }
-        else {
-            Log.d("XServerDisplayActivity", "Extracting ddrawrapper " + ddrawrapper);
-            TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "ddrawrapper/" + ddrawrapper + ".tzst", windowsDir, onExtractFileListener);
-        }
-
-        Log.d("XServerDisplayActivity", "Extracting nglide wrapper");
-        TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "ddrawrapper/nglide.tzst", windowsDir, onExtractFileListener);
     }
 
+    private boolean hasRequiredDDrawFiles(String wrapper) {
+        try {
+            String directory = wineInfo.isWin64() ? "syswow64" : "system32";
+            GraphicsWrapperFiles.require(wrapperWindows(), directory, false, GLIDE_WRAPPER_DLLS);
+            if ("dd7to9".equals(wrapper) || "cnc-ddraw".equals(wrapper))
+                GraphicsWrapperFiles.require(wrapperWindows(), directory, false, "ddraw.dll");
+            if ("dd7to9".equals(wrapper)) GraphicsWrapperFiles.require(wrapperWindows(), directory, false, "dxwrapper.dll");
+            return true;
+        } catch (IOException missing) { return false; }
+    }
+
+    private void installDDrawWrapperFiles(String wrapper) {
+        File stage = null;
+        try {
+            stage = newWrapperStage();
+            java.util.Set<String> removals = new java.util.LinkedHashSet<>();
+            // Clear companion DLLs from the previous DirectDraw/Glide mode.
+            String directory = wineInfo.isWin64() ? "syswow64" : "system32";
+            removals.add(directory + "/dxwrapper.dll");
+            for (String name : GLIDE_WRAPPER_DLLS) removals.add(directory + "/" + name);
+            if ("none".equals(wrapper) || "wined3d".equals(wrapper)) stageOriginalDlls(stage, removals, "ddraw.dll", "d3dimm.dll");
+            else {
+                if (!TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "ddrawrapper/" + wrapper + ".tzst", stage, onExtractFileListener))
+                    throw new IOException("Unable to extract DirectDraw wrapper " + wrapper);
+                GraphicsWrapperFiles.require(stage, directory, false, "ddraw.dll");
+                if ("dd7to9".equals(wrapper)) GraphicsWrapperFiles.require(stage, directory, false, "dxwrapper.dll");
+            }
+            if (!TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, this, "ddrawrapper/nglide.tzst", stage, onExtractFileListener))
+                throw new IOException("Unable to extract nGlide");
+            GraphicsWrapperFiles.require(stage, directory, false, GLIDE_WRAPPER_DLLS);
+            GraphicsWrapperFiles.install(stage, wrapperWindows(), removals, wineInfo.isWin64());
+        } catch (IOException error) { throw wrapperFailure(wrapper, error); }
+        finally { cleanupWrapperStage(stage); }
+    }
 
     private static int compareVersion(String varA, String varB) {
         final String[] levelsA = varA.split("\\.");
@@ -5990,31 +6023,15 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         }
     }
 
-    private void removeStaleVkd3dDlls() {
-        File windowsDir = new File(imageFs.getRootDir(), ImageFs.WINEPREFIX + "/drive_c/windows");
-        String sysArch = wineInfo.usesNativeArm64() ? "aarch64-windows" : (!wineInfo.isWin64() ? "i386-windows" : "x86_64-windows");
-        File systemSource = com.winlator.cmod.core.WineRuntimeLayout.modules(wineLibraryRoot(), sysArch);
-        File wow64Source = com.winlator.cmod.core.WineRuntimeLayout.modules(wineLibraryRoot(), "i386-windows");
-        for (String dll : new String[]{"d3d12.dll", "d3d12core.dll"}) {
-            if (!new File(systemSource, dll).exists())
-                FileUtils.delete(new File(windowsDir, "system32/" + dll));
-            if (wineInfo.isWin64() && !new File(wow64Source, dll).exists())
-                FileUtils.delete(new File(windowsDir, "syswow64/" + dll));
-        }
-    }
-
     private boolean hasRequiredDxWrapperFiles(boolean requireVkd3d) {
-        File windowsDir = new File(imageFs.getRootDir(),
-                ImageFs.WINEPREFIX + "/drive_c/windows");
-        ArrayList<File> architectureDirs = new ArrayList<>();
-        architectureDirs.add(new File(windowsDir, "system32"));
-        if (wineInfo.isWin64()) architectureDirs.add(new File(windowsDir, "syswow64"));
-        for (File directory : architectureDirs) {
-            if (!new File(directory, "dxgi.dll").isFile()
-                    || !new File(directory, "d3d11.dll").isFile()) return false;
-            if (requireVkd3d && !new File(directory, "d3d12.dll").isFile()) return false;
-        }
-        return true;
+        try {
+            GraphicsWrapperFiles.requireDxvk(wrapperWindows(), wineInfo.isWin64());
+            if (requireVkd3d) {
+                GraphicsWrapperFiles.require(wrapperWindows(), "system32", wineInfo.isWin64(), "d3d12.dll");
+                if (wineInfo.isWin64()) GraphicsWrapperFiles.require(wrapperWindows(), "syswow64", false, "d3d12.dll");
+            }
+            return true;
+        } catch (IOException invalid) { return false; }
     }
 
     private String getHudApiName() {
