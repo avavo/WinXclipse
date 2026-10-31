@@ -9,7 +9,7 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.PopupMenu;
+import androidx.appcompat.widget.PopupMenu;
 import android.widget.TextView;
 import android.util.TypedValue;
 
@@ -76,7 +76,7 @@ public class TaskManagerDialog extends ContentDialog implements OnGetProcessInfo
     }
 
     private void showListItemMenu(final View anchorView, final ProcessInfo processInfo) {
-        PopupMenu listItemMenu = new PopupMenu(getContext(), anchorView);
+        PopupMenu listItemMenu = new com.winlator.cmod.widget.GlassPopupMenu(getContext(), anchorView);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) listItemMenu.setForceShowIcon(true);
 
         listItemMenu.inflate(R.menu.process_popup_menu);

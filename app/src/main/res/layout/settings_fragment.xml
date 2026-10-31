@@ -17,7 +17,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
                 <LinearLayout style="@style/FieldSet">
-                    <Spinner
+                    <com.winlator.cmod.widget.GlassSpinner
                         android:id="@+id/SAppLanguage"
                         style="@style/ComboBox"
                         android:layout_width="match_parent"
@@ -34,7 +34,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
                 <LinearLayout style="@style/FieldSet">
-                    <Spinner
+                    <com.winlator.cmod.widget.GlassSpinner
                         android:id="@+id/SStorageUnits"
                         style="@style/ComboBox"
                         android:layout_width="match_parent"
@@ -63,7 +63,7 @@
                         android:orientation="horizontal"
                         android:gravity="center_vertical">
 
-                        <Spinner
+                        <com.winlator.cmod.widget.GlassSpinner
                             style="@style/ComboBox"
                             android:id="@+id/SBox64Preset"
                             android:layout_width="match_parent"
@@ -134,7 +134,7 @@
                         android:gravity="center_vertical"
                         android:orientation="horizontal">
 
-                        <Spinner
+                        <com.winlator.cmod.widget.GlassSpinner
                             android:id="@+id/SFEXCorePreset"
                             style="@style/ComboBox"
                             android:layout_width="match_parent"
@@ -210,7 +210,7 @@
                         android:gravity="center_vertical"
                         android:orientation="horizontal">
 
-                        <Spinner
+                        <com.winlator.cmod.widget.GlassSpinner
                             android:id="@+id/SMIDISoundFont"
                             style="@style/ComboBox"
                             android:layout_width="0dp"
@@ -318,7 +318,7 @@
                         android:layout_height="wrap_content"
                         android:text="@string/shortcut_artwork_source" />
 
-                    <Spinner
+                    <com.winlator.cmod.widget.GlassSpinner
                         android:id="@+id/SShortcutArtworkMode"
                         style="@style/ComboBox"
                         android:layout_width="match_parent"

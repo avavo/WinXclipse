@@ -1,0 +1,14 @@
+<resources>
+    <style name="ContentDialog" parent="BaseContentDialog">
+        <item name="android:windowBackgroundBlurRadius">60px</item>
+        <item name="android:windowBlurBehindEnabled">true</item>
+        <item name="android:windowBlurBehindRadius">12px</item>
+        <item name="android:backgroundDimAmount">0.12</item>
+    </style>
+    <style name="ContentDialog.Dark" parent="BaseDarkContentDialog">
+        <item name="android:windowBackgroundBlurRadius">60px</item>
+        <item name="android:windowBlurBehindEnabled">true</item>
+        <item name="android:windowBlurBehindRadius">12px</item>
+        <item name="android:backgroundDimAmount">0.12</item>
+    </style>
+</resources>

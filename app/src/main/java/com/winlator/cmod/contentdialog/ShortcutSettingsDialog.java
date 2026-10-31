@@ -16,7 +16,7 @@ import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
-import android.widget.PopupMenu;
+import androidx.appcompat.widget.PopupMenu;
 import android.widget.SeekBar;
 import android.widget.Spinner;
 import android.widget.TextView;
@@ -713,7 +713,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
         }
 
         findViewById(R.id.BTExtraArgsMenu).setOnClickListener((v) -> {
-            PopupMenu popupMenu = new PopupMenu(context, v);
+            PopupMenu popupMenu = new com.winlator.cmod.widget.GlassPopupMenu(context, v);
             popupMenu.inflate(R.menu.extra_args_popup_menu);
             popupMenu.setOnMenuItemClickListener((menuItem) -> {
                 String value = String.valueOf(menuItem.getTitle());
@@ -1030,10 +1030,10 @@ public class ShortcutSettingsDialog extends ContentDialog {
     private void applyFieldSetLabelStyle(TextView textView, boolean isDarkMode) {
         if (isDarkMode) {
             textView.setTextColor(Color.WHITE);
-            textView.setBackgroundColor(Color.BLACK);
+            textView.setBackgroundColor(Color.TRANSPARENT);
         } else {
             textView.setTextColor(Color.BLACK);
-            textView.setBackgroundResource(R.color.window_background_color);
+            textView.setBackgroundColor(Color.TRANSPARENT);
         }
     }
 
@@ -1085,7 +1085,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
                 issueList.append("• ").append(res.issues.get(i)).append('\n');
             if (res.issues.size() > shown)
                 issueList.append("• +").append(res.issues.size() - shown).append(" more…\n");
-            new AlertDialog.Builder(ctx)
+            new com.winlator.cmod.core.PopupStyle.Builder(ctx)
                     .setTitle(R.string.dxvk_conf_sanitize_title)
                     .setMessage(ctx.getString(R.string.dxvk_conf_sanitize_msg, issueList.toString().trim()))
                     .setPositiveButton(R.string.dxvk_conf_use_sanitized, (d, w) -> stageDxvkConf(res.sanitized))

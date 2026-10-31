@@ -17,7 +17,7 @@ import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.ImageView;
-import android.widget.PopupMenu;
+import androidx.appcompat.widget.PopupMenu;
 import android.widget.Spinner;
 import android.widget.ArrayAdapter;
 import android.widget.TextView;
@@ -155,7 +155,7 @@ public class SavesFragment extends Fragment {
         }
         spinner.setAdapter(adapter);
 
-        AlertDialog dialog = new AlertDialog.Builder(getContext())
+        AlertDialog dialog = new com.winlator.cmod.core.PopupStyle.PlatformBuilder(getContext())
                 .setTitle(R.string.import_save)
                 .setView(dialogView)
                 .setPositiveButton(android.R.string.ok, (dialogInterface, which) -> {
@@ -342,7 +342,7 @@ public class SavesFragment extends Fragment {
 
         private void showListItemMenu(View anchorView, Save save) {
             final Context context = getContext();
-            PopupMenu listItemMenu = new PopupMenu(context, anchorView);
+            PopupMenu listItemMenu = new com.winlator.cmod.widget.GlassPopupMenu(context, anchorView);
             listItemMenu.inflate(R.menu.save_popup_menu);
 
             listItemMenu.setOnMenuItemClickListener((menuItem) -> {
@@ -491,7 +491,7 @@ public class SavesFragment extends Fragment {
             }
             spinner.setAdapter(adapter);
 
-            new AlertDialog.Builder(getContext())
+            new com.winlator.cmod.core.PopupStyle.PlatformBuilder(getContext())
                     .setTitle(R.string.save_transfer)
                     .setView(dialogView)
                     .setPositiveButton(android.R.string.ok, (dialog, which) -> {
@@ -525,7 +525,7 @@ public class SavesFragment extends Fragment {
             adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
             spinner.setAdapter(adapter);
 
-            new androidx.appcompat.app.AlertDialog.Builder(getContext())
+            new com.winlator.cmod.core.PopupStyle.Builder(getContext())
                     .setTitle(R.string.select_container)
                     .setView(dialogView)
                     .setPositiveButton(R.string.transfer, (dialog, which) -> {

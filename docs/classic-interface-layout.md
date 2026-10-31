@@ -99,3 +99,10 @@ compatíveis com os perfis existentes.
 `GamepadProfileDialogTest` exercita arquivos reais e os callbacks dos botões em
 Robolectric, sem iniciar Wine. Isso verifica os fluxos de erro e preservação dos
 dados; não comprova interação física com um controle nem a aparência final.
+
+## Superfícies e variáveis — lote 34
+
+A revisão dos três prints acrescenta superfícies translúcidas/blur compartilhadas,
+seletores e menus, catálogo compacto, botões de download alinhados e correção das
+linhas/nomes de variáveis. Os switches de variáveis e presets FEX/Box seguem o
+desenho roxo compacto do app. [Implementação, verificações e limites](popup-surfaces.md).

@@ -16,7 +16,7 @@ import android.widget.ArrayAdapter;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.PopupMenu;
+import androidx.appcompat.widget.PopupMenu;
 import android.widget.SeekBar;
 import android.widget.Spinner;
 import android.widget.TextView;
@@ -198,7 +198,7 @@ public class InputControlsFragment extends Fragment {
         });
 
         view.findViewById(R.id.BTImportProfile).setOnClickListener((v) -> {
-            android.widget.PopupMenu popupMenu = new PopupMenu(context, v);
+            androidx.appcompat.widget.PopupMenu popupMenu = new com.winlator.cmod.widget.GlassPopupMenu(context, v);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) popupMenu.setForceShowIcon(true);
             popupMenu.inflate(R.menu.open_file_popup_menu);
             popupMenu.setOnMenuItemClickListener((menuItem) -> {

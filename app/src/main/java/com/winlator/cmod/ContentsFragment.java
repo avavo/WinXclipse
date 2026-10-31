@@ -18,7 +18,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ImageView;
-import android.widget.PopupMenu;
+import androidx.appcompat.widget.PopupMenu;
 import android.widget.ProgressBar;
 import android.widget.Spinner;
 import android.widget.TextView;
@@ -247,6 +247,9 @@ public class ContentsFragment extends Fragment {
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         ViewGroup layout = (ViewGroup) inflater.inflate(R.layout.contents_fragment, container, false);
 
+        if (embedded) {
+            com.winlator.cmod.widget.DownloadCatalogLayout.prepareEmbedded(layout);
+        }
         int requestedCategory = selectedCategory;
         sContentType = layout.findViewById(R.id.SContentType);
         updateContentTypeSpinner(sContentType);
@@ -267,6 +270,7 @@ public class ContentsFragment extends Fragment {
             sContentType.setEnabled(false);
             layout.findViewById(R.id.TVContentType).setVisibility(View.GONE);
             layout.findViewById(R.id.LLContentType).setVisibility(View.GONE);
+            layout.findViewById(R.id.VContentTypeDivider).setVisibility(View.GONE);
         }
         loadContentList();
 
@@ -468,7 +472,7 @@ public class ContentsFragment extends Fragment {
             return;
         }
         if (selectedCategory == CATEGORY_WRAPPERS) {
-            new AlertDialog.Builder(requireContext())
+            new com.winlator.cmod.core.PopupStyle.Builder(requireContext())
                     .setTitle(R.string.install_wrapper)
                     .setItems(new String[]{getString(R.string.select_file), getString(R.string.download_from_url)},
                             (dialog, which) -> {
@@ -522,7 +526,7 @@ public class ContentsFragment extends Fragment {
         EditText input = new EditText(requireContext());
         input.setHint("https://example.com/wrapper.tzst");
         input.setSingleLine(true);
-        AlertDialog dialog = new AlertDialog.Builder(requireContext())
+        AlertDialog dialog = new com.winlator.cmod.core.PopupStyle.Builder(requireContext())
                 .setTitle(R.string.remote_url)
                 .setView(input)
                 .setNegativeButton(android.R.string.cancel, null)
@@ -579,7 +583,7 @@ public class ContentsFragment extends Fragment {
         input.setSingleLine(true);
         input.setText(initialName);
         input.selectAll();
-        AlertDialog dialog = new AlertDialog.Builder(requireContext())
+        AlertDialog dialog = new com.winlator.cmod.core.PopupStyle.Builder(requireContext())
                 .setTitle(R.string.wrapper_name)
                 .setView(input)
                 .setNegativeButton(android.R.string.cancel, (d, w) -> {
@@ -860,7 +864,7 @@ public class ContentsFragment extends Fragment {
         button.setVisibility(available && canDownload ? View.VISIBLE : View.GONE);
         boolean running = state != null && (state.stage == TRANSFER_DOWNLOADING || state.stage == TRANSFER_QUEUED);
         button.setImageResource(running ? R.drawable.icon_download_pause : state != null
-                ? R.drawable.icon_download_resume : R.drawable.icon_popup_menu_download);
+                ? R.drawable.icon_download_resume : R.drawable.ic_download_compact);
         button.setContentDescription(getString(running ? R.string.download_pause
                 : state != null ? R.string.download_resume : R.string.download_start));
         button.setOnClickListener(v -> {
@@ -979,7 +983,7 @@ public class ContentsFragment extends Fragment {
         public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
             ExternalDownloadCatalog.Item item = data.get(position);
             boolean installed = item.url == null;
-            holder.itemView.setAlpha(installed ? 1.0f : 0.58f);
+            holder.itemView.setAlpha(1.0f);
             holder.icon.setBackground(null);
             holder.icon.setImageResource(selectedCategory == CATEGORY_WRAPPERS
                     ? R.drawable.icon_settings : R.drawable.icon_debug);
@@ -1063,7 +1067,7 @@ public class ContentsFragment extends Fragment {
         public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
             final ContentProfile profile = data.get(position);
             boolean installed = manager.isInstalledProfile(profile);
-            holder.itemView.setAlpha(installed ? 1.0f : 0.58f);
+            holder.itemView.setAlpha(1.0f);
 
             int iconId = switch (profile.type) {
                 case CONTENT_TYPE_WINE -> R.drawable.icon_wine;
@@ -1087,7 +1091,7 @@ public class ContentsFragment extends Fragment {
             boolean bundledContent = profile.remoteUrl == null
                     && MainActivity.isBundledContent(getContext(), profile);
             holder.ibMenu.setOnClickListener(v -> {
-                PopupMenu selectionMenu = new PopupMenu(getContext(), holder.ibMenu);
+                PopupMenu selectionMenu = new com.winlator.cmod.widget.GlassPopupMenu(getContext(), holder.ibMenu);
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
                     selectionMenu.setForceShowIcon(true);
                 selectionMenu.inflate(R.menu.content_popup_menu);

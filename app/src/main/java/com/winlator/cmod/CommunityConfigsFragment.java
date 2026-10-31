@@ -162,7 +162,7 @@ public class CommunityConfigsFragment extends Fragment {
         // rotation or a cancelled browser chooser cannot repeat the notice.
         preferences.edit().putBoolean(FIRST_VISIT_NOTICE, true).apply();
 
-        AlertDialog dialog = new AlertDialog.Builder(requireContext())
+        AlertDialog dialog = new com.winlator.cmod.core.PopupStyle.PlatformBuilder(requireContext())
                 .setTitle(R.string.config_export_share_title)
                 .setMessage(R.string.config_export_catalog_tip)
                 .setPositiveButton(android.R.string.ok, null)
@@ -752,7 +752,7 @@ public class CommunityConfigsFragment extends Fragment {
 
         ScrollView scroll = new ScrollView(requireContext());
         scroll.addView(body);
-        AlertDialog dialog = new AlertDialog.Builder(requireContext())
+        AlertDialog dialog = new com.winlator.cmod.core.PopupStyle.PlatformBuilder(requireContext())
                 .setTitle(game.name)
                 .setView(scroll)
                 .setNegativeButton(R.string.cancel, null)

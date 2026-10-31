@@ -12,7 +12,7 @@
         android:textAppearance="?attr/textAppearanceListItem"
         android:textSize="16sp" />
 
-    <Spinner
+    <com.winlator.cmod.widget.GlassSpinner
         android:id="@+id/spinner_container_selection"
         android:layout_width="match_parent"
         android:layout_height="wrap_content" />

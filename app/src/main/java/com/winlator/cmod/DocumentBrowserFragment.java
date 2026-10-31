@@ -10,6 +10,7 @@ import android.text.TextWatcher;
 import android.text.format.Formatter;
 import android.view.*;
 import android.widget.*;
+import androidx.appcompat.widget.PopupMenu;
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.*;
 import androidx.fragment.app.Fragment;
@@ -122,7 +123,7 @@ public class DocumentBrowserFragment extends Fragment {
                 .replace(R.id.FLFragmentContainer, new FileManagerFragment()).commit();
     }
     private void locationsMenu() {
-        PopupMenu menu = new PopupMenu(requireContext(), requireView().findViewById(R.id.TVDriveName));
+        PopupMenu menu = new com.winlator.cmod.widget.GlassPopupMenu(requireContext(), requireView().findViewById(R.id.TVDriveName));
         menu.getMenu().add(0, 1, 0, R.string.storage_locations);
         menu.getMenu().add(0, 2, 1, hidden ? R.string.hide_hidden_files : R.string.show_hidden_files);
         menu.getMenu().add(0, 3, 2, R.string.sort);
@@ -184,7 +185,7 @@ public class DocumentBrowserFragment extends Fragment {
         requireView().findViewById(R.id.BTNewFolder).setEnabled(writable && !active.get());
     }
     private void options(List<Entry> targets, View anchor) {
-        PopupMenu menu = new PopupMenu(requireContext(), anchor);
+        PopupMenu menu = new com.winlator.cmod.widget.GlassPopupMenu(requireContext(), anchor);
         menu.getMenu().add(0, 1, 0, R.string.copy);
         if (targets.size() == 1 && targets.get(0).info.rename) menu.getMenu().add(0, 3, 2, R.string.rename);
         boolean deletable = true; for (Entry target : targets) deletable &= target.info.delete;

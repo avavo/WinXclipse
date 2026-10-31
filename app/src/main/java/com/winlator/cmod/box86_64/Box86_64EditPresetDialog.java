@@ -55,7 +55,7 @@ public class Box86_64EditPresetDialog extends ContentDialog {
         applyFieldSetLabelStyle(environmentVariablesLabel, isDarkMode);  // Apply the dark or light mode styles
 
         final EditText etName = findViewById(R.id.ETName);
-        etName.getLayoutParams().width = AppUtils.getPreferredDialogWidth(context);
+        etName.getLayoutParams().width = android.view.ViewGroup.LayoutParams.MATCH_PARENT;
         etName.setEnabled(!readonly);
         if (preset != null) {
             etName.setText(preset.name);
@@ -146,11 +146,11 @@ public class Box86_64EditPresetDialog extends ContentDialog {
         if (isDarkMode) {
             // Apply dark mode-specific attributes
             textView.setTextColor(Color.parseColor("#cccccc")); // Set text color to #cccccc
-            textView.setBackgroundResource(R.color.content_dialog_background_dark); // Set dark background color
+            textView.setBackgroundColor(Color.TRANSPARENT); // Set dark background color
         } else {
             // Apply light mode-specific attributes (original FieldSetLabel)
             textView.setTextColor(Color.parseColor("#bdbdbd")); // Set text color to #bdbdbd
-            textView.setBackgroundResource(R.color.window_background_color); // Set light background color
+            textView.setBackgroundColor(Color.TRANSPARENT); // Set light background color
         }
     }
 

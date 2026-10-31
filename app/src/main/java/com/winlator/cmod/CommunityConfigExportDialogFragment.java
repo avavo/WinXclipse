@@ -82,7 +82,7 @@ public final class CommunityConfigExportDialogFragment extends DialogFragment {
     @NonNull @Override public Dialog onCreateDialog(@Nullable Bundle state) {
         Context context = requireContext();
         container = new ContainerManager(context).getContainerById(requireArguments().getInt("container"));
-        if (container == null) return new AlertDialog.Builder(context).setMessage(R.string.community_invalid_config)
+        if (container == null) return new com.winlator.cmod.core.PopupStyle.Builder(context).setMessage(R.string.community_invalid_config)
                 .setPositiveButton(android.R.string.ok, null).create();
         LinearLayout fields = new LinearLayout(context);
         fields.setOrientation(LinearLayout.VERTICAL); fields.setPadding(dp(20), dp(8), dp(20), dp(8));
@@ -121,7 +121,7 @@ public final class CommunityConfigExportDialogFragment extends DialogFragment {
         choice(R.string.config_export_playable, "Playable", state);
         fields.addView(compatibility);
         ScrollView scroll = new ScrollView(context); scroll.setFillViewport(false); scroll.addView(fields);
-        AlertDialog dialog = new AlertDialog.Builder(context).setTitle(R.string.export_community_config)
+        AlertDialog dialog = new com.winlator.cmod.core.PopupStyle.Builder(context).setTitle(R.string.export_community_config)
                 .setMessage(R.string.config_export_explanation).setView(scroll)
                 .setNegativeButton(R.string.cancel, null).setPositiveButton(R.string.export, null).create();
         dialog.setOnShowListener(ignored -> {
@@ -151,7 +151,7 @@ public final class CommunityConfigExportDialogFragment extends DialogFragment {
         super.onStart();
         Dialog dialog = getDialog();
         if (dialog != null && dialog.getWindow() != null) {
-            dialog.getWindow().setLayout(Math.min(dp(680), getResources().getDisplayMetrics().widthPixels - dp(32)),
+            dialog.getWindow().setLayout(Math.min(dp(520), getResources().getDisplayMetrics().widthPixels - dp(32)),
                     ViewGroup.LayoutParams.WRAP_CONTENT);
             dialog.getWindow().setBackgroundDrawableResource(AppUtils.isDarkMode(requireContext())
                     ? R.drawable.artwork_dialog_background : R.drawable.artwork_dialog_background_light);
@@ -283,7 +283,7 @@ public final class CommunityConfigExportDialogFragment extends DialogFragment {
             }); grid.addView(cell);
         }
         ScrollView scroll = new ScrollView(context); scroll.addView(grid);
-        choicesDialog = new AlertDialog.Builder(context).setTitle(R.string.config_export_choose_cover).setView(scroll)
+        choicesDialog = new com.winlator.cmod.core.PopupStyle.Builder(context).setTitle(R.string.config_export_choose_cover).setView(scroll)
                 .setNegativeButton(R.string.cancel, null).create(); choicesDialog.show();
         if (choicesDialog.getWindow() != null) choicesDialog.getWindow().setLayout(Math.min(dp(640), getResources().getDisplayMetrics().widthPixels - dp(32)),
                 Math.round(getResources().getDisplayMetrics().heightPixels * 0.75f));
@@ -320,7 +320,7 @@ public final class CommunityConfigExportDialogFragment extends DialogFragment {
                 ((AlertDialog)requireDialog()).getButton(AlertDialog.BUTTON_NEGATIVE).setEnabled(true);
                 if (result == null) { Toast.makeText(requireContext(), R.string.config_export_failed, Toast.LENGTH_LONG).show(); return; }
                 android.app.Activity host = requireActivity();
-                new AlertDialog.Builder(host).setTitle(R.string.config_export_complete)
+                new com.winlator.cmod.core.PopupStyle.Builder(host).setTitle(R.string.config_export_complete)
                         .setMessage(getString(R.string.config_export_saved, result.getAbsolutePath()))
                         .setPositiveButton(R.string.config_export_share, (d, which) -> share(host, result))
                         .setNeutralButton(R.string.community_publish, (d, which) -> publish(host, result))
@@ -354,7 +354,7 @@ public final class CommunityConfigExportDialogFragment extends DialogFragment {
             host.runOnUiThread(() -> {
                 progress.close();
                 if (host.isFinishing() || host.isDestroyed()) return;
-                new AlertDialog.Builder(host).setTitle(R.string.community_publish).setMessage(result)
+                new com.winlator.cmod.core.PopupStyle.Builder(host).setTitle(R.string.community_publish).setMessage(result)
                         .setPositiveButton(android.R.string.ok, null)
                         .setNeutralButton(R.string.config_export_share, (d,w) -> share(host, output))
                         .setNegativeButton(result == R.string.community_publish_success ? R.string.cancel : R.string.community_retry_action,

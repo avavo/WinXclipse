@@ -499,7 +499,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         if (ContentOperationRegistry.hasActiveOperations()) {
             launchBlockedByContentOperation = true;
             Log.i("XServerDisplayActivity", "Launch blocked by content operations: " + ContentOperationRegistry.describe());
-            new androidx.appcompat.app.AlertDialog.Builder(this)
+            new com.winlator.cmod.core.PopupStyle.Builder(this)
                     .setTitle(R.string.content_operation_title)
                     .setMessage(R.string.content_operation_wait)
                     .setCancelable(false)
@@ -601,12 +601,14 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         drawerLayout.addDrawerListener(new DrawerLayout.SimpleDrawerListener() {
             @Override public void onDrawerOpened(@NonNull View drawerView) {
                 releasePointerCaptureIfNeeded("drawer-opened");
+                if (sidebarBackdrop != null) sidebarBackdrop.capture(xServerView);
                 if (xServer != null) xServer.keyboard.releaseHardwareKeys();
                 if (xServerView != null) {
                     updateSidebarFrameGenerationState(xServerView.getRenderer());
                 }
             }
             @Override public void onDrawerClosed(@NonNull View drawerView) {
+                if (sidebarBackdrop != null) sidebarBackdrop.clear();
                 // If the user left Relative Mouse enabled, recapture.
                 if (isRelativeMouseMovement && !pointerCaptureRequested) {
                     ensurePointerCapture("drawer-closed");
@@ -620,10 +622,12 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
 
 
         navigationView = findViewById(R.id.NavigationView);
+        sidebarBackdrop = new com.winlator.cmod.core.SidebarBackdrop(navigationView);
+        drawerLayout.setScrimColor(0x28000000);
 
         if (isDarkMode) {
             navigationView.setItemTextColor(ContextCompat.getColorStateList(this, R.color.white));
-            navigationView.setBackgroundResource(R.color.content_dialog_background_dark);
+
         }
 
         enableLogs = preferences.getBoolean("enable_wine_debug", false)
@@ -1334,6 +1338,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
 
     @Override
     protected void onDestroy() {
+        if (sidebarBackdrop != null) { sidebarBackdrop.close(); sidebarBackdrop = null; }
         pointerActivityResumed = false;
         releasePointerCaptureIfNeeded("destroy");
         pulseSinkHandler.removeCallbacks(pulseSinkReloadRunnable);
@@ -1472,6 +1477,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
     private boolean expDisplay = false;
 
     private NavigationView navigationView;
+    private com.winlator.cmod.core.SidebarBackdrop sidebarBackdrop;
 
     private LayoutAnimationController navLayoutAnim;
 
@@ -3813,7 +3819,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
                 break;
             }
         }
-        new androidx.appcompat.app.AlertDialog.Builder(this)
+        new com.winlator.cmod.core.PopupStyle.Builder(this)
                 .setTitle(R.string.fps_limit)
                 .setSingleChoiceItems(labels, checked, (dialog, which) -> {
                     dialog.dismiss();
@@ -3839,7 +3845,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         holder.addView(input, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         androidx.appcompat.app.AlertDialog dialog =
-                new androidx.appcompat.app.AlertDialog.Builder(this)
+                new com.winlator.cmod.core.PopupStyle.Builder(this)
                 .setTitle(R.string.fps_limit)
                 .setMessage(R.string.fps_limit_help)
                 .setView(holder)
@@ -3961,7 +3967,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         int rename = labels.size(); labels.add(getString(R.string.hud_panel_rename));
         int remove = labels.size();
         if (current != frameRating) labels.add(getString(R.string.hud_panel_remove));
-        new androidx.appcompat.app.AlertDialog.Builder(editor.getContext()).setTitle(R.string.hud_panels)
+        new com.winlator.cmod.core.PopupStyle.Builder(editor.getContext()).setTitle(R.string.hud_panels)
                 .setItems(labels.toArray(new String[0]), (choice, index) -> {
                     if (index < panels.size()) { editor.dismiss(); showHUDConfigDialog(panels.get(index)); }
                     else if (index == add) ContentDialog.prompt(this, R.string.hud_panel_name,
@@ -4322,7 +4328,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
                 labels[i] = cores.length > 0 ? cores[i].label(true) : "CPU " + i;
                 checked[i] = selected.contains(ids[i]);
             }
-            new androidx.appcompat.app.AlertDialog.Builder(dialog.getContext())
+            new com.winlator.cmod.core.PopupStyle.Builder(dialog.getContext())
                     .setTitle(R.string.hud_select_cores)
                     .setMultiChoiceItems(labels, checked, (choice, index, on) -> {
                         if (on) selected.add(ids[index]); else selected.remove(ids[index]);

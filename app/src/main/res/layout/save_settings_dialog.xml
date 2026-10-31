@@ -32,7 +32,7 @@
         android:text="@string/container"
         android:textSize="16sp" />
 
-    <Spinner
+    <com.winlator.cmod.widget.GlassSpinner
         style="@style/ComboBox"
         android:id="@+id/SContainer"
         android:layout_width="match_parent"

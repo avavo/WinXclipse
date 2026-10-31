@@ -110,6 +110,7 @@ public class MultiSelectionComboBox extends AppCompatTextView {
             adapter.notifyDataSetChanged();
         });
         popupWindow.show();
+        com.winlator.cmod.core.PopupStyle.styleAnchoredList(popupWindow.getListView());
         return true;
     }
 }

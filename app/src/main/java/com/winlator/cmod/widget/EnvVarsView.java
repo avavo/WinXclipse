@@ -222,7 +222,7 @@ public class EnvVarsView extends FrameLayout {
                 }
 
                 multiSelectArea.setOnClickListener(v -> {
-                    AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
+                    AlertDialog.Builder builder = new com.winlator.cmod.core.PopupStyle.PlatformBuilder(getContext());
                     builder.setTitle(name);
                     builder.setMultiChoiceItems(multiItems, checkedItems, (dialog, which, isChecked) -> {
                         checkedItems[which] = isChecked;

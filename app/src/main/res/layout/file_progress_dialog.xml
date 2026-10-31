@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
+    android:layout_height="wrap_content"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:gravity="center"
     android:clickable="true"
@@ -9,12 +9,12 @@
 
     <LinearLayout
         android:id="@+id/LLPreloaderBackground"
-        android:layout_width="300dp"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:padding="24dp"
         android:layout_gravity="center"
-        android:background="@drawable/preloader_background">
+        android:background="@android:color/transparent">
 
         <TextView
             android:id="@+id/TVTitle"

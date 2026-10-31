@@ -18,7 +18,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.ImageView;
-import android.widget.PopupMenu;
+import androidx.appcompat.widget.PopupMenu;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -510,7 +510,7 @@ public class FileManagerFragment extends Fragment {
     }
 
     private void showDriveMenu() {
-        PopupMenu popup = new PopupMenu(requireContext(), tvDriveName);
+        PopupMenu popup = new com.winlator.cmod.widget.GlassPopupMenu(requireContext(), tvDriveName);
         popup.getMenu().add(0, 1, 0, R.string.storage_locations);
         List<StorageEntry> entries = storageEntries();
         for (int i = 0; i < entries.size(); i++) popup.getMenu().add(0, 100 + i, i + 1, entries.get(i).title);
@@ -651,7 +651,7 @@ public class FileManagerFragment extends Fragment {
     }
 
     private void showSortMenu() {
-        PopupMenu popupMenu = new PopupMenu(requireContext(), tvDriveName);
+        PopupMenu popupMenu = new com.winlator.cmod.widget.GlassPopupMenu(requireContext(), tvDriveName);
         popupMenu.getMenu().add(0, 1, 0, R.string.by_name);
         popupMenu.getMenu().add(0, 2, 0, R.string.by_date);
         popupMenu.getMenu().add(0, 3, 0, R.string.by_size);
@@ -696,7 +696,7 @@ public class FileManagerFragment extends Fragment {
     }
 
     private void showFileOptions(File file, View anchor) {
-        PopupMenu popupMenu = new PopupMenu(requireContext(), anchor);
+        PopupMenu popupMenu = new com.winlator.cmod.widget.GlassPopupMenu(requireContext(), anchor);
         String nameLower = file.getName().toLowerCase(java.util.Locale.ROOT);
         if (file.isDirectory()) {
             popupMenu.getMenu().add(0, 8, 0, R.string.new_folder);
@@ -1152,7 +1152,7 @@ public class FileManagerFragment extends Fragment {
     }
 
     private void showSelectionOptions(View anchor) {
-        PopupMenu popupMenu = new PopupMenu(requireContext(), anchor);
+        PopupMenu popupMenu = new com.winlator.cmod.widget.GlassPopupMenu(requireContext(), anchor);
         popupMenu.getMenu().add(0, 1, 0, R.string.copy);
         popupMenu.getMenu().add(0, 2, 0, R.string.cut);
         // Also expose Move when selection is inside Drive C

@@ -54,7 +54,7 @@ public class FEXCoreEditPresetDialog extends ContentDialog {
         applyFieldSetLabelStyle(label);
 
         final EditText nameView = findViewById(R.id.ETName);
-        nameView.getLayoutParams().width = AppUtils.getPreferredDialogWidth(context);
+        nameView.getLayoutParams().width = android.view.ViewGroup.LayoutParams.MATCH_PARENT;
         nameView.setEnabled(!readonly);
         nameView.setText(preset != null ? preset.name
                 : context.getString(R.string.preset) + "-"
@@ -186,11 +186,11 @@ public class FEXCoreEditPresetDialog extends ContentDialog {
     private void applyFieldSetLabelStyle(TextView textView) {
         if (darkMode) {
             textView.setTextColor(Color.parseColor("#cccccc"));
-            textView.setBackgroundResource(R.color.content_dialog_background_dark);
+            textView.setBackgroundColor(Color.TRANSPARENT);
         }
         else {
             textView.setTextColor(Color.parseColor("#bdbdbd"));
-            textView.setBackgroundResource(R.color.window_background_color);
+            textView.setBackgroundColor(Color.TRANSPARENT);
         }
     }
 

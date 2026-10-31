@@ -27,11 +27,12 @@ public class FileProgressDialog {
 
     private void create() {
         if (dialog != null) return;
-        dialog = new Dialog(activity, android.R.style.Theme_Translucent_NoTitleBar_Fullscreen);
+        dialog = new Dialog(activity, com.winlator.cmod.core.PopupStyle.theme(activity));
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
         dialog.setCancelable(false);
         dialog.setCanceledOnTouchOutside(false);
         dialog.setContentView(R.layout.file_progress_dialog);
+        com.winlator.cmod.core.PopupStyle.installProgress(dialog);
 
         boolean isDarkMode = com.winlator.cmod.core.AppUtils.isDarkMode(activity);
         dialog.findViewById(R.id.LLPreloaderBackground).setBackgroundResource(

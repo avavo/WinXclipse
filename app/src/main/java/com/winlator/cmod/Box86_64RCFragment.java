@@ -19,7 +19,7 @@ import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
-import android.widget.PopupMenu;
+import androidx.appcompat.widget.PopupMenu;
 import android.widget.RadioGroup;
 import android.widget.Spinner;
 import android.widget.TextView;
@@ -238,7 +238,7 @@ public class Box86_64RCFragment extends Fragment {
 
     @NonNull
     private PopupMenu getPopupMenu(View v) {
-        PopupMenu popupMenu = new PopupMenu(getContext(), v);
+        PopupMenu popupMenu = new com.winlator.cmod.widget.GlassPopupMenu(getContext(), v);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) popupMenu.setForceShowIcon(true);
         popupMenu.inflate(R.menu.rc_new_menu);
         popupMenu.setOnMenuItemClickListener((menuItem) -> {
@@ -382,7 +382,7 @@ public class Box86_64RCFragment extends Fragment {
 
         private void showListItemMenu(View anchorView, final RCGroup group) {
             final Context context = getContext();
-            PopupMenu listItemMenu = new PopupMenu(context, anchorView);
+            PopupMenu listItemMenu = new com.winlator.cmod.widget.GlassPopupMenu(context, anchorView);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) listItemMenu.setForceShowIcon(true);
 
             listItemMenu.inflate(R.menu.rc_group_menu);
@@ -703,7 +703,7 @@ public class Box86_64RCFragment extends Fragment {
                     if (!field.isEnabled())
                         return;
 
-                    PopupMenu selectionMenu = new PopupMenu(getContext(), var.btValueMenu);
+                    PopupMenu selectionMenu = new com.winlator.cmod.widget.GlassPopupMenu(getContext(), var.btValueMenu);
                     String[] selection = field.getSelections();
                     for (int i = 0; i < selection.length; i++)
                         selectionMenu.getMenu().add(Menu.NONE, i + 1, Menu.NONE, selection[i]);

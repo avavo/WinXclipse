@@ -1,58 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:orientation="horizontal"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
+    xmlns:app="http://schemas.android.com/apk/res-auto" android:orientation="horizontal"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:minHeight="56dp" android:paddingTop="4dp" android:paddingBottom="4dp"
     android:gravity="center_vertical">
+    <HorizontalScrollView android:id="@+id/HSVVariableName"
+        android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+        android:layout_marginEnd="8dp" android:scrollbars="none" android:fillViewport="false">
+        <TextView android:id="@+id/TextView" android:layout_width="wrap_content"
+            android:layout_height="wrap_content" android:singleLine="true" android:textSize="14sp"
+            android:paddingTop="8dp" android:paddingBottom="8dp" />
+    </HorizontalScrollView>
+    <ImageView android:id="@+id/BTHelp" style="@style/HelpButton"
+        android:layout_width="32dp" android:layout_height="48dp" android:padding="6dp"
+        android:layout_marginEnd="4dp" />
+    <FrameLayout android:layout_width="124dp" android:layout_height="wrap_content" android:minHeight="48dp"
+        android:paddingTop="4dp" android:paddingBottom="4dp">
+        <com.winlator.cmod.widget.GlassSpinner android:id="@+id/Spinner" style="@style/ComboBox" android:layout_width="match_parent"
+            android:layout_height="40dp" android:layout_gravity="center" android:visibility="gone"
+            android:spinnerMode="dialog" />
 
-    <FrameLayout
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:layout_marginRight="4dp">
-
-        <TextView
-            android:id="@+id/TextView"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:ellipsize="start"
-            android:paddingRight="22dp"
-            android:maxLines="1" />
-
-        <ImageView
-            android:id="@+id/BTHelp"
-            style="@style/HelpButton"
-            android:layout_gravity="right" />
+        <ToggleButton android:id="@+id/ToggleButton" android:layout_width="48dp" android:layout_height="26dp"
+            android:layout_gravity="center" android:background="@drawable/compact_toggle_selector"
+            android:backgroundTint="@null" app:backgroundTint="@null" android:visibility="gone"
+            android:textOn="" android:textOff="" />
+        <EditText android:id="@+id/EditText" style="@style/EditText" android:layout_width="match_parent"
+            android:layout_height="40dp" android:layout_gravity="center" android:singleLine="true"
+            android:visibility="gone" android:inputType="number" />
     </FrameLayout>
 
-    <LinearLayout
-        android:layout_width="100dp"
-        android:layout_height="42dp"
-        android:gravity="center"
-        android:orientation="horizontal">
-
-        <Spinner
-            style="@style/ComboBox"
-            android:layout_width="match_parent"
-            android:id="@+id/Spinner"
-            android:visibility="gone" />
-
-        <ToggleButton
-            android:id="@+id/ToggleButton"
-            android:layout_width="64dp"
-            android:layout_height="32dp"
-            android:background="@drawable/toggle_button_selector"
-            android:visibility="gone"
-            android:textOn=""
-            android:textOff="" />
-
-        <EditText
-            android:id="@+id/EditText"
-            style="@style/EditText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:inputType="number"
-            android:singleLine="true"
-            android:visibility="gone" />
-    </LinearLayout>
 </LinearLayout>

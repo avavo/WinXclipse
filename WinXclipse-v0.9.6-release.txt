@@ -1,6 +1,6 @@
 # WinXclipse v0.9.6 — development changelog
 
-Updated October 31, 2026. Source changes through batch 33.
+Updated October 31, 2026. Source changes through batch 34.
 These notes describe implemented changes. Android gameplay validation remains pending;
 they do not claim that every FPS drop, shutdown or stalled game has been resolved.
 No new APK/AAB, release or tag has been produced for this work.
@@ -65,6 +65,10 @@ No new APK/AAB, release or tag has been produced for this work.
 - Correct mouse/keyboard source classification, physical-button deduplication, relative motion scaling/rotation, wheel units and pointer-capture lifecycle handling related to issue #5.
 - Keep the gamepad profile selector independent of translated empty-list labels. Validate the complete mapping file before applying it, preserve current mappings on failure, write profiles atomically in UTF-8 and report save/load success only after completion. Keep profile paths inside their private directory.
 - Let the gamepad configuration body use the available dialog width instead of a fixed 340 dp.
+- Replace the download glyph with a simple arrow and center its 48 dp touch target beside version selectors. Wrap short download catalogs, bound long lists and keep transfer progress below the package name.
+- Share translucent purple-bordered surfaces across configuration dialogs, alerts, menus, selectors, help and progress windows. Use system window blur on supported Android 12+ devices, with a more opaque fallback when blur is unavailable or disabled.
+- Give the in-game sidebar a small blurred snapshot captured only when it opens, without continuous GPU readback or a gameplay renderer filter.
+- Fix overlapping environment-variable rows, allow horizontal dragging of long names and use the compact animated purple toggle in variable and FEX/Box preset editors. Fit forms to the dialog body and lighten secondary Display actions.
 - Preserve the unfinished console interface in `app/src/consoleUi`, excluded from the active 0.9.6 build.
 
 ### File Manager
@@ -98,7 +102,7 @@ No new APK/AAB, release or tag has been produced for this work.
 
 # Validation and remaining work
 
-- Latest full local suite: 433 cases, 431 passed, zero failures/errors and two skipped for Windows symlink permissions. Java/Kotlin/resources and EN/PT/ES coverage checks passed (1341 strings and 11 display arrays per language). Ten new gamepad-profile cases cover real files and dialog callbacks, including failed loads/saves, complete validation and UTF-8 round trips.
+- Latest full local suite: 452 cases, 450 passed, zero failures/errors and two skipped for Windows symlink permissions. Java/Kotlin/resources and EN/PT/ES coverage checks passed (1341 strings and 11 display arrays per language). Nineteen new popup cases cover layout, scrolling, selection, callbacks, progress and API 28/31 window lifecycles; ten earlier gamepad-profile cases cover real files and failed loads/saves.
 - Hosted community authentication, uploads, moderation and migrated archive integrity were checked; the complete Android interaction still needs device validation.
 - Remaining implementation/review includes legacy hardcoded English messages, the older device-family audit, full visual/transition review and the remaining comparison of fork optimizations. Import recovery is covered by checkpoint/restart tests; terminating the app during a real Android import still needs validation.
 - Android checks remain for clean installs/upgrades, first shortcut launches, VulkanRT/ABI integration, sustained FPS and shutdown reports, DX9/11/12, stock/Quasar/RADV, FSR/frame generation, real refresh rate, input, sensors, USB/SD and installation timings. Local tests do not establish that these hardware-dependent reports are resolved.

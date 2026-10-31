@@ -102,6 +102,7 @@ public class ContentDialog extends AppCompatDialog {
         });
 
         setContentView(contentView);
+        com.winlator.cmod.core.PopupStyle.install(this);
     }
 
     @Override
@@ -112,7 +113,7 @@ public class ContentDialog extends AppCompatDialog {
             float density = getContext().getResources().getDisplayMetrics().density;
             int availableWidth = getContext().getResources().getDisplayMetrics().widthPixels;
             // Leave an outer margin on phones, and avoid very wide controls on tablets.
-            int width = Math.min(Math.round(680 * density),
+            int width = Math.min(Math.round(520 * density),
                     Math.max(1, availableWidth - Math.round(32 * density)));
             window.setLayout(width, ViewGroup.LayoutParams.WRAP_CONTENT);
             window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);

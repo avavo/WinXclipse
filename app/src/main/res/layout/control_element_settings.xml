@@ -17,7 +17,7 @@
             android:layout_height="wrap_content"
             android:text="@string/type" />
 
-        <Spinner
+        <com.winlator.cmod.widget.GlassSpinner
             style="@style/ComboBox"
             android:id="@+id/SType"
             android:layout_width="match_parent"
@@ -34,7 +34,7 @@
                 android:layout_height="wrap_content"
                 android:text="@string/shape" />
 
-            <Spinner
+            <com.winlator.cmod.widget.GlassSpinner
                 style="@style/ComboBox"
                 android:id="@+id/SShape"
                 android:layout_width="match_parent"
@@ -76,7 +76,7 @@
                 android:layout_height="wrap_content"
                 android:text="@string/range" />
 
-            <Spinner
+            <com.winlator.cmod.widget.GlassSpinner
                 style="@style/ComboBox"
                 android:id="@+id/SRange"
                 android:layout_width="match_parent"
@@ -137,7 +137,7 @@
                 android:layout_height="wrap_content"
                 android:text="@string/binding_up" />
 
-            <Spinner
+            <com.winlator.cmod.widget.GlassSpinner
                 style="@style/ComboBox"
                 android:id="@+id/SBindingUp"
                 android:layout_width="match_parent"
@@ -148,7 +148,7 @@
                 android:layout_height="wrap_content"
                 android:text="@string/binding_right" />
 
-            <Spinner
+            <com.winlator.cmod.widget.GlassSpinner
                 style="@style/ComboBox"
                 android:id="@+id/SBindingRight"
                 android:layout_width="match_parent"
@@ -159,7 +159,7 @@
                 android:layout_height="wrap_content"
                 android:text="@string/binding_down" />
 
-            <Spinner
+            <com.winlator.cmod.widget.GlassSpinner
                 style="@style/ComboBox"
                 android:id="@+id/SBindingDown"
                 android:layout_width="match_parent"
@@ -170,7 +170,7 @@
                 android:layout_height="wrap_content"
                 android:text="@string/binding_left" />
 
-            <Spinner
+            <com.winlator.cmod.widget.GlassSpinner
                 style="@style/ComboBox"
                 android:id="@+id/SBindingLeft"
                 android:layout_width="match_parent"

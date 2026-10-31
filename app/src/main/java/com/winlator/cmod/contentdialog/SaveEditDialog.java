@@ -56,7 +56,7 @@ public class SaveEditDialog extends ContentDialog {
         isDarkMode = AppUtils.isDarkMode(getContext());
 
         LinearLayout llContent = findViewById(R.id.LLContent);
-        llContent.getLayoutParams().width = AppUtils.getPreferredDialogWidth(context);
+        llContent.getLayoutParams().width = android.view.ViewGroup.LayoutParams.MATCH_PARENT;
 
         etTitle = findViewById(R.id.ETTitle);
 

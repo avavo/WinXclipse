@@ -28,7 +28,7 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.EditText;
 import android.widget.ScrollView;
-import android.widget.PopupMenu;
+import androidx.appcompat.widget.PopupMenu;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.TextView;
@@ -159,7 +159,7 @@ public class ContainersFragment extends Fragment {
         recyclerView = frameLayout.findViewById(R.id.RecyclerView);
         emptyTextView = frameLayout.findViewById(R.id.TVEmptyText);
         frameLayout.findViewById(R.id.BTCreateContainer).setOnClickListener(v ->
-                new AlertDialog.Builder(requireContext()).setTitle(R.string.container_add)
+                new com.winlator.cmod.core.PopupStyle.Builder(requireContext()).setTitle(R.string.container_add)
                         .setItems(new String[]{getString(R.string.container_import_zip),
                                 getString(R.string.container_import_community), getString(R.string.container_new)},
                                 (dialog, which) -> {
@@ -240,7 +240,7 @@ public class ContainersFragment extends Fragment {
             case R.id.action_favorite_star: {
                 Shortcut fav = getFavoriteShortcut();
                 if (fav == null) {
-                    new AlertDialog.Builder(getContext())
+                    new com.winlator.cmod.core.PopupStyle.Builder(getContext())
                             .setTitle(R.string.favorite)
                             .setMessage(R.string.favorite_unassigned)
                             .setPositiveButton(R.string.choose_action, (d, w) -> {
@@ -382,7 +382,7 @@ public class ContainersFragment extends Fragment {
             importProgressBar = new ProgressBar(requireContext(), null, android.R.attr.progressBarStyleHorizontal);
             importProgressBar.setMax(100);
             body.addView(importProgressBar, new LinearLayout.LayoutParams(-1, -2));
-            importDialog = new AlertDialog.Builder(requireContext()).setTitle(R.string.community_import_dependencies)
+            importDialog = new com.winlator.cmod.core.PopupStyle.Builder(requireContext()).setTitle(R.string.community_import_dependencies)
                     .setView(body).setPositiveButton(R.string.download_pause, null)
                     .setNegativeButton(R.string.cancel, (d, w) -> abortCommunityImport()).create();
             importDialog.setCanceledOnTouchOutside(false);
@@ -457,7 +457,7 @@ public class ContainersFragment extends Fragment {
             details.setTextIsSelectable(true);
             ScrollView scroll = new ScrollView(requireContext());
             scroll.addView(details);
-            AlertDialog dialog = new AlertDialog.Builder(requireContext()).setTitle(R.string.community_review_title)
+            AlertDialog dialog = new com.winlator.cmod.core.PopupStyle.Builder(requireContext()).setTitle(R.string.community_review_title)
                     .setView(scroll)
                     .setPositiveButton(choices == null ? R.string.community_review_choose : R.string.community_review_create,
                             (d, which) -> {
@@ -504,7 +504,7 @@ public class ContainersFragment extends Fragment {
             int message = current.failure == DependencyImportSession.Failure.CATALOG ? R.string.community_catalog_incomplete
                     : current.failure == DependencyImportSession.Failure.DOWNLOAD ? R.string.community_dependency_download_failed
                     : R.string.community_dependency_invalid;
-            AlertDialog dialog = new AlertDialog.Builder(requireContext())
+            AlertDialog dialog = new com.winlator.cmod.core.PopupStyle.Builder(requireContext())
                     .setTitle(R.string.runtime_content_missing)
                     .setMessage(getString(message, current.requestedName()))
                     .setPositiveButton(R.string.community_retry_action, (d, w) -> {
@@ -528,7 +528,7 @@ public class ContainersFragment extends Fragment {
         if ("graphicsDriver".equals(role) || "wrapper".equals(role)) {
             // A missing external driver/wrapper must not silently turn into
             // another build or an unavailable saved identifier.
-            AlertDialog dialog = new AlertDialog.Builder(requireContext())
+            AlertDialog dialog = new com.winlator.cmod.core.PopupStyle.Builder(requireContext())
                     .setTitle(R.string.runtime_content_missing)
                     .setMessage(message + "\n\n" + getString(R.string.runtime_exact_unavailable))
                     .setPositiveButton("graphicsDriver".equals(role)
@@ -545,7 +545,7 @@ public class ContainersFragment extends Fragment {
         if (current.similar != null) {
             message += "\n\n" + getString(R.string.runtime_closest_installed,
                     com.winlator.cmod.contents.ContentsManager.getEntryName(current.similar), current.similarity);
-            AlertDialog dialog = new AlertDialog.Builder(requireContext())
+            AlertDialog dialog = new com.winlator.cmod.core.PopupStyle.Builder(requireContext())
                     .setTitle(R.string.runtime_content_missing)
                     .setMessage(message)
                     .setPositiveButton(R.string.runtime_use_closest, (dialogInterface, which) -> {
@@ -562,7 +562,7 @@ public class ContainersFragment extends Fragment {
         } else if ("wineRuntime".equals(current.reference.optString("role", ""))
                 && !current.requestedName().toLowerCase(java.util.Locale.ENGLISH).contains("arm64ec")
                 && !current.requestedName().toLowerCase(java.util.Locale.ENGLISH).matches(".*(^|[-_])x86($|[-_]).*")) {
-            AlertDialog dialog = new AlertDialog.Builder(requireContext())
+            AlertDialog dialog = new com.winlator.cmod.core.PopupStyle.Builder(requireContext())
                     .setTitle(R.string.runtime_content_missing)
                     .setMessage(message + "\n\n" + getString(R.string.runtime_closest_builtin,
                             com.winlator.cmod.core.WineInfo.MAIN_WINE_VERSION.identifier()))
@@ -575,7 +575,7 @@ public class ContainersFragment extends Fragment {
                     .create();
             showCommunityDialog(dialog);
         } else {
-            AlertDialog dialog = new AlertDialog.Builder(requireContext())
+            AlertDialog dialog = new com.winlator.cmod.core.PopupStyle.Builder(requireContext())
                     .setTitle(R.string.runtime_content_missing)
                     .setMessage(message + "\n\n" + getString(R.string.runtime_no_compatible_installed))
                     .setPositiveButton(R.string.runtime_use_default, (dialogInterface, which) -> {
@@ -656,7 +656,7 @@ public class ContainersFragment extends Fragment {
     private void showImportApplyFailure(int message) {
         showingResolution = true;
         if (importDialog != null) { importDialog.dismiss(); importDialog = null; }
-        AlertDialog dialog = new AlertDialog.Builder(requireContext()).setMessage(message)
+        AlertDialog dialog = new com.winlator.cmod.core.PopupStyle.Builder(requireContext()).setMessage(message)
                 .setPositiveButton(R.string.community_retry_action, (d, w) -> {
                     showingResolution = false;
                     pendingImport.start();
@@ -755,7 +755,7 @@ public class ContainersFragment extends Fragment {
 
     // Show dialog to inform user about the import process
     private void showImportInfoDialog() {
-        AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
+        AlertDialog.Builder builder = new com.winlator.cmod.core.PopupStyle.Builder(getContext());
         builder.setTitle(R.string.container_import_title);
         builder.setMessage(R.string.container_import_help);
         builder.setPositiveButton(R.string.ok, (dialog, which) -> {
@@ -767,7 +767,7 @@ public class ContainersFragment extends Fragment {
 
     // Show confirmation dialog before importing the selected container
     private void showImportConfirmationDialog(Uri uri, File importDir) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
+        AlertDialog.Builder builder = new com.winlator.cmod.core.PopupStyle.Builder(getContext());
         builder.setTitle(R.string.container_import_confirm);
         builder.setMessage(getString(R.string.container_import_selected, importDir.getPath()));
         builder.setPositiveButton(R.string.dxvk_import_conf, (dialog, which) -> {
@@ -958,7 +958,7 @@ public class ContainersFragment extends Fragment {
 
         private void showListItemMenu(View anchorView, Container container) {
             final Context context = getContext();
-            PopupMenu listItemMenu = new PopupMenu(context, anchorView);
+            PopupMenu listItemMenu = new com.winlator.cmod.widget.GlassPopupMenu(context, anchorView);
             listItemMenu.inflate(R.menu.container_popup_menu);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) listItemMenu.setForceShowIcon(true);
 
@@ -1041,7 +1041,7 @@ public class ContainersFragment extends Fragment {
     private void handleFavoriteClick() {
         Shortcut fav = getFavoriteShortcut();
         if (fav == null) {
-            new AlertDialog.Builder(getContext())
+            new com.winlator.cmod.core.PopupStyle.Builder(getContext())
                     .setTitle(R.string.favorite)
                     .setMessage(R.string.favorite_unassigned)
                     .setPositiveButton(R.string.choose_action, (d, w) -> {

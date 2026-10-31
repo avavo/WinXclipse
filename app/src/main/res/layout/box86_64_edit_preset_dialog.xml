@@ -6,7 +6,7 @@
 
     <EditText
         style="@style/EditText"
-        android:layout_width="300dp"
+        android:layout_width="match_parent"
         android:id="@+id/ETName"
         android:hint="@string/untitled" />
 

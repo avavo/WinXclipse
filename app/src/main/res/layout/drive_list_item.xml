@@ -18,7 +18,7 @@
             android:gravity="start|center_vertical"
             android:importantForAccessibility="yes" />
 
-        <Spinner
+        <com.winlator.cmod.widget.GlassSpinner
             android:id="@+id/Spinner"
             android:layout_width="match_parent"
             android:layout_height="match_parent"

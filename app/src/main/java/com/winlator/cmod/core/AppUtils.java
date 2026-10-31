@@ -220,6 +220,7 @@ public abstract class AppUtils {
 
         popupWindow.setFocusable(true);
         popupWindow.update();
+        PopupStyle.styleAnchoredView(contentView);
         return popupWindow;
     }
 
@@ -233,8 +234,7 @@ public abstract class AppUtils {
         boolean darkMode = isDarkMode(context);
         TextView textView = new TextView(context);
         textView.setLayoutParams(new ViewGroup.LayoutParams(width, ViewGroup.LayoutParams.WRAP_CONTENT));
-        textView.setBackgroundResource(darkMode ? R.drawable.content_dialog_background_dark
-                                                 : R.drawable.content_dialog_background);
+        textView.setBackgroundColor(Color.TRANSPARENT);
         textView.setTextColor(darkMode ? Color.WHITE : Color.BLACK);
         textView.setPadding(padding, padding, padding, padding);
         textView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
@@ -250,6 +250,7 @@ public abstract class AppUtils {
         popupWindow.setElevation(5.0f);
         popupWindow.setOutsideTouchable(true);
         popupWindow.showAsDropDown(anchor);
+        PopupStyle.styleAnchoredView(textView);
     }
 
     public static int getVersionCode(Context context) {

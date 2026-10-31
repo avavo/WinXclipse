@@ -21,7 +21,7 @@
             android:orientation="horizontal"
             android:gravity="center_vertical">
 
-            <Spinner
+            <com.winlator.cmod.widget.GlassSpinner
                 style="@style/ComboBox"
                 android:id="@+id/SProfile"
                 android:layout_width="0dp"

@@ -96,7 +96,7 @@
                     android:textStyle="bold"
                     android:layout_marginBottom="8dp" />
 
-                <Spinner
+                <com.winlator.cmod.widget.GlassSpinner
                     android:id="@+id/spGyroTriggerButton"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"

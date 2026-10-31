@@ -63,8 +63,7 @@ public class DebugDialog extends ContentDialog implements Callback<String> {
         int accent = resolveAccentColor(context);
 
         logView = findViewById(R.id.LogView);
-        logView.getLayoutParams().width = (int) UnitUtils.dpToPx(
-                UnitUtils.pxToDp(AppUtils.getScreenWidth()) * 0.7f);
+        logView.getLayoutParams().width = android.view.ViewGroup.LayoutParams.MATCH_PARENT;
         findViewById(R.id.BTCancel).setVisibility(View.GONE);
 
         LinearLayout bottomBar = findViewById(R.id.LLBottomBarPanel);

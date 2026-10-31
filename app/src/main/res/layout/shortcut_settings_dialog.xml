@@ -43,7 +43,7 @@
                     android:layout_height="wrap_content"
                     android:text="@string/screen_size" />
 
-                <Spinner
+                <com.winlator.cmod.widget.GlassSpinner
                     style="@style/ComboBox"
                     android:layout_width="match_parent"
                     android:id="@+id/SScreenSize"
@@ -116,7 +116,7 @@
             android:orientation="horizontal"
             android:gravity="center_vertical">
 
-            <Spinner
+            <com.winlator.cmod.widget.GlassSpinner
                 android:id="@+id/SGraphicsDriverVersionExternal"
                 style="@style/ComboBox"
                 android:layout_width="0dp"
@@ -127,7 +127,7 @@
                 android:id="@+id/BTManageDriverContentShortcut"
                 style="@style/DownloadIconButton"
                 android:contentDescription="@string/download_drivers"
-                android:src="@drawable/icon_popup_menu_download" />
+                android:src="@drawable/ic_download_compact" />
         </LinearLayout>
 
         <TextView
@@ -141,7 +141,7 @@
             android:orientation="horizontal"
             android:gravity="center_vertical">
 
-            <Spinner
+            <com.winlator.cmod.widget.GlassSpinner
                 style="@style/ComboBox"
                 android:layout_width="0dp"
                 android:layout_weight="1"
@@ -152,7 +152,7 @@
                 android:id="@+id/BTManageGraphicsContentShortcut"
                 style="@style/DownloadIconButton"
                 android:contentDescription="@string/download_wrappers"
-                android:src="@drawable/icon_popup_menu_download" />
+                android:src="@drawable/ic_download_compact" />
 
             <ImageButton
                 style="@style/ListMenuButton"
@@ -204,7 +204,7 @@
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
-            <Spinner
+            <com.winlator.cmod.widget.GlassSpinner
                 android:id="@+id/SRenderer"
                 style="@style/ComboBox"
                 android:layout_width="0dp"
@@ -247,7 +247,7 @@
             android:orientation="horizontal"
             android:gravity="center_vertical">
 
-            <Spinner
+            <com.winlator.cmod.widget.GlassSpinner
                 style="@style/ComboBox"
                 android:layout_width="0dp"
                 android:layout_weight="1"
@@ -272,14 +272,14 @@
             android:visibility="gone" >
         </TextView>
 
-        <Spinner
+        <com.winlator.cmod.widget.GlassSpinner
             android:id="@+id/SDDrawrapper"
             style="@style/ComboBox"
             android:layout_width="match_parent"
             android:layout_weight="1"
             android:visibility="gone"
             android:entries="@array/ddrawrapper_entries">
-        </Spinner>
+        </com.winlator.cmod.widget.GlassSpinner>
 
         <TextView
             android:layout_width="wrap_content"
@@ -292,7 +292,7 @@
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
-            <Spinner
+            <com.winlator.cmod.widget.GlassSpinner
                 android:id="@+id/SAudioDriver"
                 style="@style/ComboBox"
                 android:layout_width="0dp"
@@ -316,7 +316,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="64bit Emulator" />
-            <Spinner
+            <com.winlator.cmod.widget.GlassSpinner
                 style="@style/ComboBox"
                 android:layout_width="match_parent"
                 android:id="@+id/SEmulator64"
@@ -325,7 +325,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/dll_emulator" />
-            <Spinner
+            <com.winlator.cmod.widget.GlassSpinner
                 style="@style/ComboBox"
                 android:layout_width="match_parent"
                 android:id="@+id/SEmulator"
@@ -338,7 +338,7 @@
             android:text="@string/midi_sound_font"
             android:visibility="gone" />
 
-        <Spinner
+        <com.winlator.cmod.widget.GlassSpinner
             style="@style/ComboBox"
             android:layout_width="match_parent"
             android:id="@+id/SMIDISoundFont"
@@ -524,7 +524,7 @@
                         android:gravity="center_vertical"
                         android:orientation="horizontal">
 
-                        <Spinner
+                        <com.winlator.cmod.widget.GlassSpinner
                             style="@style/ComboBox"
                             android:id="@+id/SBox64Version"
                             android:layout_width="0dp"
@@ -536,13 +536,13 @@
                             android:id="@+id/BTManageBox64ContentShortcut"
                             style="@style/DownloadIconButton"
                             android:contentDescription="@string/download_box64"
-                            android:src="@drawable/icon_popup_menu_download" />
+                            android:src="@drawable/ic_download_compact" />
 
                         <ImageButton
                             android:id="@+id/BTManageWowBox64ContentShortcut"
                             style="@style/DownloadIconButton"
                             android:contentDescription="@string/download_wowbox64"
-                            android:src="@drawable/icon_popup_menu_download" />
+                            android:src="@drawable/ic_download_compact" />
                     </LinearLayout>
 
                     <TextView
@@ -550,7 +550,7 @@
                         android:layout_height="wrap_content"
                         android:text="@string/box64_preset" />
 
-                    <Spinner
+                    <com.winlator.cmod.widget.GlassSpinner
                         style="@style/ComboBox"
                         android:id="@+id/SBox64Preset"
                         android:layout_width="match_parent" />
@@ -560,7 +560,7 @@
                         android:layout_height="wrap_content"
                         android:text="@string/box86_64_rc_files" />
 
-                    <Spinner
+                    <com.winlator.cmod.widget.GlassSpinner
                         style="@style/ComboBox"
                         android:id="@+id/SRCFile"
                         android:layout_width="match_parent" />
@@ -590,7 +590,7 @@
                         android:gravity="center_vertical"
                         android:orientation="horizontal">
 
-                        <Spinner
+                        <com.winlator.cmod.widget.GlassSpinner
                             style="@style/ComboBox"
                             android:id="@+id/SFEXCoreVersion"
                             android:layout_width="0dp"
@@ -600,7 +600,7 @@
                             android:id="@+id/BTManageFEXCoreContentShortcut"
                             style="@style/DownloadIconButton"
                             android:contentDescription="@string/download_fexcore"
-                            android:src="@drawable/icon_popup_menu_download" />
+                            android:src="@drawable/ic_download_compact" />
                     </LinearLayout>
 
                     <TextView
@@ -608,7 +608,7 @@
                         android:layout_height="wrap_content"
                         android:text="@string/fexcore_preset" />
 
-                    <Spinner
+                    <com.winlator.cmod.widget.GlassSpinner
                         android:id="@+id/SFEXCorePreset"
                         android:layout_width="fill_parent"
                         android:layout_height="48dp"
@@ -634,7 +634,7 @@
                         android:layout_height="wrap_content"
                         android:text="@string/startup_selection" />
 
-                    <Spinner
+                    <com.winlator.cmod.widget.GlassSpinner
                         style="@style/ComboBox"
                         android:layout_width="match_parent"
                         android:id="@+id/SStartupSelection"
@@ -753,7 +753,7 @@
                         android:layout_height="wrap_content"
                         android:text="@string/profile" />
 
-                    <Spinner
+                    <com.winlator.cmod.widget.GlassSpinner
                         style="@style/ComboBox"
                         android:id="@+id/SControlsProfile"
                         android:layout_width="match_parent"
@@ -910,7 +910,7 @@
                         android:layout_height="wrap_content"
                         android:orientation="vertical" >
 
-                        <Spinner
+                        <com.winlator.cmod.widget.GlassSpinner
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:id="@+id/SSharpnessEffect"

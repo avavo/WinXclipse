@@ -552,7 +552,7 @@ public class MainActivity extends LocalizedActivity implements NavigationView.On
             next.run();
             return;
         }
-        new androidx.appcompat.app.AlertDialog.Builder(this)
+        new com.winlator.cmod.core.PopupStyle.Builder(this)
                 .setTitle(R.string.upgrade_096_title)
                 .setMessage(R.string.upgrade_096_message)
                 .setPositiveButton(android.R.string.ok, null)

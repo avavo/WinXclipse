@@ -906,7 +906,7 @@ public class SettingsFragment extends Fragment {
 
 
     private void showBackupConfirmationDialog() {
-        new AlertDialog.Builder(getContext())
+        new com.winlator.cmod.core.PopupStyle.PlatformBuilder(getContext())
                 .setTitle(R.string.backup_data)
                 .setMessage(R.string.backup_data_confirmation)
                 .setPositiveButton(R.string.yes, (dialog, which) -> backupAppData())
@@ -1118,7 +1118,7 @@ public class SettingsFragment extends Fragment {
 
 //    private void showGyroConfigDialog() {
 //        View dialogView = LayoutInflater.from(getContext()).inflate(R.layout.gyro_config_dialog, null);
-//        AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
+//        AlertDialog.Builder builder = new com.winlator.cmod.core.PopupStyle.PlatformBuilder(getContext());
 //        builder.setView(dialogView);
 //        builder.setTitle("Gyroscope Configuration");
 //
@@ -1320,7 +1320,7 @@ public class SettingsFragment extends Fragment {
         LayoutInflater inflater = LayoutInflater.from(getContext());
         View dialogView = inflater.inflate(R.layout.analog_stick_config_dialog, null);
 
-        AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
+        AlertDialog.Builder builder = new com.winlator.cmod.core.PopupStyle.PlatformBuilder(getContext());
         builder.setView(dialogView);
         builder.setTitle(R.string.configure_analog_sticks);
         builder.setCancelable(false);

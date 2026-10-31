@@ -2,7 +2,7 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
+    android:layout_height="wrap_content"
     android:gravity="center"
     android:clickable="false"
     android:focusable="false">
@@ -18,7 +18,7 @@
         android:paddingRight="24dp"
         android:gravity="center_vertical"
         android:layout_gravity="center"
-        android:background="@drawable/preloader_panel">
+        android:background="@android:color/transparent">
 
         <FrameLayout
             android:layout_width="48dp"

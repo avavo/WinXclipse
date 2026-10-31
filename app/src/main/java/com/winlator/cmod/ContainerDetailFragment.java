@@ -21,7 +21,7 @@ import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
-import android.widget.PopupMenu;
+import androidx.appcompat.widget.PopupMenu;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -275,7 +275,7 @@ public class ContainerDetailFragment extends Fragment {
                     issueList.append("• ").append(res.issues.get(i)).append('\n');
                 if (res.issues.size() > shown)
                     issueList.append("• +").append(res.issues.size() - shown).append(" more…\n");
-                new androidx.appcompat.app.AlertDialog.Builder(sanitizeContext)
+                new com.winlator.cmod.core.PopupStyle.Builder(sanitizeContext)
                         .setTitle(R.string.dxvk_conf_sanitize_title)
                         .setMessage(sanitizeContext.getString(
                                 R.string.dxvk_conf_sanitize_msg, issueList.toString().trim()))
@@ -622,7 +622,7 @@ public class ContainerDetailFragment extends Fragment {
 
         final View btShowLCALL = view.findViewById(R.id.BTShowLCALL);
         btShowLCALL.setOnClickListener(v -> {
-            PopupMenu popupMenu = new PopupMenu(context, v);
+            PopupMenu popupMenu = new com.winlator.cmod.widget.GlassPopupMenu(context, v);
             String[] lcs = getResources().getStringArray(R.array.some_lc_all);
             for (int i = 0; i < lcs.length; i++)
                 popupMenu.getMenu().add(Menu.NONE, i, Menu.NONE, lcs[i]);
@@ -1374,7 +1374,7 @@ public class ContainerDetailFragment extends Fragment {
     }
 
     public static void showWrapperV2Comparison(Context context) {
-        new androidx.appcompat.app.AlertDialog.Builder(context)
+        new com.winlator.cmod.core.PopupStyle.Builder(context)
                 .setTitle(R.string.wrapper_comparison_title)
                 .setMessage(R.string.wrapper_comparison_help)
                 .setPositiveButton(android.R.string.ok, null)

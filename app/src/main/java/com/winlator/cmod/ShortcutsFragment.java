@@ -26,7 +26,7 @@ import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.PopupMenu;
+import androidx.appcompat.widget.PopupMenu;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.TextView;
@@ -162,7 +162,7 @@ public class ShortcutsFragment extends Fragment {
         ((RadioButton) group.getChildAt(Math.max(0, Math.min(checked, entries.length - 1)))).setChecked(true);
         body.addView(group);
 
-        AlertDialog dialog = new AlertDialog.Builder(context)
+        AlertDialog dialog = new com.winlator.cmod.core.PopupStyle.PlatformBuilder(context)
                 .setTitle(R.string.shortcut_artwork)
                 .setView(body)
                 .setNegativeButton(android.R.string.cancel, null)
@@ -551,7 +551,7 @@ public class ShortcutsFragment extends Fragment {
 
         private void showListItemMenu(View anchorView, final Shortcut shortcut) {
             final Context context = getContext();
-            PopupMenu listItemMenu = new PopupMenu(context, anchorView);
+            PopupMenu listItemMenu = new com.winlator.cmod.widget.GlassPopupMenu(context, anchorView);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) listItemMenu.setForceShowIcon(true);
 
             listItemMenu.inflate(R.menu.shortcut_popup_menu);
@@ -643,7 +643,7 @@ public class ShortcutsFragment extends Fragment {
 
         private void showContainerSelectionDialog(ArrayList<Container> containers, OnContainerSelectedListener listener) {
             // Create an AlertDialog to show the list of containers
-            AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
+            AlertDialog.Builder builder = new com.winlator.cmod.core.PopupStyle.PlatformBuilder(getContext());
             builder.setTitle(R.string.select_container);
 
             // Create an array of container names to display

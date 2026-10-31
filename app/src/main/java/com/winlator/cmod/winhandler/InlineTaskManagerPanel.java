@@ -11,7 +11,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.PopupMenu;
+import androidx.appcompat.widget.PopupMenu;
 import android.widget.TextView;
 
 import com.winlator.cmod.R;
@@ -162,7 +162,7 @@ public class InlineTaskManagerPanel extends LinearLayout implements OnGetProcess
     }
 
     private void showProcessMenu(View anchor, ProcessInfo processInfo) {
-        PopupMenu menu = new PopupMenu(activity, anchor);
+        PopupMenu menu = new com.winlator.cmod.widget.GlassPopupMenu(activity, anchor);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) menu.setForceShowIcon(true);
         menu.inflate(R.menu.process_popup_menu);
         menu.setOnMenuItemClickListener(item -> {

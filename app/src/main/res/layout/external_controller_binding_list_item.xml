@@ -31,7 +31,7 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal">
 
-            <Spinner
+            <com.winlator.cmod.widget.GlassSpinner
                 style="@style/ComboBox"
                 android:id="@+id/SBindingType"
                 android:layout_width="140dp"
@@ -41,7 +41,7 @@
                 android:focusableInTouchMode="true"
                 android:clickable="true" />
 
-            <Spinner
+            <com.winlator.cmod.widget.GlassSpinner
                 style="@style/ComboBox"
                 android:id="@+id/SBinding"
                 android:layout_width="0dp"

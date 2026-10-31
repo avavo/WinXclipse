@@ -263,7 +263,7 @@ public class GamepadConfiguratorDialog {
         saveProfileButton.setOnClickListener(v -> {
             if (currentProfileName != null) {
                 // Ask the user if they want to overwrite or save as a new profile
-                new AlertDialog.Builder(context)
+                new com.winlator.cmod.core.PopupStyle.PlatformBuilder(context)
                         .setTitle(R.string.save_profile)
                         .setMessage(R.string.gamepad_profile_replace_message)
                         .setPositiveButton(R.string.gamepad_profile_overwrite, (dialog, which) -> {
@@ -302,7 +302,7 @@ public class GamepadConfiguratorDialog {
 
 
     private void promptForProfileName(Callback<String> callback) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(dialog.getContext());
+        AlertDialog.Builder builder = new com.winlator.cmod.core.PopupStyle.PlatformBuilder(dialog.getContext());
         builder.setTitle(R.string.enter_profile_name);
 
         // Set up the input

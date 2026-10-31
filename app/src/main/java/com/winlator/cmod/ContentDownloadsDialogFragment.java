@@ -43,7 +43,7 @@ public class ContentDownloadsDialogFragment extends DialogFragment {
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setStyle(STYLE_NO_TITLE, 0);
+        setStyle(STYLE_NO_TITLE, com.winlator.cmod.core.PopupStyle.theme(requireContext()));
     }
 
     @Nullable
@@ -79,11 +79,13 @@ public class ContentDownloadsDialogFragment extends DialogFragment {
         if (dialog == null) return;
         Window window = dialog.getWindow();
         if (window == null) return;
-        window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        requireView().setBackground(null);
+        com.winlator.cmod.core.PopupStyle.install(dialog);
         WindowManager.LayoutParams params = new WindowManager.LayoutParams();
         params.copyFrom(window.getAttributes());
-        params.width = WindowManager.LayoutParams.MATCH_PARENT;
-        params.height = (int) (getResources().getDisplayMetrics().heightPixels * 0.90f);
+        params.width = Math.min(Math.round(520 * getResources().getDisplayMetrics().density),
+                getResources().getDisplayMetrics().widthPixels - Math.round(32 * getResources().getDisplayMetrics().density));
+        params.height = WindowManager.LayoutParams.WRAP_CONTENT;
         window.setAttributes(params);
     }
 

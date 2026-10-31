@@ -19,7 +19,7 @@
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
-        <Spinner
+        <com.winlator.cmod.widget.GlassSpinner
             android:id="@+id/SContentType"
             style="@style/ComboBox"
             android:layout_width="0dp"
@@ -28,7 +28,7 @@
 
     </LinearLayout>
 
-    <View style="@style/HorizontalLine" />
+    <View android:id="@+id/VContentTypeDivider" style="@style/HorizontalLine" />
 
     <androidx.recyclerview.widget.RecyclerView xmlns:app="http://schemas.android.com/apk/res-auto"
         android:id="@+id/RecyclerView"

@@ -9,7 +9,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content" />
 
-    <Spinner
+    <com.winlator.cmod.widget.GlassSpinner
         android:id="@+id/Spinner"
         style="@style/ComboBox"
         android:layout_width="match_parent"

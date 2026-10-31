@@ -5,7 +5,7 @@ import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.view.Menu;
 import android.widget.EditText;
-import android.widget.PopupMenu;
+import androidx.appcompat.widget.PopupMenu;
 
 import androidx.preference.PreferenceManager;
 
@@ -28,7 +28,7 @@ public class AddEnvVarDialog extends ContentDialog {
         setIcon(R.drawable.icon_env_var);
 
         findViewById(R.id.BTMenu).setOnClickListener((v) -> {
-            PopupMenu popupMenu = new PopupMenu(context, v);
+            PopupMenu popupMenu = new com.winlator.cmod.widget.GlassPopupMenu(context, v);
             Menu menu = popupMenu.getMenu();
             for (String[] knownEnvVar : EnvVarsView.knownEnvVars) menu.add(knownEnvVar[0]);
 

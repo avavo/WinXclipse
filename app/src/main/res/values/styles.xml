@@ -3,6 +3,8 @@
 
     <!-- Light Theme -->
     <style name="AppTheme" parent="@style/Theme.AppCompat.Light.NoActionBar">
+        <item name="android:alertDialogTheme">@style/ContentDialog</item>
+        <item name="alertDialogTheme">@style/ContentDialog</item>
         <item name="colorAccent">@color/colorAccent</item>
         <item name="android:colorAccent">@color/colorAccent</item>
         <item name="colorControlActivated">@color/colorAccent</item>
@@ -34,6 +36,8 @@
 
     <!-- Dark Theme -->
     <style name="AppTheme.Dark" parent="@style/Theme.AppCompat.NoActionBar">
+        <item name="android:alertDialogTheme">@style/ContentDialog.Dark</item>
+        <item name="alertDialogTheme">@style/ContentDialog.Dark</item>
         <item name="colorAccent">@color/colorAccentDark</item>
         <item name="android:colorAccent">@color/colorAccentDark</item>
         <item name="colorControlActivated">@color/colorAccentDark</item>
@@ -137,7 +141,8 @@
         <item name="android:popupBackground">@drawable/artwork_dialog_background</item>
     </style>
 
-    <style name="ContentDialog" parent="@style/Theme.AppCompat.Light.Dialog.Alert">
+    <style name="BaseContentDialog" parent="@style/Theme.AppCompat.Light.Dialog.Alert">
+        <item name="android:windowIsTranslucent">true</item>
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowFullscreen">true</item>
         <item name="android:windowBackground">@drawable/artwork_dialog_background_light</item>
@@ -165,7 +170,8 @@
 
 
 
-    <style name="ContentDialog.Dark" parent="@style/Theme.AppCompat.Dialog.Alert">
+    <style name="BaseDarkContentDialog" parent="@style/Theme.AppCompat.Dialog.Alert">
+        <item name="android:windowIsTranslucent">true</item>
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowFullscreen">true</item>
         <item name="android:windowBackground">@drawable/artwork_dialog_background</item>
@@ -357,7 +363,12 @@
     </style>
 
     <style name="DownloadIconButton" parent="ListMenuButton">
-        <item name="android:tint">@color/colorAccentDark</item>
+        <item name="android:tint">?attr/colorAccent</item>
+        <item name="android:layout_width">48dp</item>
+        <item name="android:layout_height">48dp</item>
+        <item name="android:padding">12dp</item>
+        <item name="android:layout_marginStart">4dp</item>
+        <item name="android:layout_marginEnd">0dp</item>
     </style>
 
     <!-- Line Styles -->
@@ -857,6 +868,8 @@
 
 
 
+    <style name="ContentDialog" parent="BaseContentDialog" />
+    <style name="ContentDialog.Dark" parent="BaseDarkContentDialog" />
 </resources>
     <!--
 
