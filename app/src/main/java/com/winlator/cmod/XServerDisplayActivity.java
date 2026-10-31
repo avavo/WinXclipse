@@ -209,6 +209,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
     private ImageFs imageFs;
     private WinlatorHUD frameRating = null;
     private HudDataSource hudDataSource = null;
+    private com.winlator.cmod.widget.GameplayMeasurementButton measurementButton;
     private long mRamOptSession = 0;
     private Runnable editInputControlsCallback;
     private Shortcut shortcut;
@@ -968,7 +969,6 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
                     preloaderDialog.closeOnUiThread();
                     winStarted[0] = true;
                 }
-                if (frameRatingWindowId == window.id) frameRating.update();
             }
 
             private void setProcessAffinity(Window window, int processAffinity) {
@@ -1303,7 +1303,8 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         startTime = System.currentTimeMillis();
         handler.removeCallbacks(savePlaytimeRunnable);
         handler.postDelayed(savePlaytimeRunnable, SAVE_INTERVAL_MS);
-        ProcessHelper.resumeAllWineProcesses();
+        if (!isPaused) ProcessHelper.resumeAllWineProcesses();
+        if (measurementButton != null) measurementButton.setSessionActive(true, isPaused);
     }
 
     @Override
@@ -1314,6 +1315,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
             refreshDisplayManager = null;
         }
         if (launchBlockedByContentOperation) return;
+        if (measurementButton != null) measurementButton.setSessionActive(false, isPaused);
         if (inputControlsView != null) inputControlsView.cancelAllTouches();
         boolean gyroEnabled = preferences.getBoolean("gyro_enabled", true);
 
@@ -1387,6 +1389,8 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
             Executors.newSingleThreadExecutor().execute(this::stopSessionServices);
         }
         if (inlineTaskManagerPanel != null) inlineTaskManagerPanel.stop();
+        if (measurementButton != null) measurementButton.close();
+        if (xServerView != null) xServerView.getRenderer().setGameplayMeasurement(null);
         if (hudDataSource != null) {
             hudDataSource.stop();
             hudDataSource = null;
@@ -2796,6 +2800,8 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
             frameRating.postDelayed(() -> frameRating.setPhoneGpuName(getPhoneGpuName()), 500);
         }
 
+        setupGameplayMeasurement(rootView, renderer);
+
         // Get the fullscreen stretched extra from the shortcut if available
         String shortcutFullscreenStretched = shortcut != null ? shortcut.getExtra("fullscreenStretched") : null;
 
@@ -3960,6 +3966,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
             sidebarPauseButton.setImageResource(R.drawable.icon_play);
         }
         isPaused = !isPaused;
+        if (measurementButton != null) measurementButton.setSessionActive(true, isPaused);
     }
 
     private void openInlineTaskManager() {
@@ -4183,6 +4190,50 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         catch (Exception ignored) {}
     }
 
+    private void setupGameplayMeasurement(FrameLayout root, com.winlator.cmod.renderer.GLRenderer renderer) {
+        if (measurementButton == null) {
+            measurementButton = new com.winlator.cmod.widget.GameplayMeasurementButton(this,
+                    this::getHudDataSource, () -> {
+                java.util.Map<String, String> data = new java.util.LinkedHashMap<>();
+                data.put("App", com.winlator.cmod.BuildConfig.VERSION_NAME);
+                data.put("Device", android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL);
+                com.winlator.cmod.core.ExynosDevices.Profile device = com.winlator.cmod.core.ExynosDevices.find(android.os.Build.MODEL);
+                if (device != null) data.put("SoC", device.soc);
+                data.put("GPU", getPhoneGpuName());
+                data.put("Runtime", shortcut != null ? shortcut.getExtra("wineVersion", container.getWineVersion()) : container.getWineVersion());
+                data.put("Driver", new XclipseDriverManager(this).getDisplayName(graphicsDriverConfig.getOrDefault("version", DefaultVersion.WRAPPER)));
+                data.put("Wrapper", graphicsDriver);
+                data.put("Resolution", renderer.getXScreenWidth() + "x" + renderer.getXScreenHeight());
+                data.put("DX wrapper", dxwrapper + " " + dxwrapperConfig);
+                data.put("FEX", shortcut != null ? shortcut.getExtra("fexcoreVersion", container.getFEXCoreVersion()) : container.getFEXCoreVersion());
+                data.put("Box64", shortcut != null ? shortcut.getExtra("box64Version", container.getBox64Version()) : container.getBox64Version());
+                data.put("Frame generation", String.valueOf(renderer.isApexEnabled()) + "; " + renderer.getApexMultiplier() + "x");
+                data.put("Graphics settings", String.valueOf(graphicsDriverConfig));
+                return data;
+            });
+            root.addView(measurementButton, new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+        }
+        renderer.setGameplayMeasurement(measurementButton.getMeasurement());
+    }
+
+    private void bindGameplayMeasurement(ContentDialog dialog) {
+        android.content.SharedPreferences saved = getSharedPreferences(com.winlator.cmod.widget.GameplayMeasurementButton.PREFS, MODE_PRIVATE);
+        int[] ids = {R.id.CBMeasurementButton, R.id.CBMeasurementSave, R.id.CBMeasurementFPS,
+                R.id.CBMeasurementLow, R.id.CBMeasurementRange, R.id.CBMeasurementPower,
+                R.id.CBMeasurementBattery, R.id.CBMeasurementMah};
+        String[] keys = {"button", "auto_save", "fps", "low", "range", "power", "battery", "mah"};
+        for (int i = 0; i < ids.length; i++) {
+            CheckBox check = dialog.findViewById(ids[i]);
+            String key = keys[i];
+            check.setChecked(saved.getBoolean(key, i >= 2));
+            check.setOnCheckedChangeListener((view, enabled) -> {
+                saved.edit().putBoolean(key, enabled).apply();
+                if (measurementButton != null) measurementButton.syncPreferences();
+            });
+        }
+    }
+
     public synchronized HudDataSource getHudDataSource() {
         if (hudDataSource == null) hudDataSource = new HudDataSource(this);
         hudDataSource.start();
@@ -4248,6 +4299,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         dialog.setIcon(R.drawable.ic_hud);
 
         bindHudTelemetry(dialog);
+        bindGameplayMeasurement(dialog);
         CheckBox cbEnable = dialog.findViewById(R.id.CBHudEnable);
         CheckBox cbFps = dialog.findViewById(R.id.CBHudFPS);
         CheckBox cbGpu = dialog.findViewById(R.id.CBHudGPU);

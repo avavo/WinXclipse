@@ -118,6 +118,21 @@
                 <TextView style="@style/FieldSetLabel" android:text="@string/appearance" />
             </FrameLayout>
 
+            <FrameLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp">
+                <LinearLayout style="@style/FieldSet">
+                    <CheckBox android:id="@+id/CBMeasurementButton" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/measurement_button" />
+                    <CheckBox android:id="@+id/CBMeasurementSave" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/measurement_auto_save" />
+                    <CheckBox android:id="@+id/CBMeasurementFPS" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/measurement_fps" />
+                    <CheckBox android:id="@+id/CBMeasurementLow" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/measurement_low" />
+                    <CheckBox android:id="@+id/CBMeasurementRange" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/measurement_range" />
+                    <CheckBox android:id="@+id/CBMeasurementPower" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/measurement_power" />
+                    <CheckBox android:id="@+id/CBMeasurementBattery" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/measurement_battery" />
+                    <CheckBox android:id="@+id/CBMeasurementMah" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/measurement_mah" />
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/measurement_help" />
+                </LinearLayout>
+                <TextView style="@style/FieldSetLabel" android:text="@string/measurement_results" />
+            </FrameLayout>
+
             <Button
                 android:id="@+id/BTHudReset"
                 style="@style/ButtonNeutral"

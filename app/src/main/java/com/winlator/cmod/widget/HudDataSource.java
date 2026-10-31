@@ -13,6 +13,7 @@ import android.os.HandlerThread;
 import com.winlator.cmod.core.CPUStatus;
 import com.winlator.cmod.core.CpuTelemetry;
 import com.winlator.cmod.core.TelemetryMath;
+import com.winlator.cmod.core.GameplayMeasurement;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -34,6 +35,8 @@ public class HudDataSource {
     public volatile double batteryAvailableMah = Double.NaN;
     public volatile boolean batteryChargeEstimated, charging;
     public volatile long batteryCurrentMicroamps = Long.MIN_VALUE;
+    public volatile GameplayMeasurement.Battery battery = new GameplayMeasurement.Battery(0,
+            Double.NaN, Double.NaN, Double.NaN, false, false);
     private final CpuTelemetry cpuTelemetry = new CpuTelemetry();
     private boolean running;
     private long generation;
@@ -387,7 +390,13 @@ public class HudDataSource {
                     batteryChargeEstimated = true;
                 }
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        } finally {
+            battery = new GameplayMeasurement.Battery(System.nanoTime(),
+                    batteryMw.get() >= 0 ? batteryMw.get() / 1000d : Double.NaN,
+                    batteryPct.get() >= 0 ? batteryPct.get() : Double.NaN,
+                    batteryAvailableMah, charging, batteryChargeEstimated);
+        }
     }
 
     private void pollRam() {

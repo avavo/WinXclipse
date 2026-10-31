@@ -996,4 +996,24 @@
     <string name="hud_ram_free_percent">RAM livre (%)</string>
     <string name="hud_ram_used_gb">RAM usada (GB)</string>
     <string name="hud_ram_free_gb">RAM livre (GB)</string>
+    <string name="measurement_button">Adicionar botão de medição</string>
+    <string name="measurement_auto_save">Salvar resultados em Download/WinXclipse automaticamente</string>
+    <string name="measurement_fps">Média de FPS reais</string>
+    <string name="measurement_low" formatted="false">1% low (intervalos de quadros mais lentos)</string>
+    <string name="measurement_range">FPS mínimo e máximo</string>
+    <string name="measurement_power">Potência da bateria (W) e energia (Wh)</string>
+    <string name="measurement_battery">Bateria usada</string>
+    <string name="measurement_mah">Carga usada (mAh)</string>
+    <string name="measurement_help">Toque para iniciar e novamente para terminar. Arraste para mover. Segure o resultado para ler ou salvar o relatório completo. Segundo plano e pausas da sessão ficam fora da medição.</string>
+    <string name="measurement_start">● Medir</string>
+    <string name="measurement_stop">■ Terminar</string>
+    <string name="measurement_paused">Ⅱ Pausada</string>
+    <string name="measurement_results">Medição de gameplay</string>
+    <string name="measurement_again">Toque: novo teste · Segure: relatório</string>
+    <string name="measurement_save">Salvar TXT</string>
+    <string name="measurement_saved">Relatório salvo: %1$s</string>
+    <string name="measurement_save_failed">Não foi possível salvar o relatório: %1$s</string>
+    <string name="measurement_source_note" formatted="false">FPS reais contam atualizações de conteúdo de aplicações X11; FPS do compositor contam desenhos concluídos. Quadros gerados ficam separados. Não são timestamps físicos da tela. 1% low é o inverso da média do 1% mais lento dos intervalos (histograma limitado). N/A indica dados insuficientes ou indisponíveis.</string>
+    <string name="measurement_power_coverage">Tempo coberto pelas leituras de potência</string>
+    <string name="measurement_charging_note">Potência é a descarga líquida da bateria, não apenas do app. W/Wh cobrem só amostras válidas de descarga. Consumo de bateria fica indisponível se houve carregamento; ≈ indica mAh estimados.</string>
 </resources>

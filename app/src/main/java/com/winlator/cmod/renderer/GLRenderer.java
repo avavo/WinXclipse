@@ -79,6 +79,9 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
     private volatile boolean requestedApexLowLatency;
     private volatile Runnable apexFailureListener;
     private volatile WinlatorHUD winlatorHUD;
+    private volatile com.winlator.cmod.core.GameplayMeasurement measurement;
+    private final java.util.concurrent.atomic.AtomicLong sourceSequence = new java.util.concurrent.atomic.AtomicLong();
+    private long measuredOutputSequence;
     private long apexStatsStartNanos;
     private volatile boolean apexChoreographerRunning;
     private volatile int fpsLimit;
@@ -191,8 +194,14 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
 
         }
 
+        long sequence = sourceSequence.get();
         drawFrame();
         lsfgManager.onPostDraw();
+        boolean generated = lsfgManager.isActive() && lsfgManager.isGeneratedFrame();
+        com.winlator.cmod.core.GameplayMeasurement recording = measurement;
+        if (recording != null && recording.isRunning() && (generated || sequence != measuredOutputSequence))
+            recording.outputFrame(System.nanoTime(), generated);
+        if (!generated) measuredOutputSequence = sequence;
         updateApexHudStats();
     }
 
@@ -312,6 +321,13 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
 
     @Override
     public void onUpdateWindowContent(Window window) {
+        if (window.isApplicationWindow()) {
+            sourceSequence.incrementAndGet();
+            com.winlator.cmod.core.GameplayMeasurement recording = measurement;
+            if (recording != null && recording.isRunning()) recording.sourceFrame(System.nanoTime());
+            WinlatorHUD hud = winlatorHUD;
+            if (hud != null) hud.onFrame();
+        }
         lsfgManager.notifyRealFramePending();
         xServerView.requestRender();
     }
@@ -774,6 +790,10 @@ public class GLRenderer implements GLSurfaceView.Renderer, WindowManager.OnWindo
             apexStatsStartNanos = 0;
             lsfgManager.resetFrameCounts();
         });
+    }
+
+    public void setGameplayMeasurement(com.winlator.cmod.core.GameplayMeasurement recording) {
+        measurement = recording;
     }
 
     /**

@@ -1122,4 +1122,24 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="hud_ram_free_percent">RAM free (%)</string>
     <string name="hud_ram_used_gb">RAM used (GB)</string>
     <string name="hud_ram_free_gb">RAM free (GB)</string>
+    <string name="measurement_button">Add measurement button</string>
+    <string name="measurement_auto_save">Save results to Download/WinXclipse automatically</string>
+    <string name="measurement_fps">Average source FPS</string>
+    <string name="measurement_low" formatted="false">1% low (slowest frame intervals)</string>
+    <string name="measurement_range">Minimum and maximum FPS</string>
+    <string name="measurement_power">Battery power (W) and energy (Wh)</string>
+    <string name="measurement_battery">Battery used</string>
+    <string name="measurement_mah">Charge used (mAh)</string>
+    <string name="measurement_help">Tap to start, then tap to finish. Drag to move. Hold the result to read or save the full report. Background and session pauses are excluded.</string>
+    <string name="measurement_start">● Measure</string>
+    <string name="measurement_stop">■ Finish</string>
+    <string name="measurement_paused">Ⅱ Paused</string>
+    <string name="measurement_results">Gameplay measurement</string>
+    <string name="measurement_again">Tap: new test · Hold: report</string>
+    <string name="measurement_save">Save TXT</string>
+    <string name="measurement_saved">Report saved: %1$s</string>
+    <string name="measurement_save_failed">Could not save report: %1$s</string>
+    <string name="measurement_source_note" formatted="false">Source FPS counts X11 application content updates; compositor FPS counts completed draws. Generated frames are separate. These are not physical display timestamps. 1% low is the inverse mean of the slowest 1% of frame intervals (bounded histogram). N/A means insufficient or unavailable data.</string>
+    <string name="measurement_power_coverage">Time covered by power readings</string>
+    <string name="measurement_charging_note">Power is net battery discharge, not app-only power. W/Wh cover valid discharge samples only. Battery consumption is unavailable if charging occurred; ≈ marks estimated mAh.</string>
 </resources>

@@ -996,4 +996,24 @@
     <string name="hud_ram_free_percent">RAM libre (%)</string>
     <string name="hud_ram_used_gb">RAM usada (GB)</string>
     <string name="hud_ram_free_gb">RAM libre (GB)</string>
+    <string name="measurement_button">Añadir botón de medición</string>
+    <string name="measurement_auto_save">Guardar resultados en Download/WinXclipse automáticamente</string>
+    <string name="measurement_fps">Media de FPS reales</string>
+    <string name="measurement_low" formatted="false">1% low (intervalos de fotogramas más lentos)</string>
+    <string name="measurement_range">FPS mínimo y máximo</string>
+    <string name="measurement_power">Potencia de batería (W) y energía (Wh)</string>
+    <string name="measurement_battery">Batería usada</string>
+    <string name="measurement_mah">Carga usada (mAh)</string>
+    <string name="measurement_help">Toca para empezar y de nuevo para terminar. Arrastra para mover. Mantén pulsado el resultado para leer o guardar el informe completo. Se excluyen el segundo plano y las pausas de la sesión.</string>
+    <string name="measurement_start">● Medir</string>
+    <string name="measurement_stop">■ Terminar</string>
+    <string name="measurement_paused">Ⅱ Pausada</string>
+    <string name="measurement_results">Medición de juego</string>
+    <string name="measurement_again">Toca: nueva prueba · Mantén: informe</string>
+    <string name="measurement_save">Guardar TXT</string>
+    <string name="measurement_saved">Informe guardado: %1$s</string>
+    <string name="measurement_save_failed">No se pudo guardar el informe: %1$s</string>
+    <string name="measurement_source_note" formatted="false">Los FPS reales cuentan actualizaciones de aplicaciones X11; los FPS del compositor cuentan dibujos completados. Los fotogramas generados se separan. No son marcas de tiempo físicas de pantalla. 1% low es el inverso de la media del 1% más lento de intervalos (histograma limitado). N/A indica datos insuficientes o no disponibles.</string>
+    <string name="measurement_power_coverage">Tiempo cubierto por las lecturas de potencia</string>
+    <string name="measurement_charging_note">La potencia es la descarga neta de batería, no solo la aplicación. W/Wh cubren únicamente muestras válidas de descarga. El consumo no está disponible si hubo carga; ≈ indica mAh estimados.</string>
 </resources>
