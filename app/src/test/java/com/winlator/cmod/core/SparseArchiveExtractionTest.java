@@ -101,6 +101,31 @@ public class SparseArchiveExtractionTest {
         assertEquals(payload.length, new File(destination,"large").length());
     }
 
+    @Test public void zstandardBootArchiveReportsCompressedReadsBeforeExtractionCompletes() throws Exception {
+        byte[] payload = new byte[768 * 1024];
+        new java.util.Random(43).nextBytes(payload);
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        try (org.apache.commons.compress.compressors.zstandard.ZstdCompressorOutputStream compressed =
+                     new org.apache.commons.compress.compressors.zstandard.ZstdCompressorOutputStream(bytes);
+             TarArchiveOutputStream tar = new TarArchiveOutputStream(compressed)) {
+            entry(tar, "runtime.dll", payload);
+        }
+        byte[] archive = bytes.toByteArray();
+        java.util.List<Long> progress = new java.util.ArrayList<>();
+        File output = temp.newFolder();
+        assertTrue(TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD,
+                new ByteArrayInputStream(archive), output, null, archive.length, (read, total) -> {
+                    assertEquals(archive.length, total);
+                    assertTrue(read > 0 && read <= total);
+                    if (!progress.isEmpty()) assertTrue(read > progress.get(progress.size() - 1));
+                    progress.add(read);
+                }));
+        assertTrue(progress.size() > 2);
+        assertTrue(progress.get(0) < archive.length);
+        assertEquals(archive.length, (long)progress.get(progress.size() - 1));
+        assertArrayEquals(payload, Files.readAllBytes(new File(output, "runtime.dll").toPath()));
+    }
+
     private String pax(String key, String value) {
         String body = " " + key + "=" + value + "\n";
         int size = body.length() + 1;

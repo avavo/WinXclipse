@@ -191,6 +191,37 @@ public class PopupStyleTest {
         assertFalse(dialog.isShowing());
     }
 
+    @Test public void bootPreparationStartsIndeterminateInsteadOfDisplayingZero() {
+        PreloaderDialog progress = new PreloaderDialog(activity);
+        progress.show(R.string.installing_system_files);
+        android.app.Dialog dialog = ShadowDialog.getLatestDialog();
+        assertEquals(View.GONE, dialog.findViewById(R.id.TVProgressPercent).getVisibility());
+        assertTrue(((com.google.android.material.progressindicator.CircularProgressIndicator)
+                dialog.findViewById(R.id.ProgressIndicator)).isIndeterminate());
+        progress.setProgress(27);
+        assertEquals("27%", ((android.widget.TextView)dialog.findViewById(R.id.TVProgressPercent)).getText().toString());
+        assertEquals(27, ((com.google.android.material.progressindicator.CircularProgressIndicator)
+                dialog.findViewById(R.id.ProgressIndicator)).getProgress());
+        progress.close();
+    }
+
+    @Test public void extractionProgressPostedBeforeDialogCreationIsNotLostOrReset() throws Exception {
+        PreloaderDialog progress = new PreloaderDialog(activity);
+        Thread worker = new Thread(() -> progress.setProgress(38));
+        worker.start(); worker.join();
+        Shadows.shadowOf(Looper.getMainLooper()).idle();
+        progress.show(R.string.installing_system_files);
+        android.app.Dialog dialog = ShadowDialog.getLatestDialog();
+        assertEquals("38%", ((android.widget.TextView)dialog.findViewById(R.id.TVProgressPercent)).getText().toString());
+        assertEquals(View.VISIBLE, dialog.findViewById(R.id.TVProgressPercent).getVisibility());
+        assertEquals(38, ((com.google.android.material.progressindicator.CircularProgressIndicator)
+                dialog.findViewById(R.id.ProgressIndicator)).getProgress());
+        progress.close();
+        progress.show(R.string.starting_up);
+        assertEquals(View.GONE, dialog.findViewById(R.id.TVProgressPercent).getVisibility());
+        progress.close();
+    }
+
     @Test public void fileProgressCanShowUpdateAndDismiss() {
         FileProgressDialog progress = new FileProgressDialog(activity);
         progress.show(R.string.copy);

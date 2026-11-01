@@ -16,6 +16,7 @@ import com.winlator.cmod.R;
 public class PreloaderDialog {
     private final Activity activity;
     private Dialog dialog;
+    private int pendingProgress = -1;
 
     public PreloaderDialog(Activity activity) {
         this.activity = activity;
@@ -50,12 +51,12 @@ public class PreloaderDialog {
 
     public synchronized void show(int textResId) {
         if (isShowing()) return;
-        close();
         // Never attempt to show a window backed by a dying activity
         // (stale dialog after activity recreation would crash with BadTokenException).
         if (activity.isFinishing() || activity.isDestroyed()) return;
         if (dialog == null) create();
         ((TextView)dialog.findViewById(R.id.TextView)).setText(textResId);
+        applyProgress();
         try {
             dialog.show();
         }
@@ -64,16 +65,27 @@ public class PreloaderDialog {
 
     public void setProgress(int progress) {
         activity.runOnUiThread(() -> {
-            if (dialog == null) return;
-            int safeProgress = Math.max(0, Math.min(100, progress));
-            CircularProgressIndicator indicator = dialog.findViewById(R.id.ProgressIndicator);
+            pendingProgress = Math.max(0, Math.min(100, progress));
+            applyProgress();
+        });
+    }
+
+    private void applyProgress() {
+        if (dialog == null) return;
+        CircularProgressIndicator indicator = dialog.findViewById(R.id.ProgressIndicator);
+        TextView percent = dialog.findViewById(R.id.TVProgressPercent);
+        if (pendingProgress < 0) {
+            indicator.setIndeterminate(true);
+            percent.setVisibility(android.view.View.GONE);
+        } else {
+            // The label and ring must change together; changing an indeterminate
+            // Material indicator with an animation can defer the ring update.
             indicator.setIndeterminate(false);
             indicator.setMax(100);
-            indicator.setProgressCompat(safeProgress, true);
-            TextView percent = dialog.findViewById(R.id.TVProgressPercent);
-            percent.setText(safeProgress + "%");
+            indicator.setProgressCompat(pendingProgress, false);
+            percent.setText(pendingProgress + "%");
             percent.setVisibility(android.view.View.VISIBLE);
-        });
+        }
     }
 
     public void setMessage(int resourceId) {
@@ -85,11 +97,8 @@ public class PreloaderDialog {
 
     public void setIndeterminate() {
         activity.runOnUiThread(() -> {
-            if (dialog != null) {
-                ((CircularProgressIndicator) dialog.findViewById(R.id.ProgressIndicator))
-                        .setIndeterminate(true);
-                dialog.findViewById(R.id.TVProgressPercent).setVisibility(android.view.View.GONE);
-            }
+            pendingProgress = -1;
+            applyProgress();
         });
     }
 
@@ -105,6 +114,7 @@ public class PreloaderDialog {
     }
 
     public synchronized void close() {
+        pendingProgress = -1;
         try {
             if (dialog != null) {
                 dialog.dismiss();

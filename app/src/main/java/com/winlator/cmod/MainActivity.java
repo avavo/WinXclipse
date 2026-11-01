@@ -332,22 +332,41 @@ public class MainActivity extends LocalizedActivity implements NavigationView.On
                 File tmpDir = new File(getCacheDir(), "wcp_asset_tmp");
                 if (!tmpDir.exists()) tmpDir.mkdirs();
 
-                for (String asset : toInstall) {
+                for (int assetIndex = 0; assetIndex < toInstall.size(); assetIndex++) {
+                    String asset = toInstall.get(assetIndex);
+                    final int begin = 100 * assetIndex / toInstall.size();
+                    final int end = 100 * (assetIndex + 1) / toInstall.size();
+                    final int copyEnd = begin + Math.max(1, (end - begin) / 10);
+                    final int extractionEnd = Math.max(copyEnd, end - 1);
 
                     if (!spinnerShown) {
                         spinnerShown = true;
                         runOnUiThread(() -> spinner.show(R.string.installing_contents));
                     }
+                    spinner.setMessage(R.string.installing_contents);
 
                     File tmp = new File(tmpDir, asset);
 
                     // 3a copy asset → tmp
                     try (InputStream in  = getAssets().open("contents/" + asset);
                          OutputStream out = new FileOutputStream(tmp)) {
-                        byte[] buf = new byte[8192];
+                        long total = in.available(), copied = 0;
+                        int lastPercent = -1;
+                        byte[] buf = new byte[com.winlator.cmod.core.StreamUtils.BUFFER_SIZE];
                         int n;
-                        while ((n = in.read(buf)) != -1) out.write(buf, 0, n);
+                        while ((n = in.read(buf)) != -1) {
+                            out.write(buf, 0, n);
+                            copied += n;
+                            if (total > 0) {
+                                int percent = com.winlator.cmod.core.ExtractionProgress.percent(copied, total, begin, copyEnd);
+                                if (percent != lastPercent) {
+                                    lastPercent = percent;
+                                    spinner.setProgress(percent);
+                                }
+                            }
+                        }
                     }
+                    spinner.setProgress(copyEnd);
 
                     // 3b two-stage install
                     ContentsManager.OnInstallFinishedCallback cb =
@@ -356,9 +375,11 @@ public class MainActivity extends LocalizedActivity implements NavigationView.On
                                 @Override public void onSucceed(ContentProfile p) {
                                     if (first) {
                                         first = false;
+                                        spinner.setMessage(R.string.finishing_installation);
                                         cm.finishInstallContent(p, this);
                                     }
                                     else {
+                                        spinner.setProgress(end);
                                         markBundledContent(MainActivity.this, p);
                                         // Re-read: other installs may have
                                         // updated the marker set meanwhile.
@@ -380,7 +401,9 @@ public class MainActivity extends LocalizedActivity implements NavigationView.On
                                     Log.e("MainActivity","Install failed for "+asset+" : "+r,e);
                                 }
                             };
-                    cm.extraContentFile(Uri.fromFile(tmp), expectedBundledProfile(asset), cb);
+                    cm.extraContentFile(Uri.fromFile(tmp), expectedBundledProfile(asset), cb,
+                            percent -> spinner.setProgress(copyEnd
+                                    + (extractionEnd - copyEnd) * Math.max(0, Math.min(100, percent)) / 100));
                     tmp.delete();
                 }
 

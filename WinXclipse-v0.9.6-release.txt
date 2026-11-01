@@ -27,7 +27,7 @@ WinXclipse v0.9.6 is a major experimental update for Exynos/Xclipse devices. It 
 
 - Recompressed the bundled Proton TAR as Zstandard without changing its extracted contents, reducing decompression overhead.
 - Buffered archive reads, reused extraction buffers and reduced writes for large zero-filled entries.
-- Fixed first-install extraction progress so percentages follow compressed bytes instead of remaining at 0%.
+- Fixed first-install extraction progress for system files and bundled content packages. Percentages follow compressed reads and package installation; unmeasured preparation uses an indeterminate indicator instead of a frozen 0%.
 - Validate archives through their footer and reject truncated or incomplete packages before recording success.
 - Repair incomplete bundled runtimes through staging and rollback, preserving existing containers, user files and installed content.
 - Prepare each prefix with its selected Wine/Proton, wait for that prefix's wineserver and reapply configured components before launch.

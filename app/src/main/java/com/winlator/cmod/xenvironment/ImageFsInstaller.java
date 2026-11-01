@@ -12,7 +12,7 @@ import com.winlator.cmod.container.ContainerManager;
 import com.winlator.cmod.contents.ContentProfile;
 import com.winlator.cmod.contents.ContentsManager;
 import com.winlator.cmod.core.AppUtils;
-import com.winlator.cmod.core.DownloadProgressDialog;
+import com.winlator.cmod.core.PreloaderDialog;
 import com.winlator.cmod.core.FileUtils;
 import com.winlator.cmod.core.TarCompressorUtils;
 import com.winlator.cmod.core.WineInfo;
@@ -78,7 +78,7 @@ public abstract class ImageFsInstaller {
         Context context = activity.getApplicationContext();
         ImageFs imageFs = ImageFs.find(context);
         File root = imageFs.getRootDir();
-        DownloadProgressDialog dialog = new DownloadProgressDialog(activity);
+        PreloaderDialog dialog = new PreloaderDialog(activity);
         AtomicBoolean dialogRequested = new AtomicBoolean();
         AtomicBoolean keepScreenOwned = new AtomicBoolean();
         Runnable showInstalling = () -> {
@@ -170,6 +170,7 @@ public abstract class ImageFsInstaller {
                         return deleted;
                     }
                 });
+                progress.accept(100);
                 success = true;
             } catch (Exception error) {
                 Log.e("ImageFsInstaller", "ImageFS/dependency preparation did not finish", error);
