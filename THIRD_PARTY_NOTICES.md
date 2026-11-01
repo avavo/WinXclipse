@@ -50,6 +50,8 @@ Not part of the APK; fetched from their publishers the first time a game needs t
 | [Jetpack Compose and AndroidX](https://developer.android.com/jetpack/androidx) | Apache 2.0 |
 | [Glide](https://github.com/bumptech/glide) | BSD, part MIT and Apache 2.0 |
 | [Gson](https://github.com/google/gson) | Apache 2.0 |
+| [Zstandard](https://github.com/facebook/zstd/tree/v1.5.2) | BSD 3-Clause, see its [LICENSE](https://github.com/facebook/zstd/blob/v1.5.2/LICENSE) |
+| [zstd-jni](https://github.com/luben/zstd-jni/tree/v1.5.2-3) by Luben Karavelov | BSD 2-Clause, see its [LICENSE](https://github.com/luben/zstd-jni/blob/v1.5.2-3/LICENSE) |
 
 ## Fonts
 

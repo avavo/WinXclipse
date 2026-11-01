@@ -1226,7 +1226,7 @@
     <string name="hud_display_transport">Transporte de imagen (DisplayX / X11)</string>
     <string name="video_surface_format">Formato de superficie</string>
     <string name="video_opengl_driver">Controlador OpenGL</string>
-    <string name="video_opengl_native">Mesa</string>
+    <string name="video_opengl_native">Automático</string>
     <string name="displayx_bypass">Omitir X11 en la presentación</string>
     <string name="displayx_performance">Modo de rendimiento</string>
     <string name="displayx_refresh">Presentar a la frecuencia de actualización</string>

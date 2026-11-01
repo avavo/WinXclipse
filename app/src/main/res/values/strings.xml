@@ -1352,7 +1352,7 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="hud_display_transport">Display transport (DisplayX / X11)</string>
     <string name="video_surface_format">Surface format</string>
     <string name="video_opengl_driver">OpenGL driver</string>
-    <string name="video_opengl_native">Mesa</string>
+    <string name="video_opengl_native">Automatic</string>
     <string name="displayx_bypass">Bypass X11 presentation</string>
     <string name="displayx_performance">Performance mode</string>
     <string name="displayx_refresh">Present at refresh rate</string>

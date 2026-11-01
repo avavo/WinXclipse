@@ -2,9 +2,9 @@
 
 ## Vídeo e DisplayX
 
-O seletor OpenGL mostra **Zink / Mesa**. A biblioteca alternativa instalada no
-S24+ identifica-se como Mesa 24.3.0-devel. O valor persistido `native` continua
-válido; não há referência ao driver anterior no texto do seletor.
+O seletor OpenGL mostra **Zink / Automático**. Automático deixa a biblioteca Mesa
+selecionar o driver sem forçar Zink; não representa outro driver específico.
+O valor persistido `native` continua válido, com o mesmo comportamento.
 
 DisplayX exige compositor Vulkan e renderizador Wine Vulkan. Trocar Wine para
 GL/EGL desmarca e desabilita DisplayX imediatamente. Voltar ao Vulkan deixa a

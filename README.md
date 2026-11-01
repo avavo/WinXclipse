@@ -31,10 +31,19 @@ WinXclipse builds upon the work of:
 - Winlator OpenXR by lvonasek  
 - [Winlator Mali](https://github.com/GunaCharanTeja/WinlatorMali) for ports and implementation references  
 - [Winlator Ludashi](https://github.com/StevenMXZ/Winlator-Ludashi) for ports and implementation references  
+- Souza controls branch for touch-control refinements
+- [Bannerlator](https://github.com/The412Banner/Bannerlator) for native HUD architecture references
 - [ExynosTools](https://github.com/WearyConcern1165/ExynosTools) for Exynos/Xclipse driver resources  
-- Wrappers from [Leegao](https://github.com/leegao/bionic-vulkan-wrapper), [GameNative](https://github.com/utkarshdalal/GameNative), [Ref4ik-v6](https://github.com/REF4IK/CronyX-), and Kirimu  
+- Wrappers from [Leegao](https://github.com/leegao/bionic-vulkan-wrapper), [GameNative](https://github.com/utkarshdalal/GameNative), and [Ref4ik-v6](https://github.com/REF4IK/CronyX-)
+- Kirimu for the integrated Vulkan / BCn wrapper
+- [RADV for Xclipse](https://github.com/JimVulkan/radv-xclipse) by Jim / JimVulkan for the downloadable Xclipse Vulkan driver
 - Steam sign-in and library code adapted from [GameNative](https://github.com/utkarshdalal/GameNative) (GPL-3.0), built on [JavaSteam](https://github.com/Longi94/JavaSteam) (MIT)
 - GOG sign-in, library and downloads adapted from [GameNative](https://github.com/utkarshdalal/GameNative) and [heroic-gogdl](https://github.com/Heroic-Games-Launcher/heroic-gogdl) (GPL-3.0)
+- [Wine](https://www.winehq.org), [Box86/Box64](https://github.com/ptitSeb/box64) by ptitSeb and [FEX-Emu](https://github.com/FEX-Emu/FEX)
+- [Mesa](https://www.mesa3d.org), [DXVK](https://github.com/doitsujin/dxvk) and [VKD3D](https://gitlab.winehq.org/wine/vkd3d)
+- [AMD FidelityFX Super Resolution](https://github.com/GPUOpen-Effects/FidelityFX-FSR)
+- [Zstandard](https://github.com/facebook/zstd) and Luben Karavelov's [zstd-jni](https://github.com/luben/zstd-jni) bindings for archive compression and extraction
+- [gbe_fork](https://github.com/Detanup01/gbe_fork) / Goldberg Steam Emulator
   
 Winlator Xclipse adaptation by Álvaro
 

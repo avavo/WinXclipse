@@ -114,7 +114,7 @@ public class VideoRendererSettingsTest {
         android.widget.CheckBox box = dialog.findViewById(R.id.CBVideoDisplayX);
         assertFalse(box.isChecked()); assertFalse(box.isEnabled());
         Spinner driver = dialog.findViewById(R.id.SVideoOpenGLDriver);
-        assertEquals("Mesa", driver.getAdapter().getItem(1));
+        assertEquals("Automatic", driver.getAdapter().getItem(1));
         dialog.findViewById(R.id.BTConfirm).performClick(); assertFalse(savedDisplayX);
     }
     @Test public void cancellingDisplayXKeepsTheSavedChoice() {
