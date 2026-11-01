@@ -104,15 +104,25 @@ public class VideoConfigDialog extends ContentDialog {
         CheckBox displayX=findViewById(R.id.CBVideoDisplayX);
         boolean vulkanCompositor=com.winlator.cmod.renderer.DisplayBackend.VULKAN.equals(
                 com.winlator.cmod.renderer.DisplayBackend.normalize(config.getDisplayBackend()));
-        displayX.setEnabled(vulkanCompositor);
-        displayX.setChecked(vulkanCompositor&&config.isDisplayXEnabled());
+        displayX.setChecked(vulkanCompositor && "vulkan".equals(
+                com.winlator.cmod.core.VideoSettings.wineRenderer(selectedValue(wineRenderer))) && config.isDisplayXEnabled());
         Runnable displayXVisibility=()->{
-            boolean enabled=displayX.isChecked()&&vulkanCompositor;
+            boolean compatible = com.winlator.cmod.core.VideoSettings.displayXCompatible(
+                    config.getDisplayBackend(), selectedValue(wineRenderer));
+            displayX.setEnabled(compatible);
+            if (!compatible && displayX.isChecked()) displayX.setChecked(false);
+            boolean enabled=displayX.isChecked()&&compatible;
             findViewById(R.id.LLVideoDisplayXOptions).setVisibility(enabled?View.VISIBLE:View.GONE);
             vulkanFormat.setVisibility(enabled?View.GONE:View.VISIBLE);
             displayXFormat.setVisibility(enabled?View.VISIBLE:View.GONE);
         };
         displayX.setOnCheckedChangeListener((button,checked)->displayXVisibility.run());
+        wineRenderer.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                displayXVisibility.run();
+            }
+            @Override public void onNothingSelected(AdapterView<?> parent) { displayXVisibility.run(); }
+        });
         displayXVisibility.run();
         Spinner gpuName = findViewById(R.id.SVideoGPUName);
         Spinner presentMode = findViewById(R.id.SVideoPresentMode);
@@ -328,7 +338,8 @@ public class VideoConfigDialog extends ContentDialog {
             updated.put("openGlDriver",openGlDriver.getSelectedItemPosition()==1?"native":"zink");
             for(int i=0;i<displayXIds.length;i++) updated.put(displayXKeys[i],((CheckBox)findViewById(displayXIds[i])).isChecked()?"1":"0");
             config.setVideoOptions(updated);
-            config.setDisplayXEnabled(displayX.isChecked());
+            config.setDisplayXEnabled(displayX.isChecked() && com.winlator.cmod.core.VideoSettings.displayXCompatible(
+                    config.getDisplayBackend(), selectedValue(wineRenderer)));
             String upscaleValue = fsrUpscale.getSelectedItemPosition()==1 ? "1" : "0";
             int qualityIndex = Math.max(0, Math.min(fsrQuality.getSelectedItemPosition(),
                     FSR_MODE_VALUES.length - 1));

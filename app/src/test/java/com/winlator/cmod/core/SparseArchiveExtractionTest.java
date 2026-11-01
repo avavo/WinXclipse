@@ -81,6 +81,26 @@ public class SparseArchiveExtractionTest {
         assertArrayEquals(new byte[]{17}, Files.readAllBytes(new File(output, "next").toPath()));
     }
 
+    @Test public void inputProgressAdvancesWithinOneLargeEntryAndCountsEachByteOnce() throws Exception {
+        byte[] payload = new byte[(int)SparseFileWriter.MIN_FILE_SIZE]; payload[0]=42;
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        try (TarArchiveOutputStream tar = new TarArchiveOutputStream(bytes)) { entry(tar, "large", payload); }
+        byte[] archive = bytes.toByteArray();
+        java.util.List<Long> progress = new java.util.ArrayList<>();
+        File destination = temp.newFolder();
+        assertTrue(TarCompressorUtils.extract(TarCompressorUtils.Type.NONE,
+                new ByteArrayInputStream(archive), destination, null, archive.length,
+                (read, total) -> {
+                    assertEquals(archive.length, total);
+                    assertTrue(read <= total);
+                    if (!progress.isEmpty()) assertTrue(read > progress.get(progress.size()-1));
+                    progress.add(read);
+                }));
+        assertTrue(progress.size() > 20);
+        assertEquals(archive.length, (long)progress.get(progress.size()-1));
+        assertEquals(payload.length, new File(destination,"large").length());
+    }
+
     private String pax(String key, String value) {
         String body = " " + key + "=" + value + "\n";
         int size = body.length() + 1;

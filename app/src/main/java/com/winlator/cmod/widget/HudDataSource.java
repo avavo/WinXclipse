@@ -32,6 +32,8 @@ public class HudDataSource {
     public final AtomicInteger gpuMhz = new AtomicInteger(-1);
     public volatile CpuTelemetry.Sample cpu = CpuTelemetry.EMPTY;
     public volatile long ramTotalBytes = -1, ramAvailableBytes = -1;
+    public volatile long swapTotalBytes = -1, swapFreeBytes = -1;
+    public volatile boolean cpuApThermistor;
     public volatile double batteryAvailableMah = Double.NaN;
     public volatile boolean batteryChargeEstimated, charging;
     public volatile long batteryCurrentMicroamps = Long.MIN_VALUE;
@@ -52,8 +54,6 @@ public class HudDataSource {
     private long lastMaliGpuInfoWallMs = -1;
     private java.util.List<String> discoveredCpuTempPaths = null;
     private java.util.List<String> discoveredGpuTempPaths = null;
-
-    private static final boolean USE_BATTERY_AS_CPU_FALLBACK = false;
 
     private static final String[] GPU_PATHS = {
         "/sys/kernel/gpu/gpu_busy", // SGPU/Xclipse; do not prefer legacy Mali counters on Exynos.
@@ -280,63 +280,33 @@ public class HudDataSource {
         return hz > 0 && hz <= 10_000_000_000L ? (int)(hz / 1_000_000) : -1;
     }
 
+    private int firstTemperature(java.util.List<String> paths) {
+        for (String path : paths) {
+            int value = TelemetryMath.temperatureC(readSysFsString(path));
+            if (value >= 0) return value;
+        }
+        return -1;
+    }
+
     private void pollCpuTemp() {
-        for (String p : discoverCpuTempPaths()) {
-            int v = readInt(p);
-            if (v > 0) {
-                if (v > 5000) v /= 1000;
-                else if (v > 200) v /= 10;
-                
-                if (v > 0 && v < 120) {
-                    cpuTempC.set(v);
-                    return;
-                }
-            }
+        cpuApThermistor = false;
+        int value = firstTemperature(discoverCpuTempPaths());
+        if (value < 0) value = firstTemperature(java.util.Arrays.asList(CPU_TEMP_PATHS));
+        if (value < 0) {
+            // Samsung's AP board thermistor is readable on the S24+; die TMU
+            // nodes are denied. Keep its AP identity instead of claiming a die reading.
+            value = firstTemperature(java.util.Arrays.asList(
+                    "/sys/devices/virtual/sec/sec-ap-thermistor/temperature",
+                    "/sys/class/sec/sec-ap-thermistor/temperature"));
+            cpuApThermistor = value >= 0;
         }
-
-        for (String p : CPU_TEMP_PATHS) {
-            int v = readInt(p);
-            if (v > 0) {
-                // Scaling detection:
-                // Values like 45000 are millidegrees (divide by 1000)
-                // Values like 450 are degrees * 10 (divide by 10)
-                // Values like 45 are just degrees
-                if (v > 5000) v /= 1000;
-                else if (v > 200) v /= 10;
-                
-                if (v > 0 && v < 120) { // Basic sanity check for valid CPU temp
-                    cpuTempC.set(v);
-                    return;
-                }
-            }
-        }
-
-        int batt = batteryTempC.get();
-        if (batt > 0 && batt < 120 && USE_BATTERY_AS_CPU_FALLBACK) {
-            // Off by default: mirrors the battery sensor (already shown as TMP),
-            // which confused users into thinking it was a real CPU reading.
-            // Samsung's SELinux policy blocks /sys/class/thermal on recent
-            // firmware, so without root there is no true CPU temp source.
-            cpuTempC.set(batt);
-            return;
-        }
-        cpuTempC.set(-1);
+        cpuTempC.set(value);
     }
 
     private void pollGpuTemp() {
-        for (String p : discoverGpuTempPaths()) {
-            int v = readInt(p);
-            if (v > 0) {
-                if (v > 5000) v /= 1000;
-                else if (v > 200) v /= 10;
-
-                if (v > 0 && v < 120) {
-                    gpuTempC.set(v);
-                    return;
-                }
-            }
-        }
-        gpuTempC.set(-1);
+        int value = firstTemperature(java.util.Arrays.asList("/sys/kernel/gpu/gpu_tmu"));
+        if (value < 0) value = firstTemperature(discoverGpuTempPaths());
+        gpuTempC.set(value);
     }
 
     private void pollBattery() {
@@ -370,14 +340,32 @@ public class HudDataSource {
 
             long rawCurrent = Long.MIN_VALUE;
             if (batteryManager != null)
-                rawCurrent = batteryManager.getLongProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW);
-            if (rawCurrent == Long.MIN_VALUE || rawCurrent == Integer.MIN_VALUE) {
+                rawCurrent = TelemetryMath.batteryCurrentMicroamps(
+                        batteryManager.getLongProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW),
+                        android.os.Build.MANUFACTURER, android.os.Build.MODEL);
+            if (!TelemetryMath.validCurrent(rawCurrent) && batteryManager != null)
+                rawCurrent = TelemetryMath.batteryCurrentMicroamps(
+                        batteryManager.getLongProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_AVERAGE),
+                        android.os.Build.MANUFACTURER, android.os.Build.MODEL);
+            if (!TelemetryMath.validCurrent(rawCurrent)) {
                 // Standard power_supply current_now is µA. Vendor ibat_now has
                 // unspecified units, so it is deliberately not used here.
                 rawCurrent = firstNonZero(new String[]{CURRENT_PATHS[0], CURRENT_PATHS[1], CURRENT_PATHS[2]});
                 if (rawCurrent == 0) rawCurrent = Long.MIN_VALUE;
                 else rawCurrent = charging ? Math.abs(rawCurrent) : -Math.abs(rawCurrent);
             }
+            if (!TelemetryMath.validCurrent(rawCurrent)
+                    && "samsung".equalsIgnoreCase(android.os.Build.MANUFACTURER)) {
+                // Samsung broadcasts these vendor extras in mA, not the µA of
+                // BatteryManager/current_now. Never guess units of arbitrary sysfs nodes.
+                for (String key : new String[]{"current_now", "current_avg"}) {
+                    int milliamps = batt.getIntExtra(key, Integer.MIN_VALUE);
+                    if (milliamps != Integer.MIN_VALUE && TelemetryMath.validCurrent((long)milliamps * 1000)) {
+                        rawCurrent = (long)milliamps * 1000; break;
+                    }
+                }
+            }
+            if (!TelemetryMath.validCurrent(rawCurrent)) rawCurrent = Long.MIN_VALUE;
             batteryCurrentMicroamps = rawCurrent;
             double watts = TelemetryMath.watts(rawCurrent, mv);
             batteryMw.set(Double.isNaN(watts) ? -1 : (int)Math.round(watts * 1000));
@@ -406,18 +394,25 @@ public class HudDataSource {
     private void pollRam() {
         try (java.io.BufferedReader r = new java.io.BufferedReader(
                 new java.io.FileReader("/proc/meminfo"))) {
-            long memTotal = -1, memAvail = -1;
+            long memTotal = -1, memAvail = -1, swapTotal = -1, swapFree = -1;
             String line;
             while ((line = r.readLine()) != null) {
                 if (line.startsWith("MemTotal:"))     memTotal = parseMeminfoKb(line);
-                else if (line.startsWith("MemAvailable:")) { memAvail = parseMeminfoKb(line); break; }
+                else if (line.startsWith("MemAvailable:")) memAvail = parseMeminfoKb(line);
+                else if (line.startsWith("SwapTotal:")) swapTotal = parseMeminfoKb(line);
+                else if (line.startsWith("SwapFree:")) swapFree = parseMeminfoKb(line);
             }
+            swapTotalBytes = swapTotal >= 0 ? swapTotal * 1024 : -1;
+            swapFreeBytes = swapFree >= 0 && swapFree <= swapTotal ? swapFree * 1024 : -1;
             ramTotalBytes = memTotal > 0 ? memTotal * 1024 : -1;
             ramAvailableBytes = memAvail >= 0 && memAvail <= memTotal ? memAvail * 1024 : -1;
             if (memTotal > 0 && memAvail >= 0 && memAvail <= memTotal)
                 ramUsagePct.set((int)(100L * (memTotal - memAvail) / memTotal));
             else ramUsagePct.set(-1);
-        } catch (Exception e) { ramUsagePct.set(-1); ramTotalBytes = ramAvailableBytes = -1; }
+        } catch (Exception e) {
+            ramUsagePct.set(-1); ramTotalBytes = ramAvailableBytes = -1;
+            swapTotalBytes = swapFreeBytes = -1;
+        }
     }
 
     private long parseMeminfoKb(String line) {

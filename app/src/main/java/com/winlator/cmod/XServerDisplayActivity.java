@@ -615,7 +615,6 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
                 }
             }
             @Override public void onDrawerClosed(@NonNull View drawerView) {
-                if (sidebarBackdrop != null) sidebarBackdrop.clear();
                 if(xServerView!=null)xServerView.setDirectPresentationAllowed(true);
                 // If the user left Relative Mouse enabled, recapture.
                 if (isRelativeMouseMovement && !pointerCaptureRequested) {
@@ -1465,7 +1464,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         if (environment != null) {
             releasePointerCaptureIfNeeded("open-drawer/back");
             if (!drawerLayout.isDrawerOpen(GravityCompat.START)) {
-                drawerLayout.openDrawer(GravityCompat.START);
+                openBlurredDrawer();
             } else {
                 drawerLayout.closeDrawers();
             }
@@ -1476,13 +1475,34 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         if (environment != null) {
             releasePointerCaptureIfNeeded("open-drawer/shortcut");
             if (!drawerLayout.isDrawerOpen(GravityCompat.START)) {
-                drawerLayout.openDrawer(GravityCompat.START);
+                openBlurredDrawer();
             } else {
                 drawerLayout.closeDrawers();
             }
         }
     }
 
+
+    private boolean sidebarOpening;
+    private void openBlurredDrawer() {
+        if (sidebarOpening || drawerLayout == null) return;
+        sidebarOpening = true;
+        Runnable open = () -> {
+            if (!sidebarOpening) return;
+            sidebarOpening = false;
+            if (!isFinishing() && !isDestroyed()) drawerLayout.openDrawer(GravityCompat.START);
+        };
+        if (sidebarBackdrop == null || xServerView == null) { open.run(); return; }
+        xServerView.setDirectPresentationAllowed(false);
+        // Capture while the drawer is still offscreen, avoiding the first-open
+        // solid-to-glass transition during its entrance animation.
+        java.util.concurrent.atomic.AtomicBoolean captureStarted = new java.util.concurrent.atomic.AtomicBoolean();
+        Runnable capture = () -> {
+            if (sidebarOpening && captureStarted.compareAndSet(false, true)) sidebarBackdrop.capture(xServerView, open);
+        };
+        xServerView.afterCompositedFrame(capture);
+        xServerView.postDelayed(capture, 150);
+    }
 
     // Fields
     private static final String PREF_EXP_INPUT   = "drawer_exp_input";
@@ -2419,6 +2439,8 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
                 Log.w("BionicStartup", "Invalid selected CPU topology; keeping explicit Wine environment", failure);
             }
         }
+        envVars.put(com.winlator.cmod.core.GuestMemoryPolicy.KEY,
+                experimentalPerformance && "1".equals(xperfConfig.get("ramAggro")) ? "1" : "0");
         bionicLauncher.setStartupMemoryCleanupEnabled(experimentalPerformance
                 && "1".equals(xperfConfig.get("maliCleanup")));
 
@@ -2693,6 +2715,9 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
                         container.getExtra(com.winlator.cmod.renderer.DisplayBackend.KEY,"vulkan"))
                 : container.getExtra(com.winlator.cmod.renderer.DisplayBackend.KEY,"vulkan");
         xServerView = new XServerView(this, xServer, displayBackend);
+        // Reject stale GL/EGL + DisplayX combinations saved by older editors too.
+        if (!com.winlator.cmod.core.VideoSettings.displayXCompatible(displayBackend, resolveWineRenderer()))
+            graphicsDriverConfig.put("displayX", "0");
         xServerView.configureVideo(graphicsDriverConfig);
         if("1".equals(graphicsDriverConfig.getOrDefault("displayX","0")))
             xServerView.enableDisplayX(xServer,new File(getFilesDir(),".dx-"+java.util.UUID.randomUUID().toString().substring(0,12)));
@@ -2789,7 +2814,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         touchpadView.setTouchscreenMouseDisabled(isMouseDisabled);
         touchpadView.setSensitivity(globalCursorSpeed);
         touchpadView.setFourFingersTapCallback(() -> {
-            if (!drawerLayout.isDrawerOpen(GravityCompat.START)) drawerLayout.openDrawer(GravityCompat.START);
+            if (!drawerLayout.isDrawerOpen(GravityCompat.START)) openBlurredDrawer();
         });
         // Three-finger tap: the phone keyboard, e.g. when a game asks for a name.
         touchpadView.setThreeFingersTapCallback(() -> AppUtils.showKeyboard(this));
@@ -4407,8 +4432,8 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         bindHudFormat(dialog.findViewById(R.id.SPHudRamFormat), R.array.hud_ram_format_entries,
                 hud.getRamFormat(), hud::setRamFormat);
         int[] controls = {R.id.CBHudCoreFrequency, R.id.CBHudCoreUsage, R.id.CBHudCoreName,
-                R.id.CBHudGpuFrequency, R.id.CBHudBatteryCharge, R.id.CBHudVram, R.id.CBHudDisplayTransport};
-        String[] keys = {"core_frequency", "core_usage", "core_name", "gpu_frequency", "battery_charge", "vram", "display_transport"};
+                R.id.CBHudGpuFrequency, R.id.CBHudBatteryCharge, R.id.CBHudVram, R.id.CBHudDisplayTransport, R.id.CBHudSwap};
+        String[] keys = {"core_frequency", "core_usage", "core_name", "gpu_frequency", "battery_charge", "vram", "display_transport", "swap"};
         for (int i = 0; i < controls.length; i++) {
             CheckBox check = dialog.findViewById(controls[i]);
             if (controls[i] == R.id.CBHudVram) check.setVisibility(hud.getHudStyle() == 1 ? View.VISIBLE : View.GONE);

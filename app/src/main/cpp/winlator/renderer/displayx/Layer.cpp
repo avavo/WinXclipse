@@ -7,6 +7,7 @@
 #include <android/hardware_buffer.h>
 #include <android/log.h>
 #include "Protocol.hpp"
+#include "WsiPolicy.hpp"
 #include <sys/un.h>
 #include <poll.h>
 #include <atomic>
@@ -280,7 +281,9 @@ VKAPI_ATTR VkResult VKAPI_CALL enumerateDeviceExtensions(VkPhysicalDevice gpu,co
     // A compositor GPU fence is not proof that SurfaceFlinger displayed a frame.
     // Do not advertise native present-wait while replacing native WSI. DXVK uses
     // its ordinary acquire/FIFO pacing instead. Never fake vkWaitForPresent.
-    extensions.erase(std::remove_if(extensions.begin(),extensions.end(),[](const auto& e){return !strcmp(e.extensionName,VK_KHR_PRESENT_WAIT_EXTENSION_NAME);}),extensions.end());
+    extensions.erase(std::remove_if(extensions.begin(),extensions.end(),[](const auto& e){
+        return nativeSwapchainExtension(e.extensionName);
+    }),extensions.end());
     if(!out){*count=uint32_t(extensions.size());return VK_SUCCESS;}
     n=std::min(*count,uint32_t(extensions.size()));for(uint32_t x=0;x<n;x++)out[x]=extensions[x];*count=n;
     return n<extensions.size()?VK_INCOMPLETE:VK_SUCCESS;
@@ -320,11 +323,7 @@ VKAPI_ATTR VkResult VKAPI_CALL createDevice(VkPhysicalDevice gpu,const VkDeviceC
     // These extensions add commands accepting real swapchain handles. Until a
     // complete implementation of their contracts is available, retain the ICD's
     // WSI instead of letting an unhandled command receive our synthetic handle.
-    for(const char* e:extensions)
-        if(!strcmp(e,"VK_EXT_swapchain_maintenance1")||!strcmp(e,"VK_GOOGLE_display_timing")
-            ||!strcmp(e,"VK_KHR_shared_presentable_image")||!strcmp(e,"VK_EXT_full_screen_exclusive")
-            ||!strcmp(e,VK_KHR_PRESENT_WAIT_EXTENSION_NAME)||!strcmp(e,"VK_EXT_display_control")
-            ||!strcmp(e,"VK_KHR_swapchain_maintenance1")||!strcmp(e,"VK_KHR_present_wait2")||!strcmp(e,"VK_KHR_present_id2"))suitable=false;
+    for(const char* extension:extensions) if(nativeSwapchainExtension(extension)) suitable=false;
     auto enumerate=reinterpret_cast<PFN_vkEnumerateDeviceExtensionProperties>(get(i->handle,"vkEnumerateDeviceExtensionProperties"));
     uint32_t count=0;enumerate(gpu,nullptr,&count,nullptr);std::vector<VkExtensionProperties> available(count);
     if(enumerate(gpu,nullptr,&count,available.data())!=VK_SUCCESS)suitable=false;

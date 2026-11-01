@@ -124,12 +124,16 @@ public abstract class TarCompressorUtils {
     }
 
     public static boolean extract(Type type, Context context, String assetFile, File destination, OnExtractFileListener onExtractFileListener) {
+        return extract(type, context, assetFile, destination, onExtractFileListener, null);
+    }
+
+    public static boolean extract(Type type, Context context, String assetFile, File destination,
+                                  OnExtractFileListener onExtractFileListener, OnReadProgressListener progress) {
         try {
-            return extract(type, context.getAssets().open(assetFile), destination, onExtractFileListener);
-        }
-        catch (IOException e) {
-            return false;
-        }
+            InputStream input = context.getAssets().open(assetFile);
+            long total = input.available();
+            return extract(type, input, destination, onExtractFileListener, total, progress);
+        } catch (IOException error) { return false; }
     }
 
     public static boolean extract(Type type, Context context, Uri source, File destination) {
@@ -152,8 +156,7 @@ public abstract class TarCompressorUtils {
             } else {
                 input = context.getContentResolver().openInputStream(source);
             }
-            return extract(type, new ProgressInputStream(input, totalBytes, progressListener),
-                    destination, onExtractFileListener);
+            return extract(type, input, destination, onExtractFileListener, totalBytes, progressListener);
         }
         catch (FileNotFoundException e) {
             return false;
@@ -176,6 +179,12 @@ public abstract class TarCompressorUtils {
         catch (FileNotFoundException e) {
             return false;
         }
+    }
+
+    static boolean extract(Type type, InputStream source, File destination,
+                           OnExtractFileListener onExtractFileListener, long totalBytes,
+                           OnReadProgressListener progressListener) {
+        return extract(type, new ProgressInputStream(source, totalBytes, progressListener), destination, onExtractFileListener);
     }
 
     private static boolean extract(Type type, InputStream source, File destination, OnExtractFileListener onExtractFileListener) {
@@ -312,7 +321,7 @@ if (entry.isDirectory()) {
 
         @Override
         public int read(byte[] buffer, int offset, int length) throws IOException {
-            int count = super.read(buffer, offset, length);
+            int count = in.read(buffer, offset, length);
             if (count > 0) report(count);
             return count;
         }

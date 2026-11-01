@@ -71,6 +71,35 @@ public final class TelemetryMath {
         return result <= 200 ? result : Double.NaN;
     }
 
+    public static int temperatureC(String text) {
+        try {
+            double value = Double.parseDouble(text.trim());
+            if (Math.abs(value) > 1000) value /= 1000;
+            else if (Math.abs(value) > 150) value /= 10;
+            return Double.isFinite(value) && value > 0 && value < 120 ? (int)Math.round(value) : -1;
+        } catch (RuntimeException invalid) { return -1; }
+    }
+
+    public static long batteryCurrentMicroamps(long value, String manufacturer, String model) {
+        // Confirmed under the app UID on SM-S926B: Samsung Health returns mA
+        // for CURRENT_NOW/CURRENT_AVERAGE, although Android specifies µA.
+        if ("samsung".equalsIgnoreCase(manufacturer) && model != null
+                && model.toUpperCase(Locale.ROOT).startsWith("SM-S926B")
+                && value != 0 && Math.abs((double)value) <= 30_000) return value * 1000;
+        return value;
+    }
+
+    public static boolean validCurrent(long value) {
+        return value != 0 && value != Long.MIN_VALUE && value != Integer.MIN_VALUE
+                && Math.abs((double)value) <= 30_000_000;
+    }
+
+    public static String swap(long total, long free) {
+        if (total < 0 || free < 0 || free > total) return "Swap N/A";
+        return String.format(Locale.getDefault(), "Swap %.2f / %.2f GB",
+                (total-free)/1_000_000_000d, total/1_000_000_000d);
+    }
+
     public static double chargeMah(long microampHours) {
         return microampHours >= 0 && microampHours <= 100_000_000L ? microampHours / 1000d : Double.NaN;
     }

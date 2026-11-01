@@ -173,3 +173,10 @@ When reporting a regression, include the device, Android version, runtime, drive
 Discord: https://discord.gg/u2nDTXRxyx
 
 Email: avavosim@gmail.com
+
+Retorno de 01/11/2026 — lote 41
+- OpenGL: Zink / Mesa; DisplayX só com Vulkan do Wine e do compositor.
+- Negociação de extensões DisplayX corrigida; HUD distingue pronto de apresentação ativa.
+- Barra prepara blur antes de entrar; extração avança por bytes comprimidos.
+- Sensores GPU e AP Samsung, consumo em W corrigido e nova opção de swap no HUD.
+- Preparar RAM sem alocação de pressão; RAM Aggressive atua nos processos Wine.

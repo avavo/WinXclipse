@@ -102,3 +102,11 @@ Protocolo DisplayX: 23 cenários aprovados. ART no S24+: XZ 28.270 ms e Zstandar
 2.178 ms com SHA-256 idêntico do TAR; quatro quadros Vulkan em superfícies
 descartáveis, BGRA/RGBA e apresentação precisa ligada/desligada. Escopo e limitações
 em [feedback-2026-11-01.md](feedback-2026-11-01.md).
+
+
+## Retorno do lote 41
+
+A revisão mais recente está em [feedback-2026-11-01-followup.md](feedback-2026-11-01-followup.md).
+JVM: 528 casos, 526 aprovados, dois ignorados e zero falhas.
+No S24+, a camada DisplayX real entregou três frames AHB com cores verificadas
+na saída do compositor. Não é validação de gameplay Proton/DXVK.

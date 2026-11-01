@@ -14,7 +14,6 @@ import com.winlator.cmod.contents.ContentsManager;
 import com.winlator.cmod.core.AppUtils;
 import com.winlator.cmod.core.DownloadProgressDialog;
 import com.winlator.cmod.core.FileUtils;
-import com.winlator.cmod.core.OnExtractFileListener;
 import com.winlator.cmod.core.TarCompressorUtils;
 import com.winlator.cmod.core.WineInfo;
 import com.winlator.cmod.core.ImageFsMaintenance;
@@ -30,7 +29,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntConsumer;
-import java.util.concurrent.atomic.AtomicLong;
 
 public abstract class ImageFsInstaller {
     public static final byte LATEST_VERSION = 25;
@@ -96,7 +94,8 @@ public abstract class ImageFsInstaller {
         };
         AtomicInteger lastProgress = new AtomicInteger(-1);
         IntConsumer progress = value -> {
-            if (lastProgress.getAndSet(value) == value) return;
+            int previous = lastProgress.getAndUpdate(old -> Math.max(old, value));
+            if (value <= previous) return;
             activity.runOnUiThread(() -> {
                 if (!activity.isFinishing() && !activity.isDestroyed()) dialog.setProgress(value);
             });
@@ -108,45 +107,31 @@ public abstract class ImageFsInstaller {
             boolean success = false;
             try {
                 String[] wineVersions = context.getResources().getStringArray(R.array.wine_entries);
-                long wineSize = 0;
-                for (String wine : wineVersions) {
-                    long size = FileUtils.getSize(context, wine + ".tzst");
-                    if (size == 0) size = FileUtils.getSize(context, wine + ".txz");
-                    wineSize += size * 4L;
-                }
-                final long wineEstimate = Math.max(1L, wineSize);
-                AtomicLong wineExtracted = new AtomicLong();
+                final int[] wineCompleted = {0};
                 final boolean[] imageUpdate = {false};
                 ImageFsMaintenance.prepare(root, LATEST_VERSION, wineVersions, forceImage,
                         new ImageFsMaintenance.Backend() {
                     @Override public boolean extractImage(File destination) {
                         showInstalling.run();
                         imageUpdate[0] = true;
-                        long estimate = Math.max(1L, FileUtils.getSize(context, "imagefs.tzst") * 4L);
-                        AtomicLong extracted = new AtomicLong();
                         boolean ready = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD,
-                                context, "imagefs.tzst", destination, (file, size) -> {
-                                    if (size > 0) progress.accept((int)Math.min(78,
-                                            extracted.addAndGet(size) * 78L / estimate));
-                                    return file;
-                                });
+                                context, "imagefs.tzst", destination, null,
+                                (read, total) -> progress.accept(com.winlator.cmod.core.ExtractionProgress.percent(read, total, 0, 78)));
                         if (ready) progress.accept(78);
                         return ready;
                     }
                     @Override public boolean extractWine(String version, File staging) {
                         showInstalling.run();
-                        OnExtractFileListener listener = (file, size) -> {
-                            if (size > 0) {
-                                int start = imageUpdate[0] ? 78 : 0;
-                                progress.accept(start + (int)Math.min(93 - start,
-                                        wineExtracted.addAndGet(size) * (93 - start) / wineEstimate));
-                            }
-                            return file;
-                        };
+                        int start = imageUpdate[0] ? 78 : 0;
+                        int end = start + (93 - start) * (wineCompleted[0] + 1) / Math.max(1, wineVersions.length);
+                        int begin = start + (93 - start) * wineCompleted[0] / Math.max(1, wineVersions.length);
+                        TarCompressorUtils.OnReadProgressListener listener = (read, total) ->
+                                progress.accept(com.winlator.cmod.core.ExtractionProgress.percent(read, total, begin, end));
                         boolean ready = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD,
-                                context, version + ".tzst", staging, listener);
+                                context, version + ".tzst", staging, null, listener);
                         if (!ready) ready = TarCompressorUtils.extract(TarCompressorUtils.Type.XZ,
-                                context, version + ".txz", staging, listener);
+                                context, version + ".txz", staging, null, listener);
+                        if (ready) { wineCompleted[0]++; progress.accept(end); }
                         return ready;
                     }
                     @Override public boolean hasReplacementWine() {

@@ -28,10 +28,18 @@ public final class SidebarBackdrop implements AutoCloseable {
         handler = new Handler(worker.getLooper());
     }
 
-    public void capture(SurfaceView source) {
+    public void capture(SurfaceView source) { capture(source, () -> {}); }
+
+    /** The drawer starts moving only after its first blurred snapshot is ready. */
+    public void capture(SurfaceView source, Runnable ready) {
+        java.util.concurrent.atomic.AtomicBoolean delivered = new java.util.concurrent.atomic.AtomicBoolean();
+        Runnable finish = () -> { if (!closed && delivered.compareAndSet(false, true)) ready.run(); };
+        // PixelCopy can fail when the surface is being recreated. Retain the
+        // previous blur and keep the drawer responsive without an unblurred copy.
+        panel.postDelayed(finish, 250);
         final int request = ++generation;
         if (closed || source == null || !source.getHolder().getSurface().isValid()
-                || source.getWidth() <= 0 || source.getHeight() <= 0) return;
+                || source.getWidth() <= 0 || source.getHeight() <= 0) { panel.post(finish); return; }
         float scale = Math.min(1f, 320f / Math.max(source.getWidth(), source.getHeight()));
         Bitmap bitmap = Bitmap.createBitmap(Math.max(1, Math.round(source.getWidth() * scale)),
                 Math.max(1, Math.round(source.getHeight() * scale)), Bitmap.Config.ARGB_8888);
@@ -40,7 +48,7 @@ public final class SidebarBackdrop implements AutoCloseable {
         source.getLocationOnScreen(location);
         try {
             PixelCopy.request(source, bitmap, result -> {
-                if (result != PixelCopy.SUCCESS || request != generation) { bitmap.recycle(); return; }
+                if (result != PixelCopy.SUCCESS || request != generation) { bitmap.recycle(); panel.post(finish); return; }
                 blur(bitmap);
                 panel.post(() -> {
                     if (closed || request != generation || !panel.isAttachedToWindow()) { bitmap.recycle(); return; }
@@ -62,9 +70,11 @@ public final class SidebarBackdrop implements AutoCloseable {
                         @Override public void setColorFilter(ColorFilter filter) { paint.setColorFilter(filter); }
                         @Override public int getOpacity() { return PixelFormat.TRANSLUCENT; }
                     });
+                    panel.removeCallbacks(finish);
+                    finish.run();
                 });
             }, handler);
-        } catch (IllegalArgumentException e) { bitmap.recycle(); }
+        } catch (IllegalArgumentException e) { bitmap.recycle(); panel.post(finish); }
     }
 
     /** Runs on the worker and never touches a game texture or the renderer. */

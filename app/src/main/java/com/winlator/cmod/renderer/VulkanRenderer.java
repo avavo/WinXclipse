@@ -29,7 +29,12 @@ public final class VulkanRenderer extends SceneRenderer {
         preferredSurfaceFormat=com.winlator.cmod.core.VideoSettings.surfaceFormat(options,direct);
     }
     private volatile boolean presentedDisplayX;
-    @Override public String getDisplayTransport() { return presentedDisplayX ? "DisplayX" : "X11"; }
+    @Override public String getDisplayTransport() {
+        if (presentedDisplayX) return "DisplayX";
+        DisplayXSession session = xServerView.getDisplayXSession();
+        return session != null && session.isAvailable()
+                ? xServerView.getContext().getString(R.string.displayx_ready_x11) : "X11";
+    }
     public void setDirectPresentationAllowed(boolean allowed){directPresentationAllowed=allowed;xServerView.requestRender();}
     /** Render-thread callback; PixelCopy callers receive a posted, composed buffer. */
     public void afterComposition(Runnable ready){afterComposition=ready;directPresentationAllowed=false;xServerView.requestRender();}

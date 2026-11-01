@@ -9,6 +9,9 @@ add_subdirectory(patchelf)
 add_subdirectory(winlator/renderer/displayx)
 add_subdirectory(winlator/renderer/vulkan)
 
+add_library(winx_memory SHARED winlator/guest_memory.c)
+target_link_libraries(winx_memory log)
+
 # Add Winlator shared library
 add_library(winlator SHARED
         xr/engine.c

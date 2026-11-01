@@ -17,6 +17,10 @@ public final class VideoSettings {
         String name=value==null?"":value.toLowerCase(Locale.ROOT);
         return name.equals("gl")||name.equals("egl")?name:"vulkan";
     }
+    public static boolean displayXCompatible(String compositor, String wine) {
+        return "vulkan".equals(com.winlator.cmod.renderer.DisplayBackend.normalize(compositor))
+                && "vulkan".equals(wineRenderer(wine));
+    }
     public static String wineRegistryRenderer(String value) { return wineRenderer(value).equals("egl")?"gl":wineRenderer(value); }
     public static void guestEnvironment(Map<String,String> values,String renderer,EnvVars env) {
         env.put("WINE_X11FORCEGLX",wineRenderer(renderer).equals("egl")?"0":"1");

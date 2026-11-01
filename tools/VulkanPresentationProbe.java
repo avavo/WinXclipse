@@ -23,6 +23,8 @@ final class VulkanRenderer {
  static native long nativeCreate(Surface surface,boolean rgba,boolean refresh,boolean precise);
  static native void nativeDestroy(long handle);
  static native boolean nativeBegin(long handle,int w,int h,boolean reset,boolean nearest);
+ static native void nativeDisplayX(long handle,long server);
+ static native boolean nativeDrawDirect(long handle,int window,float x0,float y0,float x1,float y1,boolean swap);
  static native void nativePresentationTime(long handle,long nanos);
  static native boolean nativePresent(long handle,int[] effects,ByteBuffer pushes,boolean fg,boolean capture,boolean generated,float alpha,int quality,float stability,int motionW,int motionH);
 }

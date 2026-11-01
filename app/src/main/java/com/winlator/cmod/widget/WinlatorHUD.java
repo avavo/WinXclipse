@@ -432,7 +432,8 @@ public class WinlatorHUD extends View {
             if (!ram.equals(strRam)) { strRam = ram; requestLayout(); }
             updateRamAlert(rm);
             if (tm != snapTmp)  { snapTmp = tm; strTmp = tm > 0 ? tm + "°C" : ""; }
-            if (ctm != snapCTmp) { snapCTmp = ctm; strCTmp = ctm > 0 ? ctm + "°C" : ""; }
+            snapCTmp = ctm;
+            strCTmp = ctm > 0 ? ctm + "°C" + (dataSource.cpuApThermistor ? " AP" : "") : "";
             if (gtm != snapGTmp) { snapGTmp = gtm; strGTmp = gtm > 0 ? gtm + "°C" : ""; }
             if (pc != snapPct)  { snapPct = pc; strPct = pc >= 0 ? pc + "%" : ""; }
             if (mw != snapMw) {
@@ -445,6 +446,7 @@ public class WinlatorHUD extends View {
             if (prefs.getBoolean("display_transport", false)) rows.add(transportSource.get());
             if (hudStyle != 1 && (showMask & SHOW_BATT_PCT) != 0 && (showMask & SHOW_BATT) == 0)
                 rows.add(pc >= 0 ? pc + "%" : "N/A %");
+            if (prefs.getBoolean("swap", false)) rows.add(TelemetryMath.swap(dataSource.swapTotalBytes, dataSource.swapFreeBytes));
             if (gpuFrequency) rows.add("GPU " + (dataSource.gpuMhz.get() >= 0 ? dataSource.gpuMhz.get() + " MHz" : "N/A"));
             if (batteryCharge) rows.add((dataSource.batteryChargeEstimated ? "≈" : "")
                     + (Double.isNaN(dataSource.batteryAvailableMah) ? "N/A mAh"
@@ -1500,6 +1502,7 @@ public class WinlatorHUD extends View {
             case "battery_charge": batteryCharge = enabled; break;
             case "vram": break;
             case "display_transport": break;
+            case "swap": break;
             default: return;
         }
         prefs.edit().putBoolean(key, enabled).apply();

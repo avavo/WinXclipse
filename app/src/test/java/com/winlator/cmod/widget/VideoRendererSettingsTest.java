@@ -94,6 +94,29 @@ public class VideoRendererSettingsTest {
         assertFalse(savedDisplayX);dialog.findViewById(R.id.BTConfirm).performClick();
         assertTrue(savedDisplayX);assertTrue(applied);
     }
+    @Test public void wineGlAndEglClearDisplayXImmediatelyAndKeepItOffOnSave() {
+        for (int choice : new int[]{0, 2}) {
+            savedDisplayX = true; savedWine = "vulkan";
+            VideoConfigDialog dialog = new VideoConfigDialog(context(), config()); dialog.show();
+            Spinner wine = dialog.findViewById(R.id.SVideoWineRenderer);
+            wine.setSelection(choice); ShadowLooper.idleMainLooper();
+            android.widget.CheckBox box = dialog.findViewById(R.id.CBVideoDisplayX);
+            assertFalse(box.isChecked()); assertFalse(box.isEnabled());
+            assertEquals(View.GONE, dialog.findViewById(R.id.LLVideoDisplayXOptions).getVisibility());
+            wine.setSelection(1); ShadowLooper.idleMainLooper();
+            assertTrue(box.isEnabled()); assertFalse(box.isChecked());
+            dialog.findViewById(R.id.BTConfirm).performClick(); assertFalse(savedDisplayX);
+        }
+    }
+    @Test public void staleGlWithDisplayXIsCorrectedWhenEditorOpens() {
+        savedWine = "gl"; savedDisplayX = true;
+        VideoConfigDialog dialog = new VideoConfigDialog(context(), config()); dialog.show();
+        android.widget.CheckBox box = dialog.findViewById(R.id.CBVideoDisplayX);
+        assertFalse(box.isChecked()); assertFalse(box.isEnabled());
+        Spinner driver = dialog.findViewById(R.id.SVideoOpenGLDriver);
+        assertEquals("Mesa", driver.getAdapter().getItem(1));
+        dialog.findViewById(R.id.BTConfirm).performClick(); assertFalse(savedDisplayX);
+    }
     @Test public void cancellingDisplayXKeepsTheSavedChoice() {
         savedDisplayX=true;VideoConfigDialog dialog=new VideoConfigDialog(context(),config());dialog.show();
         android.widget.CheckBox box=dialog.findViewById(R.id.CBVideoDisplayX);assertTrue(box.isChecked());box.setChecked(false);

@@ -605,6 +605,9 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
             envVars.putAll(this.envVars);
         }
 
+        com.winlator.cmod.core.GuestMemoryPolicy.apply(envVars,
+                new File(context.getApplicationInfo().nativeLibraryDir, "libwinx_memory.so"));
+
         // Construct the native ARM64EC command or the Box64 x86_64 command.
         String command = "";
         String overriddenCommand = envVars.get("GUEST_PROGRAM_LAUNCHER_COMMAND");
@@ -660,6 +663,8 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
                     });
             // The post-update installer can add environment overrides too.
             if (this.envVars != null) envVars.putAll(this.envVars);
+            com.winlator.cmod.core.GuestMemoryPolicy.apply(envVars,
+                    new File(context.getApplicationInfo().nativeLibraryDir, "libwinx_memory.so"));
             envVars.put("WINEPREFIX", prefix.getAbsolutePath());
             envVars.put("WINEARCH", wineInfo.isWin64() ? "win64" : "win32");
             if (!stopped) {
