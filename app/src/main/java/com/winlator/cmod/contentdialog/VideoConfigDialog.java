@@ -27,10 +27,6 @@ import java.util.TreeSet;
 /** Video options shared by the Wine renderer and the Android compositor. */
 public class VideoConfigDialog extends ContentDialog {
     /** Display labels of the FSR mode spinner (index maps to normalizeFsrValue tokens). */
-    private static final String[] FSR_MODE_LABELS = {
-            "Fidelity (1.3x)", "Quality (1.5x)", "Balanced (1.7x)",
-            "Performance (2.0x)", "Ultra Performance (2.5x)"
-    };
     private static final String[] FSR_MODE_VALUES = {
             "fidelity", "quality", "balanced", "performance", "ultraperformance"
     };
@@ -82,7 +78,7 @@ public class VideoConfigDialog extends ContentDialog {
         setTitle(R.string.video_configuration);
 
         Spinner wineRenderer=findViewById(R.id.SVideoWineRenderer);
-        wineRenderer.setAdapter(new ThemedSpinnerAdapter<>(context,Arrays.asList("vulkan","gl")));
+        wineRenderer.setAdapter(new ThemedSpinnerAdapter<>(context,Arrays.asList("Vulkan","OpenGL")));
         wineRenderer.setSelection("gl".equalsIgnoreCase(config.getWineRenderer())?1:0);
         CheckBox displayX=findViewById(R.id.CBVideoDisplayX);
         displayX.setChecked(config.isDisplayXEnabled());
@@ -113,7 +109,7 @@ public class VideoConfigDialog extends ContentDialog {
                 Arrays.asList(context.getResources().getStringArray(R.array.present_mode_entries))));
         ArrayList<String> refreshLabels = new ArrayList<>();
         ArrayList<String> refreshValues = new ArrayList<>();
-        refreshLabels.add("Auto");
+        refreshLabels.add(context.getString(R.string.automatic));
         refreshValues.add("auto");
         TreeSet<Integer> supportedRates = new TreeSet<>();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -141,9 +137,11 @@ public class VideoConfigDialog extends ContentDialog {
         textureFilter.setAdapter(new ThemedSpinnerAdapter<>(context,
                 Arrays.asList(context.getString(R.string.bilinear),
                         context.getString(R.string.nearest_neighbor),
-                        "FSR", "None")));
-        fsrUpscale.setAdapter(new ThemedSpinnerAdapter<>(context, Arrays.asList("Off", "On")));
-        fsrQuality.setAdapter(new ThemedSpinnerAdapter<>(context, Arrays.asList(FSR_MODE_LABELS)));
+                        "FSR", context.getString(R.string.none))));
+        fsrUpscale.setAdapter(new ThemedSpinnerAdapter<>(context, Arrays.asList(context.getString(R.string.off), context.getString(R.string.on))));
+        fsrQuality.setAdapter(new ThemedSpinnerAdapter<>(context, Arrays.asList(context.getString(R.string.fsr_fidelity_scale,"1.3"),
+                context.getString(R.string.fsr_quality_scale,"1.5"),context.getString(R.string.fsr_balanced_scale,"1.7"),
+                context.getString(R.string.fsr_performance_scale,"2.0"),context.getString(R.string.fsr_ultra_scale,"2.5"))));
         vsyncLimit.setAdapter(new ThemedSpinnerAdapter<>(context,
                 Arrays.asList(context.getResources().getStringArray(R.array.video_vsync_limit_entries))));
 
@@ -177,13 +175,13 @@ public class VideoConfigDialog extends ContentDialog {
         refreshRate.setSelection(Math.max(0, refreshIndex));
         textureFilter.setSelection(filterMode);
         swapRedBlue.setChecked(config.isSwapRedBlue());
-        AppUtils.setSpinnerSelectionFromValue(fsrUpscale, upscale.equals("1") ? "On" : "Off");
+        fsrUpscale.setSelection(upscale.equals("1") ? 1 : 0);
         fsrQuality.setSelection(Math.max(0, indexOfFsrMode(quality)));
 
         // Upscale row only exists while FSR is selected; mode row only while upscale is on.
         Runnable updateVisibility = () -> {
             boolean fsrSelected = textureFilter.getSelectedItemPosition() == 2;
-            boolean upscaleOn = fsrSelected && "On".equals(selectedValue(fsrUpscale));
+            boolean upscaleOn = fsrSelected && fsrUpscale.getSelectedItemPosition()==1;
             fsrUpscaleRow.setVisibility(fsrSelected ? View.VISIBLE : View.GONE);
             fsrQualityRow.setVisibility(upscaleOn ? View.VISIBLE : View.GONE);
         };
@@ -297,7 +295,7 @@ public class VideoConfigDialog extends ContentDialog {
         setOnConfirmCallback(() -> {
             config.setWineRenderer(wineRenderer.getSelectedItemPosition()==1?"gl":"vulkan");
             config.setDisplayXEnabled(displayX.isChecked());
-            String upscaleValue = "On".equals(selectedValue(fsrUpscale)) ? "1" : "0";
+            String upscaleValue = fsrUpscale.getSelectedItemPosition()==1 ? "1" : "0";
             int qualityIndex = Math.max(0, Math.min(fsrQuality.getSelectedItemPosition(),
                     FSR_MODE_VALUES.length - 1));
             config.apply(

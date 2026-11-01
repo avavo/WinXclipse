@@ -10,7 +10,7 @@
         android:layout_width="48dp"
         android:layout_height="48dp"
         android:background="@android:color/transparent"
-        android:contentDescription="Clear log"
+        android:contentDescription="@string/debug_clear_log"
         android:padding="8dp"
         android:src="@drawable/icon_remove" />
 
@@ -19,7 +19,7 @@
         android:layout_width="48dp"
         android:layout_height="48dp"
         android:background="@android:color/transparent"
-        android:contentDescription="Pause log"
+        android:contentDescription="@string/debug_pause_log"
         android:padding="8dp"
         android:src="@drawable/icon_pause" />
 
@@ -45,7 +45,7 @@
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:background="@android:color/transparent"
-            android:contentDescription="Share log"
+            android:contentDescription="@string/debug_share_log"
             android:padding="8dp"
             android:src="@drawable/icon_export" />
     </LinearLayout>
@@ -68,7 +68,7 @@
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:background="@android:color/transparent"
-            android:contentDescription="Save log to Downloads"
+            android:contentDescription="@string/debug_save_downloads"
             android:padding="8dp"
             android:src="@drawable/ic_drive_storage" />
     </LinearLayout>

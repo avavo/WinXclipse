@@ -41,7 +41,8 @@ class DisplayXProtocolTests(unittest.TestCase):
                  'cursor requires composition', 'effects require composition',
                  'frame generation requires composition', 'channel override requires composition',
                  'cropping requires composition', 'multiple windows require composition',
-                 'invalid scanout geometry']
+                 'invalid scanout geometry', 'terminal fence errors do not spin',
+                 'timeout and EINTR remain pending', 'fence completion and syscall failure']
         for index, name in enumerate(names):
             with self.subTest(name=name):
                 self.assertEqual(0, self.library.runProtocolCase(index))

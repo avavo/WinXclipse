@@ -431,7 +431,7 @@ public class ShortcutsFragment extends Fragment {
                             && wineDiscoveryFinished ? View.VISIBLE : View.GONE);
                     if (finalLoadError != null) {
                         Toast.makeText(getContext(),
-                                "Couldn’t load shortcuts (see log).", Toast.LENGTH_LONG).show();
+                                getString(R.string.shortcut_load_failed), Toast.LENGTH_LONG).show();
                     }
                 }
                 // A newer view may have requested a refresh while this old
@@ -706,7 +706,7 @@ public class ShortcutsFragment extends Fragment {
                 String folderPath = FileUtils.getFilePathFromUri(getContext(), folderUri);
                 if (folderPath == null) {
                     Toast.makeText(getContext(),
-                            "The selected folder is not available as a filesystem path. Enable storage access or choose a local/USB storage folder.",
+                            getString(R.string.shortcut_storage_nonlocal),
                             Toast.LENGTH_LONG).show();
                     return;
                 }

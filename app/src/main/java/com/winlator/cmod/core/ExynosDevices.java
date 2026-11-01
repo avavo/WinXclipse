@@ -35,7 +35,7 @@ public final class ExynosDevices {
             new Profile("Galaxy S26 FE", "SM-S741", "Exynos 2500", "Xclipse 950", "BN"),
             new Profile("Galaxy Z Flip7", "SM-F766", "Exynos 2500", "Xclipse 950", ""),
             new Profile("Galaxy Z Flip7 FE", "SM-F761", "Exynos 2400", "Xclipse 940", ""),
-            new Profile("Galaxy Z Flip8", "SM-F776", "Exynos 2600", "Xclipse 960", "B"),
+            new Profile("Galaxy Z Flip8", "SM-F776", "Exynos 2600", "Xclipse 960", "BN"),
             new Profile("Galaxy S26", "SM-S942", "Exynos 2600", "Xclipse 960", "BN"),
             new Profile("Galaxy S26+", "SM-S947", "Exynos 2600", "Xclipse 960", "BN"),
             new Profile("Galaxy A55 5G", "SM-A556", "Exynos 1480", "Xclipse 530", ""),

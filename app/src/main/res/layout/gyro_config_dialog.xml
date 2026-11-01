@@ -21,7 +21,7 @@
             android:id="@+id/TVGyroXSensitivity"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="X Sensitivity: 100%"
+            android:text="@string/x_sensitivity"
             android:layout_marginBottom="16dp" />
 
         <SeekBar
@@ -34,7 +34,7 @@
             android:id="@+id/TVGyroYSensitivity"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Y Sensitivity: 100%"
+            android:text="@string/y_sensitivity"
             android:layout_marginBottom="16dp" />
 
         <SeekBar
@@ -47,7 +47,7 @@
             android:id="@+id/TVGyroSmoothing"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Smoothing: 90%"
+            android:text="@string/smoothing"
             android:layout_marginBottom="16dp" />
 
         <SeekBar
@@ -60,7 +60,7 @@
             android:id="@+id/TVGyroDeadzone"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Deadzone: 5%"
+            android:text="@string/gyro_deadzone"
             android:layout_marginBottom="16dp" />
 
         <CheckBox

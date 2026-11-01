@@ -93,8 +93,10 @@ carregamento: resolve-os por `dlsym` após verificar o Android.
 Seis testes JVM novos cobrem implantação/atualização do manifesto, preservação dos
 outros layers e confirmação/cancelamento. A ferramenta
 `tools/test_displayx_protocol.py` executa o código C++ real com falhas injetadas
-nas syscalls: 20 cenários de bounds, fragmentação, EINTR, EOF, descritores e seleção
-do plano direto. Não simula um driver Vulkan nem comprova scanout Android.
+nas syscalls: 23 cenários de bounds, fragmentação, EINTR, EOF, descritores, seleção
+do plano direto e erros terminais de fences. POLLERR/HUP/NVAL encerram a espera
+com desconexão do produtor, sem busy loop nem liberação antecipada do slot.
+Não simula um driver Vulkan nem comprova scanout Android.
 
 Ainda falta aparelho para confirmar imagem/cor, rotação, alternância com efeitos
 e blur, retorno de background, recriação/teardown, ABI/driver e desempenho em jogo.

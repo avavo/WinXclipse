@@ -2,6 +2,7 @@ package com.winlator.cmod.contentdialog;
 
 import android.content.Context;
 import android.net.Uri;
+import com.winlator.cmod.R;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
@@ -84,6 +85,11 @@ public final class DxvkConfSanitizer {
     }
 
     public static Result sanitize(String content) {
+        return sanitize(null,content);
+    }
+
+    /** UI explanations follow the app locale; exported config values/comments stay invariant. */
+    public static Result sanitize(Context context,String content) {
         List<String> issues = new ArrayList<>();
         if (content == null) content = "";
         String[] lines = content.split("\n", -1);
@@ -110,15 +116,15 @@ public final class DxvkConfSanitizer {
 
                     if (INVALID_KEYS.contains(normKey)) {
                         fixed = "# removed by WinXclipse (option does not exist in DXVK): " + stripped;
-                        issues.add(key + " does not exist in DXVK (line ignored by the driver)");
+                        issues.add(context==null?key + " does not exist in DXVK (line ignored by the driver)":context.getString(R.string.dxvk_issue_unknown,key));
                         changed = true;
                     } else if (normKey.equals("d3d11.relaxedbarriers") && normVal.equals("true")) {
                         fixed = "d3d11.relaxedBarriers = False  # sanitized: True breaks textures/map on Xclipse/Mali";
-                        issues.add("relaxedBarriers=True causes glitches/broken map (RE2/GTA)");
+                        issues.add(context==null?"relaxedBarriers=True causes glitches/broken map (RE2/GTA)":context.getString(R.string.dxvk_issue_barriers));
                         changed = true;
                     } else if (normKey.equals("dxvk.userawssbo") && normVal.equals("true")) {
                         fixed = "dxvk.useRawSsbo = Auto  # sanitized: True is unsafe on mobile GPUs";
-                        issues.add("useRawSsbo=True can corrupt shaders on mobile GPUs");
+                        issues.add(context==null?"useRawSsbo=True can corrupt shaders on mobile GPUs":context.getString(R.string.dxvk_issue_ssbo));
                         changed = true;
                     } else if ((normKey.equals("dxgi.maxdevicememory")
                             || normKey.equals("dxgi.maxsharedmemory")
@@ -126,23 +132,23 @@ public final class DxvkConfSanitizer {
                             && parseMb(value) >= 0 && parseMb(value) < MIN_SAFE_VRAM_MB) {
                         fixed = key + " = " + SANITIZED_VRAM_MB
                                 + "  # sanitized: " + value + " MB breaks RE2/GTA (0x80070057, texture loss)";
-                        issues.add(key + "=" + value + " MB is too low (crash/texture loss)");
+                        issues.add(context==null?key + "=" + value + " MB is too low (crash/texture loss)":context.getString(R.string.dxvk_issue_memory,key,value));
                         changed = true;
                     } else if (normKey.equals("dxvk.numcompilerthreads") && parseMb(value) > MAX_COMPILER_THREADS) {
                         fixed = "dxvk.numCompilerThreads = " + SANITIZED_COMPILER_THREADS
                                 + "  # sanitized: too many steals game CPU on mobile";
-                        issues.add("numCompilerThreads=" + value + " too high for mobile");
+                        issues.add(context==null?"numCompilerThreads=" + value + " too high for mobile":context.getString(R.string.dxvk_issue_threads,value));
                         changed = true;
                     } else if (normKey.equals("dxvk.hud") && !normVal.isEmpty()
                             && !normVal.equals("0") && !normVal.equals("none")
                             && !normVal.equals("false")) {
                         fixed = "# removed by WinXclipse (HUD costs FPS): " + stripped;
-                        issues.add("active hud wastes CPU/GPU and heats up (throttle)");
+                        issues.add(context==null?"active hud wastes CPU/GPU and heats up (throttle)":context.getString(R.string.dxvk_issue_hud));
                         changed = true;
                     } else if ((normKey.equals("dxgi.customdeviceid") || normKey.equals("dxgi.customvendorid"))
                             && (normVal.equals("0") || normVal.equals("0000"))) {
                         fixed = "# removed by WinXclipse (ID 0 is invalid): " + stripped;
-                        issues.add(key + "=0 is invalid (falls back to generic GPU path)");
+                        issues.add(context==null?key + "=0 is invalid (falls back to generic GPU path)":context.getString(R.string.dxvk_issue_id,key));
                         changed = true;
                     }
 

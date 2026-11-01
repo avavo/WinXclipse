@@ -681,42 +681,39 @@ public class ContainerManager {
 
 
 
-    public void exportContainer(Container container, Runnable callback) {
-        Executors.newSingleThreadExecutor().execute(() -> {
+    public void exportContainer(Container container, Callback<File> callback) {
+        File exportDir=new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),"Winlator/Backups/Containers");
+        exportContainer(container,exportDir,callback);
+    }
+
+    // Explicit output root also permits testing failure/duplicate destinations.
+    void exportContainer(Container container,File exportDir,Callback<File> callback) {
+        java.util.concurrent.ExecutorService worker=Executors.newSingleThreadExecutor();
+        worker.execute(() -> {
+            File completed=null;
+            File destination=null;
+            boolean created=false;
             try {
-                // Create the export directory path
-                File exportDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Winlator/Backups/Containers");
-
-                if (!exportDir.exists() && !exportDir.mkdirs()) {
-                    Log.e("ContainerManager", "Failed to create export directory: " + exportDir.getPath());
-                    runOnUiThread(() -> callback.run()); // Close the preloader dialog
-                    return;
-                }
-
-                File containerDir = container.getRootDir();
-                File destinationDir = new File(exportDir, containerDir.getName());
-
-                if (destinationDir.exists()) {
-                    Log.e("ContainerManager", "Export directory already exists: " + destinationDir.getPath());
-                    runOnUiThread(() -> callback.run()); // Close the preloader dialog
-                    return;
-                }
-
-                if (!destinationDir.mkdirs()) {
-                    Log.e("ContainerManager", "Failed to create directory: " + destinationDir.getPath());
-                    runOnUiThread(() -> callback.run()); // Close the preloader dialog
-                    return;
-                }
-
-                if (!FileUtils.copy(containerDir, destinationDir, file -> FileUtils.chmod(file, 0771))) {
-                    Log.e("ContainerManager", "Failed to export some container files to: " + destinationDir.getPath());
-                    FileUtils.delete(destinationDir); // Optional: Delete partially copied directory
-                }
-                else Log.d("ContainerManager", "Container exported successfully to: " + destinationDir.getPath());
-            } catch (Exception e) {
-                Log.e("ContainerManager", "Failed to export container: " + container.getName(), e);
+                if(!exportDir.isDirectory()&&!exportDir.mkdirs())throw new IOException("Cannot create export directory");
+                File source=container.getRootDir();
+                if(source==null||!source.isDirectory()||FileUtils.isSymlink(source))throw new IOException("Container source is unavailable");
+                destination=new File(exportDir,source.getName());
+                // mkdir is exclusive: another export or an existing backup must
+                // never be overwritten or removed by this operation.
+                if(!destination.mkdir())throw new IOException("Export destination already exists or cannot be created");
+                created=true;
+                if(!FileUtils.copy(source,destination,file -> FileUtils.chmod(file,0771)))
+                    throw new IOException("Incomplete container export");
+                completed=destination;
+                Log.d("ContainerManager","Container exported to: "+destination);
+            } catch(Exception error) {
+                Log.e("ContainerManager","Container export failed",error);
             } finally {
-                runOnUiThread(callback); // Ensure the callback runs and preloader dialog closes
+                try {if(completed==null&&created&&destination!=null)FileUtils.delete(destination);}
+                catch(RuntimeException cleanupError){Log.w("ContainerManager","Incomplete export cleanup failed",cleanupError);}
+                final File result=completed;
+                runOnUiThread(() -> callback.call(result));
+                worker.shutdown();
             }
         });
     }

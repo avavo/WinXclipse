@@ -44,10 +44,14 @@ static ssize_t recvmsg(int,msghdr* m,int){
 #define DISPLAYX_PROTOCOL_TEST_PLATFORM
 #include "../app/src/main/cpp/winlator/renderer/displayx/Protocol.hpp"
 #include "../app/src/main/cpp/winlator/renderer/displayx/ScanoutPolicy.hpp"
+#include "../app/src/main/cpp/winlator/renderer/displayx/FenceWaitPolicy.hpp"
 using namespace displayx;
 static void reset(){wireSize=position=0;chunk=3;sendCalls=rightsSent=closed=fdCount=controlFlags=interruptions=0;fdPosition=0;}
 extern "C" __declspec(dllexport) int runProtocolCase(int test) {
     reset();Message m;m.type=Hello;m.window=12;m.width=1920;m.height=1080;m.count=3;m.format=37;
+    if(test==20)return fenceOutcome(1,false,true,false)==FenceOutcome::Failed?0:1;
+    if(test==21)return fenceOutcome(-1,false,false,true)==FenceOutcome::Pending&&fenceOutcome(0,false,false,false)==FenceOutcome::Pending?0:1;
+    if(test==22)return fenceOutcome(1,true,false,false)==FenceOutcome::Complete&&fenceOutcome(-1,false,false,false)==FenceOutcome::Failed?0:1;
     if(test>=12&&test<=19) {
         float rect[]{-.8f,-1,.8f,1},content[]{.1f,0,.8f,1};
         unsigned windows=test==18?2:1,cursors=test==13?1:0,effects=test==14?1:0;

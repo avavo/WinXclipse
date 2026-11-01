@@ -318,7 +318,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="64bit Emulator" />
+                android:text="@string/emulator_64bit" />
             <com.winlator.cmod.widget.GlassSpinner
                 style="@style/ComboBox"
                 android:layout_width="match_parent"

@@ -214,11 +214,14 @@ public abstract class FileUtils {
 
     public static boolean copy(File srcFile, File dstFile, Callback<File> callback) {
         if (isSymlink(srcFile)) return true;
+        try {if(srcFile.exists()&&dstFile.exists()&&Files.isSameFile(srcFile.toPath(),dstFile.toPath()))return true;}
+        catch(IOException error){Log.e(TAG,"Cannot compare copy paths",error);return false;}
         if (srcFile.isDirectory()) {
             if (!dstFile.exists() && !dstFile.mkdirs()) return false;
             if (callback != null) callback.call(dstFile);
 
             String[] filenames = srcFile.list();
+            if(filenames==null)return false;
             boolean allSuccess = true;
             if (filenames != null) {
                 for (String filename : filenames) {
@@ -235,16 +238,9 @@ public abstract class FileUtils {
 
             try (FileChannel inChannel = (new FileInputStream(srcFile)).getChannel();
                  FileChannel outChannel = (new FileOutputStream(dstFile)).getChannel()) {
-                long position = 0;
-                long size = inChannel.size();
-                while (position < size) {
-                    long written = inChannel.transferTo(position, size - position, outChannel);
-                    if (written <= 0) break;
-                    position += written;
-                }
-
+                ChannelCopy.copy(inChannel,outChannel);
                 if (callback != null) callback.call(dstFile);
-                return position == size && dstFile.exists();
+                return dstFile.exists();
             } catch (IOException e) {
                 e.printStackTrace();
                 Log.e(TAG, "Failed to copy file: " + srcFile.getAbsolutePath() + " to " + dstFile.getAbsolutePath(), e);
@@ -260,11 +256,14 @@ public abstract class FileUtils {
             // Handle File to File copying
             File sourceFile = (File) src;
             if (isSymlink(sourceFile)) return true;
+            try {if(sourceFile.exists()&&dstFile.exists()&&Files.isSameFile(sourceFile.toPath(),dstFile.toPath()))return true;}
+            catch(IOException error){Log.e(TAG,"Cannot compare copy paths",error);return false;}
             if (sourceFile.isDirectory()) {
                 if (!dstFile.exists() && !dstFile.mkdirs()) return false;
                 if (callback != null) callback.call(dstFile);
 
                 String[] filenames = sourceFile.list();
+                if(filenames==null)return false;
                 if (filenames != null) {
                     for (String filename : filenames) {
                         if (!copy(context, new File(sourceFile, filename), new File(dstFile, filename), callback)) {
@@ -278,16 +277,9 @@ public abstract class FileUtils {
 
                 try (FileChannel inChannel = (new FileInputStream(sourceFile)).getChannel();
                      FileChannel outChannel = (new FileOutputStream(dstFile)).getChannel()) {
-                    long position = 0;
-                    long size = inChannel.size();
-                    while (position < size) {
-                        long written = inChannel.transferTo(position, size - position, outChannel);
-                        if (written <= 0) break;
-                        position += written;
-                    }
-
+                    ChannelCopy.copy(inChannel,outChannel);
                     if (callback != null) callback.call(dstFile);
-                    return position == size && dstFile.exists();
+                    return dstFile.exists();
                 } catch (IOException e) {
                     e.printStackTrace();
                     return false;

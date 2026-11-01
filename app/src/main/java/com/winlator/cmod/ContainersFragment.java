@@ -1016,12 +1016,15 @@ public class ContainersFragment extends Fragment {
         }
 
         private void exportContainer(Container container) {
-            File backupDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Winlator/Backups/Containers");
             preloaderDialog.show(R.string.exporting_container);
 
-            manager.exportContainer(container, () -> {
-                preloaderDialog.close(); // Ensure the dialog is closed after operation
-                showToast("Container exported successfully to " + backupDir.getPath());
+            Context owner=getContext();
+            if(owner==null){preloaderDialog.close();return;}
+            manager.exportContainer(container, exported -> {
+                preloaderDialog.close();
+                if(!isAdded())return;
+                showToast(exported!=null?owner.getString(R.string.container_exported_to,exported.getPath())
+                        :owner.getString(R.string.container_export_failed));
             });
         }
 

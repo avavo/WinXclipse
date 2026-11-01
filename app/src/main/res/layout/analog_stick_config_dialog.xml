@@ -27,7 +27,7 @@
             android:id="@+id/TVLeftDeadzone"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Deadzone: 10%"
+            android:text="@string/gyro_deadzone"
             android:layout_marginTop="8dp" />
 
         <SeekBar
@@ -42,7 +42,7 @@
             android:id="@+id/TVLeftSensitivity"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Sensitivity: 100%"
+            android:text="@string/gyro_sensitivity"
             android:layout_marginTop="16dp" />
 
         <SeekBar
@@ -82,7 +82,7 @@
             android:id="@+id/TVRightDeadzone"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Deadzone: 10%"
+            android:text="@string/gyro_deadzone"
             android:layout_marginTop="8dp" />
 
         <SeekBar
@@ -97,7 +97,7 @@
             android:id="@+id/TVRightSensitivity"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Sensitivity: 100%"
+            android:text="@string/gyro_sensitivity"
             android:layout_marginTop="16dp" />
 
         <SeekBar

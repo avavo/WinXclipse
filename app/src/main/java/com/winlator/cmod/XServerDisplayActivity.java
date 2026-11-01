@@ -1617,7 +1617,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
             MenuItem item = menu.findItem(id);
             if (item == null || item.getTitle() == null) continue;
             String title = item.getTitle().toString();
-            if (!title.startsWith("Ã¢â€ Â³")) item.setTitle("Ã¢â€ Â³  " + title);
+            if (!title.startsWith("\u21b3")) item.setTitle("\u21b3  " + title);
         }
     }
 
@@ -3909,7 +3909,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
 
     private void updateSidebarFpsLabel(int limit) {
         if (sidebarFpsLimitView != null)
-            sidebarFpsLimitView.setText(limit > 0 ? limit + " FPS" : "Off");
+            sidebarFpsLimitView.setText(limit > 0 ? limit + " FPS" : getString(R.string.off));
     }
 
     private String getRuntimeHudMode() {

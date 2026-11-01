@@ -792,7 +792,7 @@
     <string name="frame_generation_runtime_off">FG desactivado</string>
     <string name="frame_generation_low_latency_help">El modo normal conserva un fotograma real de historial para una interpolación más limpia. Baja latencia presenta el fotograma real más reciente de inmediato y extrapola los generados: menos retraso, pero más deformaciones, vibración y errores en movimientos bruscos.</string>
     <string name="frame_generation_target_fps">FPS objetivo automático</string>
-    <string name="frame_generation_unavailable">La generación de fotogramas requiere OpenGL ES 3.1 y no se pudo activar en este dispositivo.</string>
+    <string name="frame_generation_unavailable">La generación de fotogramas no se inició con este renderizador o dispositivo. Revisa el backend y el controlador seleccionados.</string>
     <string name="frame_generation_vulkan_only">La generación de fotogramas requiere el renderizador Vulkan en los ajustes de Pantalla del contenedor.</string>
     <string name="frame_generation_configure_first">Activa y configura la generación de fotogramas en Pantalla antes de usar el acceso de la barra lateral.</string>
     <string name="frame_generation_locked">Bloqueado</string>
@@ -1013,7 +1013,7 @@
     <string name="measurement_save">Guardar TXT</string>
     <string name="measurement_saved">Informe guardado: %1$s</string>
     <string name="measurement_save_failed">No se pudo guardar el informe: %1$s</string>
-    <string name="measurement_source_note" formatted="false">Los FPS reales cuentan actualizaciones de aplicaciones X11; los FPS del compositor cuentan dibujos completados. Los fotogramas generados se separan. No son marcas de tiempo físicas de pantalla. 1% low es el inverso de la media del 1% más lento de intervalos (histograma limitado). N/A indica datos insuficientes o no disponibles.</string>
+    <string name="measurement_source_note" formatted="false">Los FPS de origen cuentan la llegada de fotogramas del juego (actualizaciones X11 o fotogramas AHB de DisplayX); los del compositor cuentan dibujos completados. Los fotogramas generados se cuentan aparte. No son tiempos físicos de pantalla. El 1% low es el inverso de la media de los intervalos del 1% más lento (histograma acotado). N/A indica datos insuficientes o no disponibles.</string>
     <string name="measurement_power_coverage">Tiempo cubierto por las lecturas de potencia</string>
     <string name="measurement_charging_note">La potencia es la descarga neta de batería, no solo la aplicación. W/Wh cubren únicamente muestras válidas de descarga. El consumo no está disponible si hubo carga; ≈ indica mAh estimados.</string>
     <string name="hud_panels">Paneles de HUD</string>
@@ -1192,4 +1192,32 @@
     <string name="wine_renderer">Renderizador de Wine</string>
     <string name="displayx_option">DisplayX (AHB / Vulkan)</string>
     <string name="displayx_description">Usa fotogramas AHB compartidos con el compositor Vulkan. Una escena compatible sin efectos puede ir directamente a SurfaceFlinger. FSR, generación de fotogramas, cursor y menús mantienen la composición en la GPU sin copiar píxeles mediante la CPU. Las rutas no compatibles usan X11.</string>
+    <string name="shortcut_load_failed">No se pudieron cargar los accesos directos. Consulta los registros.</string>
+    <string name="shortcut_storage_nonlocal">Esta carpeta no tiene una ruta de sistema de archivos. Activa el acceso al almacenamiento o elige una carpeta local o USB.</string>
+    <string name="container_exported_to">Contenedor exportado a %1$s</string>
+    <string name="legacy_hud_ram">%1$s GB usados / %2$s en total</string>
+    <string name="driver_extensions_label">Extensiones</string>
+    <string name="automatic">Automático</string>
+    <string name="emulator_64bit">Emulador de 64 bits</string>
+    <string name="community_artwork">Portada de la configuración de la comunidad</string>
+    <string name="debug_clear_log">Borrar registro</string>
+    <string name="debug_pause_log">Pausar registro</string>
+    <string name="debug_save_downloads">Guardar registro en Descargas</string>
+    <string name="apply_changes">Aplicar</string>
+    <string name="properties_play_count">Veces jugadas</string>
+    <string name="properties_playtime">Tiempo de juego</string>
+    <string name="fsr_fidelity_scale">Fidelidad (%1$s×)</string>
+    <string name="fsr_quality_scale">Calidad (%1$s×)</string>
+    <string name="fsr_balanced_scale">Equilibrado (%1$s×)</string>
+    <string name="fsr_performance_scale">Rendimiento (%1$s×)</string>
+    <string name="fsr_ultra_scale">Ultra rendimiento (%1$s×)</string>
+    <string name="dxvk_issue_unknown">%1$s no es una opción compatible con DXVK.</string>
+    <string name="dxvk_issue_barriers">relaxedBarriers=True puede dañar texturas o mapas en Xclipse/Mali.</string>
+    <string name="dxvk_issue_ssbo">useRawSsbo=True puede dañar shaders en GPU móviles.</string>
+    <string name="dxvk_issue_memory">%1$s=%2$s MB es demasiado bajo y puede causar cierres o pérdida de texturas.</string>
+    <string name="dxvk_issue_threads">numCompilerThreads=%1$s puede consumir tiempo de CPU necesario para el juego.</string>
+    <string name="dxvk_issue_hud">El HUD DXVK importado aumenta el trabajo de CPU/GPU. Puedes conservar la configuración original.</string>
+    <string name="dxvk_issue_id">%1$s=0 no es un identificador de GPU válido.</string>
+    <string name="dxvk_more_issues">+%1$d más…</string>
+    <string name="container_export_failed">No se pudo exportar el contenedor. Revisa el espacio disponible y si esta copia ya existe.</string>
 </resources>

@@ -196,7 +196,7 @@ public class CommunityConfigsFragment extends Fragment {
         if (searchItem == null) return;
         SearchView searchView = (SearchView) searchItem.getActionView();
         if (searchView == null) return;
-        searchView.setQueryHint("Search games");
+        searchView.setQueryHint(getString(R.string.search_games));
         searchView.setMaxWidth(Integer.MAX_VALUE);
         searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
             @Override

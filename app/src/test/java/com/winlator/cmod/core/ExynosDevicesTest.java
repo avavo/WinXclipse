@@ -48,6 +48,9 @@ public class ExynosDevicesTest {
         assertEquals("A55", ExynosDevices.find("SM-A556E").shortLabel());
         assertEquals("Xclipse 540", ExynosDevices.find("SM-X520").gpu);
         assertNotNull(ExynosDevices.find("SM-X626N"));
+        assertEquals("Exynos 2600",ExynosDevices.find("SM-F776N").soc);
+        assertNull(ExynosDevices.find("SM-F776U1"));
+        assertNull(ExynosDevices.find("SM-F776W"));
     }
     @Test public void unrelatedAndAmbiguousModelsStayUnknown() {
         for (String model : new String[]{null, "", "SM-S947", "SM-S926", "other phone", "SM-G991B"})

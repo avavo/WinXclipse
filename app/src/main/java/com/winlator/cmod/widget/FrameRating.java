@@ -116,6 +116,6 @@ public class FrameRating extends FrameLayout implements Runnable {
             if (!exynosModel.isEmpty()) rendererName += " (" + exynosModel + ")";
             tvGPU.setText(rendererName);
         }
-        tvRAM.setText(getAvailableRAM() + " GB Used / " + totalRAM + " Total");
+        tvRAM.setText(context.getString(R.string.legacy_hud_ram, getAvailableRAM(), totalRAM));
     }
 }

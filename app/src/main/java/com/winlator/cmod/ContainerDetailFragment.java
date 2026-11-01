@@ -263,7 +263,7 @@ public class ContainerDetailFragment extends Fragment {
             try {
                 String content = DxvkConfSanitizer.readUriText(getContext(), data.getData());
                 if (!DxvkConfSanitizer.isPlausible(content)) throw new IllegalArgumentException("not a dxvk.conf");
-                DxvkConfSanitizer.Result res = DxvkConfSanitizer.sanitize(content);
+                DxvkConfSanitizer.Result res = DxvkConfSanitizer.sanitize(getContext(),content);
                 if (!res.changed) {
                     stageDxvkConf(content);
                     return;
@@ -275,7 +275,7 @@ public class ContainerDetailFragment extends Fragment {
                 for (int i = 0; i < shown; i++)
                     issueList.append("• ").append(res.issues.get(i)).append('\n');
                 if (res.issues.size() > shown)
-                    issueList.append("• +").append(res.issues.size() - shown).append(" more…\n");
+                    issueList.append("• ").append(getContext().getString(R.string.dxvk_more_issues,res.issues.size()-shown)).append('\n');
                 new com.winlator.cmod.core.PopupStyle.Builder(sanitizeContext)
                         .setTitle(R.string.dxvk_conf_sanitize_title)
                         .setMessage(sanitizeContext.getString(

@@ -792,7 +792,7 @@
     <string name="frame_generation_runtime_off">FG desativado</string>
     <string name="frame_generation_low_latency_help">O modo normal mantém um quadro real de histórico para uma interpolação mais limpa. Baixa latência apresenta o quadro real mais recente imediatamente e extrapola os gerados: menos atraso, mas mais deformações, trepidação e erros em movimentos bruscos.</string>
     <string name="frame_generation_target_fps">FPS alvo automático</string>
-    <string name="frame_generation_unavailable">A geração de quadros requer OpenGL ES 3.1 e não pôde ser ativada neste aparelho.</string>
+    <string name="frame_generation_unavailable">A geração de frames não iniciou neste renderizador ou aparelho. Confira o backend e o driver selecionados.</string>
     <string name="frame_generation_vulkan_only">A geração de quadros requer o renderizador Vulkan nas configurações de Tela do container.</string>
     <string name="frame_generation_configure_first">Ative e configure a geração de quadros em Tela antes de usar o atalho da barra lateral.</string>
     <string name="frame_generation_locked">Bloqueado</string>
@@ -1013,7 +1013,7 @@
     <string name="measurement_save">Salvar TXT</string>
     <string name="measurement_saved">Relatório salvo: %1$s</string>
     <string name="measurement_save_failed">Não foi possível salvar o relatório: %1$s</string>
-    <string name="measurement_source_note" formatted="false">FPS reais contam atualizações de conteúdo de aplicações X11; FPS do compositor contam desenhos concluídos. Quadros gerados ficam separados. Não são timestamps físicos da tela. 1% low é o inverso da média do 1% mais lento dos intervalos (histograma limitado). N/A indica dados insuficientes ou indisponíveis.</string>
+    <string name="measurement_source_note" formatted="false">O FPS de origem conta a chegada de frames do jogo (atualizações X11 ou frames AHB do DisplayX); o FPS do compositor conta desenhos concluídos. Frames gerados são separados. Não são timestamps físicos da tela. O 1% low é o inverso da média dos intervalos do 1% mais lento (histograma limitado). N/A indica dados insuficientes ou indisponíveis.</string>
     <string name="measurement_power_coverage">Tempo coberto pelas leituras de potência</string>
     <string name="measurement_charging_note">Potência é a descarga líquida da bateria, não apenas do app. W/Wh cobrem só amostras válidas de descarga. Consumo de bateria fica indisponível se houve carregamento; ≈ indica mAh estimados.</string>
     <string name="hud_panels">Painéis de HUD</string>
@@ -1192,4 +1192,32 @@
     <string name="wine_renderer">Renderizador do Wine</string>
     <string name="displayx_option">DisplayX (AHB / Vulkan)</string>
     <string name="displayx_description">Usa frames AHB compartilhados com o compositor Vulkan. Uma cena compatível sem efeitos pode ir direto ao SurfaceFlinger. FSR, geração de frames, cursor e menus mantêm composição na GPU sem cópias de pixels pela CPU. Caminhos sem suporte usam X11.</string>
+    <string name="shortcut_load_failed">Não foi possível carregar os atalhos. Veja os logs para mais detalhes.</string>
+    <string name="shortcut_storage_nonlocal">Esta pasta não tem um caminho de sistema de arquivos. Ative o acesso ao armazenamento ou escolha uma pasta local ou USB.</string>
+    <string name="container_exported_to">Container exportado para %1$s</string>
+    <string name="legacy_hud_ram">%1$s GB usados / %2$s no total</string>
+    <string name="driver_extensions_label">Extensões</string>
+    <string name="automatic">Automático</string>
+    <string name="emulator_64bit">Emulador de 64 bits</string>
+    <string name="community_artwork">Capa da configuração da comunidade</string>
+    <string name="debug_clear_log">Limpar log</string>
+    <string name="debug_pause_log">Pausar log</string>
+    <string name="debug_save_downloads">Salvar log em Downloads</string>
+    <string name="apply_changes">Aplicar</string>
+    <string name="properties_play_count">Vezes jogadas</string>
+    <string name="properties_playtime">Tempo de jogo</string>
+    <string name="fsr_fidelity_scale">Fidelidade (%1$s×)</string>
+    <string name="fsr_quality_scale">Qualidade (%1$s×)</string>
+    <string name="fsr_balanced_scale">Equilibrado (%1$s×)</string>
+    <string name="fsr_performance_scale">Desempenho (%1$s×)</string>
+    <string name="fsr_ultra_scale">Ultra desempenho (%1$s×)</string>
+    <string name="dxvk_issue_unknown">%1$s não é uma opção suportada pelo DXVK.</string>
+    <string name="dxvk_issue_barriers">relaxedBarriers=True pode corromper texturas ou mapas no Xclipse/Mali.</string>
+    <string name="dxvk_issue_ssbo">useRawSsbo=True pode corromper shaders em GPUs móveis.</string>
+    <string name="dxvk_issue_memory">%1$s=%2$s MB é muito baixo e pode causar crashes ou perda de texturas.</string>
+    <string name="dxvk_issue_threads">numCompilerThreads=%1$s pode tirar tempo de CPU do jogo.</string>
+    <string name="dxvk_issue_hud">O HUD DXVK importado aumenta o trabalho de CPU/GPU. Você pode manter a configuração original.</string>
+    <string name="dxvk_issue_id">%1$s=0 não é um identificador válido de GPU.</string>
+    <string name="dxvk_more_issues">+%1$d outros…</string>
+    <string name="container_export_failed">Não foi possível exportar o container. Confira o espaço disponível e se esse backup já existe.</string>
 </resources>

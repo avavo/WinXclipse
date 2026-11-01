@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 #include "Scanout.hpp"
+#include "FenceWaitPolicy.hpp"
 #include <android/surface_control.h>
 #include <android/api-level.h>
 #include <dlfcn.h>
@@ -58,9 +59,10 @@ class Reaper {
             bool signalled=task.fence<0;
             while(!signalled) {
                 pollfd fd{task.fence,POLLIN,0};int result=poll(&fd,1,50);
-                if(result>0&&(fd.revents&POLLIN))signalled=true;
+                auto outcome=fenceOutcome(result,fd.revents&POLLIN,fd.revents&(POLLERR|POLLHUP|POLLNVAL),errno==EINTR);
+                if(outcome==FenceOutcome::Complete)signalled=true;
                 bool stop;{std::lock_guard<std::mutex> lock(mutex);stop=stopping;}
-                if(stop||(result<0&&errno!=EINTR))break;
+                if(stop||outcome==FenceOutcome::Failed)break;
             }
             if(task.fence>=0)close(task.fence);
             // If Android did not release a buffer before shutdown, disconnect

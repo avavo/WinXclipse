@@ -363,7 +363,7 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
         int requestId = ++extensionRequestId;
         extensionsReady = false;
         queriedApiVersion = 0;
-        extensionsSpinner.setItems(new String[0], "Extensions");
+        extensionsSpinner.setItems(new String[0], getContext().getString(R.string.driver_extensions_label));
         extensionsSpinner.setEnabled(false);
         extensionsStatus.setText(R.string.driver_extensions_loading);
         extensionRequest = DriverCapabilities.query(getContext(), selectedVersion, capabilities -> {
@@ -374,7 +374,7 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
             }
             queriedApiVersion = capabilities.apiVersion;
             extensionsReady = true;
-            extensionsSpinner.setItems(capabilities.extensions, "Extensions");
+            extensionsSpinner.setItems(capabilities.extensions, getContext().getString(R.string.driver_extensions_label));
             extensionsSpinner.setSelectedItems(capabilities.extensions);
             if (initialVersion.equalsIgnoreCase(selectedVersion)) {
                 for (String extension : initialExtensionBlacklist.split(","))

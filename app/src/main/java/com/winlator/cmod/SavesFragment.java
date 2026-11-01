@@ -474,7 +474,7 @@ public class SavesFragment extends Fragment {
             shareIntent.putExtra(Intent.EXTRA_STREAM, fileUri);
             shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
 
-            startActivity(Intent.createChooser(shareIntent, "Share Save Archive"));
+            startActivity(Intent.createChooser(shareIntent, getString(R.string.share)));
         }
 
 
