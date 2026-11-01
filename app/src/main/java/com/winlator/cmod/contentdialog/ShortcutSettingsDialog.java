@@ -31,6 +31,7 @@ import com.winlator.cmod.ContentDownloadsDialogFragment;
 import com.winlator.cmod.ContainerDetailFragment;
 import com.winlator.cmod.ContentsFragment;
 import com.winlator.cmod.R;
+import com.winlator.cmod.renderer.DisplayBackend;
 import com.winlator.cmod.ShortcutsFragment;
 import com.winlator.cmod.box86_64.Box86_64PresetManager;
 import com.winlator.cmod.box86_64.rc.RCManager;
@@ -205,7 +206,9 @@ public class ShortcutSettingsDialog extends ContentDialog {
                                         StringUtils.parseIdentifier(
                                                 sGraphicsDriver.getSelectedItem()))));
 
-        final Spinner sRenderer = findViewById(R.id.SRenderer);
+        final String containerDisplayBackend=DisplayBackend.normalize(shortcut.container.getExtra(DisplayBackend.KEY,DisplayBackend.VULKAN));
+        DisplayBackend.bind(findViewById(R.id.SRenderer),shortcut.getExtra(DisplayBackend.KEY,containerDisplayBackend));
+        final Spinner sRenderer = findViewById(R.id.SWineRenderer);
         sRenderer.setAdapter(new ThemedSpinnerAdapter<>(context,
                 Arrays.asList(context.getString(R.string.gl),
                         context.getString(R.string.vulkan), context.getString(R.string.gdi))));
@@ -269,6 +272,8 @@ public class ShortcutSettingsDialog extends ContentDialog {
 
         findViewById(R.id.BTVideoConfig).setOnClickListener(button ->
                 new VideoConfigDialog(context, new VideoConfigDialog.Config() {
+                    @Override public String getWineRenderer() { return StringUtils.parseIdentifier(sRenderer.getSelectedItem()); }
+                    @Override public void setWineRenderer(String value) { AppUtils.setSpinnerSelectionFromValue(sRenderer,value); }
                     @Override
                     public String getGpuName() {
                         HashMap<String, String> config = GraphicsDriverConfigDialog
@@ -816,6 +821,8 @@ public class ShortcutSettingsDialog extends ContentDialog {
                 shortcut.putExtra("graphicsDriver", !graphicsDriver.equals(shortcut.container.getGraphicsDriver()) ? graphicsDriver : null);
                 shortcut.putExtra("graphicsDriverConfig", !graphicsDriverConfig.equals(shortcut.container.getGraphicsDriverConfig()) ? graphicsDriverConfig : null);
                 shortcut.putExtra("renderer", !renderer.equals(containerRenderer) ? renderer : null);
+                String displayBackend=DisplayBackend.selected(findViewById(R.id.SRenderer));
+                shortcut.putExtra(DisplayBackend.KEY,displayBackend.equals(containerDisplayBackend)?null:displayBackend);
                 shortcut.putExtra("rendererFilterMode",
                         rendererFilterMode[0] >= 0 && rendererFilterMode[0] != containerRendererFilterMode
                                 ? String.valueOf(rendererFilterMode[0]) : null);

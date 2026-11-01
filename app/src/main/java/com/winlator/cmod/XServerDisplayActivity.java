@@ -125,7 +125,7 @@ import com.winlator.cmod.math.XForm;
 import com.winlator.cmod.midi.MidiHandler;
 import com.winlator.cmod.midi.MidiManager;
 import com.winlator.cmod.renderer.EffectComposer;
-import com.winlator.cmod.renderer.GLRenderer;
+import com.winlator.cmod.renderer.DisplayRenderer;
 import com.winlator.cmod.renderer.FsrSettings;
 import com.winlator.cmod.renderer.effects.CRTEffect;
 import com.winlator.cmod.renderer.effects.ColorEffect;
@@ -1722,7 +1722,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
     }
     @Override
     public boolean onNavigationItemSelected(@NonNull MenuItem item) {
-        final GLRenderer renderer = xServerView.getRenderer();
+        final DisplayRenderer renderer = xServerView.getRenderer();
         final int id = item.getItemId();
         final Menu menu = navigationView.getMenu();
 
@@ -1864,7 +1864,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
             case R.id.main_menu_screen_effects:
                 ScreenEffectDialog dlg = new ScreenEffectDialog(this);
                 dlg.setOnConfirmCallback(() -> {
-                    GLRenderer r = xServerView.getRenderer();
+                    DisplayRenderer r = xServerView.getRenderer();
                     ColorEffect color = r.getEffectComposer().getEffect(ColorEffect.class);
                     dlg.applyEffects(color, r);
                 });
@@ -1955,7 +1955,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         }
     }
 
-    private void setFpsLimit(GLRenderer renderer, int limit, boolean persist) {
+    private void setFpsLimit(DisplayRenderer renderer, int limit, boolean persist) {
         int requestedLimit = Math.max(0, limit);
         // FPS Limiter and VSync are independent settings. VSync controls the
         // presentation backend; it must never rewrite or clamp this limiter.
@@ -2656,9 +2656,14 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
 
     private void setupUI() {
         FrameLayout rootView = findViewById(R.id.FLXServerDisplay);
-        xServerView = new XServerView(this, xServer);
+        String displayBackend = shortcut != null
+                ? shortcut.getExtra(com.winlator.cmod.renderer.DisplayBackend.KEY,
+                        container.getExtra(com.winlator.cmod.renderer.DisplayBackend.KEY,"vulkan"))
+                : container.getExtra(com.winlator.cmod.renderer.DisplayBackend.KEY,"vulkan");
+        xServerView = new XServerView(this, xServer, displayBackend);
+        Log.i("XServerDisplayActivity", "Display compositor: " + xServerView.getDisplayBackend());
         applyPreferredRefreshRate();
-        final GLRenderer renderer = xServerView.getRenderer();
+        final DisplayRenderer renderer = xServerView.getRenderer();
         renderer.setApexFailureListener(() -> {
             if (isFinishing() || isDestroyed()) return;
             persistRuntimeVideoOption("frameGenerationEnabled", "0");
@@ -2860,7 +2865,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         });
     }
 
-    private void setupModernSidebar(GLRenderer renderer) {
+    private void setupModernSidebar(DisplayRenderer renderer) {
         if (navigationView == null || navigationView.getHeaderCount() == 0) return;
         View sidebar = navigationView.getHeaderView(0);
         sidebarTimeView = sidebar.findViewById(R.id.TVSidebarTime);
@@ -3006,7 +3011,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
     }
 
     private void showSidebarDisplayMenu(View anchor) {
-        GLRenderer renderer = getXServerView().getRenderer();
+        DisplayRenderer renderer = getXServerView().getRenderer();
         final ContentDialog dialog = new ContentDialog(this, R.layout.sidebar_display_dialog);
         dialog.setTitle(R.string.menu_section_display);
         dialog.setIcon(R.drawable.icon_settings);
@@ -3295,7 +3300,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
     private void openScreenEffectsDialog() {
         ScreenEffectDialog dlg = new ScreenEffectDialog(this);
         dlg.setOnConfirmCallback(() -> {
-            GLRenderer r = xServerView.getRenderer();
+            DisplayRenderer r = xServerView.getRenderer();
             ColorEffect color = r.getEffectComposer().getEffect(ColorEffect.class);
             dlg.applyEffects(color, r);
         });
@@ -3318,7 +3323,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         TextView tvSaturation = dialog.findViewById(R.id.TVHdrSaturation);
 
         // Load current settings from ColorEffect if exists
-        GLRenderer renderer = xServerView.getRenderer();
+        DisplayRenderer renderer = xServerView.getRenderer();
         com.winlator.cmod.renderer.effects.ColorEffect colorEffect = 
                 renderer.getEffectComposer().getEffect(com.winlator.cmod.renderer.effects.ColorEffect.class);
         float brightness = 0, contrast = 0, gamma = 1.0f, saturation = 1.0f;
@@ -3363,7 +3368,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         });
 
         dialog.setOnConfirmCallback(() -> {
-            GLRenderer r = xServerView.getRenderer();
+            DisplayRenderer r = xServerView.getRenderer();
             com.winlator.cmod.renderer.effects.ColorEffect ce = 
                     r.getEffectComposer().getEffect(com.winlator.cmod.renderer.effects.ColorEffect.class);
             float b = sbBrightness.getProgress() / 100f;
@@ -3403,7 +3408,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
     }
 
     private void toggleMagnifier() {
-        GLRenderer renderer = getXServerView().getRenderer();
+        DisplayRenderer renderer = getXServerView().getRenderer();
         if (magnifierView == null) {
             FrameLayout container = findViewById(R.id.FLXServerDisplay);
             magnifierView = new MagnifierView(this);
@@ -3420,7 +3425,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         }
     }
 
-    private void setFakeHdrEnabled(GLRenderer renderer, boolean enabled, boolean persist) {
+    private void setFakeHdrEnabled(DisplayRenderer renderer, boolean enabled, boolean persist) {
         HDREffect current = renderer.getEffectComposer().getEffect(HDREffect.class);
         if (enabled && current == null) renderer.getEffectComposer().addEffect(new HDREffect());
         else if (!enabled && current != null) renderer.getEffectComposer().removeEffect(current);
@@ -3490,7 +3495,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
      * other GPU-bound games see a smaller swapchain and gain FPS without
      * requiring a full container restart.
      */
-    private void applyFsrRuntime(GLRenderer renderer, String state) {
+    private void applyFsrRuntime(DisplayRenderer renderer, String state) {
         fsrRuntimeState = FsrSettings.normalize(state);
         EffectComposer composer = renderer.getEffectComposer();
         if ("on".equals(fsrRuntimeState)) {
@@ -3740,7 +3745,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
                 : String.format(Locale.US, "%.1f", multiplier);
     }
 
-    private void applyFrameGenerationSetting(GLRenderer renderer, boolean enabled,
+    private void applyFrameGenerationSetting(DisplayRenderer renderer, boolean enabled,
             int profile, float multiplier, int targetFPS, boolean persist) {
         profile = Math.max(0, Math.min(2, profile));
         multiplier = parseFrameGenerationMultiplier(
@@ -3769,7 +3774,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         }
     }
 
-    private void toggleSidebarFrameGeneration(GLRenderer renderer) {
+    private void toggleSidebarFrameGeneration(DisplayRenderer renderer) {
         if (!isFrameGenerationCompatible()) {
             Toast.makeText(this, R.string.frame_generation_vulkan_only,
                     Toast.LENGTH_LONG).show();
@@ -3791,7 +3796,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         applyFrameGenerationSetting(renderer, enable, profile, multiplier, targetFPS, true);
     }
 
-    private void updateSidebarFrameGenerationState(GLRenderer renderer) {
+    private void updateSidebarFrameGenerationState(DisplayRenderer renderer) {
         boolean available = isFrameGenerationCompatible();
         if (sidebarFrameGenerationButton != null) {
             sidebarFrameGenerationButton.setEnabled(available);
@@ -3805,7 +3810,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         }
     }
 
-    private void showSidebarFpsLimiter(GLRenderer renderer) {
+    private void showSidebarFpsLimiter(DisplayRenderer renderer) {
         final int[] values = {24, 30, 45, 60, 75, 90, 120};
         final String[] labels = {
                 "24 FPS", "30 FPS", "45 FPS", "60 FPS",
@@ -3834,7 +3839,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
                 .show();
     }
 
-    private void showCustomSidebarFpsLimiter(GLRenderer renderer) {
+    private void showCustomSidebarFpsLimiter(DisplayRenderer renderer) {
         EditText input = new EditText(this);
         input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
         input.setSelectAllOnFocus(true);
@@ -3867,13 +3872,13 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         dialog.show();
     }
 
-    private void applySidebarFpsLimitChoice(GLRenderer renderer, int configured) {
+    private void applySidebarFpsLimitChoice(DisplayRenderer renderer, int configured) {
         persistRuntimeVideoOption("fpsLimitValue", String.valueOf(configured));
         if (renderer.getFpsLimit() > 0) setFpsLimit(renderer, configured, true);
         updateSidebarFpsLabel(renderer.getFpsLimit());
     }
 
-    private void toggleSidebarFpsLimiter(GLRenderer renderer) {
+    private void toggleSidebarFpsLimiter(DisplayRenderer renderer) {
         int next = renderer.getFpsLimit() > 0 ? 0 : getConfiguredFpsLimit();
         setFpsLimit(renderer, next, true);
         updateSidebarFpsLabel(next);
@@ -4254,7 +4259,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         catch (Exception ignored) {}
     }
 
-    private void setupGameplayMeasurement(FrameLayout root, com.winlator.cmod.renderer.GLRenderer renderer) {
+    private void setupGameplayMeasurement(FrameLayout root, com.winlator.cmod.renderer.DisplayRenderer renderer) {
         if (measurementButton == null) {
             measurementButton = new com.winlator.cmod.widget.GameplayMeasurementButton(this,
                     this::getHudDataSource, () -> {
@@ -6265,7 +6270,8 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
                 .append("WRAPPER_VMEM_MAX_SIZE: ")
                 .append(envVars.get("WRAPPER_VMEM_MAX_SIZE")).append('\n');
         if (xServerView != null) {
-            GLRenderer diagnosticRenderer = xServerView.getRenderer();
+            DisplayRenderer diagnosticRenderer = xServerView.getRenderer();
+            report.append("Display compositor: ").append(xServerView.getDisplayBackend()).append('\n');
             com.winlator.cmod.renderer.lsfg.LSFGManager manager =
                     diagnosticRenderer.getLSFGManager();
             report.append("Frame generation requested: ")

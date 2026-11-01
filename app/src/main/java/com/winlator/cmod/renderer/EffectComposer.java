@@ -51,10 +51,10 @@ public class EffectComposer {
     private volatile int sceneTargetHeight;
     /** Master switch: an EASU pass is active and a scene buffer is wanted. */
     private volatile boolean sceneUpscale = false;
-    private final GLRenderer renderer;
+    private final DisplayRenderer renderer;
 
     // Constructor
-    public EffectComposer(GLRenderer renderer) {
+    public EffectComposer(DisplayRenderer renderer) {
         this.renderer = renderer;
 //        Log.d(TAG, "EffectComposer created");
     }
@@ -71,6 +71,17 @@ public class EffectComposer {
 
     public synchronized boolean isSceneUpscale() {
         return sceneUpscale;
+    }
+
+    /** CPU-only snapshot shared with the Vulkan composer; never creates GL materials. */
+    protected synchronized List<Effect> snapshotEffects() { return new ArrayList<>(effects); }
+
+    protected synchronized int[] sceneSize(int width, int height) {
+        if (!sceneUpscale) return new int[]{width, height};
+        if (sceneTargetWidth > 0 && sceneTargetHeight > 0)
+            return FsrSettings.sceneSize(sceneTargetWidth, sceneTargetHeight, width, height);
+        return new int[]{Math.max(1, Math.round(width / sceneScale)),
+                Math.max(1, Math.round(height / sceneScale))};
     }
 
     // Initializes the buffers if they are not already initialized,
@@ -578,7 +589,7 @@ public class EffectComposer {
 //        Log.d(TAG, "Uniforms set: resolution=" + renderer.surfaceWidth + "x" + renderer.surfaceHeight + ", screenTexture=" + readBuffer.getTextureId());
 
         // Draw the quad
-        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, renderer.quadVertices.count());
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, renderer.getQuadVertices().count());
 //        Log.d(TAG, "Quad drawn");
 
         // Unbind the texture

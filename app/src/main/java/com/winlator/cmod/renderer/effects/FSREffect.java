@@ -25,6 +25,7 @@ public class FSREffect extends Effect {
         FsrViewport.sampleBounds(sampleBounds, width, height, x, y, viewWidth, viewHeight);
     }
     public float[] getSampleBounds() { return sampleBounds; }
+    public float getStops() { return stops; }
 
     @Override
     protected ShaderMaterial createMaterial() {

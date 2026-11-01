@@ -220,6 +220,9 @@
                 android:padding="8dp"
                 android:src="@drawable/icon_settings" />
         </LinearLayout>
+            <com.winlator.cmod.widget.GlassSpinner android:id="@+id/SWineRenderer"
+                style="@style/ComboBox" android:layout_width="match_parent"
+                android:layout_height="48dp" android:visibility="gone" />
 
         <LinearLayout
             android:layout_width="match_parent"

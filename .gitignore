@@ -68,3 +68,4 @@ app/src/main/assets/inputcontrols/profiles/*
 app/src/main/cpp/jniLibs/
 
 app/assets-removed/
+__pycache__/

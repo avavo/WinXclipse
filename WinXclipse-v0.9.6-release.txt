@@ -1,6 +1,6 @@
 # WinXclipse v0.9.6 — development changelog
 
-Updated October 31, 2026. Source changes through batch 34.
+Updated October 31, 2026. Source changes through batch 35.
 These notes describe implemented changes. Android gameplay validation remains pending;
 they do not claim that every FPS drop, shutdown or stalled game has been resolved.
 No new APK/AAB, release or tag has been produced for this work.
@@ -26,6 +26,11 @@ No new APK/AAB, release or tag has been produced for this work.
 - Reduce writes when extracting large zero-filled tar entries while preserving their complete logical contents. Validate the compressed stream through its footer, including truncated XZ detection.
 
 ### Drivers and graphics
+
+- Use the container/shortcut Video selector to choose the Android compositor: Vulkan (default) or OpenGL. Keep the previous Wine renderer option inside the adjacent video configuration dialog, with separate persistence and shortcut inheritance.
+- Add a Vulkan 1.1 compositor with Vulkan EASU/RCAS, color/CRT/FXAA/HDR/NTSC/Toon effects and compute frame generation. Preserve Fast/Balanced/Quality motion scales and keep the cursor outside temporal history. The direct path avoids allocating post-processing/history images when effects and frame generation are off.
+- Synchronize staging, descriptors and image retirement with submission fences; handle swapchain recreation, pre-rotation and temporal resets. Keep the existing GLES implementation selectable. OpenXR retains its GLES swapchains; VirGL pixel transfers require separate performance checks.
+- Correct the video configuration form's accidental horizontal nesting so fields use one vertical column. Confirm applies the old Wine selection; cancel preserves it. Vulkan initialization failures are reported without silently changing the saved compositor.
 
 - Keep driver names and descriptions separate and preserve display-name capitalization. Reimporting a driver can replace its binaries through staging and rollback.
 - Query extensions and API support from the selected driver in an isolated process. A failed custom-driver query no longer presents stock-driver capabilities as its result.
@@ -102,7 +107,8 @@ No new APK/AAB, release or tag has been produced for this work.
 
 # Validation and remaining work
 
-- Latest full local suite: 452 cases, 450 passed, zero failures/errors and two skipped for Windows symlink permissions. Java/Kotlin/resources and EN/PT/ES coverage checks passed (1341 strings and 11 display arrays per language). Nineteen new popup cases cover layout, scrolling, selection, callbacks, progress and API 28/31 window lifecycles; ten earlier gamepad-profile cases cover real files and failed loads/saves.
+- Latest full local suite: 467 cases, 465 passed, zero failures/errors and two skipped for Windows symlink permissions. Java/Kotlin/resources and EN/PT/ES coverage checks passed (1343 strings and 11 display arrays per language). Nineteen new popup cases cover layout, scrolling, selection, callbacks, progress and API 28/31 window lifecycles; ten earlier gamepad-profile cases cover real files and failed loads/saves.
+- Fifteen new JVM cases cover Vulkan effect parameters, reference motion sizes and separate compositor/Wine settings. Five exporter tests passed. The standalone CMake module compiled 15 Vulkan shader stages and linked its ARM64/API 26 library; no APK was generated. Actual Vulkan output, FSR/frame generation, rotation and performance still require Android hardware validation.
 - Hosted community authentication, uploads, moderation and migrated archive integrity were checked; the complete Android interaction still needs device validation.
 - Remaining implementation/review includes legacy hardcoded English messages, the older device-family audit, full visual/transition review and the remaining comparison of fork optimizations. Import recovery is covered by checkpoint/restart tests; terminating the app during a real Android import still needs validation.
 - Android checks remain for clean installs/upgrades, first shortcut launches, VulkanRT/ABI integration, sustained FPS and shutdown reports, DX9/11/12, stock/Quasar/RADV, FSR/frame generation, real refresh rate, input, sensors, USB/SD and installation timings. Local tests do not establish that these hardware-dependent reports are resolved.

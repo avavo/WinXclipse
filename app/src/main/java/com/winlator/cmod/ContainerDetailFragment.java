@@ -1,5 +1,6 @@
 package com.winlator.cmod;
 
+import com.winlator.cmod.renderer.DisplayBackend;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Context;
@@ -192,7 +193,7 @@ public class ContainerDetailFragment extends Fragment {
         sDesktopBackgroundType.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
 
         // Registry Keys
-        Spinner sRenderer = view.findViewById(R.id.SRenderer);
+        Spinner sRenderer = view.findViewById(R.id.SWineRenderer);
         sRenderer.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
 
         Spinner SCSMT = view.findViewById(R.id.SCSMT);
@@ -476,6 +477,8 @@ public class ContainerDetailFragment extends Fragment {
             initialDXConfig.put("ddrawrapper", isEditMode() ? container.getDDrawWrapper() : Container.DEFAULT_DDRAWRAPPER);
             vDXWrapperConfig.setTag(initialDXConfig.toString());
         }
+        DisplayBackend.bind(view.findViewById(R.id.SRenderer),
+                isEditMode()?container.getExtra(DisplayBackend.KEY,DisplayBackend.VULKAN):DisplayBackend.VULKAN);
         loadGraphicsDriverSpinner(sGraphicsDriver, sDXWrapper, vGraphicsDriverConfig,
                 isEditMode() ? container.getGraphicsDriver() : Container.DEFAULT_GRAPHICS_DRIVER,
                 isEditMode() ? container.getDXWrapper() : Container.DEFAULT_DXWRAPPER);
@@ -687,6 +690,8 @@ public class ContainerDetailFragment extends Fragment {
         final Spinner sGPUName = view.findViewById(R.id.SGPUName);
         view.findViewById(R.id.BTVideoConfig).setOnClickListener(button ->
                 new VideoConfigDialog(context, new VideoConfigDialog.Config() {
+                    @Override public String getWineRenderer() { return StringUtils.parseIdentifier(((Spinner)view.findViewById(R.id.SWineRenderer)).getSelectedItem()); }
+                    @Override public void setWineRenderer(String value) { AppUtils.setSpinnerSelectionFromValue(view.findViewById(R.id.SWineRenderer),value); }
                     @Override
                     public String getGpuName() {
                         return GraphicsDriverConfigDialog
@@ -778,7 +783,7 @@ public class ContainerDetailFragment extends Fragment {
                     @Override
                     public boolean isFrameGenerationCompatible() {
                         return "vulkan".equals(StringUtils.parseIdentifier(
-                                ((Spinner)view.findViewById(R.id.SRenderer)).getSelectedItem()));
+                                ((Spinner)view.findViewById(R.id.SWineRenderer)).getSelectedItem()));
                     }
 
                     @Override public String getFrameGenerationEnabled() {
@@ -870,7 +875,7 @@ public class ContainerDetailFragment extends Fragment {
                 String graphicsDriver = StringUtils.parseIdentifier(sGraphicsDriver.getSelectedItem());
                 String graphicsDriverConfig = vGraphicsDriverConfig.getTag().toString();
                 String wineRenderer = StringUtils.parseIdentifier(
-                        ((Spinner) view.findViewById(R.id.SRenderer)).getSelectedItem());
+                        ((Spinner) view.findViewById(R.id.SWineRenderer)).getSelectedItem());
                 // The runtime FSR extras must not override the Video Configuration
                 // dialog on the next launch (edit mode only: in create mode the
                 // container object does not exist yet).
@@ -985,6 +990,7 @@ public class ContainerDetailFragment extends Fragment {
                     container.putExtra("audioVolume",
                             audioVolume[0] != 100 ? String.valueOf(audioVolume[0]) : null);
                     container.putExtra("renderer", wineRenderer);
+                    container.putExtra(DisplayBackend.KEY,DisplayBackend.selected(view.findViewById(R.id.SRenderer)));
                     saveFrameGenerationExtras(container, wineRenderer,
                             pendingFrameGenerationEnabled[0], pendingFrameGenerationProfile[0],
                             pendingFrameGenerationMultiplier[0],
@@ -1038,6 +1044,7 @@ public class ContainerDetailFragment extends Fragment {
                     data.put("gstreamerWorkaround", gstreamerWorkaround);
                     JSONObject extraData = new JSONObject();
                     extraData.put("renderer", wineRenderer);
+                    extraData.put(DisplayBackend.KEY,DisplayBackend.selected(view.findViewById(R.id.SRenderer)));
                     if (experimentalPerformance) extraData.put("experimentalPerformance", "1");
                     if (experimentalPerformance && !xperfConfig.isEmpty()) {
                         extraData.put("xperfConfig", xperfConfig);
@@ -1115,7 +1122,7 @@ public class ContainerDetailFragment extends Fragment {
         File userRegFile = new File(container.getRootDir(), ".wine/user.reg");
         try (WineRegistryEditor registryEditor = new WineRegistryEditor(userRegFile)) {
 
-            Spinner sRenderer = view.findViewById(R.id.SRenderer);
+            Spinner sRenderer = view.findViewById(R.id.SWineRenderer);
             registryEditor.setStringValue("Software\\Wine\\Direct3D", "renderer", sRenderer.getSelectedItem().toString());
 
             Spinner sCSMT = view.findViewById(R.id.SCSMT);
@@ -1208,7 +1215,7 @@ public class ContainerDetailFragment extends Fragment {
             // wineserver over a newer Vulkan/OpenGL choice.  The container extra
             // is now authoritative and old GDI values migrate safely to Vulkan.
             List<String> rendererList = Arrays.asList(context.getString(R.string.gl), context.getString(R.string.vulkan));
-            Spinner sRenderer = view.findViewById(R.id.SRenderer);
+            Spinner sRenderer = view.findViewById(R.id.SWineRenderer);
             sRenderer.setAdapter(new ThemedSpinnerAdapter<>(context, rendererList));
             String renderer = isEditMode()
                     ? container.getExtra("renderer", registryEditor.getStringValue(

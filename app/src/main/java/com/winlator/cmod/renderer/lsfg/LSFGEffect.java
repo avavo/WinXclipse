@@ -4,7 +4,7 @@ import android.opengl.GLES20;
 import android.opengl.GLES31;
 import android.util.Log;
 
-import com.winlator.cmod.renderer.GLRenderer;
+import com.winlator.cmod.renderer.DisplayRenderer;
 import com.winlator.cmod.renderer.RenderTarget;
 import com.winlator.cmod.renderer.apex.ApexNative;
 import com.winlator.cmod.renderer.effects.Effect;
@@ -18,7 +18,7 @@ public final class LSFGEffect extends Effect {
     private static final boolean ENABLE_NATIVE_APEX = false;
 
     private final LSFGManager manager;
-    private final GLRenderer renderer;
+    private final DisplayRenderer renderer;
     private final LSFGComputeMaterial computeMaterial = new LSFGComputeMaterial();
     private final RenderTarget[] frameBuffers = {new RenderTarget(), new RenderTarget()};
 
@@ -40,7 +40,7 @@ public final class LSFGEffect extends Effect {
      */
     private int fallbackValidationCountdown;
 
-    public LSFGEffect(GLRenderer renderer, LSFGManager manager) {
+    public LSFGEffect(DisplayRenderer renderer, LSFGManager manager) {
         this.renderer = renderer;
         this.manager = manager;
     }
@@ -230,9 +230,9 @@ public final class LSFGEffect extends Effect {
         // Matches the 0.9.5 reference APK: Fast estimates motion at 1/8
         // size, Balanced at 1/4, and Quality at 1/2. Quality was narrowed
         // to 1/3 while Ultra existed; Ultra is gone, so restore half-res.
-        int scale = quality == 0 ? 8 : quality == 1 ? 4 : 2;
-        int mvWidth = Math.max(1, width / scale);
-        int mvHeight = Math.max(1, height / scale);
+        int[] motionSize = MotionVectorSize.forQuality(width, height, quality);
+        int mvWidth = motionSize[0];
+        int mvHeight = motionSize[1];
         ensureMotionVectorTextures(mvWidth, mvHeight);
 
         int oldHistory = motionVectorHistoryTexture;

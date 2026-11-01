@@ -6,6 +6,7 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O2 -Wno-unused-function -Wimplicit-function
 
 add_subdirectory(OpenXR-SDK)
 add_subdirectory(patchelf)
+add_subdirectory(winlator/renderer/vulkan)
 
 # Add Winlator shared library
 add_library(winlator SHARED

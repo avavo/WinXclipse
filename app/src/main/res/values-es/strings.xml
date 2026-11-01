@@ -1188,4 +1188,6 @@
     <string name="dev_libraries_missing">No hay bibliotecas de desarrollo incluidas.</string>
     <string name="dev_libraries_copied">Bibliotecas de desarrollo copiadas.</string>
     <string name="dev_libraries_copy_failed">No se pudieron copiar las bibliotecas de desarrollo.</string>
+    <string name="vulkan_compositor_failed">Error en la presentación Vulkan: %1$s</string>
+    <string name="wine_renderer">Renderizador de Wine</string>
 </resources>

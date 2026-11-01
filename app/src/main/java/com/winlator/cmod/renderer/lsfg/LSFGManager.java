@@ -1,6 +1,6 @@
 package com.winlator.cmod.renderer.lsfg;
 
-import com.winlator.cmod.renderer.GLRenderer;
+import com.winlator.cmod.renderer.DisplayRenderer;
 
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -48,7 +48,7 @@ public final class LSFGManager {
     private volatile String backendState = "Off";
     private volatile String backendFailure = "";
 
-    public LSFGManager(GLRenderer renderer) {
+    public LSFGManager(DisplayRenderer renderer) {
         this(renderer.xServerView::requestRender, enabled -> {
             renderer.xServerView.setApexMode(enabled);
             if (enabled) renderer.startApexChoreographer();

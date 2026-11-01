@@ -1,0 +1,33 @@
+# glslc ships with the NDK; no host Python or checked-in binary shaders required.
+if(CMAKE_HOST_WIN32)
+    set(VK_HOST windows-x86_64)
+elseif(CMAKE_HOST_APPLE)
+    set(VK_HOST darwin-x86_64)
+else()
+    set(VK_HOST linux-x86_64)
+endif()
+set(GLSLC "${ANDROID_NDK}/shader-tools/${VK_HOST}/glslc${CMAKE_HOST_EXECUTABLE_SUFFIX}")
+if(CMAKE_HOST_WIN32)
+    set(GLSLC "${ANDROID_NDK}/shader-tools/${VK_HOST}/glslc.exe")
+endif()
+if(NOT EXISTS "${GLSLC}")
+    message(FATAL_ERROR "The Vulkan compositor requires the NDK glslc tool: ${GLSLC}")
+endif()
+set(SHADERS window.vert window.frag post.vert present.vert copy.frag color.frag crt.frag fsr_easu.frag
+    fsr_rcas.frag fxaa.frag hdr.frag ntsc.frag toon.frag framegen.frag motion.comp)
+set(SHADER_HEADERS)
+foreach(SHADER IN LISTS SHADERS)
+    string(REPLACE "." "_" SYMBOL "${SHADER}")
+    set(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${SYMBOL}.inc")
+    add_custom_command(OUTPUT "${OUTPUT}"
+        COMMAND "${GLSLC}" --target-env=vulkan1.1 -O -mfmt=c
+            "${CMAKE_CURRENT_SOURCE_DIR}/shaders/${SHADER}" -o "${OUTPUT}"
+        DEPENDS "shaders/${SHADER}" VERBATIM)
+    list(APPEND SHADER_HEADERS "${OUTPUT}")
+endforeach()
+add_library(winx_vulkan SHARED VulkanDisplay.cpp ${SHADER_HEADERS})
+target_compile_features(winx_vulkan PRIVATE cxx_std_17)
+target_compile_definitions(winx_vulkan PRIVATE VK_USE_PLATFORM_ANDROID_KHR)
+target_compile_options(winx_vulkan PRIVATE -Wall -Wextra -Wno-missing-field-initializers -Werror=return-type)
+target_include_directories(winx_vulkan PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+target_link_libraries(winx_vulkan vulkan android log)

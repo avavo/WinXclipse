@@ -1314,4 +1314,6 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="dev_libraries_missing">No developer libraries are bundled.</string>
     <string name="dev_libraries_copied">Developer libraries copied.</string>
     <string name="dev_libraries_copy_failed">Could not copy the developer libraries.</string>
+    <string name="vulkan_compositor_failed">Vulkan presentation failed: %1$s</string>
+    <string name="wine_renderer">Wine renderer</string>
 </resources>

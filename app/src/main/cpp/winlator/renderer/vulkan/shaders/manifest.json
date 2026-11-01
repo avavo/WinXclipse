@@ -1,0 +1,324 @@
+{
+  "color.frag": {
+    "bindings": [
+      {
+        "name": "screenTexture",
+        "binding": 0,
+        "type": "sampled_image"
+      }
+    ],
+    "push_bytes": 16,
+    "uniforms": [
+      {
+        "name": "brightness",
+        "type": "float",
+        "offset": 0,
+        "size": 4
+      },
+      {
+        "name": "contrast",
+        "type": "float",
+        "offset": 4,
+        "size": 4
+      },
+      {
+        "name": "gamma",
+        "type": "float",
+        "offset": 8,
+        "size": 4
+      },
+      {
+        "name": "saturation",
+        "type": "float",
+        "offset": 12,
+        "size": 4
+      }
+    ],
+    "source": "effects/ColorEffect.java"
+  },
+  "crt.frag": {
+    "bindings": [
+      {
+        "name": "screenTexture",
+        "binding": 0,
+        "type": "sampled_image"
+      }
+    ],
+    "push_bytes": 0,
+    "uniforms": [],
+    "source": "effects/CRTEffect.java"
+  },
+  "fsr_easu.frag": {
+    "bindings": [
+      {
+        "name": "screenTexture",
+        "binding": 0,
+        "type": "sampled_image"
+      }
+    ],
+    "push_bytes": 72,
+    "uniforms": [
+      {
+        "name": "uCon0",
+        "type": "vec4",
+        "offset": 0,
+        "size": 16
+      },
+      {
+        "name": "uDstRect",
+        "type": "vec4",
+        "offset": 16,
+        "size": 16
+      },
+      {
+        "name": "uOutH",
+        "type": "float",
+        "offset": 32,
+        "size": 4
+      },
+      {
+        "name": "uTexel",
+        "type": "vec2",
+        "offset": 40,
+        "size": 8
+      },
+      {
+        "name": "uSourceBounds",
+        "type": "vec4",
+        "offset": 48,
+        "size": 16
+      },
+      {
+        "name": "_winxOutputSize",
+        "type": "vec2",
+        "offset": 64,
+        "size": 8
+      }
+    ],
+    "source": "effects/FSREasuEffect.java"
+  },
+  "fsr_rcas.frag": {
+    "bindings": [
+      {
+        "name": "screenTexture",
+        "binding": 0,
+        "type": "sampled_image"
+      }
+    ],
+    "push_bytes": 40,
+    "uniforms": [
+      {
+        "name": "uSharpnessStops",
+        "type": "float",
+        "offset": 0,
+        "size": 4
+      },
+      {
+        "name": "resolution",
+        "type": "vec2",
+        "offset": 8,
+        "size": 8
+      },
+      {
+        "name": "uSampleBounds",
+        "type": "vec4",
+        "offset": 16,
+        "size": 16
+      },
+      {
+        "name": "_winxOutputSize",
+        "type": "vec2",
+        "offset": 32,
+        "size": 8
+      }
+    ],
+    "source": "effects/FSREffect.java"
+  },
+  "fxaa.frag": {
+    "bindings": [
+      {
+        "name": "screenTexture",
+        "binding": 0,
+        "type": "sampled_image"
+      }
+    ],
+    "push_bytes": 16,
+    "uniforms": [
+      {
+        "name": "resolution",
+        "type": "vec2",
+        "offset": 0,
+        "size": 8
+      },
+      {
+        "name": "_winxOutputSize",
+        "type": "vec2",
+        "offset": 8,
+        "size": 8
+      }
+    ],
+    "source": "effects/FXAAEffect.java"
+  },
+  "hdr.frag": {
+    "bindings": [
+      {
+        "name": "screenTexture",
+        "binding": 0,
+        "type": "sampled_image"
+      }
+    ],
+    "push_bytes": 16,
+    "uniforms": [
+      {
+        "name": "resolution",
+        "type": "vec2",
+        "offset": 0,
+        "size": 8
+      },
+      {
+        "name": "_winxOutputSize",
+        "type": "vec2",
+        "offset": 8,
+        "size": 8
+      }
+    ],
+    "source": "effects/HDREffect.java"
+  },
+  "ntsc.frag": {
+    "bindings": [
+      {
+        "name": "screenTexture",
+        "binding": 0,
+        "type": "sampled_image"
+      }
+    ],
+    "push_bytes": 24,
+    "uniforms": [
+      {
+        "name": "FrameCount",
+        "type": "int",
+        "offset": 0,
+        "size": 4
+      },
+      {
+        "name": "TextureSize",
+        "type": "vec2",
+        "offset": 8,
+        "size": 8
+      },
+      {
+        "name": "resolution",
+        "type": "vec2",
+        "offset": 16,
+        "size": 8
+      }
+    ],
+    "source": "effects/NTSCCombinedEffect.java"
+  },
+  "toon.frag": {
+    "bindings": [
+      {
+        "name": "screenTexture",
+        "binding": 0,
+        "type": "sampled_image"
+      }
+    ],
+    "push_bytes": 16,
+    "uniforms": [
+      {
+        "name": "resolution",
+        "type": "vec2",
+        "offset": 0,
+        "size": 8
+      },
+      {
+        "name": "_winxOutputSize",
+        "type": "vec2",
+        "offset": 8,
+        "size": 8
+      }
+    ],
+    "source": "effects/ToonEffect.java"
+  },
+  "framegen.frag": {
+    "bindings": [
+      {
+        "name": "previousCapturedTexture",
+        "binding": 0,
+        "type": "sampled_image"
+      },
+      {
+        "name": "currentCapturedTexture",
+        "binding": 1,
+        "type": "sampled_image"
+      },
+      {
+        "name": "motionVectorTexture",
+        "binding": 2,
+        "type": "sampled_image"
+      }
+    ],
+    "push_bytes": 16,
+    "uniforms": [
+      {
+        "name": "interpolationFactor",
+        "type": "float",
+        "offset": 0,
+        "size": 4
+      },
+      {
+        "name": "qualityMode",
+        "type": "float",
+        "offset": 4,
+        "size": 4
+      },
+      {
+        "name": "stability",
+        "type": "float",
+        "offset": 8,
+        "size": 4
+      },
+      {
+        "name": "lowLatencyMode",
+        "type": "float",
+        "offset": 12,
+        "size": 4
+      }
+    ],
+    "source": "lsfg/LSFGMaterial.java"
+  },
+  "motion.comp": {
+    "bindings": [
+      {
+        "name": "currFrame",
+        "binding": 0,
+        "type": "sampled_image"
+      },
+      {
+        "name": "prevFrame",
+        "binding": 1,
+        "type": "sampled_image"
+      },
+      {
+        "name": "mvHistoryTexture",
+        "binding": 2,
+        "type": "sampled_image"
+      },
+      {
+        "name": "motionVectorOutput",
+        "binding": 3,
+        "type": "storage_image"
+      }
+    ],
+    "push_bytes": 4,
+    "uniforms": [
+      {
+        "name": "quality",
+        "type": "int",
+        "offset": 0,
+        "size": 4
+      }
+    ],
+    "source": "lsfg/LSFGComputeMaterial.java"
+  }
+}

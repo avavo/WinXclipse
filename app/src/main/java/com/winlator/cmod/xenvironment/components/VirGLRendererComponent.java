@@ -4,7 +4,7 @@ import android.util.Log;
 
 import androidx.annotation.Keep;
 
-import com.winlator.cmod.renderer.GLRenderer;
+import com.winlator.cmod.renderer.DisplayRenderer;
 import com.winlator.cmod.renderer.Texture;
 import com.winlator.cmod.xconnector.Client;
 import com.winlator.cmod.xconnector.ConnectionHandler;
@@ -54,24 +54,20 @@ public class VirGLRendererComponent extends EnvironmentComponent implements Conn
 
     @Keep
     private long getSharedEGLContext() {
+        // The Vulkan compositor has no EGL share group. VirGL creates its own
+        // guest-rendering context and transfers completed front buffers below.
+        if (xServer.getRenderer() instanceof com.winlator.cmod.renderer.VulkanRenderer) return 0;
         if (sharedEGLContextPtr != 0) return sharedEGLContextPtr;
-        final Thread thread = Thread.currentThread();
+        java.util.concurrent.CountDownLatch ready=new java.util.concurrent.CountDownLatch(1);
         try {
-            GLRenderer renderer = xServer.getRenderer();
-            renderer.xServerView.queueEvent(() -> {
-                sharedEGLContextPtr = getCurrentEGLContextPtr();
-
-                synchronized(thread) {
-                    thread.notify();
-                }
+            DisplayRenderer renderer=xServer.getRenderer();
+            renderer.xServerView.queueEvent(()->{
+                try {sharedEGLContextPtr=getCurrentEGLContextPtr();}
+                finally {ready.countDown();}
             });
-            synchronized (thread) {
-                thread.wait();
-            }
-        }
-        catch (Exception e) {
-            return 0;
-        }
+            if(!ready.await(5,java.util.concurrent.TimeUnit.SECONDS))
+                Log.w("VirGLRendererComponent","EGL sharing timed out; using pixel transfers");
+        } catch(InterruptedException error) {Thread.currentThread().interrupt();return 0;}
         return sharedEGLContextPtr;
     }
 
@@ -117,7 +113,9 @@ public class VirGLRendererComponent extends EnvironmentComponent implements Conn
 
             // Ensure existing data is valid before resetting
             try {
-                texture.copyFromFramebuffer(framebuffer, drawable.width, drawable.height);
+                if (xServer.getRenderer() instanceof com.winlator.cmod.renderer.VulkanRenderer || sharedEGLContextPtr==0)
+                    readFrontbuffer(drawable, framebuffer);
+                else texture.copyFromFramebuffer(framebuffer, drawable.width, drawable.height);
             } catch (Exception e) {
                 Log.e("VirGLRendererComponent", "Error during framebuffer copy: " + e.getMessage(), e);
                 return;
@@ -128,6 +126,32 @@ public class VirGLRendererComponent extends EnvironmentComponent implements Conn
         if (onDrawListener != null) {
             onDrawListener.run();
         }
+    }
+
+    private java.nio.ByteBuffer readback;
+    /** Executed with VirGL's own EGL context current, never on the compositor. */
+    private void readFrontbuffer(Drawable drawable, int framebuffer) {
+        int row=drawable.width*4, bytes=row*drawable.height;
+        if(readback==null||readback.capacity()<bytes)readback=java.nio.ByteBuffer.allocateDirect(bytes);
+        readback.clear();
+        int[] previous=new int[1];
+        android.opengl.GLES20.glGetIntegerv(android.opengl.GLES20.GL_FRAMEBUFFER_BINDING,previous,0);
+        android.opengl.GLES20.glBindFramebuffer(android.opengl.GLES20.GL_FRAMEBUFFER,framebuffer);
+        try {
+            android.opengl.GLES20.glPixelStorei(android.opengl.GLES20.GL_PACK_ALIGNMENT,1);
+            android.opengl.GLES20.glReadPixels(0,0,drawable.width,drawable.height,
+                    android.opengl.GLES20.GL_RGBA,android.opengl.GLES20.GL_UNSIGNED_BYTE,readback);
+            int error=android.opengl.GLES20.glGetError();
+            if(error!=android.opengl.GLES20.GL_NO_ERROR)throw new IllegalStateException("VirGL readback: "+error);
+            java.nio.ByteBuffer target=drawable.getData().duplicate();
+            int stride=(drawable.getStridePixels()&0xffff)*4;
+            for(int y=0;y<drawable.height;y++) {
+                readback.limit(bytes);readback.position((drawable.height-1-y)*row);
+                readback.limit(readback.position()+row);target.position(y*stride);target.put(readback);
+            }
+            drawable.getTexture().setFormat(android.opengl.GLES20.GL_RGBA);
+            drawable.getTexture().setNeedsUpdate(true);
+        } finally {android.opengl.GLES20.glBindFramebuffer(android.opengl.GLES20.GL_FRAMEBUFFER,previous[0]);}
     }
 
 

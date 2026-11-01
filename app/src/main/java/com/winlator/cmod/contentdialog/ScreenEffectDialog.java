@@ -17,7 +17,7 @@ import com.winlator.cmod.R;
 import com.winlator.cmod.XServerDisplayActivity;
 import com.winlator.cmod.core.AppUtils;
 import com.winlator.cmod.core.KeyValueSet;
-import com.winlator.cmod.renderer.GLRenderer;
+import com.winlator.cmod.renderer.DisplayRenderer;
 import com.winlator.cmod.renderer.effects.ColorEffect;
 import com.winlator.cmod.renderer.effects.CRTEffect;
 import com.winlator.cmod.renderer.effects.FXAAEffect;
@@ -57,7 +57,7 @@ public class ScreenEffectDialog extends ContentDialog {
         sbContrast = findViewById(R.id.SBContrast);
         sbGamma = findViewById(R.id.SBGamma);
 
-        GLRenderer renderer = activity.getXServerView().getRenderer();
+        DisplayRenderer renderer = activity.getXServerView().getRenderer();
         if (renderer == null) {
             Log.e(TAG, "Renderer is null in ScreenEffectDialog initialization!");
             return;
@@ -227,7 +227,7 @@ public class ScreenEffectDialog extends ContentDialog {
         }
     }
 
-    public void applyEffects(ColorEffect colorEffect, GLRenderer renderer) {
+    public void applyEffects(ColorEffect colorEffect, DisplayRenderer renderer) {
         Log.d(TAG, "applyEffects() called - Color Custom only");
 
         float brightness = sbBrightness.getValue();
