@@ -16,6 +16,11 @@ public final class VulkanRenderer extends SceneRenderer {
     private int lastMotionQuality=-1;
     private boolean resetHistory = true, failed, presented, lastFg;
     private float scaleX,scaleY,offsetX,offsetY;
+    private volatile boolean directPresentationAllowed=true;
+    private Runnable afterComposition;
+    public void setDirectPresentationAllowed(boolean allowed){directPresentationAllowed=allowed;xServerView.requestRender();}
+    /** Render-thread callback; PixelCopy callers receive a posted, composed buffer. */
+    public void afterComposition(Runnable ready){afterComposition=ready;directPresentationAllowed=false;xServerView.requestRender();}
 
     public VulkanRenderer(XServerView view, XServer server) { super(view,server); }
     @Override protected EffectComposer createEffectComposer() { return new VulkanEffectComposer(this); }
@@ -25,6 +30,8 @@ public final class VulkanRenderer extends SceneRenderer {
         close();failed=false;
         try {
             handle=nativeCreate(surface);
+            DisplayXSession direct=xServerView.getDisplayXSession();
+            if(direct!=null)synchronized(direct){nativeDisplayX(handle,direct.handle());}
             long size=nativeSize(handle);
             surfaceWidth=(int)(size>>>32);surfaceHeight=(int)size;
             setRenderTargetSize(surfaceWidth,surfaceHeight);
@@ -57,6 +64,7 @@ public final class VulkanRenderer extends SceneRenderer {
     @Override public void drawFrame() {
         presented=false;
         if(handle==0)return;
+        nativeScanoutAllowed(handle,directPresentationAllowed);
         VulkanEffectComposer composer=(VulkanEffectComposer)effectComposer;
         composer.releaseRetiredEffects();
         VulkanEffectComposer.Plan plan=composer.plan(surfaceWidth,surfaceHeight,fullscreen,
@@ -100,6 +108,15 @@ public final class VulkanRenderer extends SceneRenderer {
                 requestedApexQuality,requestedApexStability,motionSize[0],motionSize[1]);
         if(!presented){resetHistory=true;lsfgManager.resetTimingState();xServerView.requestRender();}
         if(presented&&!lsfgManager.isGeneratedFrame())realFrame++;
+        if(presented&&afterComposition!=null&&nativeCompositionReady(handle)) {
+            Runnable ready=afterComposition;afterComposition=null;
+            xServerView.postOnAnimation(()->xServerView.postOnAnimation(ready));
+        }
+        // Retire DisplayX GPU fences even if the game waits for this present
+        // before submitting another. This redraw is not another source frame.
+        if(presented&&xServerView.getDisplayXSession()!=null) {
+            if(nativeNeedsCompletion(handle))xServerView.requestRender();
+        }
         viewportNeedsUpdate=false;
     }
 
@@ -141,6 +158,10 @@ public final class VulkanRenderer extends SceneRenderer {
                 dw=dh/h*w;dx=(getXScreenWidth()-dw)*.5f;dy=(getXScreenHeight()-dh)*.5f;
             }
             Texture texture=drawable.getTexture();
+            if(!cursor&&nativeDrawDirect(handle,drawable.id,
+                    (offsetX+dx*scaleX)/surfaceWidth*2-1,(offsetY+dy*scaleY)/surfaceHeight*2-1,
+                    (offsetX+(dx+dw)*scaleX)/surfaceWidth*2-1,(offsetY+(dy+dh)*scaleY)/surfaceHeight*2-1,
+                    swapRedBlue))return;
             nativeDraw(handle,keyOverride!=0?keyOverride:Integer.toUnsignedLong(drawable.id),drawable.getData(),
                     w,h,drawable.getStridePixels()&0xffff,
                     (offsetX+dx*scaleX)/surfaceWidth*2-1,(offsetY+dy*scaleY)/surfaceHeight*2-1,
@@ -167,6 +188,11 @@ public final class VulkanRenderer extends SceneRenderer {
     private static native long nativeCreate(Surface surface);
     private static native long nativeSize(long handle);
     private static native void nativeDestroy(long handle);
+    private static native void nativeDisplayX(long handle,long server);
+    private static native boolean nativeNeedsCompletion(long handle);
+    private static native void nativeScanoutAllowed(long handle,boolean enabled);
+    private static native boolean nativeCompositionReady(long handle);
+    private static native boolean nativeDrawDirect(long handle,int window,float x0,float y0,float x1,float y1,boolean swap);
     private static native boolean nativeBegin(long handle,int width,int height,boolean reset,boolean nearest);
     private static native void nativeContentRect(long handle,float x,float y,float width,float height);
     private static native void nativeDraw(long handle,long id,ByteBuffer pixels,int width,int height,int stride,

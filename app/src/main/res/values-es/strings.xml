@@ -1190,4 +1190,6 @@
     <string name="dev_libraries_copy_failed">No se pudieron copiar las bibliotecas de desarrollo.</string>
     <string name="vulkan_compositor_failed">Error en la presentación Vulkan: %1$s</string>
     <string name="wine_renderer">Renderizador de Wine</string>
+    <string name="displayx_option">DisplayX (AHB / Vulkan)</string>
+    <string name="displayx_description">Usa fotogramas AHB compartidos con el compositor Vulkan. Una escena compatible sin efectos puede ir directamente a SurfaceFlinger. FSR, generación de fotogramas, cursor y menús mantienen la composición en la GPU sin copiar píxeles mediante la CPU. Las rutas no compatibles usan X11.</string>
 </resources>

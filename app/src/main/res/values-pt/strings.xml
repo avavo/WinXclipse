@@ -1190,4 +1190,6 @@
     <string name="dev_libraries_copy_failed">Não foi possível copiar as bibliotecas de desenvolvimento.</string>
     <string name="vulkan_compositor_failed">Falha na apresentação Vulkan: %1$s</string>
     <string name="wine_renderer">Renderizador do Wine</string>
+    <string name="displayx_option">DisplayX (AHB / Vulkan)</string>
+    <string name="displayx_description">Usa frames AHB compartilhados com o compositor Vulkan. Uma cena compatível sem efeitos pode ir direto ao SurfaceFlinger. FSR, geração de frames, cursor e menus mantêm composição na GPU sem cópias de pixels pela CPU. Caminhos sem suporte usam X11.</string>
 </resources>

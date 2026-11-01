@@ -4,6 +4,11 @@
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_android.h>
 #include <android/native_window_jni.h>
+#include <android/hardware_buffer.h>
+#include <android/log.h>
+#include "../displayx/Server.hpp"
+#include "../displayx/Scanout.hpp"
+#include "../displayx/ScanoutPolicy.hpp"
 #include <jni.h>
 #include <array>
 #include <vector>
@@ -71,8 +76,10 @@ struct Image {
     void* mapped{};
     VkFormat format{}; uint32_t width{},height{}; VkImageLayout layout=VK_IMAGE_LAYOUT_UNDEFINED;
     bool pendingUpload=false,seen=false;
+    AHardwareBuffer* hardwareBuffer=nullptr;
+    bool linearSupported=true;
 };
-struct Draw { Image* image; std::array<float,4> rect; bool swap,alpha; };
+struct Draw { Image* image; std::array<float,4> rect; bool swap,alpha; std::shared_ptr<displayx::Frame> frame; };
 class Display {
 public:
     VkInstance instance{}; VkPhysicalDevice gpu{}; VkDevice device{};
@@ -90,6 +97,15 @@ public:
     std::array<VkPipeline,9> effects{}; // copy, color, CRT, EASU, RCAS, FXAA, HDR, NTSC, toon
     Image scene, ping[2], history[2], flow[2];
     std::unordered_map<jlong,Image> textures;
+    std::unordered_map<uint64_t,Image> externalTextures;
+    std::unordered_map<uint32_t,std::shared_ptr<displayx::Frame>> directFrames;
+    std::vector<std::shared_ptr<displayx::Frame>> submittedFrames;
+    std::shared_ptr<displayx::Server> directServer;
+    PFN_vkGetAndroidHardwareBufferPropertiesANDROID getHardwareProperties{};
+    bool ahbSupported=false;
+    std::unique_ptr<displayx::Scanout> scanout;
+    bool scanoutAllowed=true,waitingOnScanout=false,scanoutActive=false;
+    int reportedTransport=-1;
     std::vector<Draw> windows,cursors;
     std::array<float,4> contentRect{0,0,1,1};
     uint32_t imageIndex{},historyCount{},currentHistory{},currentFlow{},sceneWidth{},sceneHeight{};
@@ -110,6 +126,7 @@ public:
         if(i.mapped) vkUnmapMemory(device,i.stagingMemory);
         if(i.staging) vkDestroyBuffer(device,i.staging,nullptr);
         if(i.stagingMemory) vkFreeMemory(device,i.stagingMemory,nullptr);
+        if(i.hardwareBuffer)AHardwareBuffer_release(i.hardwareBuffer);
         i={};
     }
     void makeView(Image& i,VkFormat format) {
@@ -212,6 +229,7 @@ public:
     }
     void init(ANativeWindow* ownedWindow) {
         window=ownedWindow;
+        scanout=std::make_unique<displayx::Scanout>(window);
         VkApplicationInfo app{VK_STRUCTURE_TYPE_APPLICATION_INFO};app.pApplicationName="WinXclipse compositor";app.apiVersion=VK_API_VERSION_1_1;
         const char* extensions[]={VK_KHR_SURFACE_EXTENSION_NAME,VK_KHR_ANDROID_SURFACE_EXTENSION_NAME};
         VkInstanceCreateInfo ic{VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};ic.pApplicationInfo=&app;ic.enabledExtensionCount=2;ic.ppEnabledExtensionNames=extensions;
@@ -233,10 +251,19 @@ public:
         }
         if(!gpu)throw std::runtime_error("Vulkan 1.1 graphics/compute presentation unavailable");
         std::vector<const char*> enabled{VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+        uint32_t extensionCount=0;
+        check(vkEnumerateDeviceExtensionProperties(gpu,nullptr,&extensionCount,nullptr),"device extensions");
+        std::vector<VkExtensionProperties> available(extensionCount);
+        check(vkEnumerateDeviceExtensionProperties(gpu,nullptr,&extensionCount,available.data()),"device extensions");
+        auto has=[&](const char* name){return std::any_of(available.begin(),available.end(),[&](const auto& p){return !strcmp(p.extensionName,name);});};
+        ahbSupported=has(VK_ANDROID_EXTERNAL_MEMORY_ANDROID_HARDWARE_BUFFER_EXTENSION_NAME)&&has(VK_EXT_QUEUE_FAMILY_FOREIGN_EXTENSION_NAME);
+        if(ahbSupported){enabled.push_back(VK_ANDROID_EXTERNAL_MEMORY_ANDROID_HARDWARE_BUFFER_EXTENSION_NAME);enabled.push_back(VK_EXT_QUEUE_FAMILY_FOREIGN_EXTENSION_NAME);}
         float priority=1;VkDeviceQueueCreateInfo qc{VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO};qc.queueFamilyIndex=queueFamily;qc.queueCount=1;qc.pQueuePriorities=&priority;
         VkDeviceCreateInfo dc{VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};dc.queueCreateInfoCount=1;dc.pQueueCreateInfos=&qc;
         dc.enabledExtensionCount=enabled.size();dc.ppEnabledExtensionNames=enabled.data();
         check(vkCreateDevice(gpu,&dc,nullptr,&device),"device");vkGetDeviceQueue(device,queueFamily,0,&queue);
+        if(ahbSupported)getHardwareProperties=reinterpret_cast<PFN_vkGetAndroidHardwareBufferPropertiesANDROID>(vkGetDeviceProcAddr(device,"vkGetAndroidHardwareBufferPropertiesANDROID"));
+        ahbSupported&=getHardwareProperties!=nullptr;
         VkFormatProperties fp{};vkGetPhysicalDeviceFormatProperties(gpu,VK_FORMAT_R8G8B8A8_UNORM,&fp);
         if(!(fp.optimalTilingFeatures&VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT))throw std::runtime_error("RGBA8 compute storage unavailable");
         VkCommandPoolCreateInfo cp{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};cp.queueFamilyIndex=queueFamily;cp.flags=VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
@@ -329,6 +356,10 @@ public:
     bool begin(uint32_t sw,uint32_t sh,bool reset,bool point) {
         if(!sw||!sh||sw>16384||sh>16384)throw std::runtime_error("Invalid Vulkan scene size");
         check(vkWaitForFences(device,1,&fence,VK_TRUE,5'000'000'000ULL),"previous frame fence");
+        // This is GPU completion, not the caller returning from vkQueuePresent.
+        // Keep the latest buffer leased for cursor redraws; notify present-wait
+        // separately, then return the slot only when it has been replaced.
+        for(auto& frame:submittedFrames)frame->complete();submittedFrames.clear();
         prune();
         if(++transformPoll>=120&&!resizePending) {
             transformPoll=0;VkSurfaceCapabilitiesKHR caps{};
@@ -347,6 +378,7 @@ public:
         VkCommandBufferBeginInfo bi{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};bi.flags=VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
         check(vkBeginCommandBuffer(cb,&bi),"begin commands");
         windows.clear();cursors.clear();for(auto& pair:textures)pair.second.seen=false;
+        for(auto& pair:externalTextures)pair.second.seen=false;
         nearest=point;frameOpen=true;return true;
     }
     void draw(jlong id,const void* data,size_t capacity,uint32_t w,uint32_t h,uint32_t stride,
@@ -368,13 +400,59 @@ public:
         }
         (cursor?cursors:windows).push_back({&i,rect,swap,cursor});
     }
+    void externalBarrier(Image& i,bool acquire) {
+        VkImageMemoryBarrier b{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};b.image=i.image;
+        b.subresourceRange={VK_IMAGE_ASPECT_COLOR_BIT,0,1,0,1};
+        b.oldLayout=acquire?VK_IMAGE_LAYOUT_GENERAL:VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        b.newLayout=acquire?VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:VK_IMAGE_LAYOUT_GENERAL;
+        b.srcQueueFamilyIndex=acquire?VK_QUEUE_FAMILY_FOREIGN_EXT:queueFamily;
+        b.dstQueueFamilyIndex=acquire?queueFamily:VK_QUEUE_FAMILY_FOREIGN_EXT;
+        b.srcAccessMask=acquire?0:VK_ACCESS_SHADER_READ_BIT;
+        b.dstAccessMask=acquire?VK_ACCESS_SHADER_READ_BIT:0;
+        vkCmdPipelineBarrier(cb,VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,0,0,nullptr,0,nullptr,1,&b);
+        i.layout=b.newLayout;
+    }
+    void importHardwareBuffer(Image& i,const displayx::Frame& frame) {
+        const auto& m=frame.message;
+        VkAndroidHardwareBufferFormatPropertiesANDROID format{VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_FORMAT_PROPERTIES_ANDROID};
+        VkAndroidHardwareBufferPropertiesANDROID props{VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_PROPERTIES_ANDROID};props.pNext=&format;
+        check(getHardwareProperties(device,frame.buffer,&props),"DisplayX buffer properties");
+        if(format.format!=VkFormat(m.format)||!(format.formatFeatures&VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT))throw std::runtime_error("DisplayX buffer format unsupported");
+        VkExternalMemoryImageCreateInfo external{VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO};external.handleTypes=VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID;
+        VkImageCreateInfo create{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};create.pNext=&external;create.imageType=VK_IMAGE_TYPE_2D;
+        create.format=format.format;create.extent={m.width,m.height,1};create.mipLevels=create.arrayLayers=1;
+        create.samples=VK_SAMPLE_COUNT_1_BIT;create.tiling=VK_IMAGE_TILING_OPTIMAL;create.usage=VK_IMAGE_USAGE_SAMPLED_BIT;
+        create.sharingMode=VK_SHARING_MODE_EXCLUSIVE;
+        check(vkCreateImage(device,&create,nullptr,&i.image),"DisplayX image");
+        VkImportAndroidHardwareBufferInfoANDROID imported{VK_STRUCTURE_TYPE_IMPORT_ANDROID_HARDWARE_BUFFER_INFO_ANDROID};imported.buffer=frame.buffer;
+        VkMemoryDedicatedAllocateInfo dedicated{VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO};dedicated.image=i.image;dedicated.pNext=&imported;
+        VkMemoryAllocateInfo allocation{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};allocation.pNext=&dedicated;
+        allocation.allocationSize=props.allocationSize;allocation.memoryTypeIndex=memoryType(props.memoryTypeBits,0);
+        check(vkAllocateMemory(device,&allocation,nullptr,&i.memory),"DisplayX memory");
+        check(vkBindImageMemory(device,i.image,i.memory,0),"DisplayX bind");makeView(i,format.format);
+        i.width=m.width;i.height=m.height;i.format=format.format;i.layout=VK_IMAGE_LAYOUT_GENERAL;
+        i.linearSupported=(format.formatFeatures&VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT)!=0;
+        i.hardwareBuffer=frame.buffer;AHardwareBuffer_acquire(i.hardwareBuffer);
+    }
+    bool drawDirect(uint32_t window,const std::array<float,4>& rect,bool swap) {
+        if(!frameOpen||!directServer)return false;
+        auto incoming=directServer->take(window);
+        auto& frame=directFrames[window];
+        // begin() has waited the previous submission. Replacing this lease is
+        // now safe, including when the producer recreated the entire swapchain.
+        if(incoming)frame=std::move(incoming);
+        if(frame&&!frame->connected())frame.reset();
+        if(!frame)return false;
+        auto& image=externalTextures[frame->bufferId];
+        image.seen=true;windows.push_back({&image,rect,swap,false,frame});return true;
+    }
     VkDescriptorSet set(VkDescriptorSetLayout layout,const std::vector<Image*>& sampled,Image* output=nullptr,bool point=false) {
         VkDescriptorSetAllocateInfo a{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};a.descriptorPool=descriptors;a.descriptorSetCount=1;a.pSetLayouts=&layout;
         VkDescriptorSet result{};check(vkAllocateDescriptorSets(device,&a,&result),"descriptor set");
         std::vector<VkDescriptorImageInfo> infos(sampled.size()+(output?1:0));std::vector<VkWriteDescriptorSet> writes(infos.size());
         for(size_t n=0;n<infos.size();n++) {
             bool storage=n==sampled.size();Image* i=storage?output:sampled[n];
-            infos[n]={storage?VK_NULL_HANDLE:(point?nearestSampler:linearSampler),i->view,storage?VK_IMAGE_LAYOUT_GENERAL:VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+            infos[n]={storage?VK_NULL_HANDLE:(point||!i->linearSupported?nearestSampler:linearSampler),i->view,storage?VK_IMAGE_LAYOUT_GENERAL:VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
             writes[n]={VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};writes[n].dstSet=result;writes[n].dstBinding=n;writes[n].descriptorCount=1;
             writes[n].descriptorType=storage?VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;writes[n].pImageInfo=&infos[n];
         }
@@ -429,6 +507,40 @@ public:
     }
     bool present(const std::vector<int>& ids,const uint8_t* pushes,bool fg,bool capture,bool generated,float alpha,int quality,float stability,uint32_t motionWidth,uint32_t motionHeight) {
         if(!frameOpen)return false;
+        waitingOnScanout=false;bool direct=false;
+        if(scanoutAllowed&&ids.empty()&&!fg&&windows.size()==1&&cursors.empty()) {
+            auto& draw=windows[0];auto& r=draw.rect;
+            float x=(r[0]+1)*.5f,y=(r[1]+1)*.5f,w=(r[2]-r[0])*.5f,h=(r[3]-r[1])*.5f;
+            // Only the complete visible game rectangle: no magnifier cropping,
+            // stacked Wine windows, emulated cursor or color-channel override.
+            if(displayx::canScanout(windows.size(),cursors.size(),ids.size(),fg,bool(draw.frame),draw.swap,r.data(),contentRect.data())) {
+                int32_t width=ANativeWindow_getWidth(window),height=ANativeWindow_getHeight(window);
+                std::array<int32_t,4> target{int32_t(x*width),int32_t(y*height),int32_t((x+w)*width),int32_t((y+h)*height)};
+                direct=scanout->show(draw.frame,target);
+            }
+        }
+        scanoutActive=direct;if(!direct)scanout->hide();
+        for(auto it=windows.begin();it!=windows.end();) {
+            if(!it->frame){++it;continue;}
+            if(direct){it=windows.erase(it);continue;}
+            // A plane detached for effects/menus can still be scanning out its
+            // previous buffer. Do not acquire its foreign ownership prematurely.
+            if(it->frame->externalReaders.load()) {waitingOnScanout=true;it=windows.erase(it);continue;}
+            try {
+                if(!ahbSupported)throw std::runtime_error("Compositor has no AHB import support");
+                if(!it->image->image)importHardwareBuffer(*it->image,*it->frame);
+                externalBarrier(*it->image,true);submittedFrames.push_back(it->frame);++it;
+            } catch(const std::exception& error) {
+                __android_log_print(ANDROID_LOG_WARN,"DisplayX","%s; retaining X11 fallback",error.what());
+                freeImage(*it->image);it->frame->disconnect();it=windows.erase(it);
+            }
+        }
+        if(waitingOnScanout){fg=false;capture=false;generated=false;historyCount=0;}
+        int transport=direct?2:!submittedFrames.empty()?1:0;
+        if(transport!=reportedTransport) {
+            reportedTransport=transport;
+            __android_log_print(ANDROID_LOG_INFO,"DisplayX","Presentation: %s",transport==2?"SurfaceFlinger direct AHB":transport==1?"AHB Vulkan composition":"X11 pixel upload");
+        }
         for(auto& pair:textures) {
             Image& i=pair.second;if(!i.seen||!i.pendingUpload)continue;
             barrier(i,VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
@@ -496,6 +608,7 @@ public:
         }
         // Cursor stays out of temporal history, preventing doubled/warped pointers.
         windowDraws(cursors,screenCursorPipe,extent.width,extent.height,true);vkCmdEndRenderPass(cb);
+        for(auto& draw:windows)if(draw.frame)externalBarrier(*draw.image,false);
         check(vkEndCommandBuffer(cb),"end commands");
         VkPipelineStageFlags wait=VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
         VkSubmitInfo si{VK_STRUCTURE_TYPE_SUBMIT_INFO};si.waitSemaphoreCount=1;si.pWaitSemaphores=&acquired;si.pWaitDstStageMask=&wait;
@@ -504,14 +617,24 @@ public:
         VkPresentInfoKHR p{VK_STRUCTURE_TYPE_PRESENT_INFO_KHR};p.waitSemaphoreCount=1;p.pWaitSemaphores=&presented[imageIndex];p.swapchainCount=1;p.pSwapchains=&swapchain;p.pImageIndices=&imageIndex;
         VkResult status=vkQueuePresentKHR(queue,&p);if(status==VK_ERROR_OUT_OF_DATE_KHR||status==VK_SUBOPTIMAL_KHR)resizePending=true;else check(status,"present frame");
         // Unused images are retired at next begin, after the submission fence.
-        return status!=VK_ERROR_OUT_OF_DATE_KHR;
+        return status!=VK_ERROR_OUT_OF_DATE_KHR&&!waitingOnScanout;
     }
     void prune() {
         for(auto it=textures.begin();it!=textures.end();)if(!it->second.seen){freeImage(it->second);it=textures.erase(it);}else ++it;
+        for(auto it=externalTextures.begin();it!=externalTextures.end();)if(!it->second.seen){freeImage(it->second);it=externalTextures.erase(it);}else ++it;
+        // Unmapped/hidden windows must not retain their pool forever. Their last
+        // draw finished before prune(). A future present can establish a lease.
+        for(auto it=directFrames.begin();it!=directFrames.end();) {
+            auto frame=it->second;
+            if(!frame||!frame->connected()||externalTextures.find(frame->bufferId)==externalTextures.end())it=directFrames.erase(it);else ++it;
+        }
     }
     void destroy() {
         if(device) {
             vkDeviceWaitIdle(device);
+            if(scanout)scanout->hide();scanout.reset();
+            for(auto& frame:submittedFrames)frame->complete();submittedFrames.clear();
+            for(auto& p:externalTextures)freeImage(p.second);externalTextures.clear();directFrames.clear();directServer.reset();
             for(auto& p:textures)freeImage(p.second);
             for(Image* i:{&scene,&ping[0],&ping[1],&history[0],&history[1],&flow[0],&flow[1]})freeImage(*i);
             freeSwapchain();
@@ -542,6 +665,24 @@ extern "C" JNIEXPORT jlong JNICALL JNI(nativeCreate)(JNIEnv* e,jclass,jobject su
     catch(const std::exception& x){fail(e,x);return 0;}
 }
 extern "C" JNIEXPORT void JNICALL JNI(nativeDestroy)(JNIEnv*,jclass,jlong h){delete reinterpret_cast<Display*>(h);}
+extern "C" JNIEXPORT void JNICALL JNI(nativeDisplayX)(JNIEnv* e,jclass,jlong h,jlong server) {
+    try {display(h).directServer=server?*reinterpret_cast<std::shared_ptr<displayx::Server>*>(server):nullptr;}
+    catch(const std::exception& x){fail(e,x);}
+}
+extern "C" JNIEXPORT jboolean JNICALL JNI(nativeNeedsCompletion)(JNIEnv* e,jclass,jlong h) {
+    try{auto& d=display(h);if(d.waitingOnScanout)return true;for(auto& frame:d.submittedFrames)if(!frame->completed)return true;return false;}
+    catch(const std::exception& x){fail(e,x);return false;}
+}
+extern "C" JNIEXPORT void JNICALL JNI(nativeScanoutAllowed)(JNIEnv* e,jclass,jlong h,jboolean enabled) {
+    try{display(h).scanoutAllowed=enabled;}catch(const std::exception& x){fail(e,x);}
+}
+extern "C" JNIEXPORT jboolean JNICALL JNI(nativeCompositionReady)(JNIEnv* e,jclass,jlong h) {
+    try{auto& d=display(h);return !d.scanoutActive&&!d.waitingOnScanout;}
+    catch(const std::exception& x){fail(e,x);return false;}
+}
+extern "C" JNIEXPORT jboolean JNICALL JNI(nativeDrawDirect)(JNIEnv* e,jclass,jlong h,jint window,jfloat x0,jfloat y0,jfloat x1,jfloat y1,jboolean swap) {
+    try{return display(h).drawDirect(uint32_t(window),{x0,y0,x1,y1},swap);}catch(const std::exception& x){fail(e,x);return false;}
+}
 extern "C" JNIEXPORT jlong JNICALL JNI(nativeSize)(JNIEnv* e,jclass,jlong h) {
     try {auto size=display(h).logicalExtent;return jlong((uint64_t(size.width)<<32)|size.height);}
     catch(const std::exception& x){fail(e,x);return 0;}

@@ -272,6 +272,12 @@ public class ShortcutSettingsDialog extends ContentDialog {
 
         findViewById(R.id.BTVideoConfig).setOnClickListener(button ->
                 new VideoConfigDialog(context, new VideoConfigDialog.Config() {
+                    @Override public boolean isDisplayXEnabled() { return "1".equals(GraphicsDriverConfigDialog.parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag())).getOrDefault("displayX", "0")); }
+                    @Override public void setDisplayXEnabled(boolean enabled) {
+                        HashMap<String,String> options=GraphicsDriverConfigDialog.parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()));
+                        options.put("displayX",enabled?"1":"0");
+                        vGraphicsDriverConfig.setTag(GraphicsDriverConfigDialog.toGraphicsDriverConfig(options));
+                    }
                     @Override public String getWineRenderer() { return StringUtils.parseIdentifier(sRenderer.getSelectedItem()); }
                     @Override public void setWineRenderer(String value) { AppUtils.setSpinnerSelectionFromValue(sRenderer,value); }
                     @Override

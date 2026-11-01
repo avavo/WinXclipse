@@ -39,6 +39,18 @@ public class XServerView extends GLSurfaceView {
     private final java.util.concurrent.atomic.AtomicInteger surfaceGeneration = new java.util.concurrent.atomic.AtomicInteger();
     private final AtomicBoolean renderQueued = new AtomicBoolean();
     private int vulkanRenderMode = RENDERMODE_WHEN_DIRTY;
+    private com.winlator.cmod.renderer.DisplayXSession displayXSession;
+
+    public void enableDisplayX(XServer server, java.io.File socket) {
+        if(vulkan&&displayXSession==null)displayXSession=new com.winlator.cmod.renderer.DisplayXSession(this,server,socket);
+    }
+    public com.winlator.cmod.renderer.DisplayXSession getDisplayXSession(){return displayXSession;}
+    public void closeDisplayX(){if(displayXSession!=null)displayXSession.close();}
+    public void setDirectPresentationAllowed(boolean allowed){if(vulkan)((VulkanRenderer)renderer).setDirectPresentationAllowed(allowed);}
+    public void afterCompositedFrame(Runnable ready){
+        if(vulkan)queueEvent(()->((VulkanRenderer)renderer).afterComposition(ready));
+        else postOnAnimation(ready);
+    }
 
     public XServerView(Context context, XServer xServer) {
         this(context,xServer,com.winlator.cmod.renderer.DisplayBackend.VULKAN);

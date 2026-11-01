@@ -27,12 +27,15 @@ public class VideoRendererSettingsTest {
     private Context context(){return new ContextThemeWrapper(RuntimeEnvironment.getApplication(),R.style.AppTheme_Dark);}
     private String savedWine="vulkan";
     private boolean applied;
+    private boolean savedDisplayX;
     private VideoConfigDialog.Config config() {
         return (VideoConfigDialog.Config)Proxy.newProxyInstance(VideoConfigDialog.Config.class.getClassLoader(),
                 new Class<?>[]{VideoConfigDialog.Config.class},(proxy,method,args)->{
             switch(method.getName()) {
                 case "getWineRenderer":return savedWine;
                 case "setWineRenderer":savedWine=(String)args[0];return null;
+                case "isDisplayXEnabled":return savedDisplayX;
+                case "setDisplayXEnabled":savedDisplayX=(boolean)args[0];return null;
                 case "getGpuName":return "Device";
                 case "getPresentMode":return "mailbox";
                 case "getRefreshRate":return "auto";
@@ -78,6 +81,17 @@ public class VideoRendererSettingsTest {
         ((Spinner)dialog.findViewById(R.id.SVideoWineRenderer)).setSelection(1);
         dialog.findViewById(R.id.BTCancel).performClick();
         assertEquals("vulkan",savedWine);assertFalse(applied);
+    }
+    @Test public void displayXIsStagedAndConfirmedWithVideoOptions() {
+        VideoConfigDialog dialog=new VideoConfigDialog(context(),config());dialog.show();
+        ((android.widget.CheckBox)dialog.findViewById(R.id.CBVideoDisplayX)).setChecked(true);
+        assertFalse(savedDisplayX);dialog.findViewById(R.id.BTConfirm).performClick();
+        assertTrue(savedDisplayX);assertTrue(applied);
+    }
+    @Test public void cancellingDisplayXKeepsTheSavedChoice() {
+        savedDisplayX=true;VideoConfigDialog dialog=new VideoConfigDialog(context(),config());dialog.show();
+        android.widget.CheckBox box=dialog.findViewById(R.id.CBVideoDisplayX);assertTrue(box.isChecked());box.setChecked(false);
+        dialog.findViewById(R.id.BTCancel).performClick();assertTrue(savedDisplayX);assertFalse(applied);
     }
 
     @Test public void gearRemainsOneVerticalColumnAtPhoneWidth() {

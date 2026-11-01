@@ -31,3 +31,5 @@ target_compile_definitions(winx_vulkan PRIVATE VK_USE_PLATFORM_ANDROID_KHR)
 target_compile_options(winx_vulkan PRIVATE -Wall -Wextra -Wno-missing-field-initializers -Werror=return-type)
 target_include_directories(winx_vulkan PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 target_link_libraries(winx_vulkan vulkan android log)
+
+target_link_libraries(winx_vulkan winx_displayx dl)

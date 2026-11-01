@@ -38,6 +38,8 @@ public class VideoConfigDialog extends ContentDialog {
     public interface Config {
         default String getWineRenderer() { return "vulkan"; }
         default void setWineRenderer(String value) {}
+        default boolean isDisplayXEnabled(){return false;}
+        default void setDisplayXEnabled(boolean value){}
         String getGpuName();
         String getPresentMode();
         /** 0 = bilinear, 1 = nearest, 2 = FSR, 3 = none; -1 = not set. */
@@ -82,6 +84,8 @@ public class VideoConfigDialog extends ContentDialog {
         Spinner wineRenderer=findViewById(R.id.SVideoWineRenderer);
         wineRenderer.setAdapter(new ThemedSpinnerAdapter<>(context,Arrays.asList("vulkan","gl")));
         wineRenderer.setSelection("gl".equalsIgnoreCase(config.getWineRenderer())?1:0);
+        CheckBox displayX=findViewById(R.id.CBVideoDisplayX);
+        displayX.setChecked(config.isDisplayXEnabled());
         Spinner gpuName = findViewById(R.id.SVideoGPUName);
         Spinner presentMode = findViewById(R.id.SVideoPresentMode);
         Spinner refreshRate = findViewById(R.id.SVideoRefreshRate);
@@ -292,6 +296,7 @@ public class VideoConfigDialog extends ContentDialog {
 
         setOnConfirmCallback(() -> {
             config.setWineRenderer(wineRenderer.getSelectedItemPosition()==1?"gl":"vulkan");
+            config.setDisplayXEnabled(displayX.isChecked());
             String upscaleValue = "On".equals(selectedValue(fsrUpscale)) ? "1" : "0";
             int qualityIndex = Math.max(0, Math.min(fsrQuality.getSelectedItemPosition(),
                     FSR_MODE_VALUES.length - 1));

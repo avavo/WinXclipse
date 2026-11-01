@@ -42,6 +42,8 @@ não possuem override. A alteração vale no próximo lançamento da sessão.
   Staging faz a cópia com stride validado. Não se importa para Vulkan um AHB
   que o código de Wine mantém bloqueado permanentemente para CPU: isso exige
   um contrato de ownership/sincronização que esse protocolo ainda não fornece.
+- O DisplayX do lote 36 acrescenta um protocolo AHB com ownership/fences próprios,
+  independente dos buffers DRI3 antigos bloqueados para CPU. Ver [DisplayX](displayx.md).
 - VirGL pode criar seu contexto guest sem compartilhar EGL com o compositor.
   Nesse caso lê o frontbuffer no contexto do próprio VirGL e entrega pixels ao
   X server; a composição/efeitos continuam Vulkan. Esse caminho tem custo de

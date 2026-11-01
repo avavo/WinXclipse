@@ -1316,4 +1316,6 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="dev_libraries_copy_failed">Could not copy the developer libraries.</string>
     <string name="vulkan_compositor_failed">Vulkan presentation failed: %1$s</string>
     <string name="wine_renderer">Wine renderer</string>
+    <string name="displayx_option">DisplayX (AHB / Vulkan)</string>
+    <string name="displayx_description">Uses shared AHB frames with the Vulkan compositor. A compatible scene without effects can go directly to SurfaceFlinger. FSR, frame generation, cursor and menus retain GPU composition without CPU pixel copies. Unsupported paths use standard X11.</string>
 </resources>

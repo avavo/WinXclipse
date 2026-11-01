@@ -690,6 +690,12 @@ public class ContainerDetailFragment extends Fragment {
         final Spinner sGPUName = view.findViewById(R.id.SGPUName);
         view.findViewById(R.id.BTVideoConfig).setOnClickListener(button ->
                 new VideoConfigDialog(context, new VideoConfigDialog.Config() {
+                    @Override public boolean isDisplayXEnabled() { return "1".equals(GraphicsDriverConfigDialog.parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag())).getOrDefault("displayX", "0")); }
+                    @Override public void setDisplayXEnabled(boolean enabled) {
+                        HashMap<String,String> options=GraphicsDriverConfigDialog.parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()));
+                        options.put("displayX",enabled?"1":"0");
+                        vGraphicsDriverConfig.setTag(GraphicsDriverConfigDialog.toGraphicsDriverConfig(options));
+                    }
                     @Override public String getWineRenderer() { return StringUtils.parseIdentifier(((Spinner)view.findViewById(R.id.SWineRenderer)).getSelectedItem()); }
                     @Override public void setWineRenderer(String value) { AppUtils.setSpinnerSelectionFromValue(view.findViewById(R.id.SWineRenderer),value); }
                     @Override

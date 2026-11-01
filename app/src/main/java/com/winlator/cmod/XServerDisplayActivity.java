@@ -599,9 +599,14 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         drawerLayout = findViewById(R.id.DrawerLayout);
 
         drawerLayout.addDrawerListener(new DrawerLayout.SimpleDrawerListener() {
+            @Override public void onDrawerSlide(@NonNull View drawerView,float offset) {
+                if(offset>0&&xServerView!=null)xServerView.setDirectPresentationAllowed(false);
+            }
             @Override public void onDrawerOpened(@NonNull View drawerView) {
                 releasePointerCaptureIfNeeded("drawer-opened");
-                if (sidebarBackdrop != null) sidebarBackdrop.capture(xServerView);
+                if (sidebarBackdrop != null&&xServerView!=null)xServerView.afterCompositedFrame(()->{
+                    if(sidebarBackdrop!=null&&drawerLayout.isDrawerOpen(drawerView))sidebarBackdrop.capture(xServerView);
+                });
                 if (xServer != null) xServer.keyboard.releaseHardwareKeys();
                 if (xServerView != null) {
                     updateSidebarFrameGenerationState(xServerView.getRenderer());
@@ -609,6 +614,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
             }
             @Override public void onDrawerClosed(@NonNull View drawerView) {
                 if (sidebarBackdrop != null) sidebarBackdrop.clear();
+                if(xServerView!=null)xServerView.setDirectPresentationAllowed(true);
                 // If the user left Relative Mouse enabled, recapture.
                 if (isRelativeMouseMovement && !pointerCaptureRequested) {
                     ensurePointerCapture("drawer-closed");
@@ -1347,7 +1353,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         sidebarHandler.removeCallbacks(shortcutExitProbe);
         sidebarHandler.removeCallbacks(aggressiveWineTrimProbe);
         ProcessHelper.removeDebugCallback(bcnTelemetryCallback);
-        if (xServerView != null) xServerView.getRenderer().stopApexChoreographer();
+        if (xServerView != null) { xServerView.getRenderer().stopApexChoreographer(); xServerView.closeDisplayX(); }
         if (inputControlsView != null) inputControlsView.cancelAllTouches();
         if (launchBlockedByContentOperation) {
             super.onDestroy();
@@ -1960,6 +1966,13 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         // FPS Limiter and VSync are independent settings. VSync controls the
         // presentation backend; it must never rewrite or clamp this limiter.
         renderer.setFpsLimit(requestedLimit);
+        if(xServerView.getDisplayXSession()!=null) {
+            String mode=resolveVsyncMode();
+            int synced="100".equals(mode)?Math.max(1,Math.round(activeDisplayRefreshRate))
+                    :"50".equals(mode)?Math.max(1,Math.round(activeDisplayRefreshRate/2)):0;
+            int cap=requestedLimit>0&&synced>0?Math.min(requestedLimit,synced):Math.max(requestedLimit,synced);
+            xServerView.getDisplayXSession().setFpsLimit(cap);
+        }
         com.winlator.cmod.xserver.extensions.PresentExtension present =
                 xServer.getExtension(com.winlator.cmod.xserver.extensions.PresentExtension.MAJOR_OPCODE);
         if (present != null) {
@@ -2478,6 +2491,14 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         // Let Box64 inside Wine see this config
         envVars.put("BOX64_RCFILE", file.getAbsolutePath());
 
+        com.winlator.cmod.renderer.DisplayXSession direct=xServerView.getDisplayXSession();
+        if(direct!=null&&direct.isAvailable()) {
+            try {
+                if(com.winlator.cmod.renderer.DisplayXDeployment.install(
+                        new File(getApplicationInfo().nativeLibraryDir,"libwinx_displayx_layer.so"),imageFs.getRootDir(),envVars))direct.configure(envVars);
+                else Log.w("DisplayX","Guest layer missing; retaining standard WSI");
+            } catch(java.io.IOException error){Log.w("DisplayX","Guest layer deployment failed; retaining standard WSI",error);}
+        }
         // Pass final envVars to the launcher
         guestProgramLauncherComponent.setEnvVars(envVars);
         guestProgramLauncherComponent.setTerminationCallback((status) -> {
@@ -2661,6 +2682,8 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
                         container.getExtra(com.winlator.cmod.renderer.DisplayBackend.KEY,"vulkan"))
                 : container.getExtra(com.winlator.cmod.renderer.DisplayBackend.KEY,"vulkan");
         xServerView = new XServerView(this, xServer, displayBackend);
+        if("1".equals(graphicsDriverConfig.getOrDefault("displayX","0")))
+            xServerView.enableDisplayX(xServer,new File(getFilesDir(),".dx-"+java.util.UUID.randomUUID().toString().substring(0,12)));
         Log.i("XServerDisplayActivity", "Display compositor: " + xServerView.getDisplayBackend());
         applyPreferredRefreshRate();
         final DisplayRenderer renderer = xServerView.getRenderer();
