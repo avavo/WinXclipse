@@ -48,7 +48,6 @@ public class HudDataSource {
     private final BatteryManager batteryManager;
 
     private String gpuPath = null;
-    private boolean gpuFailed = false;
     private long lastMaliGpuInfoMs = -1;
     private long lastMaliGpuInfoWallMs = -1;
     private java.util.List<String> discoveredCpuTempPaths = null;
@@ -57,6 +56,7 @@ public class HudDataSource {
     private static final boolean USE_BATTERY_AS_CPU_FALLBACK = false;
 
     private static final String[] GPU_PATHS = {
+        "/sys/kernel/gpu/gpu_busy", // SGPU/Xclipse; do not prefer legacy Mali counters on Exynos.
         "/sys/class/misc/mali0/device/utilisation",
         "/sys/class/misc/mali0/device/gpuinfo",
         "/sys/devices/platform/mali/utilization",
@@ -64,7 +64,6 @@ public class HudDataSource {
         "/sys/module/mali_kbase/parameters/mali_gpu_utilization",
         "/sys/module/mali/parameters/mali_gpu_utilization",
         "/proc/mali/utilization",
-        "/sys/kernel/gpu/gpu_busy",
         "/sys/module/ged/parameters/gpu_loading",
         "/sys/class/devfreq/mtk-dvfs-gpu/gpu_loading",
         "/sys/class/devfreq/gpufreq/gpu_load",
@@ -103,7 +102,6 @@ public class HudDataSource {
             thread = new HandlerThread("WinlatorHUD", android.os.Process.THREAD_PRIORITY_BACKGROUND);
             thread.start();
             handler = new Handler(thread.getLooper());
-            gpuFailed = false;
             gpuPath = null;
         }
         running = true;
@@ -141,7 +139,7 @@ public class HudDataSource {
     }
 
     private void pollGpu() {
-        if (gpuFailed) return;
+        // Permissions and GPU runtime power state can change after the session starts.
 
         if (gpuPath != null) {
             int v = gpuPath.endsWith("gpuinfo") ? readGpuInfo(gpuPath) : readPercent(gpuPath);
@@ -157,7 +155,6 @@ public class HudDataSource {
             return;
         }
 
-        gpuFailed = true;
         gpuLoad.set(-1);
     }
 
@@ -265,6 +262,7 @@ public class HudDataSource {
             gpuFrequencyPath = null;
         }
         java.util.List<String> paths = new java.util.ArrayList<>();
+        paths.add("/sys/kernel/gpu/gpu_clock"); // Samsung SGPU reports kHz.
         paths.add("/sys/class/kgsl/kgsl-3d0/gpuclk"); // Hz, like devfreq cur_freq.
         File[] nodes = new File("/sys/class/devfreq").listFiles();
         if (nodes != null) for (File node : nodes) if (isGpuNode(node.getName()))
@@ -278,6 +276,7 @@ public class HudDataSource {
 
     private int readGpuMhz(String path) {
         long hz = readSysFsLong(path);
+        if (path.equals("/sys/kernel/gpu/gpu_clock")) return TelemetryMath.samsungGpuMhz(hz);
         return hz > 0 && hz <= 10_000_000_000L ? (int)(hz / 1_000_000) : -1;
     }
 

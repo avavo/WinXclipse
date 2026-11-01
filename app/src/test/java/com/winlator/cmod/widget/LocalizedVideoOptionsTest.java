@@ -31,7 +31,7 @@ public class LocalizedVideoOptionsTest {
             VideoConfigDialog.Config config=(VideoConfigDialog.Config)Proxy.newProxyInstance(VideoConfigDialog.Config.class.getClassLoader(),
                     new Class<?>[]{VideoConfigDialog.Config.class},(proxy,method,args)->{
                 switch(method.getName()) {
-                    case "getWineRenderer":return "vulkan";
+                    case "getDisplayBackend":return "vulkan";
                     case "getGpuName":return "Device";
                     case "getPresentMode":return "mailbox";
                     case "getRefreshRate":return "auto";

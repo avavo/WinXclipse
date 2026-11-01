@@ -1,5 +1,8 @@
 # Probe nativo no S24+ — 01/11/2026
 
+Este primeiro ensaio antecede o APK de teste instalado pelo usuário; os novos
+resultados de drivers/sensores estão na seção Lote 39 ao final.
+
 Um dispositivo apareceu no ADB durante a checagem final: SM-S926B, SoC s5e9945,
 Android API 37. O pacote instalado é com.win.xclipse, 0.9.6/27, atualizado antes
 das últimas alterações desta revisão e não debuggable. Não foi substituído,
@@ -75,3 +78,35 @@ aceita caminhos de módulos como argumentos opcionais para conferir dlopen.
 Executar somente no diretório temporário do ensaio; ele não requer Activity,
 permissões de arquivos pessoais nem pacote Android. A restrição de socket pode
 variar pelo contexto de segurança do processo.
+
+
+## Lote 39 — consulta real de drivers e sensores
+
+Após o usuário instalar o APK local de 081cd71, confirmado pelo SHA-256 do pacote,
+foi executado um probe nativo independente sob o UID do app via run-as. O probe
+usa a implementação de driver_probe.cpp; a consulta não lança o jogo nem instala
+outro aplicativo. O teste revelou a dependência libc++_shared.so não empacotada,
+que impedia dlopen de libadrenotools.so. Com o runtime do NDK 27 disponível:
+
+| Driver no S24+ | Vulkan | Extensões |
+| --- | --- | --- |
+| Stock Xclipse 940 | 1.3.304 | 166 |
+| Quasar-v0.4.9 | 1.4.363 | 273 |
+| RADV Xclipse Mesa 27 devel fe9b894 | 1.4.363 | 234 |
+
+A carga customizada continua comprovada pelo mapeamento da biblioteca selecionada.
+O fluxo preserva o preload das dependências de vendor observado no Ludashi.
+Referência do loader: https://github.com/bylaws/libadrenotools/blob/master/include/adrenotools/driver.h
+O wrapper de reprodução está em tools/driver_query_probe.cpp; executar cada
+consulta em processo novo com nativeLibraryDir, diretório temporário e caminho
+privado do driver. O loader não deve receber pacotes no armazenamento compartilhado.
+
+No mesmo UID, /proc/stat e /sys/class/devfreq negaram leitura, mas os contadores
+/sys/devices/system/cpu/cpu*/cpuidle/state*/time estavam legíveis e avançaram em
+duas amostras. /sys/kernel/gpu/gpu_busy e gpu_clock também estavam acessíveis;
+clock observado 400000 kHz e zero durante GPU ociosa. O código usa deltas de
+idle/tempo decorrido, sem inferir utilização a partir da frequência.
+
+Isso valida a consulta e a disponibilidade dos contadores nesse aparelho, sem
+comprovar imagens do compositor, blur da nova build, boot completo ou desempenho
+sustentado em jogos. Esses ensaios permanecem na matriz de integração.

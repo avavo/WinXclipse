@@ -273,8 +273,8 @@ public class ShortcutSettingsDialog extends ContentDialog {
                         options.put("displayX",enabled?"1":"0");
                         vGraphicsDriverConfig.setTag(GraphicsDriverConfigDialog.toGraphicsDriverConfig(options));
                     }
-                    @Override public String getWineRenderer() { return StringUtils.parseIdentifier(sRenderer.getSelectedItem()); }
-                    @Override public void setWineRenderer(String value) { AppUtils.setSpinnerSelectionFromValue(sRenderer,value); }
+                    @Override public String getDisplayBackend() { return DisplayBackend.selected(findViewById(R.id.SRenderer)); }
+                    @Override public void setDisplayBackend(String value) { DisplayBackend.bind(findViewById(R.id.SRenderer), value); }
                     @Override
                     public String getGpuName() {
                         HashMap<String, String> config = GraphicsDriverConfigDialog

@@ -1308,6 +1308,8 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="content_operation_wait">Wait for downloads and installations to finish before entering Wine.</string>
     <string name="fps_limit_help">Choose a limit from 15 to 240 FPS. The main tile turns it on or off.</string>
     <string name="terminal_imagefs_invalid">System files are unavailable. Prepare them before opening the terminal.</string>
+    <string name="terminal_interactive_unsupported">Interactive shells are unsupported.</string>
+    <string name="terminal_command_error">Error: %1$s</string>
     <string name="choose_action">Choose</string>
     <string name="favorite_unassigned">No favorite is assigned. Choose one now?</string>
     <string name="dev_library_destination_failed">Could not create the destination folder.</string>
@@ -1346,4 +1348,5 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="dxvk_issue_id">%1$s=0 is not a valid GPU identifier.</string>
     <string name="dxvk_more_issues">+%1$d more…</string>
     <string name="container_export_failed">Could not export the container. Check available space and whether this backup already exists.</string>
+    <string name="android_compositor">Android compositor</string>
 </resources>

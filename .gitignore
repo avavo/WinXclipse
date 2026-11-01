@@ -10,6 +10,10 @@ local.properties
 
 app/src/main/assets/
 assets/
+# License shipped alongside the generated NDK shared C++ runtime.
+!app/src/driverRuntime/assets/
+!app/src/driverRuntime/assets/licenses/
+!app/src/driverRuntime/assets/licenses/libcxx-NOTICE.txt
 original.apk
 WXB-unsigned.apk
 WXB-patched-unsigned.apk

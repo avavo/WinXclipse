@@ -85,9 +85,11 @@ public final class ImageFsMaintenance {
         File[] children = root.listFiles();
         if (children == null) throw new IOException("Cannot list ImageFS");
         for (File child : children) {
-            // Containers/saves and legacy runtime trees are user data. ImageFS only
-            // overlays opt/winetricks; bundled Wine is replaced separately below.
-            if (child.getName().equals("home") || child.getName().equals("opt")) continue;
+            // Containers, installed content packages and legacy runtimes are user data.
+            // The base archive contains only empty home/ and opt/winetricks;
+            // bundled Wine is replaced separately below.
+            if (child.getName().equals("home") || child.getName().equals("opt")
+                    || child.getName().equals("contents")) continue;
             if (!backend.delete(child)) throw new IOException("Cannot clear ImageFS path: " + child);
         }
     }

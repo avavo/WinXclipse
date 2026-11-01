@@ -284,17 +284,24 @@ public final class FEXCoreManager {
         writeToConfigFile(preset, multiBlockValue, x87ReducedPrecisionValue);
     }
 
+    public static String canonicalBundledVersion(String version) {
+        return (DefaultVersion.FEXCORE + "-" + DefaultVersion.FEXCORE_CODE).equals(version)
+                || ("FEXCore-" + DefaultVersion.FEXCORE + "-" + DefaultVersion.FEXCORE_CODE).equals(version)
+                ? DefaultVersion.FEXCORE : version;
+    }
+
     public static void loadFEXCoreVersion(Context context, ContentsManager contentsManager, Spinner spinner, Container container) {
         String[] originalItems = context.getResources().getStringArray(R.array.fexcore_version_entries);
         LinkedHashSet<String> versions = new LinkedHashSet<>(Arrays.asList(originalItems));
         for (ContentProfile profile : contentsManager.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_FEXCORE)) {
             if (!contentsManager.isInstalledProfile(profile)) continue;
+            if (DefaultVersion.FEXCORE.equals(profile.verName) && profile.verCode == DefaultVersion.FEXCORE_CODE) continue;
             versions.add(profile.verName + "-" + profile.verCode);
         }
         List<String> itemList = new ArrayList<>(versions);
         spinner.setAdapter(new com.winlator.cmod.widget.ThemedSpinnerAdapter<>(spinner.getContext(), itemList));
         if (container != null)
-            AppUtils.setContentVersionSelection(spinner, container.getFEXCoreVersion());
+            AppUtils.setContentVersionSelection(spinner, canonicalBundledVersion(container.getFEXCoreVersion()));
         else
             AppUtils.setContentVersionSelection(spinner, DefaultVersion.FEXCORE);
     }
@@ -304,11 +311,12 @@ public final class FEXCoreManager {
         LinkedHashSet<String> versions = new LinkedHashSet<>(Arrays.asList(originalItems));
         for (ContentProfile profile : contentsManager.getProfiles(ContentProfile.ContentType.CONTENT_TYPE_FEXCORE)) {
             if (!contentsManager.isInstalledProfile(profile)) continue;
+            if (DefaultVersion.FEXCORE.equals(profile.verName) && profile.verCode == DefaultVersion.FEXCORE_CODE) continue;
             versions.add(profile.verName + "-" + profile.verCode);
         }
         List<String> itemList = new ArrayList<>(versions);
         spinner.setAdapter(new com.winlator.cmod.widget.ThemedSpinnerAdapter<>(spinner.getContext(), itemList));
-        AppUtils.setContentVersionSelection(spinner, shortcut.getExtra("fexcoreVersion", shortcut.container.getFEXCoreVersion()));
+        AppUtils.setContentVersionSelection(spinner, canonicalBundledVersion(shortcut.getExtra("fexcoreVersion", shortcut.container.getFEXCoreVersion())));
     }
 
     public static void createAppConfigFiles(Context ctx) {

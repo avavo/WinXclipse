@@ -85,11 +85,12 @@ public class ClassicInterfaceLayoutTest {
         root.measure(View.MeasureSpec.makeMeasureSpec(288, View.MeasureSpec.EXACTLY),
                 View.MeasureSpec.makeMeasureSpec(320, View.MeasureSpec.EXACTLY));
         root.layout(0, 0, 288, 320);
-        ScrollView scroll = root.findViewById(R.id.SVInlineCPUInfo);
-        scroll.scrollTo(0, cpu.getHeight());
-        assertTrue(scroll.getScrollY() > 0);
-        assertInside(root, cpu.getChildAt(10));
-        assertInside(scroll, cpu.getChildAt(10));
+        ScrollView scroll = (ScrollView)root;
+        scroll.requestChildRectangleOnScreen(cpu.getChildAt(10),
+                new android.graphics.Rect(0, 0, cpu.getChildAt(10).getWidth(), cpu.getChildAt(10).getHeight()), true);
+        assertFalse(root.findViewById(R.id.SVInlineCPUInfo) instanceof ScrollView);
+        assertTrue(cpu.getHeight() >= cpu.getChildAt(10).getBottom());
+        scroll.scrollTo(0, scroll.getChildAt(0).getHeight());
         assertInside(root, root.findViewById(R.id.BTInlineNewTask));
     }
 

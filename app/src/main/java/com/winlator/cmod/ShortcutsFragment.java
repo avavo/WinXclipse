@@ -144,9 +144,10 @@ public class ShortcutsFragment extends Fragment {
         if (cover != null) preview.setImageBitmap(cover);
         else if (shortcut.icon != null) preview.setImageBitmap(shortcut.icon);
         else preview.setImageResource(R.drawable.cover_art_placeholder);
-        preview.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        preview.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        preview.setAdjustViewBounds(true);
         LinearLayout.LayoutParams previewParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, Math.round(190 * density));
+                ViewGroup.LayoutParams.MATCH_PARENT, Math.round(150 * density));
         previewParams.bottomMargin = Math.round(12 * density);
         body.addView(preview, previewParams);
 

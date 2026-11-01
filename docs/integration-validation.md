@@ -1,15 +1,16 @@
 # Integração da 0.9.6 — 01/11/2026
 
-Revisão final local das Partes 1–13, até o lote 38. O código permanece na versão
+Revisão final local das Partes 1–13, até o lote 39. O código permanece na versão
 **0.9.6, versionCode 27**, com a interface clássica ativa. ConsoleUi está preservado
-e não é um source set registrado. Não foi gerado APK/AAB, tag ou nova release.
+e não é um source set registrado. O pedido posterior autorizou APKs locais de teste;
+não foi criada tag ou release pública.
 
 ## Verificações executadas
 
-- `:app:testWinxclipseDebugUnitTest`: **495 casos, 493 aprovados, zero falhas/erros,
+- `:app:testWinxclipseDebugUnitTest`: **509 casos, 507 aprovados, zero falhas/erros,
   dois ignorados por permissão de symlink no Windows**. Compilação Java/Kotlin,
   recursos e código real de widgets em Robolectric API 28/31 incluídos.
-- `tools/validate_locales.py`: EN/PT/ES com **1373 strings e 11 listas** por idioma;
+- `tools/validate_locales.py`: EN/PT/ES com **1376 strings e 11 listas** por idioma;
   cobertura, placeholders e correspondência dos índices aprovados.
 - DisplayX: **23 cenários nativos** de protocolo, descritores, dimensões, limites,
   seleção de plano e fences com falhas injetadas. Host incorporado a winx_vulkan
@@ -34,9 +35,10 @@ e não é um source set registrado. Não foi gerado APK/AAB, tag ou nova release
   socket anônimo real. Socket de arquivo foi recusado para o UID shell
   e ficou explicitamente ignorado; apresentação em tela não foi exercitada.
 
-As execuções produzem intermediários de JVM e módulos/objetos de validação, não
-um pacote Android instalável. As compilações nativas independentes ficam fora do
-repositório. Fontes de teste Windows não são empacotados no app.
+Os testes produzem intermediários de JVM e módulos/objetos de validação. O lote
+39 também gera um APK local para o feedback autorizado pelo usuário. As compilações
+nativas independentes ficam fora do repositório. Fontes de teste Windows não são
+empacotados no app.
 
 ## Resultado da revisão por área
 
@@ -54,10 +56,11 @@ repositório. Fontes de teste Windows não são empacotados no app.
 
 ## Matriz física que permanece aberta
 
-O S24+ conectado na checagem final tem um APK 0.9.6/27 instalado anteriormente,
-sem as últimas alterações desta revisão. A restrição de não gerar APK foi mantida
-e esse app não foi atualizado. O probe não valida interface, primeiro boot, jogos
-ou apresentação do compositor. Resultados e limites em [device-probe.md](device-probe.md).
+O usuário instalou o primeiro APK local e enviou os prints que orientaram o lote 39.
+O hash do pacote instalado corresponde ao APK entregue de 081cd71. As consultas
+nativas de drivers e sensores foram executadas separadamente, sem substituir o
+app durante esses testes. A build com as correções de interface ainda requer
+conferência visual. Resultados e limites em [device-probe.md](device-probe.md).
 
 1. Instalação limpa e atualização por cima: dados, idioma, mensagem única,
    dependências, catálogos e restauração por arquivo/URI.
@@ -82,3 +85,12 @@ Triagem: [issue-triage.md](issue-triage.md). Referências/adaptações:
 [fork-comparison.md](fork-comparison.md). Revisão visual em fontes:
 [interface-review.md](interface-review.md). Checklist detalhado:
 [0.9.6-roadmap.md](0.9.6-roadmap.md).
+
+
+Lote 39: build APK Java/Kotlin/C++ completa aprovada; 509 casos JVM, 507 aprovados,
+zero falhas/erros, dois ignorados por symlink no Windows. APK contém
+libc++_shared.so e seu aviso de licença. Regressões cobrem marcação/seleção,
+callbacks de editor inline/terminal, alturas/alinhamento, MangoHUD compacto, cpuidle,
+frequências Samsung e preservação dos pacotes na atualização ImageFS.
+A assinatura para atualizar diretamente a 0.9.5 fornecida permanece pendente da
+chave original: ver signing-update-compatibility.md.

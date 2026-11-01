@@ -15,23 +15,25 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:padding="8dp"
-            android:textColor="@android:color/white"
-            android:background="@android:color/black"
+            android:textColor="?attr/winxOnSurfaceColor"
+            android:background="?attr/winxPanelBackground"
             android:textAppearance="?android:attr/textAppearanceSmall"
             android:scrollbars="vertical"
             android:textIsSelectable="true" />
     </ScrollView>
 
     <EditText
+        style="@style/EditText"
         android:id="@+id/commandInput"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="44dp"
         android:hint="@string/terminal_command"
         android:inputType="text" />
 
     <Button
+        style="@style/ButtonNeutral"
         android:id="@+id/executeButton"
         android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:layout_height="44dp"
         android:text="@string/terminal_execute" />
 </LinearLayout>

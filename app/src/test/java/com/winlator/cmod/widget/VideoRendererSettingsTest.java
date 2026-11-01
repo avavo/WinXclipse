@@ -32,8 +32,8 @@ public class VideoRendererSettingsTest {
         return (VideoConfigDialog.Config)Proxy.newProxyInstance(VideoConfigDialog.Config.class.getClassLoader(),
                 new Class<?>[]{VideoConfigDialog.Config.class},(proxy,method,args)->{
             switch(method.getName()) {
-                case "getWineRenderer":return savedWine;
-                case "setWineRenderer":savedWine=(String)args[0];return null;
+                case "getDisplayBackend":return savedWine;
+                case "setDisplayBackend":savedWine=(String)args[0];return null;
                 case "isDisplayXEnabled":return savedDisplayX;
                 case "setDisplayXEnabled":savedDisplayX=(boolean)args[0];return null;
                 case "getGpuName":return "Device";
@@ -67,18 +67,18 @@ public class VideoRendererSettingsTest {
         assertEquals("OpenGL",spinner.getSelectedItem());
     }
 
-    @Test public void gearStagesWineSelectionUntilConfirm() {
+    @Test public void gearStagesCompositorSelectionUntilConfirm() {
         VideoConfigDialog dialog=new VideoConfigDialog(context(),config());dialog.show();
-        ((Spinner)dialog.findViewById(R.id.SVideoWineRenderer)).setSelection(1);
+        ((Spinner)dialog.findViewById(R.id.SVideoCompositor)).setSelection(1);
         ShadowLooper.idleMainLooper();
         assertEquals("vulkan",savedWine);
         dialog.findViewById(R.id.BTConfirm).performClick();
         assertEquals("gl",savedWine);assertTrue(applied);
     }
 
-    @Test public void cancelDoesNotChangeTheOldWineSetting() {
+    @Test public void cancelDoesNotChangeTheCompositorSetting() {
         VideoConfigDialog dialog=new VideoConfigDialog(context(),config());dialog.show();
-        ((Spinner)dialog.findViewById(R.id.SVideoWineRenderer)).setSelection(1);
+        ((Spinner)dialog.findViewById(R.id.SVideoCompositor)).setSelection(1);
         dialog.findViewById(R.id.BTCancel).performClick();
         assertEquals("vulkan",savedWine);assertFalse(applied);
     }
@@ -102,7 +102,7 @@ public class VideoRendererSettingsTest {
         LinearLayout content=(LinearLayout)root.getChildAt(0);
         assertEquals(LinearLayout.VERTICAL,content.getOrientation());
         int last=0;
-        for(int id:new int[]{R.id.SVideoWineRenderer,R.id.SVideoGPUName,R.id.SVideoPresentMode,
+        for(int id:new int[]{R.id.SVideoCompositor,R.id.SVideoGPUName,R.id.SVideoPresentMode,
                 R.id.SVideoRefreshRate,R.id.SVideoTextureFilter,R.id.SVideoVkBasaltEffect}) {
             View v=root.findViewById(id);
             assertEquals(LinearLayout.VERTICAL,((LinearLayout)v.getParent()).getOrientation());
@@ -116,5 +116,26 @@ public class VideoRendererSettingsTest {
     @Test public void invalidAndMissingCompositorValuesDefaultToVulkan() {
         for(String value:new String[]{null,"","gdi","typo"})assertEquals("vulkan",DisplayBackend.normalize(value));
         for(String value:new String[]{"gl","OpenGL"," GLES "})assertEquals("gl",DisplayBackend.normalize(value));
+    }
+
+    @Test public void wineSelectorIsOutsideAndAndroidCompositorIsInsideTheGear() {
+        for (int layout : new int[]{R.layout.container_detail_fragment, R.layout.shortcut_settings_dialog}) {
+            View root = LayoutInflater.from(context()).inflate(layout, null);
+            assertEquals(View.VISIBLE, root.findViewById(R.id.SWineRenderer).getVisibility());
+            assertEquals(View.GONE, root.findViewById(R.id.SRenderer).getVisibility());
+        }
+    }
+    @Test public void compactMangoOneFitsBelowTwoHundredDensityIndependentPixels() {
+        WinlatorHUD hud = new WinlatorHUD(context(), "compact-mango-test");
+        hud.setHudStyle(1);
+        hud.measure(View.MeasureSpec.makeMeasureSpec(900, View.MeasureSpec.AT_MOST),
+                View.MeasureSpec.makeMeasureSpec(600, View.MeasureSpec.AT_MOST));
+        float density = context().getResources().getDisplayMetrics().density;
+        assertTrue(hud.getMeasuredWidth() < 200 * density);
+        assertTrue(hud.getMeasuredHeight() > 60 * density);
+        hud.layout(0, 0, hud.getMeasuredWidth(), hud.getMeasuredHeight());
+        android.graphics.Bitmap image = android.graphics.Bitmap.createBitmap(hud.getWidth(),hud.getHeight(),android.graphics.Bitmap.Config.ARGB_8888);
+        hud.draw(new android.graphics.Canvas(image));
+        image.recycle();
     }
 }

@@ -1,9 +1,9 @@
 # WinXclipse v0.9.6 — development changelog
 
-Updated October 31, 2026. Source changes through batch 36.
+Updated November 1, 2026. Source changes through batch 39.
 These notes describe implemented changes. Android gameplay validation remains pending;
 they do not claim that every FPS drop, shutdown or stalled game has been resolved.
-No new APK/AAB, release or tag has been produced for this work.
+Local test APKs are provided on request. No public release or tag has been created.
 
 # Changes
 
@@ -16,6 +16,17 @@ No new APK/AAB, release or tag has been produced for this work.
 - Preserve launcher-to-game hand-off handling and automatic shutdown of genuinely empty Wine sessions. A finished `start.exe` is not treated as proof that the game started.
 - Keep `RpcSs` available in Normal and Essential startup profiles and deterministic X server lock ordering.
 
+### November 1 device feedback
+
+- Package the shared C++ runtime required by the custom-driver loader. Native checks on an S24+ now enumerate 273 Quasar extensions and 234 RADV Xclipse extensions, independently of the stock driver's 166 extensions.
+- Use bounded blurred snapshots behind dialogs and anchored lists, including progress and first-boot surfaces. Remove opaque inner panels, improve text/icon contrast, mark the current spinner selection, and normalize field heights and rounded outlines.
+- Host in-session settings, terminal, logs and nested editors inside the sidebar, with a close/back action, preserved callbacks/controller assignment, and a smaller footer. Expand all CPU and process rows in one scroll surface and restore a vertical RAM meter beside the CPU card.
+- Read per-core CPU idle-counter deltas when Android restricts /proc/stat. Read Samsung GPU busy/clock nodes, handle their clock units, and retry unavailable counters rather than caching a failure forever. Missing measurements remain unavailable.
+- Remove the duplicate bundled FEXCore 2610 selector entry, put Create new in the middle of the add-container menu, improve storage field sizing, wrap navigation labels, and preserve the aspect ratio of artwork previews.
+- Standardize download/settings/help action dimensions and spacing. Move the DisplayX explanation into Help. Reduce MangoHUD 1 by 35% while retaining the user's scale adjustment.
+- Buffer decompressed archive reads and reuse an extraction buffer across entries to reduce first-install overhead. End-to-end Proton initialization time still needs comparison on the device.
+- Preserve installed content packages when updating the base ImageFS. Direct installation over the supplied 0.9.5 still requires its original signing key; the local test certificate is different.
+
 ### Runtime defaults, downloads and installation
 
 - Use FEXCore 2610 and Box64 0.4.5 as new defaults. FEXCore 2608 and Box64 0.4.3 remain available from the existing content releases.
@@ -27,12 +38,12 @@ No new APK/AAB, release or tag has been produced for this work.
 
 ### Drivers and graphics
 
-- Use the container/shortcut Video selector to choose the Android compositor: Vulkan (default) or OpenGL. Keep the previous Wine renderer option inside the adjacent video configuration dialog, with separate persistence and shortcut inheritance.
+- Keep the Wine renderer in the main container/shortcut form. Select the Android compositor (Vulkan by default, or OpenGL) inside the adjacent video settings. Preserve the separate saved values and shortcut inheritance.
 - Add a Vulkan 1.1 compositor with Vulkan EASU/RCAS, color/CRT/FXAA/HDR/NTSC/Toon effects and compute frame generation. Preserve Fast/Balanced/Quality motion scales and keep the cursor outside temporal history. The direct path avoids allocating post-processing/history images when effects and frame generation are off.
 - Synchronize staging, descriptors and image retirement with submission fences; handle swapchain recreation, pre-rotation and temporal resets. Keep the existing GLES implementation selectable. OpenXR retains its GLES swapchains; VirGL pixel transfers require separate performance checks.
 - Add optional DisplayX AHB transport per container/shortcut. Compatible plain scenes can present the same buffer through SurfaceFlinger; FSR/frame generation, cursor and Wine menus retain Vulkan GPU composition without CPU pixel copies. Preserve FIFO order, pacing, buffer-release fences and the standard WSI fallback. Compose before the sidebar blur capture.
 - Keep the guest layer separate from the app compositor and preserve other Vulkan layers. Unsupported formats/extensions retain native WSI. Do not substitute a compositor fence for physical present-wait. DisplayX image, synchronization and performance still require device validation.
-- Correct the video configuration form's accidental horizontal nesting so fields use one vertical column. Confirm applies the old Wine selection; cancel preserves it. Vulkan initialization failures are reported without silently changing the saved compositor.
+- Correct the video configuration form's accidental horizontal nesting so fields use one vertical column. Confirm applies the selected compositor; cancel preserves it. Vulkan initialization failures are reported without silently changing the saved compositor.
 
 - Keep driver names and descriptions separate and preserve display-name capitalization. Reimporting a driver can replace its binaries through staging and rollback.
 - Query extensions and API support from the selected driver in an isolated process. A failed custom-driver query no longer presents stock-driver capabilities as its result.

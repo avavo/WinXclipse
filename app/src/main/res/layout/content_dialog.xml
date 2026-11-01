@@ -35,7 +35,7 @@
                 android:layout_width="0dp"
                 android:layout_weight="1"
                 android:layout_height="wrap_content"
-                android:textColor="?colorAccent"
+                android:textColor="?attr/winxOnSurfaceColor"
                 android:textStyle="bold"
                 android:textSize="18sp" />
         </LinearLayout>
@@ -102,7 +102,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:paddingTop="4dp"
-            android:textColor="?colorAccent"
+            android:textColor="?attr/winxOnSurfaceColor"
             android:textStyle="bold"
             android:visibility="gone" />
 

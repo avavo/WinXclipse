@@ -61,8 +61,7 @@ public class InlineTaskManagerPanel extends LinearLayout implements OnGetProcess
         if (running) return;
         running = true;
         if (resetScroll) {
-            findViewById(R.id.SVInlineCPUInfo).scrollTo(0, 0);
-            findViewById(R.id.SVInlineProcessList).scrollTo(0, 0);
+            getChildAt(0).scrollTo(0, 0);
         }
         activity.getWinHandler().setOnGetProcessInfoListener(this);
         handler.post(refreshRunnable);

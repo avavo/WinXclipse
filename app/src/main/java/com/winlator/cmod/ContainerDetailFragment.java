@@ -696,8 +696,8 @@ public class ContainerDetailFragment extends Fragment {
                         options.put("displayX",enabled?"1":"0");
                         vGraphicsDriverConfig.setTag(GraphicsDriverConfigDialog.toGraphicsDriverConfig(options));
                     }
-                    @Override public String getWineRenderer() { return StringUtils.parseIdentifier(((Spinner)view.findViewById(R.id.SWineRenderer)).getSelectedItem()); }
-                    @Override public void setWineRenderer(String value) { AppUtils.setSpinnerSelectionFromValue(view.findViewById(R.id.SWineRenderer),value); }
+                    @Override public String getDisplayBackend() { return DisplayBackend.selected(view.findViewById(R.id.SRenderer)); }
+                    @Override public void setDisplayBackend(String value) { DisplayBackend.bind(view.findViewById(R.id.SRenderer), value); }
                     @Override
                     public String getGpuName() {
                         return GraphicsDriverConfigDialog

@@ -210,4 +210,55 @@ public class PopupStyleTest {
         progress.close();
         assertFalse(progress.isShowing());
     }
+
+    @Test public void legacyBlackFieldsAndPurpleLabelsUseTheGlassPalette() {
+        androidx.preference.PreferenceManager.getDefaultSharedPreferences(activity).edit()
+                .putBoolean(AppUtils.PREF_FOLLOW_SYSTEM_THEME, false).putBoolean(AppUtils.PREF_DARK_MODE, true).commit();
+        android.view.ContextThemeWrapper theme = new android.view.ContextThemeWrapper(activity, R.style.ContentDialog_Dark);
+        android.widget.LinearLayout panel = new android.widget.LinearLayout(theme);
+        panel.setBackgroundColor(Color.BLACK);
+        android.widget.EditText field = new android.widget.EditText(theme);
+        field.setBackgroundColor(Color.BLACK); panel.addView(field);
+        android.widget.TextView label = new android.widget.TextView(theme);
+        label.setTextColor(androidx.core.content.ContextCompat.getColor(theme, R.color.colorAccent)); panel.addView(label);
+        PopupStyle.styleContent(panel);
+        assertTrue(Color.alpha(((GradientDrawable)panel.getBackground()).getColor().getDefaultColor()) < 128);
+        assertTrue(Color.alpha(((GradientDrawable)field.getBackground()).getColor().getDefaultColor()) < 128);
+        assertEquals(0xFFF8F5FF, label.getCurrentTextColor());
+    }
+
+    public static class SidebarActivity extends Activity implements com.winlator.cmod.contentdialog.SidebarDialogHost {
+        android.widget.FrameLayout host;
+        @Override protected void onCreate(android.os.Bundle state) {
+            setTheme(R.style.AppTheme_Dark); super.onCreate(state);
+            host = new android.widget.FrameLayout(this); setContentView(host);
+        }
+        @Override public boolean presentSidebarDialog(ContentDialog dialog) {
+            View content = dialog.getContentView();
+            if (content.getParent() instanceof android.view.ViewGroup)
+                ((android.view.ViewGroup)content.getParent()).removeView(content);
+            host.addView(content); return true;
+        }
+        @Override public void dismissSidebarDialog(ContentDialog dialog) { host.removeView(dialog.getContentView()); }
+    }
+    @Test public void sidebarEditorRetainsFindSelectionCancelAndDismissCallbacks() {
+        try (ActivityController<SidebarActivity> controller = Robolectric.buildActivity(SidebarActivity.class).setup()) {
+            SidebarActivity host = controller.get();
+            ContentDialog dialog = new ContentDialog(host, R.layout.audio_config_dialog);
+            AtomicInteger cancel = new AtomicInteger(), dismissed = new AtomicInteger(), shown = new AtomicInteger();
+            dialog.setOnCancelCallback(cancel::incrementAndGet);
+            dialog.setOnDismissListener(d -> dismissed.incrementAndGet());
+            dialog.setOnShowListener(d -> shown.incrementAndGet());
+            dialog.show();
+            assertTrue(dialog.isShowing());
+            assertSame(host.host, dialog.getContentView().getParent());
+            assertNotNull(dialog.findViewById(R.id.SAudioConfigDriver));
+            dialog.cancel();
+            assertFalse(dialog.isShowing());
+            assertEquals(1, cancel.get()); assertEquals(1, dismissed.get());
+            dialog.show(); dialog.findViewById(R.id.BTConfirm).performClick();
+            assertFalse(dialog.isShowing()); assertEquals(2, dismissed.get());
+            assertEquals(2, shown.get());
+        }
+    }
 }

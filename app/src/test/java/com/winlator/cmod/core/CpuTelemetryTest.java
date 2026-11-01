@@ -53,4 +53,22 @@ public class CpuTelemetryTest {
         write(stat, "cpu 900 0 0 200\ncpu0 900 0 0 200");
         assertEquals(-1, source.poll().usage);
     }
+
+    @Test public void usesIdleCounterDeltasWhenAndroidBlocksProcStatAndResetsTheInterval() throws Exception {
+        File root = temporary.newFolder("idle-cpu"), stat = new File(root, "blocked-stat");
+        File idle0 = new File(root, "cpu0/cpuidle/state0/time");
+        File idle1 = new File(root, "cpu1/cpuidle/state0/time");
+        write(idle0, "1000000"); write(idle1, "2000000");
+        java.util.concurrent.atomic.AtomicLong clock = new java.util.concurrent.atomic.AtomicLong(1_000_000_000L);
+        CpuTelemetry source = new CpuTelemetry(root, stat, new File(root, "cpuinfo"), clock::get);
+        assertEquals(-1, source.poll().usage);
+        clock.addAndGet(1_000_000_000L);
+        write(idle0, "1250000"); write(idle1, "2750000");
+        CpuTelemetry.Sample sample = source.poll();
+        assertEquals(75, sample.cores[0].usage); assertEquals(25, sample.cores[1].usage);
+        assertEquals(50, sample.usage);
+        source.reset(); assertEquals(-1, source.poll().usage);
+        clock.addAndGet(1_000_000_000L); write(idle0, "1");
+        assertEquals(-1, source.poll().cores[0].usage);
+    }
 }

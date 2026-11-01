@@ -8,6 +8,14 @@ import java.util.Locale;
 public final class TelemetryMath {
     private TelemetryMath() {}
 
+    /** Samsung GPU clock nodes vary between MHz, kHz and Hz across kernel generations. */
+    public static int samsungGpuMhz(long clock) {
+        if (clock < 0 || clock > 10_000_000_000L) return -1;
+        if (clock >= 20_000_000) return (int)(clock / 1_000_000);
+        if (clock >= 20_000) return (int)(clock / 1000);
+        return (int)clock;
+    }
+
     public static final class CpuTimes {
         final long[] ticks;
         CpuTimes(long[] ticks) { this.ticks = ticks; }

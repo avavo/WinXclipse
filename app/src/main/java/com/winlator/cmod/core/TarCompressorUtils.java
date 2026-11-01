@@ -180,10 +180,12 @@ public abstract class TarCompressorUtils {
 
     private static boolean extract(Type type, InputStream source, File destination, OnExtractFileListener onExtractFileListener) {
         if (source == null) return false;
-        try (InputStream inStream = getCompressorInputStream(type, source);
+        try (InputStream inStream = new BufferedInputStream(getCompressorInputStream(type,
+                     new BufferedInputStream(source, 256 * 1024)), 256 * 1024);
              ArchiveInputStream tar = new TarArchiveInputStream(inStream)) {
             File destinationRoot = destination.getCanonicalFile();
             if (!destinationRoot.isDirectory() && !destinationRoot.mkdirs()) return false;
+            byte[] extractBuffer = new byte[StreamUtils.BUFFER_SIZE];
             TarArchiveEntry entry;
             while ((entry = (TarArchiveEntry)tar.getNextEntry()) != null) {
                 if (!tar.canReadEntryData(entry)) continue;
@@ -222,8 +224,9 @@ if (entry.isDirectory()) {
                         if (entry.getRealSize() >= SparseFileWriter.MIN_FILE_SIZE) {
                             SparseFileWriter.copy(tar, file, entry.getRealSize());
                         } else {
-                            try (BufferedOutputStream outStream = new BufferedOutputStream(new FileOutputStream(file), StreamUtils.BUFFER_SIZE)) {
-                                if (!StreamUtils.copy(tar, outStream)) return false;
+                            try (FileOutputStream outStream = new FileOutputStream(file)) {
+                                int bytes;
+                                while ((bytes = tar.read(extractBuffer)) != -1) outStream.write(extractBuffer, 0, bytes);
                             }
                         }
                     }

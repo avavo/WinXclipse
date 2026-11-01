@@ -1,13 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<com.winlator.cmod.widget.GestureScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical">
+    android:fillViewport="false">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
 
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:baselineAligned="false">
     <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="2"
+        android:layout_width="0dp"
+        android:layout_weight="1"
+        android:layout_height="wrap_content"
         android:background="?attr/winxPanelBackground"
         android:orientation="vertical"
         android:padding="8dp">
@@ -17,18 +19,16 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="CPU"
-            android:textColor="@color/colorAccent"
+            android:textColor="?attr/winxOnSurfaceColor"
             android:textSize="15sp"
             android:textStyle="bold" />
 
-        <com.winlator.cmod.widget.GestureScrollView
+        <FrameLayout
             android:id="@+id/SVInlineCPUInfo"
             android:layout_width="match_parent"
-            android:layout_height="0dp"
+            android:layout_height="wrap_content"
             android:layout_marginTop="3dp"
-            android:layout_weight="1"
             android:fadeScrollbars="false"
-            android:fillViewport="false"
             android:overScrollMode="always"
             android:scrollbars="vertical">
 
@@ -37,15 +37,16 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical" />
-        </com.winlator.cmod.widget.GestureScrollView>
+        </FrameLayout>
     </LinearLayout>
 
     <com.winlator.cmod.widget.MemoryUsageBarView
         android:id="@+id/InlineMemoryUsageBar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:minHeight="52dp"
-        android:layout_marginTop="7dp" />
+        android:layout_width="112dp"
+        android:layout_height="match_parent"
+        android:minHeight="180dp"
+        android:layout_marginStart="8dp" />
+    </LinearLayout>
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -89,16 +90,14 @@
 
     <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:background="?attr/winxSurfaceColor">
+        android:layout_height="wrap_content"
+        android:background="@android:color/transparent">
 
-        <com.winlator.cmod.widget.GestureScrollView
+        <FrameLayout
             android:id="@+id/SVInlineProcessList"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
+            android:layout_height="wrap_content"
             android:fadeScrollbars="false"
-            android:fillViewport="false"
             android:overScrollMode="always"
             android:scrollbars="vertical">
 
@@ -107,7 +106,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical" />
-        </com.winlator.cmod.widget.GestureScrollView>
+        </FrameLayout>
 
         <TextView
             android:id="@+id/TVInlineEmptyText"
@@ -133,7 +132,7 @@
             android:layout_weight="1"
             android:gravity="center_vertical"
             android:text="@string/processes"
-            android:textColor="@color/colorAccent"
+            android:textColor="?attr/winxOnSurfaceColor"
             android:textSize="14sp"
             android:textStyle="bold" />
 
@@ -145,3 +144,4 @@
             android:text="@string/new_task" />
     </LinearLayout>
 </LinearLayout>
+</com.winlator.cmod.widget.GestureScrollView>

@@ -36,7 +36,7 @@ public class MemoryUsageBarView extends View {
         int surface = resolveColor(context, R.attr.winxSurfaceColor, Color.BLACK);
         int onSurface = resolveColor(context, R.attr.winxOnSurfaceColor, Color.WHITE);
 
-        backgroundPaint.setColor(surface);
+        backgroundPaint.setColor(withAlpha(surface, 64));
         fillPaint.setColor(withAlpha(accent, 170));
         borderPaint.setStyle(Paint.Style.STROKE);
         borderPaint.setStrokeWidth(dp(1.2f));

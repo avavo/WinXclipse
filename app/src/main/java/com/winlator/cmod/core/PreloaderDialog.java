@@ -31,8 +31,7 @@ public class PreloaderDialog {
         com.winlator.cmod.core.PopupStyle.installProgress(dialog);
 
         boolean dark = AppUtils.isDarkMode(activity);
-        dialog.findViewById(R.id.LLPreloaderPanel).setBackgroundResource(
-                dark ? R.drawable.preloader_panel_dark : R.drawable.preloader_panel_light);
+        dialog.findViewById(R.id.LLPreloaderPanel).setBackgroundColor(android.graphics.Color.TRANSPARENT);
         int foreground = ContextCompat.getColor(activity,
                 dark ? android.R.color.white : android.R.color.black);
         int accent = ContextCompat.getColor(activity,

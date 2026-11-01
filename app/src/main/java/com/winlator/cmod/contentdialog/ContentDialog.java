@@ -38,6 +38,52 @@ public class ContentDialog extends AppCompatDialog {
     public Runnable onConfirmCallback;
     private Runnable onCancelCallback;
     private final View contentView;
+    private SidebarDialogHost sidebarOwner;
+    private android.content.DialogInterface.OnDismissListener dismissListener;
+    private android.content.DialogInterface.OnCancelListener cancelListener;
+    private android.content.DialogInterface.OnShowListener showListener;
+
+    @Override public <T extends View> T findViewById(int id) {
+        T view = contentView == null ? null : contentView.findViewById(id);
+        return view != null ? view : super.findViewById(id);
+    }
+    @Override public boolean isShowing() { return sidebarOwner != null || super.isShowing(); }
+    @Override public void setOnDismissListener(android.content.DialogInterface.OnDismissListener listener) {
+        dismissListener = listener; super.setOnDismissListener(listener);
+    }
+    @Override public void setOnCancelListener(android.content.DialogInterface.OnCancelListener listener) {
+        cancelListener = listener; super.setOnCancelListener(listener);
+    }
+    @Override public void setOnShowListener(android.content.DialogInterface.OnShowListener listener) {
+        showListener = listener; super.setOnShowListener(listener);
+    }
+    @Override public void show() {
+        android.app.Activity activity = com.winlator.cmod.core.PopupBackdrop.activity(getContext());
+        if (activity instanceof SidebarDialogHost
+                && ((SidebarDialogHost)activity).presentSidebarDialog(this)) {
+            sidebarOwner = (SidebarDialogHost)activity;
+            com.winlator.cmod.core.PopupStyle.styleContent(contentView);
+            InterfaceMotion.apply(contentView);
+            if (showListener != null) showListener.onShow(this);
+            return;
+        }
+        if (contentView.getParent() == null) setContentView(contentView);
+        super.show();
+    }
+    @Override public void cancel() {
+        if (sidebarOwner == null) { super.cancel(); return; }
+        if (onCancelCallback != null) onCancelCallback.run();
+        if (cancelListener != null) cancelListener.onCancel(this);
+        dismiss();
+    }
+    @Override public void dismiss() {
+        if (sidebarOwner == null) { super.dismiss(); return; }
+        SidebarDialogHost owner = sidebarOwner;
+        sidebarOwner = null;
+        owner.dismissSidebarDialog(this);
+        if (dismissListener != null) dismissListener.onDismiss(this);
+    }
+
 
     private boolean isDarkMode;
 
@@ -300,6 +346,11 @@ public class ContentDialog extends AppCompatDialog {
 
     @Override
     public boolean dispatchKeyEvent(@NonNull KeyEvent event) {
+        return captureControllerKeyEvent(event) || super.dispatchKeyEvent(event);
+    }
+
+    /** The Activity forwards assignment keys here when this editor lives in its sidebar. */
+    public boolean captureControllerKeyEvent(@NonNull KeyEvent event) {
         // If we are actively listening for controller input...
         if (onControllerInputListener != null && event.getAction() == KeyEvent.ACTION_DOWN) {
             InputDevice device = event.getDevice();
@@ -311,7 +362,7 @@ public class ContentDialog extends AppCompatDialog {
             }
         }
         // Otherwise, process the key event normally (e.g., for keyboard input in an EditText).
-        return super.dispatchKeyEvent(event);
+        return false;
     }
 
     public static class ConfirmationResult {

@@ -24,15 +24,21 @@ public final class CpuTelemetry {
     public static final Sample EMPTY = new Sample(new Core[0], -1);
     private Map<Integer, TelemetryMath.CpuTimes> previous = Collections.emptyMap();
     private final File root;
+    private final java.util.function.LongSupplier clock;
     private final File stat;
     private final File cpuinfo;
+    private final Map<Integer, Long> previousIdle = new java.util.HashMap<>();
+    private long previousNanos;
     private final Map<Integer, String> names = new java.util.HashMap<>();
 
     public CpuTelemetry() { this(new File("/sys/devices/system/cpu"), new File("/proc/stat"), new File("/proc/cpuinfo")); }
     public CpuTelemetry(File root, File stat) { this(root, stat, new File(root, "cpuinfo")); }
-    public CpuTelemetry(File root, File stat, File cpuinfo) { this.root = root; this.stat = stat; this.cpuinfo = cpuinfo; }
+    public CpuTelemetry(File root, File stat, File cpuinfo) { this(root, stat, cpuinfo, System::nanoTime); }
+    CpuTelemetry(File root, File stat, File cpuinfo, java.util.function.LongSupplier clock) {
+        this.root = root; this.stat = stat; this.cpuinfo = cpuinfo; this.clock = clock;
+    }
 
-    public synchronized void reset() { previous = Collections.emptyMap(); }
+    public synchronized void reset() { previous = Collections.emptyMap(); previousIdle.clear(); previousNanos = 0; }
     public synchronized Sample poll() {
         Map<Integer, TelemetryMath.CpuTimes> current = TelemetryMath.cpuTimes(read(stat));
         TreeSet<Integer> ids = new TreeSet<>();
@@ -44,7 +50,9 @@ public final class CpuTelemetry {
         if (ids.isEmpty()) for (int i = 0; i < Runtime.getRuntime().availableProcessors(); i++) ids.add(i);
         Core[] cores = new Core[ids.size()];
         Map<Integer, String> procNames = null;
-        int index = 0;
+        int index = 0, idleUsageSum = 0, idleUsageCount = 0;
+        long now = clock.getAsLong();
+        long elapsedMicros = previousNanos == 0 ? 0 : (now - previousNanos) / 1000;
         for (int id : ids) {
             File cpu = new File(root, "cpu" + id);
             int frequency = frequency(new File(cpu, "cpufreq/scaling_cur_freq"));
@@ -59,12 +67,34 @@ public final class CpuTelemetry {
                 }
                 names.put(id, name);
             }
-            cores[index++] = new Core(id, frequency, frequency(new File(cpu, "cpufreq/cpuinfo_max_freq")),
-                    TelemetryMath.cpuUsage(previous.get(id), current.get(id)), names.get(id));
+            int load = TelemetryMath.cpuUsage(previous.get(id), current.get(id));
+            long idle = idleMicros(new File(cpu, "cpuidle"));
+            Long before = idle >= 0 ? previousIdle.put(id, idle) : previousIdle.remove(id);
+            if (load < 0 && idle >= 0 && before != null && idle >= before && elapsedMicros > 0) {
+                load = (int)Math.max(0, Math.min(100, Math.round(100d * (elapsedMicros - (idle - before)) / elapsedMicros)));
+            }
+            if (load >= 0) { idleUsageSum += load; idleUsageCount++; }
+            cores[index++] = new Core(id, frequency, frequency(new File(cpu, "cpufreq/cpuinfo_max_freq")), load, names.get(id));
         }
         int usage = TelemetryMath.cpuUsage(previous.get(-1), current.get(-1));
+        if (usage < 0 && idleUsageCount == cores.length && idleUsageCount > 0)
+            usage = Math.round(idleUsageSum / (float)idleUsageCount);
+        previousNanos = now;
         previous = current;
         return new Sample(cores, usage);
+    }
+    private static long idleMicros(File directory) {
+        File[] states = directory.listFiles(file -> file.getName().matches("state[0-9]+"));
+        if (states == null || states.length == 0) return -1;
+        long total = 0;
+        try {
+            for (File state : states) {
+                long value = Long.parseLong(read(new File(state, "time")).trim());
+                if (value < 0) return -1;
+                total = Math.addExact(total, value);
+            }
+            return total;
+        } catch (RuntimeException ignored) { return -1; }
     }
     private static int frequency(File file) {
         try { long khz = Long.parseLong(read(file).trim()); return khz > 0 && khz <= 20_000_000 ? (int)(khz / 1000) : -1; }

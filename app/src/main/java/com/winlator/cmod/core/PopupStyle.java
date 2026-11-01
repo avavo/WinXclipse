@@ -11,7 +11,6 @@ import android.view.WindowManager;
 
 import com.winlator.cmod.R;
 
-import java.util.function.Consumer;
 
 /** Shared floating surfaces; listeners live exactly as long as the popup window. */
 public final class PopupStyle {
@@ -24,7 +23,7 @@ public final class PopupStyle {
     public static GradientDrawable surface(Context context, boolean blurred) {
         boolean dark = AppUtils.isDarkMode(context);
         GradientDrawable background = new GradientDrawable();
-        background.setColor(dark ? (blurred ? 0xB31B1429 : 0xF01B1429)
+        background.setColor(dark ? (blurred ? 0xA01B1429 : 0xFA1B1429)
                 : (blurred ? 0xC9F7F3FF : 0xF5F7F3FF));
         background.setCornerRadius(16 * context.getResources().getDisplayMetrics().density);
         background.setStroke(Math.max(1, Math.round(context.getResources().getDisplayMetrics().density)),
@@ -38,27 +37,18 @@ public final class PopupStyle {
         View decor = window.getDecorView();
         if (decor.getTag(R.id.winx_popup_style) != null) return;
         // The first traversal can occur after show() returns. Keep that first
-        // frame legible as well; the attach listener enables supported blur.
+        // frame legible as well; the attach listener captures the blurred backdrop.
         window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
         update(window, dialog.getContext(), false);
         View.OnAttachStateChangeListener listener = new View.OnAttachStateChangeListener() {
-            private Consumer<Boolean> blurListener;
             @Override public void onViewAttachedToWindow(View view) {
-                window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
-                if (Build.VERSION.SDK_INT >= 31) {
-                    WindowManager manager = dialog.getContext().getSystemService(WindowManager.class);
-                    blurListener = enabled -> update(window, dialog.getContext(), enabled);
-                    update(window, dialog.getContext(), manager.isCrossWindowBlurEnabled());
-                    manager.addCrossWindowBlurEnabledListener(blurListener);
-                } else update(window, dialog.getContext(), false);
+                update(window, dialog.getContext(), false);
+                styleContent(decor);
+                WINDOWS.put(decor, new java.lang.ref.WeakReference<>(window));
+                android.app.Activity activity = PopupBackdrop.activity(dialog.getContext());
+                if (activity != null) PopupBackdrop.capture(decor, activity.getWindow());
             }
-            @Override public void onViewDetachedFromWindow(View view) {
-                if (Build.VERSION.SDK_INT >= 31 && blurListener != null) {
-                    dialog.getContext().getSystemService(WindowManager.class)
-                            .removeCrossWindowBlurEnabledListener(blurListener);
-                    blurListener = null;
-                }
-            }
+            @Override public void onViewDetachedFromWindow(View view) { WINDOWS.remove(decor); }
         };
         decor.setTag(R.id.winx_popup_style, listener);
         decor.addOnAttachStateChangeListener(listener);
@@ -88,41 +78,74 @@ public final class PopupStyle {
     }
 
     /** For anchored lists, whose public API exposes their attached decor rather than a Window. */
-    public static void styleAnchoredList(android.widget.ListView list) {
+    private static final java.util.WeakHashMap<View, java.lang.ref.WeakReference<Window>> WINDOWS = new java.util.WeakHashMap<>();
+
+    public static void styleAnchoredList(android.widget.ListView list) { styleAnchoredView(list); }
+    public static void styleAnchoredList(android.widget.ListView list, View anchor) {
         if (list == null) return;
-        styleAnchoredView(list);
+        View root = list.getRootView();
+        // The original popup background is on an intermediate container, not just its root.
+        View current = list;
+        while (current != root) {
+            current.setBackgroundColor(android.graphics.Color.TRANSPARENT);
+            if (!(current.getParent() instanceof View)) break;
+            current = (View)current.getParent();
+        }
+        root.setBackground(surface(list.getContext(), false));
+        if (root.getLayoutParams() instanceof WindowManager.LayoutParams) {
+            WindowManager.LayoutParams params = (WindowManager.LayoutParams)root.getLayoutParams();
+            params.format = PixelFormat.TRANSLUCENT;
+            list.getContext().getSystemService(WindowManager.class).updateViewLayout(root, params);
+        }
+        styleContent(list);
+        Window source = null;
+        java.lang.ref.WeakReference<Window> reference = WINDOWS.get(anchor.getRootView());
+        if (reference != null) source = reference.get();
+        android.app.Activity activity = PopupBackdrop.activity(anchor.getContext());
+        if (source == null && activity != null) source = activity.getWindow();
+        boolean inSidebar = false;
+        for (android.view.ViewParent parent = anchor.getParent(); parent != null; parent = parent.getParent())
+            if (parent instanceof com.google.android.material.navigation.NavigationView) { inSidebar = true; break; }
+        PopupBackdrop.capture(root, source, !inSidebar);
     }
-
     public static void styleAnchoredView(View content) {
+        if (content == null) return;
         View root = content.getRootView();
-        if (!(root.getLayoutParams() instanceof WindowManager.LayoutParams)) return;
         root.setBackground(surface(content.getContext(), false));
-        if (Build.VERSION.SDK_INT < 31 || root.getTag(R.id.winx_popup_style) != null) return;
-        WindowManager manager = content.getContext().getSystemService(WindowManager.class);
-        Consumer<Boolean> listener = enabled -> {
-            if (root.isAttachedToWindow()) updateAnchored(root, manager, enabled);
-        };
-        root.setTag(R.id.winx_popup_style, listener);
-        root.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
-            @Override public void onViewAttachedToWindow(View view) { }
-            @Override public void onViewDetachedFromWindow(View view) {
-                manager.removeCrossWindowBlurEnabledListener(listener);
-                root.setTag(R.id.winx_popup_style, null);
-                root.removeOnAttachStateChangeListener(this);
-            }
-        });
-        updateAnchored(root, manager, manager.isCrossWindowBlurEnabled());
-        manager.addCrossWindowBlurEnabledListener(listener);
+        android.app.Activity activity = PopupBackdrop.activity(content.getContext());
+        if (activity != null) PopupBackdrop.capture(root, activity.getWindow());
     }
 
-    private static void updateAnchored(View root, WindowManager manager, boolean enabled) {
-        WindowManager.LayoutParams params = (WindowManager.LayoutParams)root.getLayoutParams();
-        root.setBackground(surface(root.getContext(), enabled));
-        params.format = PixelFormat.TRANSLUCENT;
-        params.setBlurBehindRadius(enabled ? 28 : 0);
-        if (enabled) params.flags |= WindowManager.LayoutParams.FLAG_BLUR_BEHIND;
-        else params.flags &= ~WindowManager.LayoutParams.FLAG_BLUR_BEHIND;
-        manager.updateViewLayout(root, params);
+    public static void styleContent(View view) {
+        boolean dark = AppUtils.isDarkMode(view.getContext());
+        if (view instanceof android.widget.Spinner || view instanceof android.widget.EditText
+                || view instanceof com.winlator.cmod.widget.MultiSelectionComboBox) {
+            view.setBackgroundResource(dark ? R.drawable.glass_field_dark : R.drawable.glass_field_light);
+        } else {
+            android.graphics.drawable.Drawable background = view.getBackground();
+            int color = background instanceof android.graphics.drawable.ColorDrawable
+                    ? ((android.graphics.drawable.ColorDrawable)background).getColor() : 0;
+            if (background instanceof GradientDrawable && ((GradientDrawable)background).getColor() != null)
+                color = ((GradientDrawable)background).getColor().getDefaultColor();
+            if (color == 0xFF000000 || color == 0xFF050505) {
+                if (view instanceof android.widget.TextView) view.setBackgroundColor(0);
+                else view.setBackgroundResource(dark ? R.drawable.glass_field_dark : R.drawable.glass_field_light);
+            }
+        }
+        if (view instanceof android.widget.TextView && AppUtils.isDarkMode(view.getContext())) {
+            android.widget.TextView text = (android.widget.TextView)view;
+            int color = text.getCurrentTextColor();
+            for (int resource : new int[]{R.color.colorAccent, R.color.colorAccentDark,
+                    R.color.colorPrimaryDark, R.color.colorPrimaryDarkModeDark}) {
+                if (color == androidx.core.content.ContextCompat.getColor(view.getContext(), resource)) {
+                    text.setTextColor(0xFFF8F5FF); break;
+                }
+            }
+        }
+        if (view instanceof android.view.ViewGroup) {
+            android.view.ViewGroup group = (android.view.ViewGroup)view;
+            for (int i = 0; i < group.getChildCount(); i++) styleContent(group.getChildAt(i));
+        }
     }
 
     public static class Builder extends androidx.appcompat.app.AlertDialog.Builder {

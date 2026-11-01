@@ -161,10 +161,10 @@ public class ContainersFragment extends Fragment {
         frameLayout.findViewById(R.id.BTCreateContainer).setOnClickListener(v ->
                 new com.winlator.cmod.core.PopupStyle.Builder(requireContext()).setTitle(R.string.container_add)
                         .setItems(new String[]{getString(R.string.container_import_zip),
-                                getString(R.string.container_import_community), getString(R.string.container_new)},
+                                getString(R.string.container_new), getString(R.string.container_import_community)},
                                 (dialog, which) -> {
                                     if (which == 0) importCommunityZip();
-                                    else if (which == 1) getParentFragmentManager().beginTransaction()
+                                    else if (which == 2) getParentFragmentManager().beginTransaction()
                                             .addToBackStack(null)
                                             .replace(R.id.FLFragmentContainer, new CommunityConfigsFragment()).commit();
                                     else createContainer();

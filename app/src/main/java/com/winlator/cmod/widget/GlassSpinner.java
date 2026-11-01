@@ -29,6 +29,7 @@ public class GlassSpinner extends AppCompatSpinner {
         TypedArray values = context.obtainStyledAttributes(attrs, new int[]{android.R.attr.spinnerMode}, style, 0);
         popupMode = values.getInt(0, android.widget.Spinner.MODE_DROPDOWN);
         values.recycle();
+        setMinimumHeight(Math.round(44 * getResources().getDisplayMetrics().density));
     }
 
     @Override public boolean performClick() {
@@ -56,8 +57,10 @@ public class GlassSpinner extends AppCompatSpinner {
                 anchored.dismiss();
             });
             anchored.show();
+            anchored.getListView().setChoiceMode(android.widget.ListView.CHOICE_MODE_SINGLE);
+            anchored.getListView().setItemChecked(getSelectedItemPosition(), true);
             anchored.setSelection(getSelectedItemPosition());
-            PopupStyle.styleAnchoredList(anchored.getListView());
+            PopupStyle.styleAnchoredList(anchored.getListView(), this);
         }
         return true;
     }

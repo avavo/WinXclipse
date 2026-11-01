@@ -1182,6 +1182,8 @@
     <string name="content_operation_wait">Espera a que terminen las descargas e instalaciones antes de entrar en Wine.</string>
     <string name="fps_limit_help">Elige un límite de 15 a 240 FPS. El botón principal activa o desactiva el límite.</string>
     <string name="terminal_imagefs_invalid">Los archivos del sistema no están disponibles. Prepáralos antes de abrir el terminal.</string>
+    <string name="terminal_interactive_unsupported">Los shells interactivos no son compatibles.</string>
+    <string name="terminal_command_error">Error: %1$s</string>
     <string name="choose_action">Elegir</string>
     <string name="favorite_unassigned">No hay ningún favorito asignado. ¿Elegir uno ahora?</string>
     <string name="dev_library_destination_failed">No se pudo crear la carpeta de destino.</string>
@@ -1220,4 +1222,5 @@
     <string name="dxvk_issue_id">%1$s=0 no es un identificador de GPU válido.</string>
     <string name="dxvk_more_issues">+%1$d más…</string>
     <string name="container_export_failed">No se pudo exportar el contenedor. Revisa el espacio disponible y si esta copia ya existe.</string>
+    <string name="android_compositor">Compositor de Android</string>
 </resources>

@@ -37,5 +37,8 @@
         android:fitsSystemWindows="true"
         app:headerLayout="@layout/main_menu_header"
         app:itemIconTint="@color/colorAccent"
+        app:itemTextAppearance="@style/NavigationLabel"
+        app:itemMaxLines="2"
+        app:itemIconPadding="16dp"
         app:menu="@menu/main_menu"/>
 </androidx.drawerlayout.widget.DrawerLayout>

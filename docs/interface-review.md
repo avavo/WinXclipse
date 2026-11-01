@@ -42,3 +42,24 @@ Conferência visual final continua na Parte 13: retrato/paisagem, janelas estrei
 escala de fonte, teclado aberto, tema claro/escuro, redução de animações, blur
 habilitado/desabilitado, Samsung/Exynos e overlay durante o jogo. Testes JVM de
 geometria e eventos não comprovam acabamento gráfico nem custo de composição.
+
+
+## Retorno visual do primeiro APK — lote 39
+
+Os prints de 01/11 demonstraram que habilitar a API de blur não garantia o efeito
+observado, que backgrounds pretos internos ainda o cobriam e que seletores
+wrap_content ficavam menores que os textos. A revisão usa snapshots desfocados
+em resolução limitada por abertura, sem loop de readback durante o jogo. Os
+controles e painéis deixam o fundo aparecer; o fallback inicial permanece legível.
+
+A sidebar hospeda os editores, terminal e logs, e mantém sua pilha de navegação;
+X/voltar cancelam o editor atual. O terminal usa o mesmo executor da tela avulsa,
+encerra seu worker ao fechar e ignora saídas tardias. A captura de botões para
+atribuição de controle físico é encaminhada ao editor incorporado. CPU e RAM voltam a cartões verticais e todos os processos participam
+da rolagem do painel. Ações de seletor compartilham 48dp, ícone de 24dp e intervalo
+de 2dp. O Wine fica fora e o compositor dentro da engrenagem, conforme o pedido
+mais recente. Ajuda DisplayX deixa de ocupar o formulário. MangoHUD 1 usa 65% das
+dimensões anteriores e a prévia de capa usa fitCenter.
+
+Essas alterações são verificadas por testes de geometria, callbacks e seleção.
+A aprovação visual dos novos pixels no aparelho continua distinta desses testes.

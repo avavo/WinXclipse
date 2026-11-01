@@ -58,4 +58,11 @@ public class TelemetryMathTest {
         assertEquals("Cortex-X4", names.get(4));
         assertFalse(names.containsKey(5));
     }
+    @Test public void samsungGpuClocksAcceptTheirKernelUnitsIncludingPoweredOff() {
+        assertEquals(400, TelemetryMath.samsungGpuMhz(400000));
+        assertEquals(913, TelemetryMath.samsungGpuMhz(913));
+        assertEquals(1000, TelemetryMath.samsungGpuMhz(1000000000));
+        assertEquals(0, TelemetryMath.samsungGpuMhz(0));
+        assertEquals(-1, TelemetryMath.samsungGpuMhz(-1));
+    }
 }

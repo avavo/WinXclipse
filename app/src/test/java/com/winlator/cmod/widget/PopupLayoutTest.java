@@ -177,4 +177,47 @@ public class PopupLayoutTest {
         inside(row, row.findViewById(R.id.BTDiscardDownload));
         assertTrue(rect(row, row.findViewById(R.id.LLTransferProgress)).top >= rect(row, row.findViewById(R.id.TVVersionCode)).bottom);
     }
+
+    @Test public void taskManagerExpandsEveryCoreAndProcessInsideOneScrollSurface() {
+        ViewGroup root = (ViewGroup)inflate(R.layout.inline_task_manager);
+        LinearLayout cores = root.findViewById(R.id.LLInlineCPUInfo);
+        LinearLayout processes = root.findViewById(R.id.LLInlineProcessList);
+        for (int i = 0; i < 10; i++) {
+            TextView row = new TextView(context()); row.setText("CPU " + i + " Cortex-A720 2000 MHz 30%"); cores.addView(row);
+        }
+        for (int i = 0; i < 25; i++) {
+            TextView row = new TextView(context()); row.setText("game-process-" + i + ".exe"); row.setMinHeight(44); processes.addView(row);
+        }
+        measure(root, 340, 280);
+        assertTrue(root instanceof android.widget.ScrollView);
+        assertFalse(root.findViewById(R.id.SVInlineProcessList) instanceof android.widget.ScrollView);
+        assertTrue(cores.getHeight() >= 150);
+        assertTrue(processes.getHeight() >= 25 * 44);
+        assertTrue(root.findViewById(R.id.InlineMemoryUsageBar).getHeight() >= 180);
+        assertTrue(root.canScrollVertically(1));
+    }
+
+    @Test public void audioAndHudSelectorsKeepAUsableHeightAtLargeTextScale() {
+        for (int layout : new int[]{R.layout.audio_config_dialog, R.layout.hud_config_dialog}) {
+            ViewGroup root = (ViewGroup)inflate(layout);
+            measure(root, 288, 500);
+            View spinner = root.findViewById(layout == R.layout.audio_config_dialog ? R.id.SAudioConfigDriver : R.id.SPHudAppearance);
+            assertTrue(spinner.getMeasuredHeight() >= 44);
+        }
+    }
+
+    @Test public void wrapperActionsShareSizeSpacingAndVerticalAlignment() {
+        for (int layout : new int[]{R.layout.container_detail_fragment, R.layout.shortcut_settings_dialog}) {
+            View root = inflate(layout);
+            root.findViewById(R.id.BTGraphicsDriverConfig).setVisibility(View.VISIBLE);
+            measure(root, 320, 10000);
+            View config = root.findViewById(R.id.BTGraphicsDriverConfig);
+            View help = root.findViewById(R.id.BTHelpGraphicsDriver);
+            View download = root.findViewById(layout == R.layout.container_detail_fragment ? R.id.BTManageGraphicsContent : R.id.BTManageGraphicsContentShortcut);
+            assertEquals(download.getWidth(), config.getWidth()); assertEquals(config.getWidth(), help.getWidth());
+            assertEquals(download.getHeight(), config.getHeight()); assertEquals(config.getHeight(), help.getHeight());
+            assertEquals(download.getTop(), config.getTop()); assertEquals(config.getTop(), help.getTop());
+            assertEquals(config.getLeft() - download.getRight(), help.getLeft() - config.getRight());
+        }
+    }
 }

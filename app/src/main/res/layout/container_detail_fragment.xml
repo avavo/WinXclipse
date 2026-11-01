@@ -153,9 +153,8 @@
 
                     <ImageButton
                         android:id="@+id/BTManageWineContent"
-                        style="@style/DownloadIconButton"
                         android:contentDescription="@string/install_runtime"
-                        android:src="@drawable/ic_download_compact" />
+                        android:src="@drawable/ic_download_compact"  style="@style/FieldActionButton" android:scaleType="centerInside" />
                 </LinearLayout>
             </LinearLayout>
 
@@ -178,9 +177,8 @@
 
                 <ImageButton
                     android:id="@+id/BTManageDriverContent"
-                    style="@style/DownloadIconButton"
                     android:contentDescription="@string/download_drivers"
-                    android:src="@drawable/ic_download_compact" />
+                    android:src="@drawable/ic_download_compact"  style="@style/FieldActionButton" android:scaleType="centerInside" />
             </LinearLayout>
 
             <TextView
@@ -202,28 +200,23 @@
 
                 <ImageButton
                     android:id="@+id/BTManageGraphicsContent"
-                    style="@style/DownloadIconButton"
                     android:contentDescription="@string/download_wrappers"
-                    android:src="@drawable/ic_download_compact" />
+                    android:src="@drawable/ic_download_compact"  style="@style/FieldActionButton" android:scaleType="centerInside" />
 
                 <ImageButton
-                    style="@style/ListMenuButton"
                     android:id="@+id/BTGraphicsDriverConfig"
                     android:src="@drawable/icon_settings"
-                    android:visibility="gone" />
+                    android:visibility="gone"  style="@style/FieldActionButton" android:scaleType="centerInside" />
 
                 <ImageView
                     android:id="@+id/BTHelpGraphicsDriver"
-                    android:layout_width="22dp"
-                    android:layout_height="22dp"
-                    android:layout_marginLeft="4dp"
                     android:src="@drawable/icon_help"
-                    app:tint="?colorAccent" />
+                    app:tint="?colorAccent"  style="@style/FieldActionButton" android:scaleType="centerInside" />
             </LinearLayout>
 
             <TextView
                 style="@style/ContainerFieldLabel"
-                android:text="@string/video" />
+                android:text="@string/wine_renderer" />
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -232,7 +225,7 @@
                 android:orientation="horizontal">
 
                 <com.winlator.cmod.widget.GlassSpinner
-                    android:id="@+id/SRenderer"
+                    android:id="@+id/SWineRenderer"
                     style="@style/ComboBox"
                     android:layout_width="0dp"
                     android:layout_height="48dp"
@@ -240,10 +233,9 @@
 
                 <ImageButton
                     android:id="@+id/BTVideoConfig"
-                    style="@style/ListMenuButton"
-                    android:src="@drawable/icon_settings" />
+                    android:src="@drawable/icon_settings"  style="@style/FieldActionButton" android:scaleType="centerInside" />
             </LinearLayout>
-            <com.winlator.cmod.widget.GlassSpinner android:id="@+id/SWineRenderer"
+            <com.winlator.cmod.widget.GlassSpinner android:id="@+id/SRenderer"
                 style="@style/ComboBox" android:layout_width="match_parent"
                 android:layout_height="48dp" android:visibility="gone" />
 
@@ -276,10 +268,9 @@
                     android:entries="@array/dxwrapper_entries" />
 
                 <ImageButton
-                    style="@style/ListMenuButton"
                     android:id="@+id/BTDXWrapperConfig"
                     android:src="@drawable/icon_settings"
-                    android:visibility="gone" />
+                    android:visibility="gone"  style="@style/FieldActionButton" android:scaleType="centerInside" />
 
             </LinearLayout>
 
@@ -318,9 +309,8 @@
 
                 <ImageButton
                     android:id="@+id/BTAudioConfig"
-                    style="@style/ListMenuButton"
                     android:contentDescription="@string/audio_configuration"
-                    android:src="@drawable/icon_settings" />
+                    android:src="@drawable/icon_settings"  style="@style/FieldActionButton" android:scaleType="centerInside" />
             </LinearLayout>
 
             <LinearLayout
@@ -749,15 +739,13 @@
 
                             <ImageButton
                                 android:id="@+id/BTManageBox64Content"
-                                style="@style/DownloadIconButton"
                                 android:contentDescription="@string/download_box64"
-                                android:src="@drawable/ic_download_compact" />
+                                android:src="@drawable/ic_download_compact"  style="@style/FieldActionButton" android:scaleType="centerInside" />
 
                             <ImageButton
                                 android:id="@+id/BTManageWowBox64Content"
-                                style="@style/DownloadIconButton"
                                 android:contentDescription="@string/download_wowbox64"
-                                android:src="@drawable/ic_download_compact" />
+                                android:src="@drawable/ic_download_compact"  style="@style/FieldActionButton" android:scaleType="centerInside" />
                         </LinearLayout>
 
                         <TextView
@@ -814,9 +802,8 @@
 
                             <ImageButton
                                 android:id="@+id/BTManageFEXCoreContent"
-                                style="@style/DownloadIconButton"
                                 android:contentDescription="@string/download_fexcore"
-                                android:src="@drawable/ic_download_compact" />
+                                android:src="@drawable/ic_download_compact"  style="@style/FieldActionButton" android:scaleType="centerInside" />
                         </LinearLayout>
 
                         <TextView

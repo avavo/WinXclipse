@@ -95,6 +95,7 @@ public class WinlatorHUD extends View {
     private static final int C_SEP  = Color.rgb(0x60,0x60,0x60);
     private static final int C_BORDER = Color.argb(150, 255, 255, 255);
 
+    private static final float MANGO_ONE_SIZE = .65f;
     private float TS, TSR, PAD, GRAW, CORNER;
 
     private static final int TEXT_FLAGS = Paint.ANTI_ALIAS_FLAG | Paint.SUBPIXEL_TEXT_FLAG | Paint.LINEAR_TEXT_FLAG;
@@ -584,7 +585,16 @@ public class WinlatorHUD extends View {
         canvas.drawText(unit, edge - unitWidth, baseline - TS * .52f, pMangoUnit);
     }
     private void drawMangoOne(Canvas canvas) {
-        bgRect.set(0, 0, getWidth(), getHeight());
+        int saved = canvas.save();
+        canvas.scale(MANGO_ONE_SIZE, MANGO_ONE_SIZE);
+        drawMangoOneContent(canvas, getWidth() / MANGO_ONE_SIZE, getHeight() / MANGO_ONE_SIZE);
+        ramHelpHitRect.set(ramHelpHitRect.left * MANGO_ONE_SIZE, ramHelpHitRect.top * MANGO_ONE_SIZE,
+                ramHelpHitRect.right * MANGO_ONE_SIZE, ramHelpHitRect.bottom * MANGO_ONE_SIZE);
+        canvas.restoreToCount(saved);
+    }
+
+    private void drawMangoOneContent(Canvas canvas, float width, float height) {
+        bgRect.set(0, 0, width, height);
         canvas.drawRoundRect(bgRect, CORNER, CORNER, pBg);
         if ((showMask & SHOW_BORDER) != 0) canvas.drawRoundRect(bgRect, CORNER, CORNER, pBorder);
         float line = mangoLineHeight(), y = PAD;
@@ -596,18 +606,18 @@ public class WinlatorHUD extends View {
             pMango.setColor(mono ? Color.WHITE : row.color);
             canvas.drawText(row.label, PAD, baseline, pMango);
             pMangoValue.setColor(ramAlertActive && row.label.equals("RAM") ? C_TEMP : Color.WHITE);
-            mangoValue(canvas, row.value, getWidth() * .61f, baseline);
+            mangoValue(canvas, row.value, width * .61f, baseline);
             pMangoValue.setTextSize(TS * 1.65f);
-            mangoValue(canvas, row.extra, getWidth() - PAD, baseline);
+            mangoValue(canvas, row.extra, width - PAD, baseline);
             pMangoValue.setTextSize(TS * 1.85f);
-            if (ramAlertActive && row.label.equals("RAM")) ramHelpHitRect.set(PAD, y, getWidth() - PAD, y + line);
+            if (ramAlertActive && row.label.equals("RAM")) ramHelpHitRect.set(PAD, y, width - PAD, y + line);
             y += line;
         }
         pMangoValue.setColor(Color.WHITE);
         pMangoValue.setTextSize(TS);
         for (String row : mangoFooter()) {
             canvas.save();
-            canvas.clipRect(PAD, y, getWidth() - PAD, y + TS + PAD);
+            canvas.clipRect(PAD, y, width - PAD, y + TS + PAD);
             canvas.drawText(row, PAD, getBaseline(pMangoValue, y, TS + PAD), pMangoValue);
             canvas.restore();
             y += TS + PAD;
@@ -615,16 +625,16 @@ public class WinlatorHUD extends View {
         if ((showMask & SHOW_GRAPH) == 0) return;
         pMango.setTextSize(TS); pMango.setColor(mono ? Color.WHITE : Color.rgb(240, 62, 56));
         canvas.drawText("Frametime", PAD, y + TS, pMango);
-        mangoRight(canvas, mangoFrameTime(), getWidth() - PAD, y + TS * 2.4f, pMangoValue);
+        mangoRight(canvas, mangoFrameTime(), width - PAD, y + TS * 2.4f, pMangoValue);
         double[] history = frameTimes.snapshot();
         if (history.length == 0) return;
         double maximum = 33.333;
         for (double value : history) maximum = Math.max(maximum, value * 1.12);
-        float top = y + TS * 2.7f, bottom = getHeight() - PAD;
-        float width = getWidth() - PAD * 2;
+        float top = y + TS * 2.7f, bottom = height - PAD;
+        float graphWidth = width - PAD * 2;
         Path path = new Path();
         for (int i = 0; i < history.length; i++) {
-            float x = PAD + width * (120 - history.length + i) / 119f;
+            float x = PAD + graphWidth * (120 - history.length + i) / 119f;
             float pointY = bottom - (float)(history[i] / maximum) * (bottom - top);
             if (i == 0) path.moveTo(x, pointY); else path.lineTo(x, pointY);
         }
@@ -1098,7 +1108,8 @@ public class WinlatorHUD extends View {
             float width = TS * 24 + PAD * 2;
             float height = mangoRows().size() * mangoLineHeight() + PAD * 2
                     + mangoFooter().size() * (TS + PAD) + ((showMask & SHOW_GRAPH) != 0 ? TS * 6 : 0);
-            setMeasuredDimension((int)Math.ceil(width), (int)Math.ceil(Math.max(mangoLineHeight(), height)));
+            setMeasuredDimension((int)Math.ceil(width * MANGO_ONE_SIZE),
+                    (int)Math.ceil(Math.max(mangoLineHeight(), height) * MANGO_ONE_SIZE));
             return;
         }
         float lineH = TS + PAD * 2;

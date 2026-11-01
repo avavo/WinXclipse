@@ -197,7 +197,7 @@ import java.util.concurrent.Executors;
 
 import cn.sherlock.com.sun.media.sound.SF2Soundbank;
 
-public class XServerDisplayActivity extends LocalizedActivity implements NavigationView.OnNavigationItemSelectedListener {
+public class XServerDisplayActivity extends LocalizedActivity implements NavigationView.OnNavigationItemSelectedListener, com.winlator.cmod.contentdialog.SidebarDialogHost {
     private XServerView xServerView;
     private InputControlsView inputControlsView;
     private TouchpadView touchpadView;
@@ -629,6 +629,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
 
         navigationView = findViewById(R.id.NavigationView);
         sidebarBackdrop = new com.winlator.cmod.core.SidebarBackdrop(navigationView);
+        com.winlator.cmod.core.PopupStyle.styleContent(navigationView.getHeaderView(0));
         drawerLayout.setScrimColor(0x28000000);
 
         if (isDarkMode) {
@@ -1344,6 +1345,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
 
     @Override
     protected void onDestroy() {
+        while (!sidebarDialogs.isEmpty()) sidebarDialogs.get(sidebarDialogs.size() - 1).dismiss();
         if (sidebarBackdrop != null) { sidebarBackdrop.close(); sidebarBackdrop = null; }
         pointerActivityResumed = false;
         releasePointerCaptureIfNeeded("destroy");
@@ -1453,6 +1455,10 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
 
     @Override
     public void onBackPressed() {
+        if (!sidebarDialogs.isEmpty() && drawerLayout != null && drawerLayout.isDrawerOpen(navigationView)) {
+            sidebarDialogs.get(sidebarDialogs.size() - 1).cancel();
+            return;
+        }
         if (environment != null) {
             releasePointerCaptureIfNeeded("open-drawer/back");
             if (!drawerLayout.isDrawerOpen(GravityCompat.START)) {
@@ -1781,18 +1787,15 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
                 return true;
 
             case R.id.main_menu_task_manager:
-                new TaskManagerDialog(this).show();
-                drawerLayout.closeDrawers();
+                openInlineTaskManager();
                 return true;
 
             case R.id.main_menu_hud:
                 showHUDConfigDialog();
-                drawerLayout.closeDrawers();
                 return true;
 
             case R.id.main_menu_terminal:
                 openTerminal();
-                drawerLayout.closeDrawers();
                 return true;
 
             case R.id.main_menu_pause:
@@ -1810,31 +1813,26 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
 
             case R.id.main_menu_logs:
                 debugDialog.show();
-                drawerLayout.closeDrawers();
                 return true;
 
             case R.id.main_menu_touchpad_help:
                 showTouchpadHelpDialog();
-                drawerLayout.closeDrawers();
                 return true;
 
             // ---- INPUT group ----
             case R.id.main_menu_input_controls:
                 showInputControlsDialog();
-                drawerLayout.closeDrawers();
                 return true;
 
             case R.id.main_menu_controller_assignment:
                 ControllerAssignmentDialog.show(this, winHandler);
                 winHandler.clearIgnoredDevices();
-                drawerLayout.closeDrawers();
                 return true;
 
             case R.id.main_menu_motion_controls:
                 MotionControls.getInstance(this)
                         .attach(winHandler)
                         .showContentDialog(this, null);
-                drawerLayout.closeDrawers();
                 return true;
 
             // ---- DISPLAY group ----
@@ -1875,7 +1873,6 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
                     dlg.applyEffects(color, r);
                 });
                 dlg.show();
-                drawerLayout.closeDrawers();
                 return true;
 
             case R.id.main_menu_exit:
@@ -1889,6 +1886,17 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
 
 
     private void openTerminal() {
+        if (navigationView != null && drawerLayout.isDrawerOpen(navigationView)) {
+            ContentDialog dialog = new ContentDialog(this, R.layout.activity_terminal);
+            dialog.setTitle(R.string.debug_terminal);
+            dialog.setIcon(R.drawable.icon_debug);
+            dialog.findViewById(R.id.LLBottomBar).setVisibility(View.GONE);
+            com.winlator.cmod.core.TerminalSession session =
+                    new com.winlator.cmod.core.TerminalSession(dialog.getContentView());
+            dialog.setOnDismissListener(ignored -> session.close());
+            dialog.show();
+            return;
+        }
         Intent intent = new Intent(this, TerminalActivity.class);
         startActivity(intent);
     }
@@ -2951,10 +2959,12 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         sidebar.findViewById(R.id.BTSidebarHud).setOnClickListener(v -> toggleSidebarHud());
         sidebar.findViewById(R.id.BTSidebarHudMore).setOnClickListener(v -> showHUDConfigDialog());
         sidebar.findViewById(R.id.BTSidebarTaskManager).setOnClickListener(v -> openInlineTaskManager());
-        sidebar.findViewById(R.id.BTCloseTaskManager).setOnClickListener(v -> closeInlineTaskManager(false));
+        sidebar.findViewById(R.id.BTCloseTaskManager).setOnClickListener(v -> {
+            if (!sidebarDialogs.isEmpty()) sidebarDialogs.get(sidebarDialogs.size() - 1).cancel();
+            else closeInlineTaskManager(false);
+        });
         sidebar.findViewById(R.id.BTSidebarTerminal).setOnClickListener(v -> {
             openTerminal();
-            drawerLayout.closeDrawers();
         });
         View backendLogs = sidebar.findViewById(R.id.BTSidebarBackendLogs);
         backendLogs.setVisibility(preferences.getBoolean("show_backend_logs_sidebar", false)
@@ -2964,7 +2974,6 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
                 preferences.edit().putBoolean("show_backend_logs_sidebar", false).apply();
                 backendLogs.setVisibility(View.GONE);
             }).show();
-            drawerLayout.closeDrawers();
         });
         sidebar.findViewById(R.id.BTSidebarExit).setOnClickListener(v -> exitApp());
         sidebarPauseButton.setOnClickListener(v -> toggleSidebarPause());
@@ -4057,8 +4066,56 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         if (measurementButton != null) measurementButton.setSessionActive(true, isPaused);
     }
 
-    private void openInlineTaskManager() {
+    private final ArrayList<ContentDialog> sidebarDialogs = new ArrayList<>();
+    private boolean sidebarResumeTaskManager;
+
+    /** Keep in-session settings within the drawer; nested editors return to their parent. */
+    public boolean presentSidebarDialog(ContentDialog dialog) {
+        if (navigationView == null || !drawerLayout.isDrawerOpen(navigationView)
+                || navigationView.getHeaderCount() == 0) return false;
+        if (sidebarDialogs.contains(dialog)) return true;
         View sidebar = navigationView.getHeaderView(0);
+        FrameLayout host = sidebar.findViewById(R.id.FLSidebarTaskManager);
+        if (sidebarDialogs.isEmpty()) sidebarResumeTaskManager = inlineTaskManagerPanel != null && inlineTaskManagerPanel.isRunning();
+        if (inlineTaskManagerPanel != null) inlineTaskManagerPanel.stop();
+        host.removeAllViews();
+        View content = dialog.getContentView();
+        if (content.getParent() instanceof ViewGroup) ((ViewGroup)content.getParent()).removeView(content);
+        host.addView(content, new FrameLayout.LayoutParams(-1, -1));
+        if (android.animation.ValueAnimator.areAnimatorsEnabled()) {
+            content.setAlpha(0f);
+            content.animate().alpha(1f).setDuration(140).start();
+        }
+        sidebarDialogs.add(dialog);
+        sidebar.findViewById(R.id.SVSidebarMain).setVisibility(View.GONE);
+        sidebar.findViewById(R.id.BTCloseTaskManager).setVisibility(View.VISIBLE);
+        sidebar.findViewById(R.id.LLSidebarFooter).setVisibility(View.GONE);
+        sidebarTimeView.setVisibility(View.GONE);
+        host.setVisibility(View.VISIBLE);
+        return true;
+    }
+
+    public void dismissSidebarDialog(ContentDialog dialog) {
+        sidebarDialogs.remove(dialog);
+        View content = dialog.getContentView();
+        if (content.getParent() instanceof ViewGroup) ((ViewGroup)content.getParent()).removeView(content);
+        if (sidebarDialogs.isEmpty()) {
+            if (sidebarResumeTaskManager && !isFinishing() && !isDestroyed()) {
+                sidebarResumeTaskManager = false;
+                openInlineTaskManager(false);
+            } else closeInlineTaskManager(false);
+            return;
+        }
+        FrameLayout host = navigationView.getHeaderView(0).findViewById(R.id.FLSidebarTaskManager);
+        host.removeAllViews();
+        host.addView(sidebarDialogs.get(sidebarDialogs.size() - 1).getContentView(),
+                new FrameLayout.LayoutParams(-1, -1));
+    }
+
+    private void openInlineTaskManager() { openInlineTaskManager(true); }
+    private void openInlineTaskManager(boolean resetScroll) {
+        View sidebar = navigationView.getHeaderView(0);
+        sidebar.findViewById(R.id.LLSidebarFooter).setVisibility(View.VISIBLE);
         View main = sidebar.findViewById(R.id.SVSidebarMain);
         FrameLayout host = sidebar.findViewById(R.id.FLSidebarTaskManager);
         ImageButton close = sidebar.findViewById(R.id.BTCloseTaskManager);
@@ -4067,10 +4124,14 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         close.setVisibility(View.VISIBLE);
         host.setVisibility(View.VISIBLE);
         if (inlineTaskManagerPanel == null) inlineTaskManagerPanel = new InlineTaskManagerPanel(this);
-        if (inlineTaskManagerPanel.getParent() == null) host.addView(inlineTaskManagerPanel,
+        if (inlineTaskManagerPanel.getParent() == null) {
+            host.removeAllViews();
+            host.addView(inlineTaskManagerPanel,
                 new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT));
-        inlineTaskManagerPanel.start();
+        }
+        com.winlator.cmod.core.PopupStyle.styleContent(inlineTaskManagerPanel);
+        if (resetScroll) inlineTaskManagerPanel.start(); else inlineTaskManagerPanel.resume();
     }
 
     public void closeInlineTaskManager(boolean closeDrawer) {
@@ -4079,6 +4140,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
             View sidebar = navigationView.getHeaderView(0);
             sidebar.findViewById(R.id.SVSidebarMain).setVisibility(View.VISIBLE);
             sidebar.findViewById(R.id.FLSidebarTaskManager).setVisibility(View.GONE);
+            sidebar.findViewById(R.id.LLSidebarFooter).setVisibility(View.VISIBLE);
             sidebar.findViewById(R.id.BTCloseTaskManager).setVisibility(View.GONE);
             if (sidebarTimeView != null) sidebarTimeView.setVisibility(View.VISIBLE);
         }
@@ -5447,6 +5509,9 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
+
+        if (!sidebarDialogs.isEmpty() && drawerLayout != null && drawerLayout.isDrawerOpen(navigationView)
+                && sidebarDialogs.get(sidebarDialogs.size() - 1).captureControllerKeyEvent(event)) return true;
 
         // A number of Android ROMs expose the physical secondary mouse button
         // as KEYCODE_BACK instead of MotionEvent.BUTTON_SECONDARY.  Consume it

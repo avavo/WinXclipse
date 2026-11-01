@@ -32,8 +32,8 @@ public class VideoConfigDialog extends ContentDialog {
     };
 
     public interface Config {
-        default String getWineRenderer() { return "vulkan"; }
-        default void setWineRenderer(String value) {}
+        default String getDisplayBackend() { return "vulkan"; }
+        default void setDisplayBackend(String value) {}
         default boolean isDisplayXEnabled(){return false;}
         default void setDisplayXEnabled(boolean value){}
         String getGpuName();
@@ -77,9 +77,10 @@ public class VideoConfigDialog extends ContentDialog {
         setIcon(R.drawable.icon_screen_effect);
         setTitle(R.string.video_configuration);
 
-        Spinner wineRenderer=findViewById(R.id.SVideoWineRenderer);
-        wineRenderer.setAdapter(new ThemedSpinnerAdapter<>(context,Arrays.asList("Vulkan","OpenGL")));
-        wineRenderer.setSelection("gl".equalsIgnoreCase(config.getWineRenderer())?1:0);
+        Spinner compositor=findViewById(R.id.SVideoCompositor);
+        com.winlator.cmod.renderer.DisplayBackend.bind(compositor, config.getDisplayBackend());
+        findViewById(R.id.BTVideoDisplayXHelp).setOnClickListener(v ->
+                AppUtils.showHelpBox(getContext(), v, R.string.displayx_description));
         CheckBox displayX=findViewById(R.id.CBVideoDisplayX);
         displayX.setChecked(config.isDisplayXEnabled());
         Spinner gpuName = findViewById(R.id.SVideoGPUName);
@@ -219,7 +220,7 @@ public class VideoConfigDialog extends ContentDialog {
                 config.getFrameGenerationMultiplier()));
         frameGenerationTargetFps.setText(String.valueOf(frameGenerationTarget(
                 config.getFrameGenerationTargetFPS())));
-        java.util.function.BooleanSupplier frameGenerationCompatible = () -> wineRenderer.getSelectedItemPosition()==0;
+        java.util.function.BooleanSupplier frameGenerationCompatible = () -> compositor.getSelectedItemPosition()==0;
         frameGeneration.setChecked(frameGenerationCompatible.getAsBoolean()
                 && "1".equals(config.getFrameGenerationEnabled()));
         frameGeneration.setEnabled(frameGenerationCompatible.getAsBoolean());
@@ -250,7 +251,7 @@ public class VideoConfigDialog extends ContentDialog {
                             int position, long id) { updateFrameGeneration.run(); }
                     @Override public void onNothingSelected(AdapterView<?> parent) {}
                 });
-        wineRenderer.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+        compositor.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override public void onItemSelected(AdapterView<?> parent,View row,int position,long id) { updateFrameGeneration.run(); }
             @Override public void onNothingSelected(AdapterView<?> parent) {}
         });
@@ -288,12 +289,12 @@ public class VideoConfigDialog extends ContentDialog {
             @Override public void onStopTrackingTouch(SeekBar s) {}
         });
 
-        applyTheme(context,wineRenderer, gpuName, presentMode, textureFilter, fsrUpscale, fsrQuality,
+        applyTheme(context,compositor, gpuName, presentMode, textureFilter, fsrUpscale, fsrQuality,
                 refreshRate, vsyncLimit, vkBasaltEffect, frameGenerationProfile,
                 frameGenerationMultiplier);
 
         setOnConfirmCallback(() -> {
-            config.setWineRenderer(wineRenderer.getSelectedItemPosition()==1?"gl":"vulkan");
+            config.setDisplayBackend(com.winlator.cmod.renderer.DisplayBackend.selected(compositor));
             config.setDisplayXEnabled(displayX.isChecked());
             String upscaleValue = fsrUpscale.getSelectedItemPosition()==1 ? "1" : "0";
             int qualityIndex = Math.max(0, Math.min(fsrQuality.getSelectedItemPosition(),

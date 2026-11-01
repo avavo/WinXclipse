@@ -247,4 +247,14 @@ public class ImageFsMaintenanceTest {
     private void assertNoStaging() {
         assertEquals(0, temp.getRoot().listFiles(file -> file.getName().startsWith(".imagefs-wine-imagefs-")).length);
     }
+
+    @Test public void baseUpdateKeepsInstalledProtonEmulatorsGraphicsAndDriverPackages() throws Exception {
+        write(receipt(), "24");
+        String[] packages = {"wine/proton-10/bin/wine", "dxvk/custom/x64/d3d11.dll",
+                "fexcore/2610/libarm64ecfex.dll", "box64/custom/box64",
+                "xclipse-drivers/Quasar-v0.4.9/vulkan.quasar.so"};
+        for (String path : packages) write(new File(root(), "contents/" + path), "keep " + path);
+        ImageFsMaintenance.prepare(root(), 25, WINES, false, new Backend());
+        for (String path : packages) assertEquals("keep " + path, read(new File(root(), "contents/" + path)));
+    }
 }
