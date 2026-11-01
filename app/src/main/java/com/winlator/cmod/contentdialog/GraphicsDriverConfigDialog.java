@@ -104,8 +104,8 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
         initialVersion = initialConfig.getOrDefault("version", DefaultVersion.WRAPPER);
         initialExtensionBlacklist = initialConfig.getOrDefault("blacklistedExtensions", "");
 
-        boolean configuredBcn = "1".equals(initialConfig.getOrDefault("experimentalBcn", "0"));
-        bcnMasterCheckBox.setChecked(configuredBcn || experimentalBcn);
+        boolean configuredBcn = "1".equals(initialConfig.getOrDefault("experimentalBcn", "1"));
+        bcnMasterCheckBox.setChecked(configuredBcn);
         bcnOptimizationCheckBox.setChecked(
                 "1".equals(initialConfig.getOrDefault("bcnXclipseOptimized", "0")));
         Runnable updateBcnVisibility = () -> findViewById(R.id.LLExperimentalBCNOptions)
@@ -232,15 +232,39 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
                 String.valueOf(configAnchor.getTag()));
         String wanted = config.getOrDefault("version", DefaultVersion.WRAPPER);
         AppUtils.setSpinnerSelectionFromValue(spinner, wanted);
+        final DriverCapabilities.Request[] defaultsRequest = {null};
+        configAnchor.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
+            @Override public void onViewAttachedToWindow(View view) {}
+            @Override public void onViewDetachedFromWindow(View view) {
+                if (defaultsRequest[0] != null) defaultsRequest[0].close();
+            }
+        });
         spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override public void onItemSelected(AdapterView<?> parent, View view,
                                                  int position, long id) {
                 HashMap<String, String> updated = parseGraphicsDriverConfig(
                         String.valueOf(configAnchor.getTag()));
-                updated.put("version", selectedValue(spinner));
-                if (!selectedValue(spinner).equalsIgnoreCase(config.getOrDefault("version", "")))
+                String selected = selectedValue(spinner);
+                boolean changed = !selected.equalsIgnoreCase(updated.getOrDefault("version", DefaultVersion.WRAPPER));
+                updated.put("version", selected);
+                if (changed) {
                     updated.remove("driverApiVersion");
+                    updated.put("vulkanVersionAuto", "1");
+                }
+                String label = new XclipseDriverManager(context).getDisplayName(selected);
+                if ((changed || !updated.containsKey("bcnEmulation"))
+                        && com.winlator.cmod.core.DriverDefaults.nativeBcn(label)) updated.put("bcnEmulation", "none");
                 configAnchor.setTag(toGraphicsDriverConfig(updated));
+                if (defaultsRequest[0] != null) defaultsRequest[0].close();
+                // Query the selected library even if its configuration dialog is never opened.
+                defaultsRequest[0] = DriverCapabilities.query(context, selected, capabilities -> {
+                    HashMap<String, String> current = parseGraphicsDriverConfig(String.valueOf(configAnchor.getTag()));
+                    if (capabilities == null || !selected.equalsIgnoreCase(current.get("version"))) return;
+                    current.put("driverApiVersion", Integer.toString(capabilities.apiVersion));
+                    if ("1".equals(current.getOrDefault("vulkanVersionAuto", "1")))
+                        current.put("vulkanVersion", com.winlator.cmod.core.DriverDefaults.vulkanVersion(capabilities.apiVersion));
+                    configAnchor.setTag(toGraphicsDriverConfig(current));
+                });
             }
             @Override public void onNothingSelected(AdapterView<?> parent) {}
         });
@@ -270,7 +294,8 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
         disablePresentWaitCheckBox.setChecked("1".equals(config.getOrDefault("disablePresentWait", "0"))
                 || "Never".equals(config.get("frameSync")));
         AppUtils.setSpinnerSelectionFromValue(bcnEmulationSpinner,
-                config.getOrDefault("bcnEmulation", "auto"));
+                config.getOrDefault("bcnEmulation", com.winlator.cmod.core.DriverDefaults.nativeBcn(
+                        new XclipseDriverManager(getContext()).getDisplayName(initialVersion)) ? "none" : "auto"));
         AppUtils.setSpinnerSelectionFromValue(bcnTypeSpinner,
                 config.getOrDefault("bcnEmulationType",
                         GPUInformation.defaultBcnEmulationType()));
@@ -385,6 +410,9 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
             int minor = (queriedApiVersion >>> 12) & 0x3ff;
             extensionsStatus.setText(getContext().getString(R.string.driver_extensions_ready, major, minor));
             loadSupportedVulkanVersions(getContext());
+            if ("1".equals(initialConfig.getOrDefault("vulkanVersionAuto", "1")))
+                AppUtils.setSpinnerSelectionFromValue(vulkanVersionSpinner,
+                        com.winlator.cmod.core.DriverDefaults.vulkanVersion(queriedApiVersion));
         });
     }
 
@@ -397,6 +425,9 @@ public class GraphicsDriverConfigDialog extends ContentDialog {
     private String writeGraphicsDriverConfig() {
         HashMap<String, String> result = new HashMap<>(initialConfig);
         result.put("vulkanVersion", selectedValue(vulkanVersionSpinner));
+        result.put("vulkanVersionAuto", queriedApiVersion > 0 ? (selectedValue(vulkanVersionSpinner).equals(
+                com.winlator.cmod.core.DriverDefaults.vulkanVersion(queriedApiVersion)) ? "1" : "0")
+                : initialConfig.getOrDefault("vulkanVersionAuto", "1"));
         // The driver is selected beside the wrapper in the container/shortcut screen.
         // This dialog only edits its options, so it must preserve that selection.
         result.put("version", initialVersion);

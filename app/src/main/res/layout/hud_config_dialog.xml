@@ -6,7 +6,7 @@
     android:theme="@style/WinXclipseToggleControlsTheme"
     android:orientation="vertical">
 
-    <ScrollView
+    <com.winlator.cmod.widget.GestureScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:fadeScrollbars="false"
@@ -38,6 +38,7 @@
                     <CheckBox android:id="@+id/CBHudGraph" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/hud_graph" />
                     <CheckBox android:id="@+id/CBHudFGLatency" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/hud_fg_latency" />
                     <CheckBox android:id="@+id/CBHudFGStatus" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/hud_fg_status" />
+                    <CheckBox android:id="@+id/CBHudDisplayTransport" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/hud_display_transport" />
                     <CheckBox android:id="@+id/CBHudRenderer" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/hud_api" />
                     <CheckBox android:id="@+id/CBHudWrapper" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/hud_wrapper" />
                     <CheckBox android:id="@+id/CBHudDriverName" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/hud_show_driver_name" />
@@ -145,5 +146,5 @@
                 android:layout_marginTop="12dp"
                 android:text="@string/reset_defaults" />
         </LinearLayout>
-    </ScrollView>
+    </com.winlator.cmod.widget.GestureScrollView>
 </LinearLayout>

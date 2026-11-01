@@ -22,8 +22,7 @@
                 android:layout_marginTop="0dp"
                 android:text="@string/container_section_identity" />
 
-            <TextView
-                style="@style/ContainerFieldLabel"
+            <TextView style="@style/ContainerFieldLabel"
                 android:labelFor="@id/ETName"
                 android:text="@string/name" />
 
@@ -55,12 +54,12 @@
                     android:layout_weight="1"
                     android:orientation="vertical">
 
-                    <TextView
+                    <TextView style="@style/ContainerFieldLabel"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="@string/screen_size" />
 
-                    <com.winlator.cmod.widget.GlassSpinner
+                    <com.winlator.cmod.widget.GlassSpinner android:layout_height="48dp"
                         style="@style/ComboBox"
                         android:layout_width="match_parent"
                         android:id="@+id/SScreenSize"
@@ -134,7 +133,7 @@
                 android:orientation="vertical"
                 android:visibility="gone">
 
-                <TextView
+                <TextView style="@style/ContainerFieldLabel"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/wine_version" />
@@ -145,7 +144,7 @@
                     android:gravity="center_vertical"
                     android:orientation="horizontal">
 
-                    <com.winlator.cmod.widget.GlassSpinner
+                    <com.winlator.cmod.widget.GlassSpinner android:layout_height="48dp"
                         android:id="@+id/SWineVersion"
                         style="@style/ComboBox"
                         android:layout_width="0dp"
@@ -158,8 +157,7 @@
                 </LinearLayout>
             </LinearLayout>
 
-            <TextView
-                style="@style/ContainerFieldLabel"
+            <TextView style="@style/ContainerFieldLabel"
                 android:text="@string/graphics_driver" />
 
             <LinearLayout
@@ -168,11 +166,10 @@
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
-                <com.winlator.cmod.widget.GlassSpinner
+                <com.winlator.cmod.widget.GlassSpinner android:layout_height="48dp"
                     android:id="@+id/SGraphicsDriverVersionExternal"
                     style="@style/ComboBox"
                     android:layout_width="0dp"
-                    android:layout_height="48dp"
                     android:layout_weight="1" />
 
                 <ImageButton
@@ -191,7 +188,7 @@
                 android:orientation="horizontal"
                 android:gravity="center_vertical">
 
-                <com.winlator.cmod.widget.GlassSpinner
+                <com.winlator.cmod.widget.GlassSpinner android:layout_height="48dp"
                     style="@style/ComboBox"
                     android:layout_width="0dp"
                     android:layout_weight="1"
@@ -214,9 +211,8 @@
                     app:tint="?colorAccent"  style="@style/FieldActionButton" android:scaleType="centerInside" />
             </LinearLayout>
 
-            <TextView
-                style="@style/ContainerFieldLabel"
-                android:text="@string/wine_renderer" />
+            <TextView style="@style/ContainerFieldLabel"
+                android:text="@string/android_compositor" />
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -224,30 +220,28 @@
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
-                <com.winlator.cmod.widget.GlassSpinner
-                    android:id="@+id/SWineRenderer"
+                <com.winlator.cmod.widget.GlassSpinner android:layout_height="48dp"
+                    android:id="@+id/SRenderer"
                     style="@style/ComboBox"
                     android:layout_width="0dp"
-                    android:layout_height="48dp"
                     android:layout_weight="1" />
 
                 <ImageButton
                     android:id="@+id/BTVideoConfig"
                     android:src="@drawable/icon_settings"  style="@style/FieldActionButton" android:scaleType="centerInside" />
             </LinearLayout>
-            <com.winlator.cmod.widget.GlassSpinner android:id="@+id/SRenderer"
-                style="@style/ComboBox" android:layout_width="match_parent"
-                android:layout_height="48dp" android:visibility="gone" />
+            <com.winlator.cmod.widget.GlassSpinner android:layout_height="48dp" android:id="@+id/SWineRenderer"
+                style="@style/ComboBox" android:layout_width="match_parent" android:visibility="gone" />
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal">
+                android:orientation="horizontal" android:layout_marginTop="12dp" android:layout_marginBottom="6dp">
 
-                <TextView
+                <TextView style="@style/ContainerFieldLabel"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/dxwrapper" />
+                    android:layout_marginTop="0dp" android:layout_marginBottom="0dp" android:text="@string/dxwrapper" />
 
                 <ImageView
                     android:id="@+id/BTHelpDXWrapper"
@@ -260,7 +254,7 @@
                 android:orientation="horizontal"
                 android:gravity="center_vertical">
 
-                <com.winlator.cmod.widget.GlassSpinner
+                <com.winlator.cmod.widget.GlassSpinner android:layout_height="48dp"
                     android:id="@+id/SDXWrapper"
                     style="@style/ComboBox"
                     android:layout_width="0dp"
@@ -289,8 +283,7 @@
                 android:entries="@array/ddrawrapper_entries">
             </com.winlator.cmod.widget.GlassSpinner>
 
-            <TextView
-                style="@style/ContainerFieldLabel"
+            <TextView style="@style/ContainerFieldLabel"
                 android:text="@string/audio_driver" />
 
             <LinearLayout
@@ -299,11 +292,10 @@
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
-                <com.winlator.cmod.widget.GlassSpinner
+                <com.winlator.cmod.widget.GlassSpinner android:layout_height="48dp"
                     android:id="@+id/SAudioDriver"
                     style="@style/ComboBox"
                     android:layout_width="0dp"
-                    android:layout_height="48dp"
                     android:layout_weight="1"
                     android:entries="@array/audio_driver_entries" />
 
@@ -318,41 +310,39 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:id="@+id/LLEmulator">
-                <TextView
+                <TextView style="@style/ContainerFieldLabel"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/emulator_64bit" />
 
-                <com.winlator.cmod.widget.GlassSpinner
+                <com.winlator.cmod.widget.GlassSpinner android:layout_height="48dp"
                     style="@style/ComboBox"
                     android:layout_width="match_parent"
                     android:id="@+id/SEmulator64"
                     android:entries="@array/emulator_entries"/>
-                <TextView
+                <TextView style="@style/ContainerFieldLabel"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/dll_emulator" />
 
-                <com.winlator.cmod.widget.GlassSpinner
+                <com.winlator.cmod.widget.GlassSpinner android:layout_height="48dp"
                     style="@style/ComboBox"
                     android:layout_width="match_parent"
                     android:id="@+id/SEmulator"
                     android:entries="@array/emulator_entries"/>
             </LinearLayout>
 
-            <TextView
-                style="@style/ContainerFieldLabel"
+            <TextView style="@style/ContainerFieldLabel"
                 android:text="@string/midi_sound_font"
                 android:visibility="gone" />
 
-            <com.winlator.cmod.widget.GlassSpinner
+            <com.winlator.cmod.widget.GlassSpinner android:layout_height="48dp"
                 style="@style/ComboBox"
                 android:layout_width="match_parent"
                 android:id="@+id/SMIDISoundFont"
                 android:visibility="gone" />
 
-            <TextView
-                style="@style/ContainerFieldLabel"
+            <TextView style="@style/ContainerFieldLabel"
                 android:text="@string/lc_all" />
 
             <LinearLayout
@@ -389,7 +379,7 @@
                 android:layout_height="wrap_content"
                 android:text="@string/hud_mode" />
 
-            <com.winlator.cmod.widget.GlassSpinner
+            <com.winlator.cmod.widget.GlassSpinner android:layout_height="48dp"
                 android:id="@+id/SHudMode"
                 style="@style/ComboBox"
                 android:layout_width="match_parent"
@@ -919,12 +909,23 @@
                                 android:layout_width="60dp"
                                 android:layout_height="1dp" />
                         </LinearLayout>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:layout_marginBottom="6dp" android:text="@string/experimental_options_notice" android:textColor="?attr/winxOnSurfaceColor" android:textSize="14sp" />
+                        <include layout="@layout/experimental_performance_options" />
+                        <LinearLayout android:id="@+id/LLInlineBcnOptimized" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp" android:orientation="horizontal" android:gravity="center_vertical">
+                            <CheckBox android:id="@+id/CBInlineBcnOptimized" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/bcn_xclipse_optimized" />
+                            <ImageView android:id="@+id/BTInlineBcnOptimizedHelp" style="@style/HelpButton" android:src="@drawable/icon_help" app:tint="?colorAccent" />
+                        </LinearLayout>
+                        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp" android:orientation="horizontal" android:gravity="center_vertical">
+                            <CheckBox android:id="@+id/CBDisableExperimentalBCN" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/disable_experimental_bcn" />
+                            <ImageView android:id="@+id/BTDisableExperimentalBCNHelp" style="@style/HelpButton" android:src="@drawable/icon_help" app:tint="?colorAccent" />
+                        </LinearLayout>
+
 
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:gravity="center_vertical"
-                            android:orientation="horizontal">
+                            android:orientation="horizontal" android:visibility="gone">
                             <CheckBox
                                 android:id="@+id/CBExperimentalPerformance"
                                 style="@style/WinXclipseToggleCheckBox"

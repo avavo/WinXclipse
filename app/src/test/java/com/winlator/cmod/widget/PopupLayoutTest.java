@@ -220,4 +220,13 @@ public class PopupLayoutTest {
             assertEquals(config.getLeft() - download.getRight(), help.getLeft() - config.getRight());
         }
     }
+    @Test public void vsyncValueHasEnoughSpaceToDisplayItsFullSelection() {
+        View root=inflate(R.layout.sidebar_display_dialog);
+        Spinner spinner=root.findViewById(R.id.SDisplayVsyncLimit);
+        spinner.setAdapter(new ThemedSpinnerAdapter<>(context(),new String[]{"100%","50%","Off"}));
+        measure(root,288,600);
+        TextView value=(TextView)spinner.getSelectedView();
+        assertNotNull(value);assertNotNull(value.getLayout());
+        assertEquals(0,value.getLayout().getEllipsisCount(0));
+    }
 }

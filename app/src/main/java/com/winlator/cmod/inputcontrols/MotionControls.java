@@ -301,6 +301,7 @@ public class MotionControls implements SensorEventListener {
             e.apply();
         });
 
+        cd.setSidebarLiveUpdates(true);
         cd.show();
     }
 

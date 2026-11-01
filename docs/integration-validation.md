@@ -94,3 +94,11 @@ callbacks de editor inline/terminal, alturas/alinhamento, MangoHUD compacto, cpu
 frequências Samsung e preservação dos pacotes na atualização ImageFS.
 A assinatura para atualizar diretamente a 0.9.5 fornecida permanece pendente da
 chave original: ver signing-update-compatibility.md.
+
+
+Lote 40: 522 casos JVM, 520 aprovados, zero falhas/erros, dois ignorados por
+symlink no Windows. Java/Kotlin/C++/APK completos. PT/ES: 1.387 strings/11 arrays.
+Protocolo DisplayX: 23 cenários aprovados. ART no S24+: XZ 28.270 ms e Zstandard
+2.178 ms com SHA-256 idêntico do TAR; quatro quadros Vulkan em superfícies
+descartáveis, BGRA/RGBA e apresentação precisa ligada/desligada. Escopo e limitações
+em [feedback-2026-11-01.md](feedback-2026-11-01.md).

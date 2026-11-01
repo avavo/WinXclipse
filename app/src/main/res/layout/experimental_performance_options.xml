@@ -1,0 +1,28 @@
+<?xml version='1.0' encoding='utf-8'?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:theme="@style/WinXclipseToggleControlsTheme">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal" android:minHeight="48dp">
+        <CheckBox android:id="@+id/CBXPerfNramv" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/xperf_nramv" />
+        <ImageView android:id="@+id/BTXPerfNramvHelp" android:layout_width="22dp" android:layout_height="22dp" android:layout_marginLeft="8dp" android:src="@drawable/icon_help" app:tint="?colorAccent" />
+    </LinearLayout>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp" android:gravity="center_vertical" android:orientation="horizontal">
+        <CheckBox android:id="@+id/CBXPerfMaliCleanup" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/xperf_mali_cleanup" />
+        <ImageView android:id="@+id/BTXPerfMaliCleanupHelp" android:layout_width="22dp" android:layout_height="22dp" android:layout_marginLeft="8dp" android:contentDescription="@string/xperf_help_mali_cleanup" android:src="@drawable/icon_help" app:tint="?colorAccent" />
+    </LinearLayout>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal" android:minHeight="48dp">
+        <CheckBox android:id="@+id/CBXPerfPerfcache" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/xperf_perfcache" />
+        <ImageView android:id="@+id/BTXPerfPerfcacheHelp" android:layout_width="22dp" android:layout_height="22dp" android:layout_marginLeft="8dp" android:src="@drawable/icon_help" app:tint="?colorAccent" />
+    </LinearLayout>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal" android:minHeight="48dp">
+        <CheckBox android:id="@+id/CBXPerfVramCap" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/xperf_vram_cap" />
+        <ImageView android:id="@+id/BTXPerfVramCapHelp" android:layout_width="22dp" android:layout_height="22dp" android:layout_marginLeft="8dp" android:src="@drawable/icon_help" app:tint="?colorAccent" />
+    </LinearLayout>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal" android:minHeight="48dp">
+        <TextView android:id="@+id/TVXPerfVramCapMode" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/xperf_vram_cap_mode" />
+        <com.winlator.cmod.widget.GlassSpinner android:id="@+id/SXPerfVramCapMode" android:layout_width="160dp" android:layout_height="44dp" />
+        <ImageView android:id="@+id/BTXPerfVramCapModeHelp" android:layout_width="22dp" android:layout_height="22dp" android:layout_marginLeft="8dp" android:src="@drawable/icon_help" app:tint="?colorAccent" />
+    </LinearLayout>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal" android:minHeight="48dp">
+        <CheckBox android:id="@+id/CBXPerfMdiex" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/xperf_mdiex" />
+        <ImageView android:id="@+id/BTXPerfMdiexHelp" android:layout_width="22dp" android:layout_height="22dp" android:layout_marginLeft="8dp" android:src="@drawable/icon_help" app:tint="?colorAccent" />
+    </LinearLayout>
+</LinearLayout>

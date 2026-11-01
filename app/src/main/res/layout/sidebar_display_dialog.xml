@@ -95,7 +95,7 @@
             <com.winlator.cmod.widget.GlassSpinner
                 android:id="@+id/SDisplayVsyncLimit"
                 style="@style/ComboBox"
-                android:layout_width="100dp"
+                android:layout_width="144dp"
                 android:layout_height="44dp" />
         </LinearLayout>
 

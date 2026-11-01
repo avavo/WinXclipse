@@ -42,6 +42,11 @@ public class ContentDialog extends AppCompatDialog {
     private android.content.DialogInterface.OnDismissListener dismissListener;
     private android.content.DialogInterface.OnCancelListener cancelListener;
     private android.content.DialogInterface.OnShowListener showListener;
+    private boolean sidebarLiveUpdates;
+    private int originalBodyHeight,originalBottomVisibility;
+    private com.winlator.cmod.core.LiveSettingsBinder liveBinder;
+
+    public void setSidebarLiveUpdates(boolean enabled) { sidebarLiveUpdates = enabled; }
 
     @Override public <T extends View> T findViewById(int id) {
         T view = contentView == null ? null : contentView.findViewById(id);
@@ -62,6 +67,17 @@ public class ContentDialog extends AppCompatDialog {
         if (activity instanceof SidebarDialogHost
                 && ((SidebarDialogHost)activity).presentSidebarDialog(this)) {
             sidebarOwner = (SidebarDialogHost)activity;
+            if (sidebarLiveUpdates) {
+                originalBottomVisibility=contentView.findViewById(R.id.LLBottomBar).getVisibility();
+                contentView.findViewById(R.id.LLBottomBar).setVisibility(View.GONE);
+                if (inflatedLayout != null) {
+                    originalBodyHeight=inflatedLayout.getLayoutParams().height;
+                    inflatedLayout.getLayoutParams().height = ViewGroup.LayoutParams.MATCH_PARENT;
+                }
+                liveBinder = new com.winlator.cmod.core.LiveSettingsBinder(contentView, () -> {
+                    if (onConfirmCallback != null) onConfirmCallback.run();
+                });
+            }
             com.winlator.cmod.core.PopupStyle.styleContent(contentView);
             InterfaceMotion.apply(contentView);
             if (showListener != null) showListener.onShow(this);
@@ -72,15 +88,21 @@ public class ContentDialog extends AppCompatDialog {
     }
     @Override public void cancel() {
         if (sidebarOwner == null) { super.cancel(); return; }
+        if (sidebarLiveUpdates) { dismiss(); return; }
         if (onCancelCallback != null) onCancelCallback.run();
         if (cancelListener != null) cancelListener.onCancel(this);
         dismiss();
     }
     @Override public void dismiss() {
         if (sidebarOwner == null) { super.dismiss(); return; }
+        if (liveBinder != null) { liveBinder.commit(); liveBinder.close(); liveBinder = null; }
         SidebarDialogHost owner = sidebarOwner;
         sidebarOwner = null;
         owner.dismissSidebarDialog(this);
+        if(sidebarLiveUpdates) {
+            contentView.findViewById(R.id.LLBottomBar).setVisibility(originalBottomVisibility);
+            if(inflatedLayout!=null)inflatedLayout.getLayoutParams().height=originalBodyHeight;
+        }
         if (dismissListener != null) dismissListener.onDismiss(this);
     }
 

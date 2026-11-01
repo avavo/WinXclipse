@@ -166,6 +166,8 @@ tasks.named('preBuild').configure { dependsOn(prepareDriverRuntime) }
 
 dependencies {
     testImplementation 'junit:junit:4.13.2'
+    // Host native library for archive tests; the APK keeps the Android AAR.
+    testRuntimeOnly 'com.github.luben:zstd-jni:1.5.2-3@jar'
     // Real JSON parsing in JVM import tests; Android keeps its platform implementation.
     testImplementation 'org.json:json:20240303'
     testImplementation 'org.robolectric:robolectric:4.14.1'

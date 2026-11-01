@@ -19,6 +19,7 @@ public abstract class DisplayRenderer implements WindowManager.OnWindowModificat
     public boolean viewportNeedsUpdate = true;
 
     protected DisplayRenderer(XServerView view) { xServerView = view; }
+    public String getDisplayTransport() { return "X11"; }
 
     public abstract void setRenderTargetSize(int width, int height);
     public abstract int getXScreenWidth();

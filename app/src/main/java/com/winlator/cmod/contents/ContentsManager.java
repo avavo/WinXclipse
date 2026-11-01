@@ -55,7 +55,7 @@ public class ContentsManager {
     public static final String[] BOX64_TRUST_FILES = {"${bindir}/box64"};
     public static final String[] WOWBOX64_TRUST_FILES = {"${system32}/wowbox64.dll"};
     public static final String[] FEXCORE_TRUST_FILES = {"${system32}/libwow64fex.dll", "${system32}/libarm64ecfex.dll"};
-    /** APK-baked default runtime (extracted from proton-9.0-arm64ec.txz into
+    /** APK-baked default runtime (extracted from proton-9.0-arm64ec.tzst into
      * imagefs on first boot). Exposed as a managed Proton profile so it can be
      * removed once a replacement runtime is installed. Identity intentionally
      * matches the downloadable proton-9.0-arm64ec.wcp (same verName/verCode)
@@ -355,8 +355,8 @@ public class ContentsManager {
         // carries it, otherwise the UI shows duplicates like "Proton-proton-...".
         versionName = versionName.replaceFirst("(?i)^(?:wine|proton)-", "");
         long assetId = asset.optLong("id", 0);
-        int versionCode = assetId > 0 ? (int) (assetId % 2147483646L) + 1 : Math.abs(name.hashCode());
-        if (versionCode == 0) versionCode = 1;
+        int versionCode = "FEXCore".equals(type) ? 0 : assetId > 0 ? (int) (assetId % 2147483646L) + 1 : Math.abs(name.hashCode());
+        if (versionCode == 0 && !"FEXCore".equals(type)) versionCode = 1;
 
         JSONObject profile = new JSONObject();
         try {
@@ -408,7 +408,11 @@ public class ContentsManager {
                     if (remote.type == type) {
                         boolean exists = false;
                         for (ContentProfile profile : profiles) {
-                            if (profile.verName.equals(remote.verName) && profile.verCode == remote.verCode) {
+                            if (profile.verName.equals(remote.verName) && (profile.verCode == remote.verCode
+                                    || profile.remoteUrl != null && profile.remoteUrl.equals(remote.remoteUrl)
+                                    || type == ContentProfile.ContentType.CONTENT_TYPE_FEXCORE
+                                    && new File(getInstallDir(context, profile), PROFILE_NAME).isFile()
+                                    && remote.remoteUrl.endsWith("/" + remote.verName + ".wcp"))) {
                                 exists = true;
                                 break;
                             }

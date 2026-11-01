@@ -139,6 +139,8 @@ public class WinlatorHUD extends View {
     private boolean coreFrequency, coreUsage, coreName, gpuFrequency, batteryCharge;
     private java.util.Set<String> selectedCores = new java.util.HashSet<>();
     private java.util.List<String> telemetryRows = java.util.Collections.emptyList();
+    private java.util.function.Supplier<String> transportSource = () -> "X11";
+    public void setTransportSource(java.util.function.Supplier<String> source) { transportSource = source; }
     private boolean snapCharging = false;
     private final int ramBlinkThreshold;
     private final int ramWarningThreshold;
@@ -440,6 +442,7 @@ public class WinlatorHUD extends View {
             }
             snapCharging = dataSource.charging;
             java.util.List<String> rows = new java.util.ArrayList<>();
+            if (prefs.getBoolean("display_transport", false)) rows.add(transportSource.get());
             if (hudStyle != 1 && (showMask & SHOW_BATT_PCT) != 0 && (showMask & SHOW_BATT) == 0)
                 rows.add(pc >= 0 ? pc + "%" : "N/A %");
             if (gpuFrequency) rows.add("GPU " + (dataSource.gpuMhz.get() >= 0 ? dataSource.gpuMhz.get() + " MHz" : "N/A"));
@@ -1496,6 +1499,7 @@ public class WinlatorHUD extends View {
             case "gpu_frequency": gpuFrequency = enabled; break;
             case "battery_charge": batteryCharge = enabled; break;
             case "vram": break;
+            case "display_transport": break;
             default: return;
         }
         prefs.edit().putBoolean(key, enabled).apply();

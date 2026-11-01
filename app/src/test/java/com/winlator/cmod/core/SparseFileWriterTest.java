@@ -5,7 +5,7 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
-import org.apache.commons.compress.compressors.xz.XZCompressorInputStream;
+import org.apache.commons.compress.compressors.zstandard.ZstdCompressorInputStream;
 
 import java.io.*;
 import java.nio.ByteBuffer;
@@ -112,11 +112,11 @@ public class SparseFileWriterTest {
     }
 
     @Test public void actualBundledPreloaderHasIdenticalSha256WithFarFewerSubmittedBytes() throws Exception {
-        File archive = new File("src/main/assets/proton-9.0-arm64ec.txz");
-        if (!archive.isFile()) archive = new File("app/src/main/assets/proton-9.0-arm64ec.txz");
+        File archive = new File("src/main/assets/proton-9.0-arm64ec.tzst");
+        if (!archive.isFile()) archive = new File("app/src/main/assets/proton-9.0-arm64ec.tzst");
         assertTrue("Original bundled Proton archive is required", archive.isFile());
         boolean found = false;
-        try (XZCompressorInputStream compressed = new XZCompressorInputStream(
+        try (ZstdCompressorInputStream compressed = new ZstdCompressorInputStream(
                 new BufferedInputStream(new FileInputStream(archive)));
              TarArchiveInputStream tar = new TarArchiveInputStream(compressed)) {
             TarArchiveEntry entry;

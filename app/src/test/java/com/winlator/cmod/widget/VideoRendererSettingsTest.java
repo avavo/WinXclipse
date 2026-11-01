@@ -28,11 +28,17 @@ public class VideoRendererSettingsTest {
     private String savedWine="vulkan";
     private boolean applied;
     private boolean savedDisplayX;
+    private String compositor="vulkan";
+    private java.util.Map<String,String> videoOptions=new java.util.HashMap<>();
     private VideoConfigDialog.Config config() {
         return (VideoConfigDialog.Config)Proxy.newProxyInstance(VideoConfigDialog.Config.class.getClassLoader(),
                 new Class<?>[]{VideoConfigDialog.Config.class},(proxy,method,args)->{
             switch(method.getName()) {
-                case "getDisplayBackend":return savedWine;
+                case "getDisplayBackend":return compositor;
+                case "getWineRenderer":return savedWine;
+                case "setWineRenderer":savedWine=(String)args[0];return null;
+                case "getVideoOptions":return videoOptions;
+                case "setVideoOptions":videoOptions.putAll((java.util.Map<String,String>)args[0]);return null;
                 case "setDisplayBackend":savedWine=(String)args[0];return null;
                 case "isDisplayXEnabled":return savedDisplayX;
                 case "setDisplayXEnabled":savedDisplayX=(boolean)args[0];return null;
@@ -67,18 +73,18 @@ public class VideoRendererSettingsTest {
         assertEquals("OpenGL",spinner.getSelectedItem());
     }
 
-    @Test public void gearStagesCompositorSelectionUntilConfirm() {
+    @Test public void gearStagesWineSelectionUntilConfirm() {
         VideoConfigDialog dialog=new VideoConfigDialog(context(),config());dialog.show();
-        ((Spinner)dialog.findViewById(R.id.SVideoCompositor)).setSelection(1);
+        ((Spinner)dialog.findViewById(R.id.SVideoWineRenderer)).setSelection(0);
         ShadowLooper.idleMainLooper();
         assertEquals("vulkan",savedWine);
         dialog.findViewById(R.id.BTConfirm).performClick();
         assertEquals("gl",savedWine);assertTrue(applied);
     }
 
-    @Test public void cancelDoesNotChangeTheCompositorSetting() {
+    @Test public void cancelDoesNotChangeTheWineSetting() {
         VideoConfigDialog dialog=new VideoConfigDialog(context(),config());dialog.show();
-        ((Spinner)dialog.findViewById(R.id.SVideoCompositor)).setSelection(1);
+        ((Spinner)dialog.findViewById(R.id.SVideoWineRenderer)).setSelection(0);
         dialog.findViewById(R.id.BTCancel).performClick();
         assertEquals("vulkan",savedWine);assertFalse(applied);
     }
@@ -102,7 +108,7 @@ public class VideoRendererSettingsTest {
         LinearLayout content=(LinearLayout)root.getChildAt(0);
         assertEquals(LinearLayout.VERTICAL,content.getOrientation());
         int last=0;
-        for(int id:new int[]{R.id.SVideoCompositor,R.id.SVideoGPUName,R.id.SVideoPresentMode,
+        for(int id:new int[]{R.id.SVideoWineRenderer,R.id.SVideoGPUName,R.id.SVideoPresentMode,
                 R.id.SVideoRefreshRate,R.id.SVideoTextureFilter,R.id.SVideoVkBasaltEffect}) {
             View v=root.findViewById(id);
             assertEquals(LinearLayout.VERTICAL,((LinearLayout)v.getParent()).getOrientation());
@@ -118,12 +124,34 @@ public class VideoRendererSettingsTest {
         for(String value:new String[]{"gl","OpenGL"," GLES "})assertEquals("gl",DisplayBackend.normalize(value));
     }
 
-    @Test public void wineSelectorIsOutsideAndAndroidCompositorIsInsideTheGear() {
+    @Test public void androidCompositorIsOutsideAndWineIsInsideTheGear() {
         for (int layout : new int[]{R.layout.container_detail_fragment, R.layout.shortcut_settings_dialog}) {
             View root = LayoutInflater.from(context()).inflate(layout, null);
-            assertEquals(View.VISIBLE, root.findViewById(R.id.SWineRenderer).getVisibility());
-            assertEquals(View.GONE, root.findViewById(R.id.SRenderer).getVisibility());
+            assertEquals(View.GONE, root.findViewById(R.id.SWineRenderer).getVisibility());
+            assertEquals(View.VISIBLE, root.findViewById(R.id.SRenderer).getVisibility());
         }
+    }
+    @Test public void openGlCannotEnableDisplayXAndDoesNotExposeItsOptions() {
+        compositor="gl";savedDisplayX=true;
+        VideoConfigDialog dialog=new VideoConfigDialog(context(),config());dialog.show();
+        android.widget.CheckBox box=dialog.findViewById(R.id.CBVideoDisplayX);
+        assertFalse(box.isEnabled());assertFalse(box.isChecked());
+        assertEquals(View.GONE,dialog.findViewById(R.id.LLVideoDisplayXOptions).getVisibility());
+        dialog.findViewById(R.id.BTConfirm).performClick();assertFalse(savedDisplayX);
+    }
+    @Test public void formatsAndDisplayXOptionsAreIndependentAndPersist() {
+        VideoConfigDialog dialog=new VideoConfigDialog(context(),config());dialog.show();
+        Spinner vk=dialog.findViewById(R.id.SVideoVulkanSurfaceFormat),dx=dialog.findViewById(R.id.SVideoDisplayXSurfaceFormat);
+        assertEquals("BGRA",vk.getSelectedItem());assertEquals("RGBA",dx.getSelectedItem());
+        android.widget.CheckBox box=dialog.findViewById(R.id.CBVideoDisplayX);box.setChecked(true);
+        assertEquals(View.VISIBLE,dialog.findViewById(R.id.LLVideoDisplayXOptions).getVisibility());
+        assertEquals(View.GONE,vk.getVisibility());assertEquals(View.VISIBLE,dx.getVisibility());
+        dx.setSelection(0);((android.widget.CheckBox)dialog.findViewById(R.id.CBDisplayXEveryBuffer)).setChecked(true);
+        ((Spinner)dialog.findViewById(R.id.SVideoOpenGLDriver)).setSelection(1);
+        dialog.findViewById(R.id.BTConfirm).performClick();
+        assertEquals("bgra",videoOptions.get("surfaceFormatDisplayX"));
+        assertEquals("1",videoOptions.get("displayXEveryBuffer"));assertEquals("native",videoOptions.get("openGlDriver"));
+        assertEquals("vulkan",compositor);
     }
     @Test public void compactMangoOneFitsBelowTwoHundredDensityIndependentPixels() {
         WinlatorHUD hud = new WinlatorHUD(context(), "compact-mango-test");

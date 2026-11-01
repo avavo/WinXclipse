@@ -66,6 +66,7 @@ public class ThemedSpinnerAdapter<T> extends ArrayAdapter<T> {
     private String displayLabel(String value) {
         int label;
         switch (value) {
+            case "Device": return "Xclipse";
             case "Custom": label = R.string.custom; break;
             case "System": label = R.string.system; break;
             case "None": label = R.string.none; break;

@@ -604,6 +604,8 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
             }
             @Override public void onDrawerOpened(@NonNull View drawerView) {
                 releasePointerCaptureIfNeeded("drawer-opened");
+                // Copy the last posted surface even if the compositor is idle.
+                if (sidebarBackdrop != null && xServerView != null) sidebarBackdrop.capture(xServerView);
                 if (sidebarBackdrop != null&&xServerView!=null)xServerView.afterCompositedFrame(()->{
                     if(sidebarBackdrop!=null&&drawerLayout.isDrawerOpen(drawerView))sidebarBackdrop.capture(xServerView);
                 });
@@ -671,8 +673,9 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
             rv.setItemAnimator(null);               // no default blink
             rv.setHasFixedSize(true);
             rv.setOverScrollMode(View.OVER_SCROLL_NEVER);
-            Drawable bg = navigationView.getBackground();
-            if (bg != null) rv.setBackground(bg);
+            // The NavigationView owns the blurred snapshot. An opaque copy here
+            // covers every later snapshot even when capture succeeds.
+            rv.setBackgroundColor(android.graphics.Color.TRANSPARENT);
         }
 
         imageFs = ImageFs.find(this);
@@ -2367,7 +2370,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         }
 
         boolean experimentalPerformance = "1".equals(
-                container.getExtra("experimentalPerformance", "0"));
+                container.getExtra("experimentalPerformance", "1"));
         if (shortcut != null && shortcut.hasExtra("experimentalPerformance")) {
             experimentalPerformance = "1".equals(shortcut.getExtra("experimentalPerformance"));
         }
@@ -2690,8 +2693,10 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
                         container.getExtra(com.winlator.cmod.renderer.DisplayBackend.KEY,"vulkan"))
                 : container.getExtra(com.winlator.cmod.renderer.DisplayBackend.KEY,"vulkan");
         xServerView = new XServerView(this, xServer, displayBackend);
+        xServerView.configureVideo(graphicsDriverConfig);
         if("1".equals(graphicsDriverConfig.getOrDefault("displayX","0")))
             xServerView.enableDisplayX(xServer,new File(getFilesDir(),".dx-"+java.util.UUID.randomUUID().toString().substring(0,12)));
+        if(xServerView.getDisplayXSession()!=null)xServerView.getDisplayXSession().setOptions(graphicsDriverConfig);
         Log.i("XServerDisplayActivity", "Display compositor: " + xServerView.getDisplayBackend());
         applyPreferredRefreshRate();
         final DisplayRenderer renderer = xServerView.getRenderer();
@@ -3039,6 +3044,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
                 }
             }
         });
+        dialog.setSidebarLiveUpdates(true);
         dialog.show();
     }
 
@@ -3326,6 +3332,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
             persistRuntimeVideoOption("vsyncMode", vsyncMode);
             setFpsLimit(renderer, renderer.getFpsLimit(), false);
         });
+        dialog.setSidebarLiveUpdates(true);
         dialog.show();
     }
 
@@ -3336,6 +3343,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
             ColorEffect color = r.getEffectComposer().getEffect(ColorEffect.class);
             dlg.applyEffects(color, r);
         });
+        dlg.setSidebarLiveUpdates(true);
         dlg.show();
     }
 
@@ -3436,6 +3444,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
                 tvSaturation.setText("1.00");
             });
         }
+        dialog.setSidebarLiveUpdates(true);
         dialog.show();
     }
 
@@ -3648,7 +3657,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         }
         String normalized = StringUtils.parseIdentifier(configured);
         if ("opengl".equals(normalized)) normalized = "gl";
-        if (!"gl".equals(normalized) && !"vulkan".equals(normalized)) normalized = "vulkan";
+        if (!"gl".equals(normalized) && !"egl".equals(normalized) && !"vulkan".equals(normalized)) normalized = "vulkan";
         return normalized;
     }
 
@@ -3656,7 +3665,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         if (container == null) return;
         File userRegistry = new File(container.getRootDir(), ".wine/user.reg");
         try (WineRegistryEditor editor = new WineRegistryEditor(userRegistry)) {
-            editor.setStringValue("Software\\Wine\\Direct3D", "renderer", renderer);
+            editor.setStringValue("Software\\Wine\\Direct3D", "renderer", com.winlator.cmod.core.VideoSettings.wineRegistryRenderer(renderer));
         }
         catch (Throwable error) {
             Log.w("XServerDisplayActivity", "Unable to persist Wine renderer", error);
@@ -3961,6 +3970,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         hud.setDataSource(hudDataSource);
         hud.setHudStyle(style < 0 ? hud.getHudStyle() : style);
         hud.setWrapperName(graphicsDriver);
+        hud.setTransportSource(() -> getXServerView().getRenderer().getDisplayTransport());
         hud.setDriverName(new XclipseDriverManager(this).getDisplayName(graphicsDriverConfig.getOrDefault("version", DefaultVersion.WRAPPER)));
         hud.onRendererDetected(getHudApiName());
         hud.setPhoneGpuName(getPhoneGpuName());
@@ -4302,6 +4312,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         dialog.setOnCancelCallback(updateProfile::run);
 
         dialog.setCanceledOnTouchOutside(false);
+        dialog.setSidebarLiveUpdates(true);
         dialog.show();
     }
 
@@ -4396,8 +4407,8 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         bindHudFormat(dialog.findViewById(R.id.SPHudRamFormat), R.array.hud_ram_format_entries,
                 hud.getRamFormat(), hud::setRamFormat);
         int[] controls = {R.id.CBHudCoreFrequency, R.id.CBHudCoreUsage, R.id.CBHudCoreName,
-                R.id.CBHudGpuFrequency, R.id.CBHudBatteryCharge, R.id.CBHudVram};
-        String[] keys = {"core_frequency", "core_usage", "core_name", "gpu_frequency", "battery_charge", "vram"};
+                R.id.CBHudGpuFrequency, R.id.CBHudBatteryCharge, R.id.CBHudVram, R.id.CBHudDisplayTransport};
+        String[] keys = {"core_frequency", "core_usage", "core_name", "gpu_frequency", "battery_charge", "vram", "display_transport"};
         for (int i = 0; i < controls.length; i++) {
             CheckBox check = dialog.findViewById(controls[i]);
             if (controls[i] == R.id.CBHudVram) check.setVisibility(hud.getHudStyle() == 1 ? View.VISIBLE : View.GONE);
@@ -4593,6 +4604,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
                 sbScale.setProgress(Math.round((hud.getHudScale() - 0.5f) / 1.5f * 100));
             });
         });
+        dialog.setSidebarLiveUpdates(true);
         dialog.show();
     }
 
@@ -4786,17 +4798,18 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         envVars.put("VK_ICD_FILENAMES", imageFs.getShareDir() + "/vulkan/icd.d/wrapper_icd.aarch64.json");
         envVars.put("GALLIUM_DRIVER", "zink");
         envVars.put("LIBGL_KOPPER_DISABLE", "true");
+        com.winlator.cmod.core.VideoSettings.guestEnvironment(graphicsDriverConfig, resolveWineRenderer(), envVars);
 
         String mainWrapperSelection = this.graphicsDriver;
         boolean nativeBcnWrapper = isNativeBcnWrapper(mainWrapperSelection);
         boolean kirimuWrapper = isKirimuWrapper(mainWrapperSelection);
         String legacyExperimentalBcn = container != null
-                ? container.getExtra("experimentalBCN", "0") : "0";
+                ? container.getExtra("experimentalBCN", "1") : "0";
         boolean experimentalBCN = "1".equals(
                 graphicsDriverConfig.getOrDefault("experimentalBcn", legacyExperimentalBcn));
         if (shortcut != null && shortcut.hasExtra("experimentalBCN")
                 && !graphicsDriverConfig.containsKey("experimentalBcn")) {
-            experimentalBCN = "1".equals(shortcut.getExtra("experimentalBCN", "0"));
+            experimentalBCN = "1".equals(shortcut.getExtra("experimentalBCN", "1"));
         }
         // The Xclipse archive/tuning is a separate opt-in nested inside the
         // normal Experimental BCN switch.  Keeping this false by default
@@ -4942,6 +4955,9 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
 
         String requestedVulkanVersion = graphicsDriverConfig.getOrDefault(
                 "vulkanVersion", "1.3");
+        int reportedDriverApi = com.winlator.cmod.core.VulkanCapabilities.parseVersion(graphicsDriverConfig.get("driverApiVersion"));
+        if (reportedDriverApi > 0 && "1".equals(graphicsDriverConfig.getOrDefault("vulkanVersionAuto", "1")))
+            requestedVulkanVersion = com.winlator.cmod.core.DriverDefaults.vulkanVersion(reportedDriverApi);
         if (!requestedVulkanVersion.matches("1\\.[1-4]")) {
             requestedVulkanVersion = "1.3";
         }
@@ -5024,7 +5040,10 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
         envVars.remove("XCLIPSE_DIRECT_RENDER");
         String effectiveBcnTranscodeMode = "";
         if (experimentalBCN) {
-            String bcnEmulation = graphicsDriverConfig.getOrDefault("bcnEmulation", "auto");
+            String driverLabel = new com.winlator.cmod.contents.XclipseDriverManager(this).getDisplayName(
+                    graphicsDriverConfig.getOrDefault("version", com.winlator.cmod.core.DefaultVersion.WRAPPER));
+            String bcnEmulation = graphicsDriverConfig.getOrDefault("bcnEmulation",
+                    com.winlator.cmod.core.DriverDefaults.nativeBcn(driverLabel) ? "none" : "auto");
             boolean computeEmulation = computeBcnMode;
             String bcnEmulationCache = graphicsDriverConfig.getOrDefault("bcnEmulationCache", "1");
             boolean astcTranscode = requestedAstcTranscode;
@@ -5223,7 +5242,7 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
 
     private boolean isExperimentalPerformanceActive() {
         boolean experimental = container != null
-                && "1".equals(container.getExtra("experimentalPerformance", "0"));
+                && "1".equals(container.getExtra("experimentalPerformance", "1"));
         if (shortcut != null && shortcut.hasExtra("experimentalPerformance")) {
             experimental = "1".equals(shortcut.getExtra("experimentalPerformance"));
         }

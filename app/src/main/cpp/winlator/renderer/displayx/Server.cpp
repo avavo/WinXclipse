@@ -44,6 +44,7 @@ void Frame::disconnect(){connection->stop();}
 
 struct Server::Impl {
     std::atomic<uint32_t> fpsLimit{0};
+    std::atomic<bool> everyBuffer{false},performance{true};
     int listener=-1;
     std::string path;
     std::atomic<bool> running{true};
@@ -146,7 +147,7 @@ struct Server::Impl {
             {
                 std::lock_guard<std::mutex> lock(mutex);
                 auto& latest=pending[m.window];
-                if(c->pool.flags!=2)dropped.swap(latest); // FIFO retains order; mailbox keeps only the latest pending frame.
+                if(!everyBuffer&&performance&&c->pool.flags!=2)dropped.swap(latest); // FIFO retains order; mailbox keeps only the latest pending frame.
                 latest.push_back(frame);
             }
             // A mailbox drop is not a displayed frame. The producer fence was
@@ -170,4 +171,6 @@ std::shared_ptr<Frame> Server::take(uint32_t window) {
     auto frame=std::move(it->second.front());it->second.pop_front();if(it->second.empty())impl->pending.erase(it);return frame;
 }
 void Server::setFpsLimit(uint32_t fps){impl->fpsLimit=std::min(fps,1000u);}
+void Server::setOptions(bool every,bool fast){impl->everyBuffer=every;impl->performance=fast;}
+bool Server::hasPending(uint32_t window){std::lock_guard<std::mutex> lock(impl->mutex);auto it=impl->pending.find(window);return it!=impl->pending.end()&&!it->second.empty();}
 }

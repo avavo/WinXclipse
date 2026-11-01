@@ -42,7 +42,7 @@ public class Container {
     public static final String DEFAULT_DXWRAPPER = "dxvk";
     public static final String DEFAULT_DXWRAPPERCONFIG = "version=" + DefaultVersion.DXVK + ",framerate=0,async=1,asyncCache=0"
             + ",vkd3dVersion=" + DefaultVersion.VKD3D + ",vkd3dLevel=" + DefaultVersion.VKD3D_FEATURE_LEVEL + ",ddrawrapper=none,ramFix=1,ramFixPool=0";
-    public static final String DEFAULT_GRAPHICSDRIVERCONFIG = "vulkanVersion=1.3;version=" + DefaultVersion.WRAPPER + ";blacklistedExtensions=;maxDeviceMemory=0;presentMode=mailbox;syncFrame=0;disablePresentWait=0;resourceType=auto;gpuName=Device;refreshRate=auto;vsyncMode=off;vblankOff=1";
+    public static final String DEFAULT_GRAPHICSDRIVERCONFIG = "vulkanVersion=1.3;version=" + DefaultVersion.WRAPPER + ";blacklistedExtensions=;maxDeviceMemory=0;presentMode=mailbox;syncFrame=0;disablePresentWait=0;resourceType=auto;gpuName=Device;refreshRate=auto;vsyncMode=off;vblankOff=1;displayX=0;experimentalBcn=1;vulkanVersionAuto=1";
     public static final String DEFAULT_DDRAWRAPPER = "none";
     public static final String DEFAULT_WINCOMPONENTS = "direct3d=1,directsound=0,directmusic=0,directshow=0,directplay=0,xaudio=0,vcrun2010=1,opengl=0";
     public static final String FALLBACK_WINCOMPONENTS = "direct3d=1,directsound=1,directmusic=1,directshow=1,directplay=1,xaudio=1,vcrun2010=1,opengl=0";
@@ -83,7 +83,7 @@ public class Container {
     private byte startupSelection = STARTUP_SELECTION_ESSENTIAL;
     private String cpuList;
     private String cpuListWoW64;
-    private boolean syncCpuTopology;
+    private boolean syncCpuTopology = true;
     private String desktopTheme = WineThemeManager.DEFAULT_DESKTOP_THEME;
     private String box64Preset = Box86_64Preset.COMPATIBILITY;
     private File rootDir;
@@ -690,7 +690,7 @@ public class Container {
         dxwrapperConfig = "";
         cpuList = null;
         cpuListWoW64 = null;
-        syncCpuTopology = false;
+        syncCpuTopology = true;
         emulator = null;
         extraData = null;
         checkObsoleteOrMissingProperties(data);

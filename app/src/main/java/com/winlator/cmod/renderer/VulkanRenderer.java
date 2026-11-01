@@ -18,6 +18,18 @@ public final class VulkanRenderer extends SceneRenderer {
     private float scaleX,scaleY,offsetX,offsetY;
     private volatile boolean directPresentationAllowed=true;
     private Runnable afterComposition;
+    private boolean frameUsesDisplayX;
+    private boolean bypassX11,precisePresentation,presentAtRefresh=true;
+    private String preferredSurfaceFormat="bgra";
+    public void configureVideo(java.util.Map<String,String> options) {
+        boolean direct=com.winlator.cmod.core.VideoSettings.enabled(options,"displayX",false);
+        bypassX11=direct&&com.winlator.cmod.core.VideoSettings.enabled(options,"displayXBypass",false);
+        precisePresentation=direct&&com.winlator.cmod.core.VideoSettings.enabled(options,"displayXPrecise",false);
+        presentAtRefresh=!direct||com.winlator.cmod.core.VideoSettings.enabled(options,"displayXRefresh",true);
+        preferredSurfaceFormat=com.winlator.cmod.core.VideoSettings.surfaceFormat(options,direct);
+    }
+    private volatile boolean presentedDisplayX;
+    @Override public String getDisplayTransport() { return presentedDisplayX ? "DisplayX" : "X11"; }
     public void setDirectPresentationAllowed(boolean allowed){directPresentationAllowed=allowed;xServerView.requestRender();}
     /** Render-thread callback; PixelCopy callers receive a posted, composed buffer. */
     public void afterComposition(Runnable ready){afterComposition=ready;directPresentationAllowed=false;xServerView.requestRender();}
@@ -29,7 +41,7 @@ public final class VulkanRenderer extends SceneRenderer {
     public void open(Surface surface) {
         close();failed=false;
         try {
-            handle=nativeCreate(surface);
+            handle=nativeCreate(surface,"rgba".equals(preferredSurfaceFormat),presentAtRefresh,precisePresentation);
             DisplayXSession direct=xServerView.getDisplayXSession();
             if(direct!=null)synchronized(direct){nativeDisplayX(handle,direct.handle());}
             long size=nativeSize(handle);
@@ -40,6 +52,7 @@ public final class VulkanRenderer extends SceneRenderer {
     }
 
     public void close() {
+        presentedDisplayX=false;
         if(handle!=0){nativeDestroy(handle);handle=0;}
         lsfgManager.resetTimingState();resetHistory=true;
     }
@@ -63,8 +76,10 @@ public final class VulkanRenderer extends SceneRenderer {
 
     @Override public void drawFrame() {
         presented=false;
+        frameUsesDisplayX=false;
         if(handle==0)return;
-        nativeScanoutAllowed(handle,directPresentationAllowed);
+        nativeScanoutAllowed(handle,directPresentationAllowed&&bypassX11);
+        nativePresentationTime(handle,xServerView.getTargetPresentationNanos());
         VulkanEffectComposer composer=(VulkanEffectComposer)effectComposer;
         composer.releaseRetiredEffects();
         VulkanEffectComposer.Plan plan=composer.plan(surfaceWidth,surfaceHeight,fullscreen,
@@ -106,8 +121,10 @@ public final class VulkanRenderer extends SceneRenderer {
         presented=nativePresent(handle,plan.ids,plan.pushes,lsfgManager.isActive(),capture,
                 lsfgManager.isGeneratedFrame(),lsfgManager.getInterpolationFactor(),
                 requestedApexQuality,requestedApexStability,motionSize[0],motionSize[1]);
+        if (presented) presentedDisplayX=frameUsesDisplayX;
         if(!presented){resetHistory=true;lsfgManager.resetTimingState();xServerView.requestRender();}
         if(presented&&!lsfgManager.isGeneratedFrame())realFrame++;
+        if(presented&&nativeHasPendingFrames(handle))xServerView.requestRender();
         if(presented&&afterComposition!=null&&nativeCompositionReady(handle)) {
             Runnable ready=afterComposition;afterComposition=null;
             xServerView.postOnAnimation(()->xServerView.postOnAnimation(ready));
@@ -161,7 +178,7 @@ public final class VulkanRenderer extends SceneRenderer {
             if(!cursor&&nativeDrawDirect(handle,drawable.id,
                     (offsetX+dx*scaleX)/surfaceWidth*2-1,(offsetY+dy*scaleY)/surfaceHeight*2-1,
                     (offsetX+(dx+dw)*scaleX)/surfaceWidth*2-1,(offsetY+(dy+dh)*scaleY)/surfaceHeight*2-1,
-                    swapRedBlue))return;
+                    swapRedBlue)) { frameUsesDisplayX=true; return; }
             nativeDraw(handle,keyOverride!=0?keyOverride:Integer.toUnsignedLong(drawable.id),drawable.getData(),
                     w,h,drawable.getStridePixels()&0xffff,
                     (offsetX+dx*scaleX)/surfaceWidth*2-1,(offsetY+dy*scaleY)/surfaceHeight*2-1,
@@ -185,7 +202,9 @@ public final class VulkanRenderer extends SceneRenderer {
     @Override void drawScene(boolean immersive) { drawFrame(); }
     @Override protected boolean wasFramePresented() { return presented; }
 
-    private static native long nativeCreate(Surface surface);
+    private static native long nativeCreate(Surface surface,boolean rgba,boolean atRefresh,boolean precise);
+    private static native void nativePresentationTime(long handle,long nanos);
+    private static native boolean nativeHasPendingFrames(long handle);
     private static native long nativeSize(long handle);
     private static native void nativeDestroy(long handle);
     private static native void nativeDisplayX(long handle,long server);

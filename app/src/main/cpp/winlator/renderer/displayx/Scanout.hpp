@@ -14,7 +14,7 @@ class Scanout {
 public:
     explicit Scanout(ANativeWindow* parent);
     ~Scanout();
-    bool show(const std::shared_ptr<Frame>& frame,const std::array<int32_t,4>& destination);
+    bool show(const std::shared_ptr<Frame>& frame,const std::array<int32_t,4>& destination,uint64_t desiredNanos=0);
     void hide();
 };
 }

@@ -243,6 +243,32 @@ VKAPI_ATTR VkResult VKAPI_CALL enumeratePhysical(VkInstance handle,uint32_t* cou
     if(out&&(r==VK_SUCCESS||r==VK_INCOMPLETE)){std::lock_guard<std::mutex> l(registryMutex);for(uint32_t n=0;n<*count;n++)instances[key(out[n])]=i;}
     return r;
 }
+VKAPI_ATTR VkResult VKAPI_CALL surfaceFormats(VkPhysicalDevice gpu,VkSurfaceKHR surface,uint32_t* count,VkSurfaceFormatKHR* out) {
+    auto i=inst(gpu);if(!i)return VK_ERROR_INITIALIZATION_FAILED;
+    auto next=reinterpret_cast<PFN_vkGetPhysicalDeviceSurfaceFormatsKHR>(i->get(i->handle,"vkGetPhysicalDeviceSurfaceFormatsKHR"));
+    bool direct=false;{std::lock_guard<std::mutex> lock(i->mutex);direct=i->windows.count(surface)!=0;}
+    if(!requested()||!direct)return next(gpu,surface,count,out);
+    uint32_t n=0;VkResult result=next(gpu,surface,&n,nullptr);if(result!=VK_SUCCESS)return result;
+    std::vector<VkSurfaceFormatKHR> formats(n);result=next(gpu,surface,&n,formats.data());if(result!=VK_SUCCESS)return result;
+    const char* choice=std::getenv("WINXCLIPSE_DISPLAYX_FORMAT");
+    VkFormat preferred=choice&&!strcmp(choice,"bgra")?VK_FORMAT_B8G8R8A8_UNORM:VK_FORMAT_R8G8B8A8_UNORM;
+    auto selected=std::find_if(formats.begin(),formats.end(),[&](const auto& f){return f.format==preferred&&f.colorSpace==VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;});
+    if(selected==formats.end())return next(gpu,surface,count,out);
+    if(!out){*count=1;return VK_SUCCESS;}
+    if(!*count)return VK_INCOMPLETE;
+    out[0]=*selected;*count=1;return VK_SUCCESS;
+}
+VKAPI_ATTR VkResult VKAPI_CALL surfaceFormats2(VkPhysicalDevice gpu,const VkPhysicalDeviceSurfaceInfo2KHR* info,uint32_t* count,VkSurfaceFormat2KHR* out) {
+    auto i=inst(gpu);if(!i)return VK_ERROR_INITIALIZATION_FAILED;
+    auto next=reinterpret_cast<PFN_vkGetPhysicalDeviceSurfaceFormats2KHR>(i->get(i->handle,"vkGetPhysicalDeviceSurfaceFormats2KHR"));
+    if(info->pNext)return next?next(gpu,info,count,out):VK_ERROR_EXTENSION_NOT_PRESENT;
+    if(out)for(uint32_t n=0;n<*count;n++)if(out[n].pNext)return next?next(gpu,info,count,out):VK_ERROR_EXTENSION_NOT_PRESENT;
+    if(!out)return surfaceFormats(gpu,info->surface,count,nullptr);
+    if(!*count){uint32_t available=0;VkResult result=surfaceFormats(gpu,info->surface,&available,nullptr);return result==VK_SUCCESS&&available?VK_INCOMPLETE:result;}
+    std::vector<VkSurfaceFormatKHR> formats(*count);uint32_t n=*count;
+    VkResult result=surfaceFormats(gpu,info->surface,&n,formats.data());
+    for(uint32_t x=0;x<n&&x<*count;x++)out[x].surfaceFormat=formats[x];*count=n;return result;
+}
 VKAPI_ATTR VkResult VKAPI_CALL enumerateDeviceExtensions(VkPhysicalDevice gpu,const char* layer,uint32_t* count,VkExtensionProperties* out) {
     auto i=inst(gpu);if(!i)return VK_ERROR_INITIALIZATION_FAILED;
     auto next=reinterpret_cast<PFN_vkEnumerateDeviceExtensionProperties>(i->get(i->handle,"vkEnumerateDeviceExtensionProperties"));
@@ -695,6 +721,7 @@ EXPORT VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vkGetInstanceProcAddr(VkInstance
     RETURN(GetInstanceProcAddr,vkGetInstanceProcAddr);RETURN(GetDeviceProcAddr,vkGetDeviceProcAddr);
     RETURN(CreateInstance,createInstance);RETURN(DestroyInstance,destroyInstance);RETURN(EnumeratePhysicalDevices,enumeratePhysical);
     RETURN(EnumerateDeviceExtensionProperties,enumerateDeviceExtensions);
+    RETURN(GetPhysicalDeviceSurfaceFormatsKHR,surfaceFormats);RETURN(GetPhysicalDeviceSurfaceFormats2KHR,surfaceFormats2);
     RETURN(CreateDevice,createDevice);RETURN(CreateXcbSurfaceKHR,xcbSurface);RETURN(CreateXlibSurfaceKHR,xlibSurface);RETURN(DestroySurfaceKHR,destroySurface);
     // Device functions may be queried through GIPA as required by Vulkan layers.
     auto own=vkGetDeviceProcAddr(VK_NULL_HANDLE,name);if(own)return own;

@@ -7,6 +7,10 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.winlator.cmod.core.AppLanguage;
 
 public abstract class LocalizedActivity extends AppCompatActivity {
+    @Override protected void onResume() {
+        super.onResume();
+        com.winlator.cmod.core.DisplayRefreshRate.request(this, "auto");
+    }
     @Override
     protected void attachBaseContext(Context base) {
         super.attachBaseContext(AppLanguage.attach(base));

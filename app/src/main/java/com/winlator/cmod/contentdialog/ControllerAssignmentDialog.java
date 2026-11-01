@@ -94,6 +94,7 @@ public class ControllerAssignmentDialog {
 
     @SuppressWarnings("deprecation")
     public void showContentDialog() {
+        dialog.setSidebarLiveUpdates(true);
         dialog.show();
         Window w = dialog.getWindow();
         if (w == null) return;

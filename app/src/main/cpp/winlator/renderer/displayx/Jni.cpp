@@ -50,3 +50,7 @@ extern "C" JNIEXPORT void JNICALL JNI(nativeClose)(JNIEnv*,jclass,jlong handle) 
 extern "C" JNIEXPORT void JNICALL JNI(nativeFpsLimit)(JNIEnv*,jclass,jlong handle,jint fps) {
     if(handle)(*reinterpret_cast<std::shared_ptr<displayx::Server>*>(handle))->setFpsLimit(uint32_t(fps<0?0:fps));
 }
+
+extern "C" JNIEXPORT void JNICALL JNI(nativeOptions)(JNIEnv*,jclass,jlong handle,jboolean every,jboolean performance) {
+    if(handle)(*reinterpret_cast<std::shared_ptr<displayx::Server>*>(handle))->setOptions(every,performance);
+}

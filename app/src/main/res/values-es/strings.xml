@@ -697,8 +697,8 @@
     <string name="system_update_warning">Es necesario actualizar los archivos del sistema para garantizar compatibilidad y estabilidad.&lt;br /&gt;&lt;br /&gt;&lt;b&gt;Importante:&lt;/b&gt; los contenedores existentes pueden presentar problemas tras la actualización. Se recomienda crear un nuevo contenedor y migrar los datos.&lt;br /&gt;&lt;br /&gt;&lt;b&gt;Migrar datos con el administrador de partidas:&lt;/b&gt;&lt;br /&gt;En el menú principal, abre Partidas guardadas y registra la carpeta del contenedor antiguo. En el menú de cada partida, usa Transferir para copiarla al nuevo contenedor. También puedes seleccionar AppData para copiar los datos.&lt;br /&gt;&lt;br /&gt;&lt;b&gt;Migrar accesos directos:&lt;/b&gt;&lt;br /&gt;Aunque puedes duplicarlos desde el menú, se recomienda recrearlos en el nuevo contenedor para evitar rutas de unidades incompatibles.</string>
     <string name="installing_contents">Instalando contenido…</string>
     <string name="renderer">Renderizador</string>
-    <string name="gl">gl</string>
-    <string name="vulkan">vulkan</string>
+    <string name="gl">GL</string>
+    <string name="vulkan">Vulkan</string>
     <string name="gdi">gdi</string>
     <string name="backend_logs">Registros del backend</string>
     <string name="show_backend_logs_sidebar">Mostrar recopilador de registros del backend en la barra lateral de Wine</string>
@@ -1223,4 +1223,15 @@
     <string name="dxvk_more_issues">+%1$d más…</string>
     <string name="container_export_failed">No se pudo exportar el contenedor. Revisa el espacio disponible y si esta copia ya existe.</string>
     <string name="android_compositor">Compositor de Android</string>
+    <string name="hud_display_transport">Transporte de imagen (DisplayX / X11)</string>
+    <string name="video_surface_format">Formato de superficie</string>
+    <string name="video_opengl_driver">Controlador OpenGL</string>
+    <string name="video_opengl_native">Nativo (controlador anterior)</string>
+    <string name="displayx_bypass">Omitir X11 en la presentación</string>
+    <string name="displayx_performance">Modo de rendimiento</string>
+    <string name="displayx_refresh">Presentar a la frecuencia de actualización</string>
+    <string name="displayx_every_buffer">Enviar todos los búferes</string>
+    <string name="displayx_precise">Presentación precisa</string>
+    <string name="experimental_options_notice">Opciones experimentales: pueden afectar la estabilidad y el uso de memoria.</string>
+    <string name="disable_experimental_bcn">Desactivar BCn experimental</string>
 </resources>

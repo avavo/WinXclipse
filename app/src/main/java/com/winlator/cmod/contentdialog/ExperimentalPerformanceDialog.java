@@ -12,15 +12,11 @@ import com.winlator.cmod.core.AppUtils;
 import com.winlator.cmod.core.KeyValueSet;
 import com.winlator.cmod.widget.ThemedSpinnerAdapter;
 
-/**
- * Per-container tuning for the Experimental Performance master switch.
- * The serialized form is a KeyValueSet stored as the container/shortcut
- * extra "xperfConfig"; every tuning key defaults to disabled so enabling the
- * master switch never silently changes a newly created container.
- */
+/** Legacy dialog plus shared inline bindings. Individual tuning values keep their
+ * serialized keys; WoW64 performance-core pinning defaults on, other tuning stays opt-in. */
 public class ExperimentalPerformanceDialog extends ContentDialog {
     public static final String DEFAULT_CONFIG =
-            "vramCap=0,vramCapMode=auto,perfcache=0,mdiex=0,ramAggro=0,maliCleanup=0,wow64Pin=0,translationTurbo=0";
+            "vramCap=0,vramCapMode=auto,perfcache=0,mdiex=0,ramAggro=0,maliCleanup=0,wow64Pin=1,translationTurbo=0";
 
     public interface OnConfirmCallback {
         void onConfirm(String config);
@@ -39,15 +35,22 @@ public class ExperimentalPerformanceDialog extends ContentDialog {
         setIcon(R.drawable.icon_settings);
         setTitle(R.string.experimental_performance);
 
+        java.util.function.Supplier<String> read=bindOptions(getContentView(),initialConfig);
+        setOnConfirmCallback(()->callback.onConfirm(read.get()));
+    }
+
+    /** Same controls inline in container and shortcut settings, without a nested dialog. */
+    public static java.util.function.Supplier<String> bindOptions(View root,String initialConfig) {
+        Context context=root.getContext();
         KeyValueSet config = parseConfig(initialConfig);
 
-        CheckBox cbVramCap = findViewById(R.id.CBXPerfVramCap);
-        Spinner sVramCapMode = findViewById(R.id.SXPerfVramCapMode);
-        TextView tvVramCapMode = findViewById(R.id.TVXPerfVramCapMode);
-        CheckBox cbPerfcache = findViewById(R.id.CBXPerfPerfcache);
-        CheckBox cbMdiex = findViewById(R.id.CBXPerfMdiex);
-        CheckBox cbNramv = findViewById(R.id.CBXPerfNramv);
-        CheckBox cbMaliCleanup = findViewById(R.id.CBXPerfMaliCleanup);
+        CheckBox cbVramCap = root.findViewById(R.id.CBXPerfVramCap);
+        Spinner sVramCapMode = root.findViewById(R.id.SXPerfVramCapMode);
+        TextView tvVramCapMode = root.findViewById(R.id.TVXPerfVramCapMode);
+        CheckBox cbPerfcache = root.findViewById(R.id.CBXPerfPerfcache);
+        CheckBox cbMdiex = root.findViewById(R.id.CBXPerfMdiex);
+        CheckBox cbNramv = root.findViewById(R.id.CBXPerfNramv);
+        CheckBox cbMaliCleanup = root.findViewById(R.id.CBXPerfMaliCleanup);
 
         sVramCapMode.setAdapter(new ThemedSpinnerAdapter<>(context,
                 new String[]{"Auto", "2048 MB", "3072 MB", "4096 MB", "6144 MB",
@@ -79,20 +82,20 @@ public class ExperimentalPerformanceDialog extends ContentDialog {
         updateVramCapUi.run();
         cbVramCap.setOnCheckedChangeListener((b, checked) -> updateVramCapUi.run());
 
-        findViewById(R.id.BTXPerfVramCapHelp).setOnClickListener(v ->
+        root.findViewById(R.id.BTXPerfVramCapHelp).setOnClickListener(v ->
                 AppUtils.showHelpBox(context, v, R.string.xperf_help_vram_cap));
-        findViewById(R.id.BTXPerfVramCapModeHelp).setOnClickListener(v ->
+        root.findViewById(R.id.BTXPerfVramCapModeHelp).setOnClickListener(v ->
                 AppUtils.showHelpBox(context, v, R.string.xperf_help_vram_cap_mode));
-        findViewById(R.id.BTXPerfPerfcacheHelp).setOnClickListener(v ->
+        root.findViewById(R.id.BTXPerfPerfcacheHelp).setOnClickListener(v ->
                 AppUtils.showHelpBox(context, v, R.string.xperf_help_perfcache));
-        findViewById(R.id.BTXPerfMdiexHelp).setOnClickListener(v ->
+        root.findViewById(R.id.BTXPerfMdiexHelp).setOnClickListener(v ->
                 AppUtils.showHelpBox(context, v, R.string.xperf_help_mdiex));
-        findViewById(R.id.BTXPerfNramvHelp).setOnClickListener(v ->
+        root.findViewById(R.id.BTXPerfNramvHelp).setOnClickListener(v ->
                 AppUtils.showHelpBox(context, v, R.string.xperf_help_nramv));
-        findViewById(R.id.BTXPerfMaliCleanupHelp).setOnClickListener(v ->
+        root.findViewById(R.id.BTXPerfMaliCleanupHelp).setOnClickListener(v ->
                 AppUtils.showHelpBox(context, v, R.string.xperf_help_mali_cleanup));
 
-        setOnConfirmCallback(() -> {
+        return () -> {
             config.put("vramCap", cbVramCap.isChecked() ? "1" : "0");
             Object mode = sVramCapMode.getSelectedItem();
             String modeValue = mode == null ? "auto" : mode.toString();
@@ -109,9 +112,7 @@ public class ExperimentalPerformanceDialog extends ContentDialog {
             config.put("mdiex", cbMdiex.isChecked() ? "1" : "0");
             config.put("ramAggro", cbNramv.isChecked() ? "1" : "0");
             config.put("maliCleanup", cbMaliCleanup.isChecked() ? "1" : "0");
-            callback.onConfirm(config.toString());
-        });
+            return config.toString();
+        };
     }
 }
-
-

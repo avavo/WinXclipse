@@ -1,12 +1,24 @@
 <?xml version='1.0' encoding='utf-8'?>
 <com.winlator.cmod.widget.GestureScrollView xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="wrap_content" android:theme="@style/WinXclipseToggleControlsTheme" android:fillViewport="true">
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_gravity="center_horizontal" android:orientation="vertical" android:padding="16dp" android:paddingTop="12dp">
-        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/android_compositor" />
-        <com.winlator.cmod.widget.GlassSpinner android:id="@+id/SVideoCompositor" style="@style/ComboBox" android:layout_width="match_parent" android:layout_height="48dp" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/wine_renderer" />
+        <com.winlator.cmod.widget.GlassSpinner android:id="@+id/SVideoWineRenderer" style="@style/ComboBox" android:layout_width="match_parent" android:layout_height="48dp" />
         <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
             <CheckBox android:id="@+id/CBVideoDisplayX" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:minHeight="48dp" android:text="@string/displayx_option" />
             <ImageView android:id="@+id/BTVideoDisplayXHelp" style="@style/FieldActionButton" android:src="@drawable/icon_help" android:contentDescription="@string/help" app:tint="?colorAccent" />
         </LinearLayout>
+        <LinearLayout android:id="@+id/LLVideoDisplayXOptions" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
+            <CheckBox android:id="@+id/CBDisplayXBypass" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="44dp" android:text="@string/displayx_bypass" />
+            <CheckBox android:id="@+id/CBDisplayXPerformance" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="44dp" android:text="@string/displayx_performance" />
+            <CheckBox android:id="@+id/CBDisplayXRefresh" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="44dp" android:text="@string/displayx_refresh" />
+            <CheckBox android:id="@+id/CBDisplayXEveryBuffer" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="44dp" android:text="@string/displayx_every_buffer" />
+            <CheckBox android:id="@+id/CBDisplayXPrecise" android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="44dp" android:text="@string/displayx_precise" />
+        </LinearLayout>
+        <TextView style="@style/ContainerFieldLabel" android:text="@string/video_surface_format" />
+        <com.winlator.cmod.widget.GlassSpinner android:id="@+id/SVideoVulkanSurfaceFormat" style="@style/ComboBox" android:layout_width="match_parent" android:layout_height="48dp" />
+        <com.winlator.cmod.widget.GlassSpinner android:id="@+id/SVideoDisplayXSurfaceFormat" style="@style/ComboBox" android:layout_width="match_parent" android:layout_height="48dp" android:visibility="gone" />
+        <TextView style="@style/ContainerFieldLabel" android:text="@string/video_opengl_driver" />
+        <com.winlator.cmod.widget.GlassSpinner android:id="@+id/SVideoOpenGLDriver" style="@style/ComboBox" android:layout_width="match_parent" android:layout_height="48dp" />
         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/gpu_name" android:textAppearance="?android:attr/textAppearanceMedium" android:layout_marginBottom="6dp" />
         <com.winlator.cmod.widget.GlassSpinner android:id="@+id/SVideoGPUName" style="@style/ComboBox" android:layout_width="match_parent" android:layout_height="48dp" android:minHeight="48dp" />
         <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal">

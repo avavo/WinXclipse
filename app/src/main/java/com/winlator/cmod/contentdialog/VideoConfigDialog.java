@@ -32,6 +32,10 @@ public class VideoConfigDialog extends ContentDialog {
     };
 
     public interface Config {
+        default String getWineRenderer() { return "vulkan"; }
+        default void setWineRenderer(String value) {}
+        default java.util.Map<String,String> getVideoOptions() { return java.util.Collections.emptyMap(); }
+        default void setVideoOptions(java.util.Map<String,String> values) {}
         default String getDisplayBackend() { return "vulkan"; }
         default void setDisplayBackend(String value) {}
         default boolean isDisplayXEnabled(){return false;}
@@ -77,12 +81,39 @@ public class VideoConfigDialog extends ContentDialog {
         setIcon(R.drawable.icon_screen_effect);
         setTitle(R.string.video_configuration);
 
-        Spinner compositor=findViewById(R.id.SVideoCompositor);
-        com.winlator.cmod.renderer.DisplayBackend.bind(compositor, config.getDisplayBackend());
+        Spinner wineRenderer=findViewById(R.id.SVideoWineRenderer);
+        wineRenderer.setAdapter(new ThemedSpinnerAdapter<>(context,Arrays.asList("GL","Vulkan","EGL")));
+        AppUtils.setSpinnerSelectionFromValue(wineRenderer,config.getWineRenderer());
+        java.util.Map<String,String> supplied=config.getVideoOptions();
+        java.util.Map<String,String> options=supplied==null?java.util.Collections.emptyMap():supplied;
+        Spinner vulkanFormat=findViewById(R.id.SVideoVulkanSurfaceFormat);
+        Spinner displayXFormat=findViewById(R.id.SVideoDisplayXSurfaceFormat);
+        for(Spinner format:new Spinner[]{vulkanFormat,displayXFormat})
+            format.setAdapter(new ThemedSpinnerAdapter<>(context,Arrays.asList("BGRA","RGBA")));
+        AppUtils.setSpinnerSelectionFromValue(vulkanFormat,com.winlator.cmod.core.VideoSettings.surfaceFormat(options,false));
+        AppUtils.setSpinnerSelectionFromValue(displayXFormat,com.winlator.cmod.core.VideoSettings.surfaceFormat(options,true));
+        Spinner openGlDriver=findViewById(R.id.SVideoOpenGLDriver);
+        openGlDriver.setAdapter(new ThemedSpinnerAdapter<>(context,Arrays.asList("Zink",context.getString(R.string.video_opengl_native))));
+        openGlDriver.setSelection("native".equals(options.get("openGlDriver"))?1:0);
+        int[] displayXIds={R.id.CBDisplayXBypass,R.id.CBDisplayXPerformance,R.id.CBDisplayXRefresh,R.id.CBDisplayXEveryBuffer,R.id.CBDisplayXPrecise};
+        String[] displayXKeys={"displayXBypass","displayXPerformance","displayXRefresh","displayXEveryBuffer","displayXPrecise"};
+        for(int i=0;i<displayXIds.length;i++) ((CheckBox)findViewById(displayXIds[i])).setChecked(
+                com.winlator.cmod.core.VideoSettings.enabled(options,displayXKeys[i],i==1||i==2));
         findViewById(R.id.BTVideoDisplayXHelp).setOnClickListener(v ->
                 AppUtils.showHelpBox(getContext(), v, R.string.displayx_description));
         CheckBox displayX=findViewById(R.id.CBVideoDisplayX);
-        displayX.setChecked(config.isDisplayXEnabled());
+        boolean vulkanCompositor=com.winlator.cmod.renderer.DisplayBackend.VULKAN.equals(
+                com.winlator.cmod.renderer.DisplayBackend.normalize(config.getDisplayBackend()));
+        displayX.setEnabled(vulkanCompositor);
+        displayX.setChecked(vulkanCompositor&&config.isDisplayXEnabled());
+        Runnable displayXVisibility=()->{
+            boolean enabled=displayX.isChecked()&&vulkanCompositor;
+            findViewById(R.id.LLVideoDisplayXOptions).setVisibility(enabled?View.VISIBLE:View.GONE);
+            vulkanFormat.setVisibility(enabled?View.GONE:View.VISIBLE);
+            displayXFormat.setVisibility(enabled?View.VISIBLE:View.GONE);
+        };
+        displayX.setOnCheckedChangeListener((button,checked)->displayXVisibility.run());
+        displayXVisibility.run();
         Spinner gpuName = findViewById(R.id.SVideoGPUName);
         Spinner presentMode = findViewById(R.id.SVideoPresentMode);
         Spinner refreshRate = findViewById(R.id.SVideoRefreshRate);
@@ -220,7 +251,7 @@ public class VideoConfigDialog extends ContentDialog {
                 config.getFrameGenerationMultiplier()));
         frameGenerationTargetFps.setText(String.valueOf(frameGenerationTarget(
                 config.getFrameGenerationTargetFPS())));
-        java.util.function.BooleanSupplier frameGenerationCompatible = () -> compositor.getSelectedItemPosition()==0;
+        java.util.function.BooleanSupplier frameGenerationCompatible = () -> vulkanCompositor;
         frameGeneration.setChecked(frameGenerationCompatible.getAsBoolean()
                 && "1".equals(config.getFrameGenerationEnabled()));
         frameGeneration.setEnabled(frameGenerationCompatible.getAsBoolean());
@@ -251,10 +282,6 @@ public class VideoConfigDialog extends ContentDialog {
                             int position, long id) { updateFrameGeneration.run(); }
                     @Override public void onNothingSelected(AdapterView<?> parent) {}
                 });
-        compositor.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override public void onItemSelected(AdapterView<?> parent,View row,int position,long id) { updateFrameGeneration.run(); }
-            @Override public void onNothingSelected(AdapterView<?> parent) {}
-        });
         updateFrameGeneration.run();
 
         // vkBasalt (CAS/DLS) - now in Video tab for both Container and Shortcut
@@ -289,12 +316,18 @@ public class VideoConfigDialog extends ContentDialog {
             @Override public void onStopTrackingTouch(SeekBar s) {}
         });
 
-        applyTheme(context,compositor, gpuName, presentMode, textureFilter, fsrUpscale, fsrQuality,
+        applyTheme(context,wineRenderer, vulkanFormat, displayXFormat, openGlDriver, gpuName, presentMode, textureFilter, fsrUpscale, fsrQuality,
                 refreshRate, vsyncLimit, vkBasaltEffect, frameGenerationProfile,
                 frameGenerationMultiplier);
 
         setOnConfirmCallback(() -> {
-            config.setDisplayBackend(com.winlator.cmod.renderer.DisplayBackend.selected(compositor));
+            config.setWineRenderer(com.winlator.cmod.core.VideoSettings.wineRenderer(selectedValue(wineRenderer)));
+            java.util.Map<String,String> updated=new java.util.HashMap<>();
+            updated.put("surfaceFormatVulkan",selectedValue(vulkanFormat).toLowerCase(java.util.Locale.ROOT));
+            updated.put("surfaceFormatDisplayX",selectedValue(displayXFormat).toLowerCase(java.util.Locale.ROOT));
+            updated.put("openGlDriver",openGlDriver.getSelectedItemPosition()==1?"native":"zink");
+            for(int i=0;i<displayXIds.length;i++) updated.put(displayXKeys[i],((CheckBox)findViewById(displayXIds[i])).isChecked()?"1":"0");
+            config.setVideoOptions(updated);
             config.setDisplayXEnabled(displayX.isChecked());
             String upscaleValue = fsrUpscale.getSelectedItemPosition()==1 ? "1" : "0";
             int qualityIndex = Math.max(0, Math.min(fsrQuality.getSelectedItemPosition(),

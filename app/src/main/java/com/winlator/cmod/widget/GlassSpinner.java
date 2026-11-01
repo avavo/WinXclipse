@@ -21,6 +21,27 @@ public class GlassSpinner extends AppCompatSpinner {
     private final int popupMode;
     private ListPopupWindow anchored;
     private AlertDialog choices;
+    private Runnable selectionObserver;
+    private int observedSelection;
+
+    public void setSelectionObserver(Runnable observer) {
+        selectionObserver = observer;
+        observedSelection = getSelectedItemPosition();
+    }
+
+    @Override public void setOnItemSelectedListener(android.widget.AdapterView.OnItemSelectedListener listener) {
+        super.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+                if (listener != null) listener.onItemSelected(parent, view, position, id);
+                if (selectionObserver != null && observedSelection != position) {
+                    observedSelection = position; selectionObserver.run();
+                }
+            }
+            @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {
+                if (listener != null) listener.onNothingSelected(parent);
+            }
+        });
+    }
 
     public GlassSpinner(Context context) { this(context, null); }
     public GlassSpinner(Context context, AttributeSet attrs) { this(context, attrs, androidx.appcompat.R.attr.spinnerStyle); }
@@ -30,6 +51,7 @@ public class GlassSpinner extends AppCompatSpinner {
         popupMode = values.getInt(0, android.widget.Spinner.MODE_DROPDOWN);
         values.recycle();
         setMinimumHeight(Math.round(44 * getResources().getDisplayMetrics().density));
+        if (getOnItemSelectedListener() == null) setOnItemSelectedListener(null);
     }
 
     @Override public boolean performClick() {

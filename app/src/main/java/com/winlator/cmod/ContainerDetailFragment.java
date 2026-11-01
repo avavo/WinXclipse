@@ -588,8 +588,7 @@ public class ContainerDetailFragment extends Fragment {
             });
 
         final CheckBox cbExperimentalPerformance = view.findViewById(R.id.CBExperimentalPerformance);
-        cbExperimentalPerformance.setChecked(isEditMode()
-                && "1".equals(container.getExtra("experimentalPerformance", "0")));
+        cbExperimentalPerformance.setChecked(true);
         xperfConfig = isEditMode() ? container.getExtra("xperfConfig", "") : "";
 
         final CheckBox cbWoW64PerformancePin = view.findViewById(R.id.CBWoW64PerformancePin);
@@ -604,7 +603,7 @@ public class ContainerDetailFragment extends Fragment {
 
         final CheckBox cbExperimentalBCN = view.findViewById(R.id.CBExperimentalBCN);
         cbExperimentalBCN.setChecked(isEditMode()
-                && "1".equals(container.getExtra("experimentalBCN", "0")));
+                ? "1".equals(container.getExtra("experimentalBCN", "1")) : true);
 
         view.findViewById(R.id.BTExperimentalPerformanceHelp).setOnClickListener(v ->
                 AppUtils.showHelpBox(context, v, R.string.experimental_performance_description));
@@ -618,6 +617,9 @@ public class ContainerDetailFragment extends Fragment {
         });
         view.findViewById(R.id.BTExperimentalBCNHelp).setOnClickListener(v ->
                 AppUtils.showHelpBox(context, v, R.string.experimental_bcn_description));
+
+        final java.util.function.Supplier<String> inlineXPerfConfig=ExperimentalPerformanceDialog.bindOptions(view,xperfConfig);
+        com.winlator.cmod.core.InlineBcnOptions.bind(view,vGraphicsDriverConfig,cbExperimentalBCN);
 
         final EditText etLC_ALL = view.findViewById(R.id.ETlcall);
         Locale systemLocal = Locale.getDefault();
@@ -668,7 +670,7 @@ public class ContainerDetailFragment extends Fragment {
         final CPUListView cpuListView = view.findViewById(R.id.CPUListView);
         final CPUListView cpuListViewWoW64 = view.findViewById(R.id.CPUListViewWoW64);
         final CheckBox cbSyncCpuTopology = view.findViewById(R.id.CBSyncCpuTopology);
-        cbSyncCpuTopology.setChecked(isEditMode() && container.isSyncCpuTopology());
+        cbSyncCpuTopology.setChecked(!isEditMode() || container.isSyncCpuTopology());
 
         cpuListView.setCheckedCPUList(isEditMode() ? container.getCPUList(true) : Container.getFallbackCPUList());
         cpuListViewWoW64.setCheckedCPUList(isEditMode() ? container.getCPUListWoW64(true) : Container.getFallbackCPUListWoW64());
@@ -690,6 +692,13 @@ public class ContainerDetailFragment extends Fragment {
         final Spinner sGPUName = view.findViewById(R.id.SGPUName);
         view.findViewById(R.id.BTVideoConfig).setOnClickListener(button ->
                 new VideoConfigDialog(context, new VideoConfigDialog.Config() {
+                    @Override public String getWineRenderer() { return StringUtils.parseIdentifier(((Spinner) view.findViewById(R.id.SWineRenderer)).getSelectedItem()); }
+                    @Override public void setWineRenderer(String value) { AppUtils.setSpinnerSelectionFromValue(view.findViewById(R.id.SWineRenderer), value); }
+                    @Override public java.util.Map<String,String> getVideoOptions() { return GraphicsDriverConfigDialog.parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag())); }
+                    @Override public void setVideoOptions(java.util.Map<String,String> values) {
+                        HashMap<String,String> merged=GraphicsDriverConfigDialog.parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()));
+                        merged.putAll(values);vGraphicsDriverConfig.setTag(GraphicsDriverConfigDialog.toGraphicsDriverConfig(merged));
+                    }
                     @Override public boolean isDisplayXEnabled() { return "1".equals(GraphicsDriverConfigDialog.parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag())).getOrDefault("displayX", "0")); }
                     @Override public void setDisplayXEnabled(boolean enabled) {
                         HashMap<String,String> options=GraphicsDriverConfigDialog.parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()));
@@ -943,7 +952,7 @@ public class ContainerDetailFragment extends Fragment {
                 boolean gstreamerWorkaround = cbGStreamerWorkaroundToggle.isChecked();
                 boolean experimentalPerformance = cbExperimentalPerformance.isChecked();
                 boolean experimentalBCN = cbExperimentalBCN.isChecked();
-                KeyValueSet editedXPerfConfig = ExperimentalPerformanceDialog.parseConfig(xperfConfig);
+                KeyValueSet editedXPerfConfig = ExperimentalPerformanceDialog.parseConfig(inlineXPerfConfig.get());
                 editedXPerfConfig.put("wow64Pin", cbWoW64PerformancePin.isChecked() ? "1" : "0");
                 editedXPerfConfig.put("translationTurbo", cbTranslationTurbo.isChecked() ? "1" : "0");
                 xperfConfig = editedXPerfConfig.toString();
@@ -989,7 +998,7 @@ public class ContainerDetailFragment extends Fragment {
                     container.putExtra("experimentalPerformance", experimentalPerformance ? "1" : null);
                     container.putExtra("xperfConfig",
                             experimentalPerformance && !xperfConfig.isEmpty() ? xperfConfig : null);
-                    container.putExtra("experimentalBCN", experimentalBCN ? "1" : null);
+                    container.putExtra("experimentalBCN", experimentalBCN ? "1" : "0");
                     container.putExtra("rendererFilterMode",
                             rendererFilterMode[0] > 0 ? String.valueOf(rendererFilterMode[0]) : null);
                     container.putExtra("rendererSwapRB", rendererSwapRB[0] ? "1" : null);
@@ -1055,7 +1064,7 @@ public class ContainerDetailFragment extends Fragment {
                     if (experimentalPerformance && !xperfConfig.isEmpty()) {
                         extraData.put("xperfConfig", xperfConfig);
                     }
-                    if (experimentalBCN) extraData.put("experimentalBCN", "1");
+                    extraData.put("experimentalBCN", experimentalBCN ? "1" : "0");
                     if (rendererFilterMode[0] > 0) {
                         extraData.put("rendererFilterMode", String.valueOf(rendererFilterMode[0]));
                     }
@@ -1129,7 +1138,7 @@ public class ContainerDetailFragment extends Fragment {
         try (WineRegistryEditor registryEditor = new WineRegistryEditor(userRegFile)) {
 
             Spinner sRenderer = view.findViewById(R.id.SWineRenderer);
-            registryEditor.setStringValue("Software\\Wine\\Direct3D", "renderer", sRenderer.getSelectedItem().toString());
+            registryEditor.setStringValue("Software\\Wine\\Direct3D", "renderer", com.winlator.cmod.core.VideoSettings.wineRegistryRenderer(StringUtils.parseIdentifier(sRenderer.getSelectedItem())));
 
             Spinner sCSMT = view.findViewById(R.id.SCSMT);
             registryEditor.setDwordValue("Software\\Wine\\Direct3D", "csmt", sCSMT.getSelectedItemPosition() != 0 ? 3 : 0);
@@ -1220,7 +1229,7 @@ public class ContainerDetailFragment extends Fragment {
             // GDI was removed from the UI: once selected it could be restored by
             // wineserver over a newer Vulkan/OpenGL choice.  The container extra
             // is now authoritative and old GDI values migrate safely to Vulkan.
-            List<String> rendererList = Arrays.asList(context.getString(R.string.gl), context.getString(R.string.vulkan));
+            List<String> rendererList = Arrays.asList(context.getString(R.string.gl), context.getString(R.string.vulkan), "EGL");
             Spinner sRenderer = view.findViewById(R.id.SWineRenderer);
             sRenderer.setAdapter(new ThemedSpinnerAdapter<>(context, rendererList));
             String renderer = isEditMode()

@@ -103,6 +103,10 @@ public:
     std::shared_ptr<displayx::Server> directServer;
     PFN_vkGetAndroidHardwareBufferPropertiesANDROID getHardwareProperties{};
     bool ahbSupported=false;
+    VkFormat preferredFormat=VK_FORMAT_B8G8R8A8_UNORM;
+    bool presentAtRefresh=true,precisePresentation=false,displayTiming=false;
+    uint32_t timingPresentId=0;
+    uint64_t desiredPresentationNanos=0;
     std::unique_ptr<displayx::Scanout> scanout;
     bool scanoutAllowed=true,waitingOnScanout=false,scanoutActive=false;
     int reportedTransport=-1;
@@ -258,6 +262,8 @@ public:
         auto has=[&](const char* name){return std::any_of(available.begin(),available.end(),[&](const auto& p){return !strcmp(p.extensionName,name);});};
         ahbSupported=has(VK_ANDROID_EXTERNAL_MEMORY_ANDROID_HARDWARE_BUFFER_EXTENSION_NAME)&&has(VK_EXT_QUEUE_FAMILY_FOREIGN_EXTENSION_NAME);
         if(ahbSupported){enabled.push_back(VK_ANDROID_EXTERNAL_MEMORY_ANDROID_HARDWARE_BUFFER_EXTENSION_NAME);enabled.push_back(VK_EXT_QUEUE_FAMILY_FOREIGN_EXTENSION_NAME);}
+        displayTiming=precisePresentation&&has(VK_GOOGLE_DISPLAY_TIMING_EXTENSION_NAME);
+        if(displayTiming)enabled.push_back(VK_GOOGLE_DISPLAY_TIMING_EXTENSION_NAME);
         float priority=1;VkDeviceQueueCreateInfo qc{VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO};qc.queueFamilyIndex=queueFamily;qc.queueCount=1;qc.pQueuePriorities=&priority;
         VkDeviceCreateInfo dc{VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};dc.queueCreateInfoCount=1;dc.pQueueCreateInfos=&qc;
         dc.enabledExtensionCount=enabled.size();dc.ppEnabledExtensionNames=enabled.data();
@@ -308,7 +314,8 @@ public:
         if(!n)throw std::runtime_error("No surface format");
         std::vector<VkSurfaceFormatKHR> formats(n);check(vkGetPhysicalDeviceSurfaceFormatsKHR(gpu,surface,&n,formats.data()),"surface formats");
         auto chosen=formats[0];for(auto f:formats)if(f.format==VK_FORMAT_R8G8B8A8_UNORM||f.format==VK_FORMAT_B8G8R8A8_UNORM){chosen=f;break;}
-        if(chosen.format==VK_FORMAT_UNDEFINED)chosen.format=VK_FORMAT_R8G8B8A8_UNORM;
+        for(auto f:formats)if(f.format==preferredFormat){chosen=f;break;}
+        if(chosen.format==VK_FORMAT_UNDEFINED)chosen.format=preferredFormat;
         swapFormat=chosen.format;extent=caps.currentExtent;
         if(extent.width==std::numeric_limits<uint32_t>::max())extent={uint32_t(std::max(1,ANativeWindow_getWidth(window))),uint32_t(std::max(1,ANativeWindow_getHeight(window)))};
         extent.width=std::clamp(extent.width,caps.minImageExtent.width,caps.maxImageExtent.width);
@@ -328,6 +335,11 @@ public:
         c.compositeAlpha=(caps.supportedCompositeAlpha&VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR)?VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR:
             VkCompositeAlphaFlagBitsKHR(caps.supportedCompositeAlpha&(~caps.supportedCompositeAlpha+1));
         c.presentMode=VK_PRESENT_MODE_FIFO_KHR;c.clipped=VK_TRUE;
+        if(!presentAtRefresh) {
+            uint32_t count=0;check(vkGetPhysicalDeviceSurfacePresentModesKHR(gpu,surface,&count,nullptr),"present modes");
+            std::vector<VkPresentModeKHR> modes(count);check(vkGetPhysicalDeviceSurfacePresentModesKHR(gpu,surface,&count,modes.data()),"present modes");
+            if(std::find(modes.begin(),modes.end(),VK_PRESENT_MODE_MAILBOX_KHR)!=modes.end())c.presentMode=VK_PRESENT_MODE_MAILBOX_KHR;
+        }
         check(vkCreateSwapchainKHR(device,&c,nullptr,&swapchain),"swapchain");
         screenPass=pass(swapFormat,true);
         screenWindowPipe=graphics(windowFrag,sizeof(windowFrag),sampledPipeLayout,screenPass,true);
@@ -516,7 +528,7 @@ public:
             if(displayx::canScanout(windows.size(),cursors.size(),ids.size(),fg,bool(draw.frame),draw.swap,r.data(),contentRect.data())) {
                 int32_t width=ANativeWindow_getWidth(window),height=ANativeWindow_getHeight(window);
                 std::array<int32_t,4> target{int32_t(x*width),int32_t(y*height),int32_t((x+w)*width),int32_t((y+h)*height)};
-                direct=scanout->show(draw.frame,target);
+                direct=scanout->show(draw.frame,target,desiredPresentationNanos);
             }
         }
         scanoutActive=direct;if(!direct)scanout->hide();
@@ -615,6 +627,9 @@ public:
         si.commandBufferCount=1;si.pCommandBuffers=&cb;si.signalSemaphoreCount=1;si.pSignalSemaphores=&presented[imageIndex];
         check(vkResetFences(device,1,&fence),"reset frame fence");check(vkQueueSubmit(queue,1,&si,fence),"submit frame");frameOpen=false;
         VkPresentInfoKHR p{VK_STRUCTURE_TYPE_PRESENT_INFO_KHR};p.waitSemaphoreCount=1;p.pWaitSemaphores=&presented[imageIndex];p.swapchainCount=1;p.pSwapchains=&swapchain;p.pImageIndices=&imageIndex;
+        VkPresentTimeGOOGLE time{++timingPresentId,desiredPresentationNanos};
+        VkPresentTimesInfoGOOGLE times{VK_STRUCTURE_TYPE_PRESENT_TIMES_INFO_GOOGLE};times.swapchainCount=1;times.pTimes=&time;
+        if(displayTiming&&desiredPresentationNanos)p.pNext=&times;
         VkResult status=vkQueuePresentKHR(queue,&p);if(status==VK_ERROR_OUT_OF_DATE_KHR||status==VK_SUBOPTIMAL_KHR)resizePending=true;else check(status,"present frame");
         // Unused images are retired at next begin, after the submission fence.
         return status!=VK_ERROR_OUT_OF_DATE_KHR&&!waitingOnScanout;
@@ -660,8 +675,8 @@ void fail(JNIEnv* e,const std::exception& error){
 Display& display(jlong h){if(!h)throw std::runtime_error("Vulkan surface is closed");return *reinterpret_cast<Display*>(h);}
 }
 #define JNI(name) Java_com_winlator_cmod_renderer_VulkanRenderer_##name
-extern "C" JNIEXPORT jlong JNICALL JNI(nativeCreate)(JNIEnv* e,jclass,jobject surface) {
-    try {auto d=std::make_unique<Display>();auto w=ANativeWindow_fromSurface(e,surface);if(!w)throw std::runtime_error("Invalid Android surface");d->init(w);d->makeSwapchain();return reinterpret_cast<jlong>(d.release());}
+extern "C" JNIEXPORT jlong JNICALL JNI(nativeCreate)(JNIEnv* e,jclass,jobject surface,jboolean rgba,jboolean atRefresh,jboolean precise) {
+    try {auto d=std::make_unique<Display>();d->preferredFormat=rgba?VK_FORMAT_R8G8B8A8_UNORM:VK_FORMAT_B8G8R8A8_UNORM;d->presentAtRefresh=atRefresh;d->precisePresentation=precise;auto w=ANativeWindow_fromSurface(e,surface);if(!w)throw std::runtime_error("Invalid Android surface");d->init(w);d->makeSwapchain();return reinterpret_cast<jlong>(d.release());}
     catch(const std::exception& x){fail(e,x);return 0;}
 }
 extern "C" JNIEXPORT void JNICALL JNI(nativeDestroy)(JNIEnv*,jclass,jlong h){delete reinterpret_cast<Display*>(h);}
@@ -705,4 +720,12 @@ extern "C" JNIEXPORT jboolean JNICALL JNI(nativePresent)(JNIEnv* e,jclass,jlong 
         std::vector<int> list(n);e->GetIntArrayRegion(ids,0,n,list.data());
         return display(h).present(list,static_cast<const uint8_t*>(e->GetDirectBufferAddress(pushes)),fg,capture,generated,alpha,quality,stability,motionWidth,motionHeight);
     }catch(const std::exception& x){fail(e,x);return false;}
+}
+
+extern "C" JNIEXPORT void JNICALL JNI(nativePresentationTime)(JNIEnv* e,jclass,jlong h,jlong nanos) {
+    try{display(h).desiredPresentationNanos=nanos>0?uint64_t(nanos):0;}catch(const std::exception& x){fail(e,x);}
+}
+extern "C" JNIEXPORT jboolean JNICALL JNI(nativeHasPendingFrames)(JNIEnv* e,jclass,jlong h) {
+    try{auto& d=display(h);if(d.directServer)for(auto& draw:d.windows)if(draw.frame&&d.directServer->hasPending(draw.frame->message.window))return true;return false;}
+    catch(const std::exception& x){fail(e,x);return false;}
 }

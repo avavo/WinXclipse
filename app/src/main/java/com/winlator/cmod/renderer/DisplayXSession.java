@@ -22,6 +22,12 @@ public final class DisplayXSession implements AutoCloseable {
         try {System.loadLibrary("winx_vulkan");handle=nativeCreate(path);}
         catch(UnsatisfiedLinkError error){Log.w("DisplayX","Native transport unavailable",error);}
     }
+    public synchronized void setOptions(java.util.Map<String,String> options) {
+        if(handle!=0)nativeOptions(handle,
+                com.winlator.cmod.core.VideoSettings.enabled(options,"displayXEveryBuffer",false),
+                com.winlator.cmod.core.VideoSettings.enabled(options,"displayXPerformance",true));
+    }
+    private static native void nativeOptions(long handle,boolean everyBuffer,boolean performance);
     public synchronized long handle(){return handle;}
     public synchronized boolean isAvailable(){return handle!=0;}
     public synchronized void setFpsLimit(int fps){if(handle!=0)nativeFpsLimit(handle,Math.max(0,fps));}

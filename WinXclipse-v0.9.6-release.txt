@@ -27,6 +27,18 @@ Local test APKs are provided on request. No public release or tag has been creat
 - Buffer decompressed archive reads and reuse an extraction buffer across entries to reduce first-install overhead. End-to-end Proton initialization time still needs comparison on the device.
 - Preserve installed content packages when updating the base ImageFS. Direct installation over the supplied 0.9.5 still requires its original signing key; the local test certificate is different.
 
+### Follow-up device feedback — November 1
+
+- Apply in-session settings as edited, confirm pending values with X/back, remove the redundant action footer and let the HUD body scroll fully.
+- Remove the opaque internal navigation-list background covering the sidebar blur. Keep VSync values readable and standardize form-label spacing and selector height.
+- DisplayX defaults off and is available only with the Vulkan compositor. Add independent BGRA/RGBA preferences, presentation options connected to scheduling/queues and optional desired-present timestamps. Zink defaults on; the previous native-driver behavior remains selectable.
+- Keep Device as the real GPU token while displaying Xclipse. Default Sync CPU with Wine and WoW64 performance-core pinning on, preserving explicit values.
+- Put experimental RAM, preparation, cache, VRAM, policy engine and optimized BCn controls below GStreamer. One Disable experimental BCn option also turns off the optimized layer.
+- Default Vulkan version follows the queried selected-driver API. Default BCn emulation to None for Quasar/RADV/Phoenix and reconcile FEX catalog download IDs with installed manifests.
+- Recompress the identical Proton TAR as Zstandard. S24+ ART decode plus SHA-256: XZ 28.270 s, Zstandard 2.178 s. This is not a full boot-time measurement. The compressed asset grows by about 34 MB.
+- Cache only an explicit unsupported Wine Vulkan bridge for at most six hours per runtime/configuration; keep diagnostics and original Wine loaders, never mark a failed check installed.
+- Validation: 522 JVM cases (520 passed, two Windows symlink skips), full APK/native build, 23 native protocol cases and four native Vulkan presentation cases on S24+. See docs/feedback-2026-11-01.md for limits.
+
 ### Runtime defaults, downloads and installation
 
 - Use FEXCore 2610 and Box64 0.4.5 as new defaults. FEXCore 2608 and Box64 0.4.3 remain available from the existing content releases.
@@ -38,7 +50,7 @@ Local test APKs are provided on request. No public release or tag has been creat
 
 ### Drivers and graphics
 
-- Keep the Wine renderer in the main container/shortcut form. Select the Android compositor (Vulkan by default, or OpenGL) inside the adjacent video settings. Preserve the separate saved values and shortcut inheritance.
+- Keep the Android compositor (Vulkan or OpenGL) in the main container/shortcut form. Select the Wine renderer (Vulkan, GL or EGL) inside the adjacent video settings. Preserve the separate saved values and shortcut inheritance.
 - Add a Vulkan 1.1 compositor with Vulkan EASU/RCAS, color/CRT/FXAA/HDR/NTSC/Toon effects and compute frame generation. Preserve Fast/Balanced/Quality motion scales and keep the cursor outside temporal history. The direct path avoids allocating post-processing/history images when effects and frame generation are off.
 - Synchronize staging, descriptors and image retirement with submission fences; handle swapchain recreation, pre-rotation and temporal resets. Keep the existing GLES implementation selectable. OpenXR retains its GLES swapchains; VirGL pixel transfers require separate performance checks.
 - Add optional DisplayX AHB transport per container/shortcut. Compatible plain scenes can present the same buffer through SurfaceFlinger; FSR/frame generation, cursor and Wine menus retain Vulkan GPU composition without CPU pixel copies. Preserve FIFO order, pacing, buffer-release fences and the standard WSI fallback. Compose before the sidebar blur capture.

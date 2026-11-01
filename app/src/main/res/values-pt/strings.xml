@@ -697,8 +697,8 @@
     <string name="system_update_warning">É necessário atualizar os arquivos do sistema para garantir compatibilidade e estabilidade.&lt;br /&gt;&lt;br /&gt;&lt;b&gt;Importante:&lt;/b&gt; containers existentes podem apresentar problemas após a atualização. É altamente recomendado criar um novo container e migrar os dados.&lt;br /&gt;&lt;br /&gt;&lt;b&gt;Migrar dados pelo gerenciador de saves:&lt;/b&gt;&lt;br /&gt;No menu principal, abra Saves e cadastre a pasta de saves do container antigo. No menu de cada save, use Transferir para copiar ao novo container. Você também pode selecionar AppData para copiar os dados.&lt;br /&gt;&lt;br /&gt;&lt;b&gt;Migrar atalhos:&lt;/b&gt;&lt;br /&gt;Embora seja possível duplicar atalhos pelo menu, é recomendado recriá-los no novo container para evitar caminhos de unidades incompatíveis.</string>
     <string name="installing_contents">Instalando conteúdo…</string>
     <string name="renderer">Renderizador</string>
-    <string name="gl">gl</string>
-    <string name="vulkan">vulkan</string>
+    <string name="gl">GL</string>
+    <string name="vulkan">Vulkan</string>
     <string name="gdi">gdi</string>
     <string name="backend_logs">Logs do backend</string>
     <string name="show_backend_logs_sidebar">Mostrar coletor de logs do backend na barra lateral do Wine</string>
@@ -1223,4 +1223,15 @@
     <string name="dxvk_more_issues">+%1$d outros…</string>
     <string name="container_export_failed">Não foi possível exportar o container. Confira o espaço disponível e se esse backup já existe.</string>
     <string name="android_compositor">Compositor do Android</string>
+    <string name="hud_display_transport">Transporte de imagem (DisplayX / X11)</string>
+    <string name="video_surface_format">Formato da superfície</string>
+    <string name="video_opengl_driver">Driver OpenGL</string>
+    <string name="video_opengl_native">Nativo (driver anterior)</string>
+    <string name="displayx_bypass">Ignorar X11 na apresentação</string>
+    <string name="displayx_performance">Modo de desempenho</string>
+    <string name="displayx_refresh">Apresentar na taxa de atualização</string>
+    <string name="displayx_every_buffer">Enviar todos os buffers</string>
+    <string name="displayx_precise">Apresentação precisa</string>
+    <string name="experimental_options_notice">Opções experimentais: podem alterar a estabilidade e o uso de memória.</string>
+    <string name="disable_experimental_bcn">Desativar BCn experimental</string>
 </resources>

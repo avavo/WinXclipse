@@ -32,10 +32,12 @@ struct Api {
 #define FIELD(n,result,args) result (*n##Fn) args {};
     SURFACE_PROCS(FIELD)
 #undef FIELD
+    void (*desiredPresentTime)(ASurfaceTransaction*,int64_t)=nullptr;
     bool available=false;
     Api() {
         if(android_get_device_api_level()<29)return;
         library=dlopen("libandroid.so",RTLD_NOW|RTLD_LOCAL);if(!library)return;
+        desiredPresentTime=reinterpret_cast<decltype(desiredPresentTime)>(dlsym(library,"ASurfaceTransaction_setDesiredPresentTime"));
         available=true;
 #define LOAD(n,result,args) n##Fn=reinterpret_cast<decltype(n##Fn)>(dlsym(library,#n));available&=n##Fn!=nullptr;
         SURFACE_PROCS(LOAD)
@@ -110,7 +112,7 @@ struct Scanout::State {
 };
 Scanout::Scanout(ANativeWindow* parent):window(parent){ANativeWindow_acquire(window);}
 Scanout::~Scanout(){hide();ANativeWindow_release(window);}
-bool Scanout::show(const std::shared_ptr<Frame>& frame,const std::array<int32_t,4>& destination) {
+bool Scanout::show(const std::shared_ptr<Frame>& frame,const std::array<int32_t,4>& destination,uint64_t desiredNanos) {
     if(destination[0]<0||destination[1]<0||destination[2]<=destination[0]||destination[3]<=destination[1])return false;
     if(!state)state=std::make_shared<State>(window);
     if(!state->control)return false;
@@ -121,6 +123,7 @@ bool Scanout::show(const std::shared_ptr<Frame>& frame,const std::array<int32_t,
     // Repeated geometry changes retain the same buffer as a separate SF ref.
     // Each setBuffer reference gets one matching release-fence retirement.
     frame->externalReaders.fetch_add(1);
+    if(desiredNanos&&api.desiredPresentTime)api.desiredPresentTime(transaction,int64_t(desiredNanos));
     api.ASurfaceTransaction_setBufferFn(transaction,state->control,frame->buffer,-1);
     ARect source{0,0,int32_t(frame->message.width),int32_t(frame->message.height)};
     ARect target{destination[0],destination[1],destination[2],destination[3]};

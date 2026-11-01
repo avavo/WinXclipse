@@ -2,7 +2,7 @@
 
 ## Achado no pacote original
 
-O `bin/wine-preloader` do asset `proton-9.0-arm64ec.txz` tem tamanho lógico de
+O `bin/wine-preloader` do asset `proton-9.0-arm64ec.tzst` tem tamanho lógico de
 2.099.266.128 bytes. Sua inspeção completa encontrou quase todo esse conteúdo
 preenchido por zeros. O extrator anterior enviava todos esses bytes para escrita.
 Não é seguro remover essa região do arquivo: offsets e tamanhos pertencem ao ELF.
@@ -64,3 +64,12 @@ permissão de symlink no Windows. Java/Kotlin/recursos compilaram. Não houve ge
 de APK/AAB/release. O teste foi feito no computador: tempo, alocação real e boot em
 ext4/F2FS de um Android ainda precisam de medição. Os números acima não são uma
 estimativa de tempo poupado ou de FPS.
+
+
+## Atualização do lote 40
+
+O TAR original foi recomprimido como Zstandard e o teste do preloader usa esse
+asset. O hash completo do TAR é idêntico ao XZ anterior. No S24+, descomprimir e
+hashear ambas as entradas levou 28.270 ms em XZ e 2.178 ms em Zstandard. Isso mede
+a etapa de descompressão, não o boot completo. O método de escrita esparsa e as
+verificações de entradas/rodapés permanecem. Ver feedback-2026-11-01.md.

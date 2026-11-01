@@ -819,8 +819,8 @@ E.g. <b>META</b> for <i>META key</i>, \n
     While you can duplicate shortcuts via their pop-up menu, it is advised to recreate them manually from inside your new container to prevent issues with mismatched drive paths.
 </string>    <string name="installing_contents">Installing contents...</string>
     <string name="renderer">Renderer</string>
-    <string name="gl">gl</string>
-    <string name="vulkan">vulkan</string>
+    <string name="gl">GL</string>
+    <string name="vulkan">Vulkan</string>
     <string name="gdi">gdi</string>
 
 
@@ -1349,4 +1349,15 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="dxvk_more_issues">+%1$d more…</string>
     <string name="container_export_failed">Could not export the container. Check available space and whether this backup already exists.</string>
     <string name="android_compositor">Android compositor</string>
+    <string name="hud_display_transport">Display transport (DisplayX / X11)</string>
+    <string name="video_surface_format">Surface format</string>
+    <string name="video_opengl_driver">OpenGL driver</string>
+    <string name="video_opengl_native">Native (previous driver)</string>
+    <string name="displayx_bypass">Bypass X11 presentation</string>
+    <string name="displayx_performance">Performance mode</string>
+    <string name="displayx_refresh">Present at refresh rate</string>
+    <string name="displayx_every_buffer">Submit every buffer</string>
+    <string name="displayx_precise">Precise presentation</string>
+    <string name="experimental_options_notice">Experimental options can affect stability and memory use.</string>
+    <string name="disable_experimental_bcn">Disable experimental BCn</string>
 </resources>

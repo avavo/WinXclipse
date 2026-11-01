@@ -30,5 +30,7 @@ public:
     Server& operator=(const Server&)=delete;
     std::shared_ptr<Frame> take(uint32_t window);
     void setFpsLimit(uint32_t fps);
+    void setOptions(bool everyBuffer,bool performance);
+    bool hasPending(uint32_t window);
 };
 }

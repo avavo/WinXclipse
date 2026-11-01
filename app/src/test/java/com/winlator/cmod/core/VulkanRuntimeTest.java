@@ -88,7 +88,7 @@ public class VulkanRuntimeTest {
         final File target = new File(prefix, "drive_c/Program Files/VulkanRT/" + VulkanRuntimePayload.VERSION + "/WinXclipse");
         final List<String> phases = new ArrayList<>();
         String fail = "", differentDriver = "";
-        boolean timeout, stuck, corruptInstall, win64 = true;
+        boolean timeout, stuck, corruptInstall, unsupportedBridge, win64 = true;
         Fixture() throws Exception {
             write(original64, "original Wine64"); write(original32, "original Wine32");
             write(new File(prefix, "drive_c/windows/system32/winevulkan.dll"), "bridge64");
@@ -110,6 +110,8 @@ public class VulkanRuntimeTest {
                 write(new File(prefix, "drive_c/windows/" + system + "/winevulkan.json"), "ICD");
             }
             if (phase.equals(fail)) return new VulkanRuntimeInstaller.Result(1, "failed");
+            if (unsupportedBridge && phase.startsWith("baseline-")) return new VulkanRuntimeInstaller.Result(1,
+                    "Failed to load Wine graphics driver supporting Vulkan. ERROR_INITIALIZATION_FAILED");
             if (phase.startsWith("native-")) {
                 assertEquals("original Wine64", read(original64));
                 assertEquals("original Wine32", read(original32));
@@ -132,6 +134,7 @@ public class VulkanRuntimeTest {
         assertTrue(new File(f.target, ".verified").isFile());
         assertTrue(f.phases.indexOf("baseline-x86") < f.phases.indexOf("install"));
         assertTrue(f.phases.indexOf("install") < f.phases.indexOf("native-x64"));
+        assertEquals("Only stop at actual loader transitions and after final validation", 3, Collections.frequency(f.phases, "stop"));
         f.phases.clear();
         assertTrue(f.prepare("runtime10-driver67"));
         assertTrue("No reinstall at every launch", f.phases.isEmpty());
@@ -226,5 +229,17 @@ public class VulkanRuntimeTest {
         write(f.original64, "installer overwrote its private loader");
         assertEquals("shared Wine loader", read(shared));
         backup.restore(); assertEquals("shared Wine loader", read(f.original64));
+    }
+    @Test public void explicitUnsupportedBridgeIsCachedAcrossRestartButExpiresAndRetriesChangedConfig() throws Exception {
+        Fixture f=new Fixture();f.unsupportedBridge=true;
+        assertFalse(f.prepare("same-runtime-driver"));f.originalLoaders();
+        File unavailable=new File(f.target,".baseline-unavailable");assertTrue(unavailable.isFile());
+        assertFalse(new File(f.target,".verified").exists());
+        java.lang.reflect.Field field=VulkanRuntimeInstaller.class.getDeclaredField("ATTEMPTED");field.setAccessible(true);
+        ((Set<?>)field.get(null)).clear();f.phases.clear();
+        assertFalse(f.prepare("same-runtime-driver"));assertTrue(f.phases.isEmpty());
+        assertTrue(unavailable.setLastModified(System.currentTimeMillis()-7L*60*60*1000));
+        ((Set<?>)field.get(null)).clear();assertFalse(f.prepare("same-runtime-driver"));assertTrue(f.phases.contains("baseline-x64"));
+        f.phases.clear();assertFalse(f.prepare("changed-driver"));assertTrue(f.phases.contains("baseline-x64"));
     }
 }

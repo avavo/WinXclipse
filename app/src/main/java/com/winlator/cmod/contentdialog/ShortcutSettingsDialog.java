@@ -206,7 +206,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
         final Spinner sRenderer = findViewById(R.id.SWineRenderer);
         sRenderer.setAdapter(new ThemedSpinnerAdapter<>(context,
                 Arrays.asList(context.getString(R.string.gl),
-                        context.getString(R.string.vulkan), context.getString(R.string.gdi))));
+                        context.getString(R.string.vulkan), "EGL")));
         final String containerRenderer = shortcut.container.getExtra("renderer", "vulkan");
         AppUtils.setSpinnerSelectionFromIdentifier(sRenderer,
                 shortcut.getExtra("renderer", containerRenderer));
@@ -267,6 +267,13 @@ public class ShortcutSettingsDialog extends ContentDialog {
 
         findViewById(R.id.BTVideoConfig).setOnClickListener(button ->
                 new VideoConfigDialog(context, new VideoConfigDialog.Config() {
+                    @Override public String getWineRenderer() { return StringUtils.parseIdentifier(((Spinner) findViewById(R.id.SWineRenderer)).getSelectedItem()); }
+                    @Override public void setWineRenderer(String value) { AppUtils.setSpinnerSelectionFromValue(findViewById(R.id.SWineRenderer), value); }
+                    @Override public java.util.Map<String,String> getVideoOptions() { return GraphicsDriverConfigDialog.parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag())); }
+                    @Override public void setVideoOptions(java.util.Map<String,String> values) {
+                        HashMap<String,String> merged=GraphicsDriverConfigDialog.parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()));
+                        merged.putAll(values);vGraphicsDriverConfig.setTag(GraphicsDriverConfigDialog.toGraphicsDriverConfig(merged));
+                    }
                     @Override public boolean isDisplayXEnabled() { return "1".equals(GraphicsDriverConfigDialog.parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag())).getOrDefault("displayX", "0")); }
                     @Override public void setDisplayXEnabled(boolean enabled) {
                         HashMap<String,String> options=GraphicsDriverConfigDialog.parseGraphicsDriverConfig(String.valueOf(vGraphicsDriverConfig.getTag()));
@@ -659,8 +666,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
         final CheckBox cbExperimentalPerformance = findViewById(R.id.CBExperimentalPerformance);
         final boolean containerExperimentalPerformance = "1".equals(
                 shortcut.container.getExtra("experimentalPerformance", "0"));
-        cbExperimentalPerformance.setChecked("1".equals(shortcut.getExtra(
-                "experimentalPerformance", containerExperimentalPerformance ? "1" : "0")));
+        cbExperimentalPerformance.setChecked(true);
 
         final String containerXPerfConfig = shortcut.container.getExtra("xperfConfig", "");
         final String[] pendingXPerfConfig = { shortcut.getExtra("xperfConfig", containerXPerfConfig) };
@@ -677,9 +683,12 @@ public class ShortcutSettingsDialog extends ContentDialog {
 
         final CheckBox cbExperimentalBCN = findViewById(R.id.CBExperimentalBCN);
         final boolean containerExperimentalBCN = "1".equals(
-                shortcut.container.getExtra("experimentalBCN", "0"));
+                shortcut.container.getExtra("experimentalBCN", "1"));
         cbExperimentalBCN.setChecked("1".equals(shortcut.getExtra(
                 "experimentalBCN", containerExperimentalBCN ? "1" : "0")));
+
+        final java.util.function.Supplier<String> inlineXPerfConfig=ExperimentalPerformanceDialog.bindOptions(getContentView(),pendingXPerfConfig[0]);
+        com.winlator.cmod.core.InlineBcnOptions.bind(getContentView(),vGraphicsDriverConfig,cbExperimentalBCN);
 
         findViewById(R.id.BTExperimentalPerformanceConfig).setOnClickListener(v -> {
             if (!cbExperimentalPerformance.isChecked()) {
@@ -800,8 +809,7 @@ public class ShortcutSettingsDialog extends ContentDialog {
                 shortcut.putExtra("experimentalPerformance",
                         experimentalPerformance == containerExperimentalPerformance
                                 ? null : (experimentalPerformance ? "1" : "0"));
-                KeyValueSet editedXPerfConfig = ExperimentalPerformanceDialog.parseConfig(
-                        pendingXPerfConfig[0]);
+                KeyValueSet editedXPerfConfig = ExperimentalPerformanceDialog.parseConfig(inlineXPerfConfig.get());
                 editedXPerfConfig.put("wow64Pin", cbWoW64PerformancePin.isChecked() ? "1" : "0");
                 editedXPerfConfig.put("translationTurbo", cbTranslationTurbo.isChecked() ? "1" : "0");
                 pendingXPerfConfig[0] = editedXPerfConfig.toString();

@@ -53,13 +53,18 @@ em resolução limitada por abertura, sem loop de readback durante o jogo. Os
 controles e painéis deixam o fundo aparecer; o fallback inicial permanece legível.
 
 A sidebar hospeda os editores, terminal e logs, e mantém sua pilha de navegação;
-X/voltar cancelam o editor atual. O terminal usa o mesmo executor da tela avulsa,
+X/voltar confirmam os ajustes da sessão; confirmações de ações mantêm seus botões. O terminal usa o mesmo executor da tela avulsa,
 encerra seu worker ao fechar e ignora saídas tardias. A captura de botões para
 atribuição de controle físico é encaminhada ao editor incorporado. CPU e RAM voltam a cartões verticais e todos os processos participam
 da rolagem do painel. Ações de seletor compartilham 48dp, ícone de 24dp e intervalo
-de 2dp. O Wine fica fora e o compositor dentro da engrenagem, conforme o pedido
-mais recente. Ajuda DisplayX deixa de ocupar o formulário. MangoHUD 1 usa 65% das
+de 2dp. O compositor Android fica fora e o Wine dentro da engrenagem, conforme a correção
+mais recente de 01/11. Ajuda DisplayX deixa de ocupar o formulário. MangoHUD 1 usa 65% das
 dimensões anteriores e a prévia de capa usa fitCenter.
 
 Essas alterações são verificadas por testes de geometria, callbacks e seleção.
 A aprovação visual dos novos pixels no aparelho continua distinta desses testes.
+
+
+A continuação está registrada em [feedback-2026-11-01.md](feedback-2026-11-01.md):
+sem rodapé OK/Cancelar nos ajustes da sessão, DisplayX condicional, formato da
+superfície, experimentais inline e espaçamento padronizado.

@@ -31,6 +31,22 @@ public class XServerView extends GLSurfaceView {
     private final DisplayRenderer renderer;
     private final AtomicBoolean frameDispatchPosted = new AtomicBoolean();
     private volatile float preferredRefreshRate;
+    private boolean presentAtRefresh=true,precisePresentation;
+    private volatile long targetPresentationNanos;
+    public long getTargetPresentationNanos() { return targetPresentationNanos; }
+    public void configureVideo(java.util.Map<String,String> options) {
+        boolean direct=vulkan&&com.winlator.cmod.core.VideoSettings.enabled(options,"displayX",false);
+        presentAtRefresh=!direct||com.winlator.cmod.core.VideoSettings.enabled(options,"displayXRefresh",true);
+        precisePresentation=direct&&com.winlator.cmod.core.VideoSettings.enabled(options,"displayXPrecise",false);
+        if(vulkan) {
+            ((VulkanRenderer)renderer).configureVideo(options);
+            boolean performance=direct&&com.winlator.cmod.core.VideoSettings.enabled(options,"displayXPerformance",true);
+            if(renderThread!=null)queueEvent(()->{
+                try {android.os.Process.setThreadPriority(performance?android.os.Process.THREAD_PRIORITY_DISPLAY:android.os.Process.THREAD_PRIORITY_DEFAULT);}
+                catch(SecurityException denied){android.util.Log.w("XServerView","Display priority unavailable; retaining current priority",denied);}
+            });
+        }
+    }
     private final boolean vulkan;
     private HandlerThread renderThread;
     private volatile Handler renderHandler;
@@ -148,15 +164,18 @@ public class XServerView extends GLSurfaceView {
         // Submit at most one compositor frame per Android display pulse. Guest
         // FPS remains independent, while SurfaceFlinger always receives a
         // complete frame instead of an arbitrary mid-scan update.
-        if (!isAttachedToWindow()) {
+        if (!isAttachedToWindow() || !presentAtRefresh && !precisePresentation) {
+            targetPresentationNanos=0;
             dispatchFrame();
             return;
         }
         if (frameDispatchPosted.compareAndSet(false, true)) {
-            postOnAnimation(() -> {
+            post(() -> android.view.Choreographer.getInstance().postFrameCallback(frameTime -> {
+                targetPresentationNanos=precisePresentation ? frameTime+(long)(1_000_000_000d/
+                        (preferredRefreshRate>0?preferredRefreshRate:60)) : 0;
                 frameDispatchPosted.set(false);
                 dispatchFrame();
-            });
+            }));
         }
     }
 
