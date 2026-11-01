@@ -25,3 +25,17 @@ Wine/Proton, emuladores, DXVK/VKD3D e drivers), com teste de regressão. O arqui
 imagefs.tzst foi listado: ele não contém dados de prefixos de usuário ou contents.
 Isso cobre a preservação no fluxo de manutenção testado; a atualização Android
 real permanece pendente da assinatura original e de validação no aparelho.
+
+## Busca adicional de recuperação — 01/11/2026
+
+Após o usuário informar que não sabe onde a versão antiga foi compilada, a
+busca foi ampliada ao disco C:, incluindo nomes sem extensão. Nenhum material
+de assinatura compatível foi identificado. A instalação local de teste já usa
+a chave estável nova, que permite atualizar as builds de teste entre si.
+
+Também foram consultadas as oito execuções históricas do GitHub Actions e suas
+árvores de código, inclusive commits ausentes dos refs locais. Todas contêm
+somente testkey_untrusted.jks, cujo certificado é B6DA01480EEFD5FBF2CD3771B8D1021EC791304BDD6C4BF41D3FAABAD48EE5E1,
+diferente do certificado E9387720… da 0.9.5 fornecida. Os workflows arquivam
+somente APKs; não há secrets de Actions nem caches disponíveis nesse repositório.
+Esses caminhos de recuperação não forneceram a chave privada original.
