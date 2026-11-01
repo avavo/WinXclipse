@@ -103,4 +103,4 @@ encerramento abrupto com o checkpoint persistido. Os testes simulam interrupçõ
 nos mesmos caminhos de publicação/recuperação; não equivalem a encerrar o app em
 um aparelho real nem garantem recuperação após perda de energia/corrupção do
 filesystem. Visual, lifecycle Android completo, instalação dos pacotes e abertura
-real de jogos continuam na validação da Parte 12.
+real de jogos continuam na validação da Parte 13.

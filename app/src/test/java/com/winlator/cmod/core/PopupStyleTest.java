@@ -68,6 +68,20 @@ public class PopupStyleTest {
         dialog.dismiss();
     }
 
+    @Test public void singleChoiceHelperKeepsFallbackSurfaceAfterShowAndReturnsSelection() {
+        AtomicInteger selected = new AtomicInteger(-1);
+        ContentDialog.showSingleChoiceList(activity, R.string.configuration,
+                new String[]{"first", "second"}, selected::set);
+        ContentDialog dialog = (ContentDialog)ShadowDialog.getLatestDialog();
+        GradientDrawable background = (GradientDrawable)dialog.getWindow().getDecorView().getBackground();
+        assertEquals(PopupStyle.surface(activity, false).getColor().getDefaultColor(),
+                background.getColor().getDefaultColor());
+        android.widget.ListView list = dialog.findViewById(R.id.ListView);
+        list.performItemClick(null, 1, 1);
+        assertEquals(1, selected.get());
+        assertFalse(dialog.isShowing());
+    }
+
     @Test public void appCompatBuilderKeepsButtonCallbacks() {
         AtomicInteger clicks = new AtomicInteger();
         androidx.appcompat.app.AlertDialog dialog = new PopupStyle.Builder(activity).setMessage("test")

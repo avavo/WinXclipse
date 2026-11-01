@@ -46,6 +46,6 @@ foram inspecionadas as 48 DLLs reais dos arquivos embarcados DXVK/D8VK/DirectDra
 nGlide, sem executá-las. Compilação Java/Kotlin/recursos e PT/ES (1170 strings,
 11 arrays) passaram. Sem APK/release.
 
-Gameplay D3D8/9/10/11/12, ARM64EC e retomada após interrupção real seguem na Parte 12.
+Gameplay D3D8/9/10/11/12, ARM64EC e retomada após interrupção real seguem na Parte 13.
 Esse achado é uma causa concreta possível de falha de início; não prova que seja
 a causa de todos os encerramentos ou da regressão sustentada de FPS.

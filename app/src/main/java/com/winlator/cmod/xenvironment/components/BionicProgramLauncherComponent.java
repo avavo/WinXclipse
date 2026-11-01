@@ -634,6 +634,9 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         try {
             File bin = new File(winePath);
             File wineRoot = bin.getParentFile();
+            // Imported/copied prefixes can leave 0771 on this directory. Wine
+            // refuses it even when the runtime preparation receipt is current.
+            com.winlator.cmod.core.WineServerDirectory.prepare(prefix);
             WinePrefixBootstrap.prepare(prefix, wineInfo.isWin64(),
                     container.getWineVersion(), bin, new File(wineRoot, "share/wine/wine.inf"),
                     wineInfo.usesNativeArm64() ? null : new File(imageFs.getBinDir(), "box64"),

@@ -61,7 +61,7 @@ os intermediários de compilação/teste, sem APK instalável, AAB ou release.
 
 Os testes medem geometria e eventos do Android em JVM; não comprovam aparência
 final, antialiasing, gestos em hardware ou desempenho da GPU. Não há dispositivo
-ADB conectado. A revisão visual completa do app e os cenários físicos da Parte 12
+ADB conectado. A revisão visual completa do app e os cenários físicos da Parte 13
 continuam pendentes.
 
 ## Mensagens e idioma — lote 32
@@ -75,7 +75,7 @@ caminhos e estados internos de FG não são traduzidos.
 Detalhes técnicos de falha permanecem nos logs; as mensagens de ação exibidas ao
 usuário são localizadas. A cobertura chegou a 1315 strings e 11 listas por idioma.
 Outros diálogos de controles/container/sessão continuam na auditoria da Parte 5,
-e a revisão visual em aparelho segue na Parte 12.
+e a revisão visual em aparelho segue na Parte 13.
 
 ## Diálogos e perfis de gamepad — lote 33
 

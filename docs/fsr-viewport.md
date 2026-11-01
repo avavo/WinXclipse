@@ -35,4 +35,4 @@ elimina. O teste e a reprodução ficam disponíveis no repositório.
 
 WebGL não substitui a GPU Android. Aparência nos jogos, qualidade temporal,
 motion estimation, pacing e desempenho sustentado continuam na matriz de
-aparelhos da Parte 12. Nenhum APK/release foi gerado.
+aparelhos da Parte 13. Nenhum APK/release foi gerado.

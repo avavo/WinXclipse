@@ -98,6 +98,13 @@ do plano direto e erros terminais de fences. POLLERR/HUP/NVAL encerram a espera
 com desconexão do produtor, sem busy loop nem liberação antecipada do slot.
 Não simula um driver Vulkan nem comprova scanout Android.
 
-Ainda falta aparelho para confirmar imagem/cor, rotação, alternância com efeitos
-e blur, retorno de background, recriação/teardown, ABI/driver e desempenho em jogo.
+O cadastro de famílias das filas pertence ao dispositivo Vulkan e é liberado
+com ele; recriar dispositivos não acumula handles em uma tabela global antiga.
+
+O probe independente no S24+ confirmou importação AHB, SYNC_FD e carregamento dos
+módulos; protocolo/SCM_RIGHTS e handle AHB passaram por socket anônimo real.
+Socket de arquivo foi bloqueado para o UID shell, sem execução dentro do app.
+Ainda falta executar o app alterado para confirmar imagem/cor, rotação,
+alternância com efeitos e blur, retorno de background, recriação/teardown,
+ABI/driver e desempenho em jogo. Ver [device-probe.md](device-probe.md).
 Não há garantia dos 80–100 FPS citados nem de alívio de 100% da CPU.

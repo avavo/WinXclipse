@@ -153,8 +153,6 @@ public final class CommunityConfigExportDialogFragment extends DialogFragment {
         if (dialog != null && dialog.getWindow() != null) {
             dialog.getWindow().setLayout(Math.min(dp(520), getResources().getDisplayMetrics().widthPixels - dp(32)),
                     ViewGroup.LayoutParams.WRAP_CONTENT);
-            dialog.getWindow().setBackgroundDrawableResource(AppUtils.isDarkMode(requireContext())
-                    ? R.drawable.artwork_dialog_background : R.drawable.artwork_dialog_background_light);
         }
     }
 

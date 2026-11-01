@@ -15,6 +15,7 @@ import com.winlator.cmod.core.DirectoryInstall;
 import com.winlator.cmod.core.ContentVersion;
 import com.winlator.cmod.core.StreamUtils;
 import com.winlator.cmod.core.TarCompressorUtils;
+import com.winlator.cmod.xenvironment.ImageFs;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -1119,6 +1120,14 @@ public class ContentsManager {
 //
 //            EvshimPatcher.patchWineTree(context, wineRoot, arm64ec);
         }
+        if (success && profile.type == ContentProfile.ContentType.CONTENT_TYPE_FEXCORE) {
+            try {
+                com.winlator.cmod.core.FexUnixLibs.removeStale(fexUnixLibDir(), appliedTargets(profile));
+            } catch (java.io.IOException error) {
+                Log.e(TAG, "Cannot remove stale FEX Unix libraries", error);
+                return false;
+            }
+        }
         return success;
     }
 
@@ -1129,6 +1138,21 @@ public class ContentsManager {
         for (ContentProfile.ContentFile file : profile.fileList) {
             if (!RuntimeFiles.samePayload(new File(root, file.source), new File(getPathFromTemplate(file.target)))) return false;
         }
+        if (profile.type == ContentProfile.ContentType.CONTENT_TYPE_FEXCORE) {
+            try {
+                return com.winlator.cmod.core.FexUnixLibs.matches(fexUnixLibDir(), appliedTargets(profile));
+            } catch (java.io.IOException error) { return false; }
+        }
         return true;
+    }
+
+    private File fexUnixLibDir() {
+        return new File(ImageFs.find(context).getLibDir(), "wine/aarch64-unix");
+    }
+
+    private java.util.List<File> appliedTargets(ContentProfile profile) {
+        java.util.List<File> targets = new java.util.ArrayList<>();
+        for (ContentProfile.ContentFile file : profile.fileList) targets.add(new File(getPathFromTemplate(file.target)));
+        return targets;
     }
 }

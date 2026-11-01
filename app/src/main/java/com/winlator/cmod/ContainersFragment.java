@@ -592,20 +592,6 @@ public class ContainersFragment extends Fragment {
         resolutionDialog = dialog;
         dialog.setOnCancelListener(d -> abortCommunityImport());
         dialog.show();
-        if (dialog.getWindow() != null) {
-            // Purple-bordered background + blur, matching the artwork dialogs.
-            // Light mode uses a lighter dim so the blur does not go too dark.
-            boolean darkMode = AppUtils.isDarkMode(requireContext());
-            dialog.getWindow().setBackgroundDrawableResource(darkMode
-                    ? R.drawable.artwork_dialog_background
-                    : R.drawable.artwork_dialog_background_light);
-            if (!darkMode) dialog.getWindow().setDimAmount(0.25f);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                dialog.getWindow().setBackgroundBlurRadius(48);
-            }
-            dialog.getWindow().addFlags(
-                    android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND);
-        }
     }
 
     private void installImportedConfiguration(JSONObject manifest,

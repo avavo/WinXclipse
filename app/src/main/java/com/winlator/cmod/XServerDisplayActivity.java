@@ -4122,8 +4122,6 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
 
         final Spinner sProfile = dialog.findViewById(R.id.SProfile);
 
-        dialog.getWindow().setBackgroundDrawableResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
-        sProfile.setPopupBackgroundResource(isDarkMode ? R.drawable.content_dialog_background_dark : R.drawable.content_dialog_background);
 
         Runnable loadProfileSpinner = () -> {
             ArrayList<ControlsProfile> profiles = inputControlsManager.getProfiles(true);

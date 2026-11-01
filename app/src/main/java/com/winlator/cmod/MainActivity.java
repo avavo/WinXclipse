@@ -611,12 +611,6 @@ public class MainActivity extends LocalizedActivity implements NavigationView.On
     public void showSaveEditDialog(Save saveToEdit) {
         saveEditDialog = new SaveEditDialog(this, saveManager, containerManager, saveToEdit);
 
-        // Check for dark mode and set the background accordingly
-        if (isDarkMode) {
-            saveEditDialog.getWindow().setBackgroundDrawableResource(R.drawable.content_dialog_background_dark);
-        } else {
-            saveEditDialog.getWindow().setBackgroundDrawableResource(R.drawable.content_dialog_background);
-        }
 
         saveEditDialog.show();
     }
@@ -691,12 +685,6 @@ public class MainActivity extends LocalizedActivity implements NavigationView.On
             } else {
                 saveSettingsDialog = new SaveSettingsDialog(this, saveManager, containerManager);
 
-                // Check for dark mode and set the background accordingly
-                if (isDarkMode) {
-                    saveSettingsDialog.getWindow().setBackgroundDrawableResource(R.drawable.content_dialog_background_dark);
-                } else {
-                    saveSettingsDialog.getWindow().setBackgroundDrawableResource(R.drawable.content_dialog_background);
-                }
 
                 saveSettingsDialog.show();
             }
@@ -794,11 +782,6 @@ public class MainActivity extends LocalizedActivity implements NavigationView.On
         ContentDialog dialog = new ContentDialog(this, R.layout.about_dialog);
         dialog.findViewById(R.id.LLBottomBar).setVisibility(View.GONE);
 
-        if (isDarkMode) {
-            dialog.getWindow().setBackgroundDrawableResource(R.drawable.artwork_dialog_background);
-        } else {
-            dialog.getWindow().setBackgroundDrawableResource(R.drawable.artwork_dialog_background_light);
-        }
         // Pin the content to the top so no empty band sits above the header.
         View aboutContent = dialog.getInflatedLayout();
         if (aboutContent != null) {

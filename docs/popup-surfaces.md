@@ -32,12 +32,17 @@ blur desativado, o fundo fica mais opaco para preservar a leitura, sem fundo pre
 chapado. A API e a necessidade de fallback seguem a
 [documentação do Android](https://source.android.com/docs/core/display/window-blurs?hl=en).
 
-A barra lateral pertence à janela OpenGL do jogo. Ao abri-la, `SidebarBackdrop`
+A barra lateral pertence à janela do jogo, com compositor Vulkan ou OpenGL. Ao abri-la, `SidebarBackdrop`
 usa PixelCopy para uma única captura de no máximo 320 px no maior lado, suavizada
 em um worker. O desenho fica alinhado à Surface original e recebe a camada de cor.
 Fechar a barra invalida resultados pendentes; destruir a Activity encerra o worker.
 Não há captura periódica, filtro aplicado ao renderer ou leitura contínua da GPU.
 O fundo da barra é uma imagem do momento da abertura; não é vídeo com blur ao vivo.
+
+No lote 38, removidos os overrides de fundo/blur aplicados por alguns chamadores
+depois de abrir a janela. Comunidade, capas, exportação, seletores e avisos seguem
+a mesma política, inclusive ao desativar blur no sistema. O fundo legível é
+configurado antes do primeiro frame, e o listener habilita o blur quando possível.
 
 ## Variáveis e presets
 

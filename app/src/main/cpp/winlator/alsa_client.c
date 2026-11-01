@@ -5,6 +5,7 @@
 
 #include <pthread.h> // For threading (mutex, condition variables)
 #include <stdint.h>  // For standard integer types like uint8_t
+#include <time.h>
 
 #include <malloc.h>      // For malloc/calloc
 #include <android/log.h> // For logging
@@ -26,25 +27,7 @@
  * This struct holds all the state for our simulated audio device (the "pacer").
  * It manages a ring buffer and a consumer thread to create back-pressure.
  */
-typedef struct {
-    // --- Ring Buffer ---
-    uint8_t *buffer;          // The pointer to the actual memory for our audio buffer.
-    size_t capacity_bytes;    // The total size of the buffer in bytes.
-    size_t write_pos_bytes;   // The position where the next write should start.
-    size_t read_pos_bytes;    // The position where the consumer thread should read from.
-    size_t available_bytes;   // How many bytes of data are currently in the buffer.
-
-    // --- Audio Properties ---
-    int sample_rate;          // The sample rate (e.g., 44100), needed for the consumer thread's timing.
-    int frame_size_bytes;     // The size of a single audio frame in bytes (e.g., 4 bytes for 16-bit stereo).
-
-    // --- Threading and State Management ---
-    pthread_t consumer_thread; // The handle to our background consumer thread.
-    pthread_mutex_t mutex;     // The lock to make our buffer thread-safe.
-    pthread_cond_t cond_not_full;  // A condition variable to signal when the buffer has space.
-    pthread_cond_t cond_not_empty; // A condition variable to signal when the buffer has data.
-    volatile int running;      // The state of the pacer: 0=stopped, 1=running, 2=paused.
-} PacerContext;
+#include "audio_pacer.h"
 
 
 
@@ -96,78 +79,6 @@ static int get_bytes_per_frame(int format, int channelCount) {
  * It uses a monotonic clock to stay in sync and avoid timing drift.
  */
 #include <sched.h>
-
-void *pacer_consumer_thread_func(void *arg) {
-    PacerContext *ctx = (PacerContext*)arg;
-
-    /* No SCHED_FIFO here: this thread only drains a ring buffer on a
-     * 10 ms monotonic schedule, and real-time priority would let it preempt
-     * the render/X11 threads on the Exynos big cores. */
-
-    LOGI("Pacer consumer thread started with high-precision timing.");
-
-
-    struct timespec next_wakeup_time;
-    clock_gettime(CLOCK_MONOTONIC, &next_wakeup_time);
-
-    while (ctx->running != 0) {
-        pthread_mutex_lock(&ctx->mutex);
-
-        while (ctx->available_bytes == 0 && ctx->running == 1) {
-            pthread_cond_wait(&ctx->cond_not_empty, &ctx->mutex);
-            if (ctx->running != 1) break;
-        }
-
-        if (ctx->running != 1) {
-            pthread_mutex_unlock(&ctx->mutex);
-            continue;
-        }
-
-        // Consume a small, consistent chunk of audio data (e.g., 5ms)
-        int consume_chunk_frames = ctx->sample_rate / 100; // 10ms
-        int consume_chunk_bytes = consume_chunk_frames * ctx->frame_size_bytes;
-        if (consume_chunk_bytes == 0) consume_chunk_bytes = ctx->frame_size_bytes; // Consume at least one frame
-        if (consume_chunk_bytes > ctx->available_bytes) {
-            consume_chunk_bytes = ctx->available_bytes;
-        }
-
-        ctx->read_pos_bytes = (ctx->read_pos_bytes + consume_chunk_bytes) % ctx->capacity_bytes;
-        ctx->available_bytes -= consume_chunk_bytes;
-
-        // Calculate the duration of the consumed audio chunk in nanoseconds
-        long duration_ns = (long)(((double)consume_chunk_bytes / ctx->frame_size_bytes / ctx->sample_rate) * 1000000000.0);
-
-        // Schedule the next wakeup time
-        next_wakeup_time.tv_nsec += duration_ns;
-        if (next_wakeup_time.tv_nsec >= 1000000000) {
-            next_wakeup_time.tv_sec++;
-            next_wakeup_time.tv_nsec -= 1000000000;
-        }
-
-        pthread_cond_broadcast(&ctx->cond_not_full);
-        pthread_mutex_unlock(&ctx->mutex);
-
-        // Sleep until the calculated next wakeup time
-        struct timespec current_time;
-        clock_gettime(CLOCK_MONOTONIC, &current_time);
-
-        if ((current_time.tv_sec > next_wakeup_time.tv_sec) ||
-            (current_time.tv_sec == next_wakeup_time.tv_sec && current_time.tv_nsec > next_wakeup_time.tv_nsec)) {
-            // We're late; immediately schedule next wakeup from now
-            next_wakeup_time = current_time;
-        }
-
-        long sleep_ns = (next_wakeup_time.tv_sec - current_time.tv_sec) * 1000000000L + (next_wakeup_time.tv_nsec - current_time.tv_nsec);
-
-        if (sleep_ns > 0) {
-            struct timespec sleep_duration = {0, sleep_ns};
-            nanosleep(&sleep_duration, NULL);
-        }
-    }
-
-    LOGI("Pacer consumer thread exiting.");
-    return NULL;
-}
 
 static AAudioStream *aaudioCreate(int32_t format, int8_t channelCount, int32_t sampleRate, int32_t bufferSize) {
     aaudio_result_t result;
@@ -224,6 +135,9 @@ static void aaudioFlush(AAudioStream *aaudioStream) {
 JNIEXPORT jlong JNICALL
 Java_com_winlator_cmod_alsaserver_ALSAClient_simulatedCreate(JNIEnv *env, jobject obj, jint format,
                                                              jbyte channelCount, jint sampleRate, jint bufferSize) {
+    int frame_size = get_bytes_per_frame(format, channelCount);
+    if (channelCount <= 0 || channelCount > 8 || sampleRate <= 0 || sampleRate > 768000 || frame_size <= 0
+            || bufferSize <= 0 || (uint64_t)bufferSize * frame_size > 64u * 1024u * 1024u) return 0;
     // 1. Allocate memory for the context struct. We use calloc to ensure all fields are zero-initialized.
     PacerContext *ctx = (PacerContext*)calloc(1, sizeof(PacerContext));
     if (!ctx) {
@@ -232,8 +146,8 @@ Java_com_winlator_cmod_alsaserver_ALSAClient_simulatedCreate(JNIEnv *env, jobjec
     }
 
     // 2. Calculate and store the audio properties passed in from Java.
-    ctx->frame_size_bytes = get_bytes_per_frame(format, channelCount);
-    ctx->capacity_bytes = bufferSize * ctx->frame_size_bytes;
+    ctx->frame_size_bytes = frame_size;
+    ctx->capacity_bytes = (size_t)bufferSize * frame_size;
     ctx->sample_rate = sampleRate;
 
     // 3. Allocate the actual memory for our ring buffer.
@@ -245,9 +159,14 @@ Java_com_winlator_cmod_alsaserver_ALSAClient_simulatedCreate(JNIEnv *env, jobjec
     }
 
     // 4. Initialize the threading components. These are essential for thread safety.
-    pthread_mutex_init(&ctx->mutex, NULL);
-    pthread_cond_init(&ctx->cond_not_full, NULL);
-    pthread_cond_init(&ctx->cond_not_empty, NULL);
+    if (pthread_mutex_init(&ctx->mutex, NULL) != 0) { free(ctx->buffer); free(ctx); return 0; }
+    if (pthread_cond_init(&ctx->cond_not_full, NULL) != 0) {
+        pthread_mutex_destroy(&ctx->mutex); free(ctx->buffer); free(ctx); return 0;
+    }
+    if (pthread_cond_init(&ctx->cond_not_empty, NULL) != 0) {
+        pthread_cond_destroy(&ctx->cond_not_full); pthread_mutex_destroy(&ctx->mutex);
+        free(ctx->buffer); free(ctx); return 0;
+    }
 
     // 5. The 'running' state is already 0 from calloc, indicating it's initially stopped.
     // ctx->running = 0;
@@ -268,12 +187,15 @@ JNIEXPORT jint JNICALL
 Java_com_winlator_cmod_alsaserver_ALSAClient_simulatedWrite(JNIEnv *env, jobject obj, jlong streamPtr, jobject buffer,
                                                             jint numFrames) {
     PacerContext *ctx = (PacerContext*)streamPtr;
-    if (!ctx || ctx->running != 1) {
-        return -1;
-    }
+    if (!ctx || !buffer || numFrames < 0) return -1;
+    if (numFrames == 0) return 0;
 
     void *data = (*env)->GetDirectBufferAddress(env, buffer);
-    int bytes_to_write = numFrames * ctx->frame_size_bytes;
+    uint64_t requested = (uint64_t)numFrames * ctx->frame_size_bytes;
+    jlong capacity = (*env)->GetDirectBufferCapacity(env, buffer);
+    // An oversized write can never fit and previously waited forever.
+    if (!data || capacity < 0 || requested > (uint64_t)capacity || requested > ctx->capacity_bytes) return -1;
+    size_t bytes_to_write = (size_t)requested;
 
     pthread_mutex_lock(&ctx->mutex);
 
@@ -326,8 +248,9 @@ Java_com_winlator_cmod_alsaserver_ALSAClient_simulatedStart(JNIEnv *env, jobject
     // Only start the thread if it's currently stopped (state 0).
     if (ctx->running == 0) {
         ctx->running = 1; // Set state to "running".
-        // Create the background thread, passing it our consumer function and the context.
-        pthread_create(&ctx->consumer_thread, NULL, pacer_consumer_thread_func, ctx);
+        if (pthread_create(&ctx->consumer_thread, NULL, pacer_consumer_thread_func, ctx) == 0)
+            ctx->thread_created = 1;
+        else ctx->running = 0;
     }
     else if (ctx->running == 2) { // If it was paused...
         ctx->running = 1; //...just set the state back to "running".
@@ -377,15 +300,13 @@ JNIEXPORT void JNICALL
 Java_com_winlator_cmod_alsaserver_ALSAClient_simulatedPause(JNIEnv *env, jobject obj, jlong streamPtr) {
     PacerContext *ctx = (PacerContext*)streamPtr;
     // Safety check: We can only pause if the stream is currently running.
-    if (!ctx || ctx->running != 1) {
-        return;
-    }
+    if (!ctx) return;
 
     // Lock the mutex to safely modify the state.
     pthread_mutex_lock(&ctx->mutex);
 
     // Set the state to "paused".
-    ctx->running = 2;
+    if (ctx->running == 1) ctx->running = 2;
 
     // It's crucial to wake up any threads that might be waiting.
     // If simulatedWrite is waiting for space, or the consumer is waiting for data,
@@ -427,12 +348,6 @@ Java_com_winlator_cmod_alsaserver_ALSAClient_simulatedClose(JNIEnv *env, jobject
     // 1. Lock the mutex to safely change the state.
     pthread_mutex_lock(&ctx->mutex);
 
-    // 2. Check if the thread is already shut down. If so, just unlock and return.
-    if (ctx->running == 0) {
-        pthread_mutex_unlock(&ctx->mutex);
-        return;
-    }
-
     // 3. Set the state to "stopped". This is the signal for the consumer thread's loop to exit.
     ctx->running = 0;
 
@@ -448,12 +363,8 @@ Java_com_winlator_cmod_alsaserver_ALSAClient_simulatedClose(JNIEnv *env, jobject
 
     // 6. Wait for the consumer thread to finish executing completely. This is a crucial
     //    blocking call that prevents us from freeing memory while it's still in use.
-    if (ctx->consumer_thread) {
-        ctx->running = 0;
-        pthread_cond_broadcast(&ctx->cond_not_empty);
-        pthread_cond_broadcast(&ctx->cond_not_full);
+    if (ctx->thread_created) {
         pthread_join(ctx->consumer_thread, NULL);
-        ctx->consumer_thread = 0;
     }
 
     // 7. Now that the thread is gone, we can safely destroy the threading tools.

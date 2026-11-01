@@ -39,6 +39,13 @@ encerramento global de processos ou seu comportamento de continuar após falha.
    centrais continuam presentes e não vazios. A identidade inclui o pacote, caminho,
    tamanho, data e SHA-256 do launcher e do `wine.inf`.
 
+Antes dessa sequência, e mesmo quando o recibo dispensa Wineboot, o launcher
+restringe `.wine/.wineserver` a 0700. Uma importação/cópia podia manter 0771 e o
+Wine recusava iniciar: um log real do S24+ registrou exatamente essa falha com
+exit 1 antes do jogo. O reparo preserva o conteúdo do diretório, recusa symlinks,
+outro proprietário e falha de chmod; não aplica chmod recursivo no prefixo.
+Ver [device-probe.md](device-probe.md) para reprodução do helper em ART sem APK.
+
 Falha ou timeout de preparação interrompe o lançamento, mantém o recibo inválido
 para permitir nova tentativa e mostra o erro. A saída de cada fase vai ao log de
 processos. Sair da sessão cancela a preparação; comandos de limpeza ainda podem

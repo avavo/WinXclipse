@@ -37,6 +37,10 @@ public final class PopupStyle {
         if (window == null) return;
         View decor = window.getDecorView();
         if (decor.getTag(R.id.winx_popup_style) != null) return;
+        // The first traversal can occur after show() returns. Keep that first
+        // frame legible as well; the attach listener enables supported blur.
+        window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+        update(window, dialog.getContext(), false);
         View.OnAttachStateChangeListener listener = new View.OnAttachStateChangeListener() {
             private Consumer<Boolean> blurListener;
             @Override public void onViewAttachedToWindow(View view) {

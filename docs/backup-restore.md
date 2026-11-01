@@ -29,5 +29,5 @@ executadas sem gerar APK/AAB.
 
 Os testes usam streams e diretórios locais. Restauração real pelo seletor Android,
 permissões de provedor, backups antigos e preservação integral dos dados em aparelho
-continuam na Parte 12. A extração do backup completo mantém sua semântica anterior;
+continuam na Parte 13. A extração do backup completo mantém sua semântica anterior;
 esta mudança não a transforma em uma transação recuperável após perda de energia.

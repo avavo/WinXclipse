@@ -168,12 +168,6 @@ public class SavesFragment extends Fragment {
                 })
                 .create();
 
-        // Apply background based on isDarkMode
-        if (isDarkMode) {
-            dialog.getWindow().setBackgroundDrawableResource(R.drawable.content_dialog_background_dark);
-        } else {
-            dialog.getWindow().setBackgroundDrawableResource(R.drawable.content_dialog_background);
-        }
 
         dialog.show();
     }

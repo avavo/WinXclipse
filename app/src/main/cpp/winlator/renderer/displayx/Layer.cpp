@@ -49,6 +49,9 @@ struct Device {
     std::unordered_set<VkFramebuffer> directFramebuffers;
     std::unordered_map<VkRenderPass,VkRenderPass> renderPasses;
     std::unordered_set<VkSwapchainKHR> retiredLegacy;
+    // Lifetime follows this device; repeated device recreation must not leave
+    // stale queue handles in a process-wide family registry.
+    std::unordered_map<VkQueue,uint32_t> queueFamilies;
 #define DEVICE_PROCS(X) \
     X(DestroyDevice) X(CreateSwapchainKHR) X(DestroySwapchainKHR) X(GetSwapchainImagesKHR) \
     X(AcquireNextImageKHR) X(AcquireNextImage2KHR) X(QueuePresentKHR) X(QueueSubmit) X(QueueSubmit2) \
@@ -506,15 +509,19 @@ VKAPI_ATTR VkResult VKAPI_CALL present(VkQueue queue,const VkPresentInfoKHR* inf
     }
     return overall;
 }
-std::unordered_map<VkQueue,uint32_t> queueFamilies;
-uint32_t familyOf(VkQueue queue){std::lock_guard<std::mutex> l(registryMutex);auto i=queueFamilies.find(queue);return i==queueFamilies.end()?UINT32_MAX:i->second;}
+uint32_t familyOf(VkQueue queue){
+    std::lock_guard<std::mutex> l(registryMutex);auto d=devices.find(key(queue));
+    if(d==devices.end())return UINT32_MAX;
+    auto i=d->second->queueFamilies.find(queue);
+    return i==d->second->queueFamilies.end()?UINT32_MAX:i->second;
+}
 VKAPI_ATTR void VKAPI_CALL getQueue(VkDevice handle,uint32_t family,uint32_t index,VkQueue* out) {
     auto d=dev(handle);if(!d)return;d->GetDeviceQueue(handle,family,index,out);
-    if(*out){std::lock_guard<std::mutex> l(registryMutex);devices[key(*out)]=d;queueFamilies[*out]=family;}
+    if(*out){std::lock_guard<std::mutex> l(registryMutex);devices[key(*out)]=d;d->queueFamilies[*out]=family;}
 }
 VKAPI_ATTR void VKAPI_CALL getQueue2(VkDevice handle,const VkDeviceQueueInfo2* info,VkQueue* out) {
     auto d=dev(handle);if(!d||!d->GetDeviceQueue2)return;d->GetDeviceQueue2(handle,info,out);
-    if(*out){std::lock_guard<std::mutex> l(registryMutex);devices[key(*out)]=d;queueFamilies[*out]=info->queueFamilyIndex;}
+    if(*out){std::lock_guard<std::mutex> l(registryMutex);devices[key(*out)]=d;d->queueFamilies[*out]=info->queueFamilyIndex;}
 }
 VKAPI_ATTR VkResult VKAPI_CALL submit(VkQueue queue,uint32_t count,const VkSubmitInfo* info,VkFence fence) {
     auto d=dev(queue);if(!d)return VK_ERROR_DEVICE_LOST;

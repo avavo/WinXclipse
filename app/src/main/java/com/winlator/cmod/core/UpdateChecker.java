@@ -78,12 +78,6 @@ public final class UpdateChecker {
                     dialog.setOnConfirmCallback(() -> activity.startActivity(
                             new Intent(Intent.ACTION_VIEW, Uri.parse(page))));
                     dialog.show();
-                    if (dialog.getWindow() != null) {
-                        dialog.getWindow().setBackgroundDrawableResource(
-                                com.winlator.cmod.core.AppUtils.isDarkMode(activity)
-                                        ? com.winlator.cmod.R.drawable.artwork_dialog_background
-                                        : com.winlator.cmod.R.drawable.artwork_dialog_background_light);
-                    }
                 });
             }
             catch (Exception ignored) {

@@ -65,7 +65,7 @@ O gráfico mantém no máximo 120 intervalos em ordem, ignora timestamps repetid
 e separa pausas. O FPS inicial agora mede um intervalo iniciado na ativação, sem
 contar dois segundos de frames dentro do primeiro segundo reportado. Há suporte
 a drawables filhos de janelas Wine, comum em renderização GL/DX9. Os dados são
-atualizações X11 observadas; a validação por jogo continua na Parte 12.
+atualizações X11 observadas; a validação por jogo continua na Parte 13.
 
 Nenhuma captura do app em aparelho foi produzida neste lote. Foram validados a
 compilação, recursos e testes de política de modos, histórico, unidades e cálculos.

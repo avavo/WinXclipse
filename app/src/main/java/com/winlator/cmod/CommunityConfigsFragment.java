@@ -172,20 +172,7 @@ public class CommunityConfigsFragment extends Fragment {
 
     private void showCommunityDialog(AlertDialog dialog) {
         dialog.show();
-        if (dialog.getWindow() != null) {
-            // Purple-bordered background + blur, matching the artwork dialogs.
-            // Light mode uses a lighter dim so the blur does not go too dark.
-            boolean darkMode = AppUtils.isDarkMode(requireContext());
-            dialog.getWindow().setBackgroundDrawableResource(darkMode
-                    ? R.drawable.artwork_dialog_background
-                    : R.drawable.artwork_dialog_background_light);
-            if (!darkMode) dialog.getWindow().setDimAmount(0.25f);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                dialog.getWindow().setBackgroundBlurRadius(48);
-            }
-            dialog.getWindow().addFlags(
-                    android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND);
-        }
+
     }
 
     @Override
@@ -774,18 +761,6 @@ public class CommunityConfigsFragment extends Fragment {
             int displayWidth = requireContext().getResources().getDisplayMetrics().widthPixels;
             dialog.getWindow().setLayout(Math.round(displayWidth * 0.85f),
                     android.view.WindowManager.LayoutParams.WRAP_CONTENT);
-            // Purple-bordered background + blur, matching the shortcut
-            // artwork dialog. Light mode uses a lighter dim.
-            boolean configDarkMode = AppUtils.isDarkMode(requireContext());
-            dialog.getWindow().setBackgroundDrawableResource(configDarkMode
-                    ? R.drawable.artwork_dialog_background
-                    : R.drawable.artwork_dialog_background_light);
-            if (!configDarkMode) dialog.getWindow().setDimAmount(0.25f);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                dialog.getWindow().setBackgroundBlurRadius(48);
-            }
-            dialog.getWindow().addFlags(
-                    android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND);
         }
     }
 
