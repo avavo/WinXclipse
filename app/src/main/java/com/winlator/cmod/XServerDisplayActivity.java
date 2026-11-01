@@ -604,11 +604,8 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
             }
             @Override public void onDrawerOpened(@NonNull View drawerView) {
                 releasePointerCaptureIfNeeded("drawer-opened");
-                // Copy the last posted surface even if the compositor is idle.
-                if (sidebarBackdrop != null && xServerView != null) sidebarBackdrop.capture(xServerView);
-                if (sidebarBackdrop != null&&xServerView!=null)xServerView.afterCompositedFrame(()->{
-                    if(sidebarBackdrop!=null&&drawerLayout.isDrawerOpen(drawerView))sidebarBackdrop.capture(xServerView);
-                });
+                // openBlurredDrawer prepared the backdrop before the animation.
+                // Recapturing here replaced it visibly after the panel opened.
                 if (xServer != null) xServer.keyboard.releaseHardwareKeys();
                 if (xServerView != null) {
                     updateSidebarFrameGenerationState(xServerView.getRenderer());
@@ -989,6 +986,21 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
                     xServerView.getRenderer().setCursorVisible(true);
                     preloaderDialog.closeOnUiThread();
                     winStarted[0] = true;
+                    runOnUiThread(() -> {
+                        if (sidebarBackdrop == null || xServerView == null || sidebarOpening
+                                || drawerLayout.isDrawerOpen(GravityCompat.START)) return;
+                        // Prepare the first snapshot while the desktop appears,
+                        // rather than waiting for the first sidebar gesture.
+                        xServerView.afterCompositedFrame(() -> {
+                            if (sidebarBackdrop == null || sidebarOpening
+                                    || drawerLayout.isDrawerOpen(GravityCompat.START)) return;
+                            sidebarBackdrop.capture(xServerView, () -> {
+                                if (xServerView != null && !sidebarOpening
+                                        && !drawerLayout.isDrawerOpen(GravityCompat.START))
+                                    xServerView.setDirectPresentationAllowed(true);
+                            });
+                        });
+                    });
                 }
             }
 

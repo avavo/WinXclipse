@@ -1362,4 +1362,5 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="disable_experimental_bcn">Disable experimental BCn</string>
     <string name="hud_swap">Swap usage</string>
     <string name="displayx_ready_x11">DisplayX ready · X11/GDI</string>
+    <string name="edit_default_container_config">Edit default container settings</string>
 </resources>

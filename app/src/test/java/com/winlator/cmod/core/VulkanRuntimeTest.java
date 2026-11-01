@@ -88,7 +88,7 @@ public class VulkanRuntimeTest {
         final File target = new File(prefix, "drive_c/Program Files/VulkanRT/" + VulkanRuntimePayload.VERSION + "/WinXclipse");
         final List<String> phases = new ArrayList<>();
         String fail = "", differentDriver = "";
-        boolean timeout, stuck, corruptInstall, unsupportedBridge, win64 = true;
+        boolean timeout, stuck, unsupportedBridge, win64 = true;
         Fixture() throws Exception {
             write(original64, "original Wine64"); write(original32, "original Wine32");
             write(new File(prefix, "drive_c/windows/system32/winevulkan.dll"), "bridge64");
@@ -97,14 +97,7 @@ public class VulkanRuntimeTest {
         VulkanRuntimeInstaller.Result run(String phase, String[] args, long timeoutMs) throws IOException {
             phases.add(phase);
             if (phase.equals("wait") && stuck) return new VulkanRuntimeInstaller.Result(1, "");
-            if (phase.equals("install")) {
-                assertEquals("/S", args[1]);
-                assertEquals(new File(payload, "installer.exe").getAbsolutePath(), args[0]);
-                Files.copy(new File(payload, (win64 ? "x64" : "x86") + "/vulkan-1.dll").toPath(), original64.toPath(), StandardCopyOption.REPLACE_EXISTING);
-                Files.copy(new File(payload, "x86/vulkan-1.dll").toPath(), original32.toPath(), StandardCopyOption.REPLACE_EXISTING);
-                if (corruptInstall) write(original64, "truncated Windows loader");
-                if (timeout) throw new IOException("Installer timed out");
-            }
+            assertNotEquals("The verified package must not run the NSIS installer", "install", phase);
             if (phase.startsWith("register-")) {
                 String system = win64 && phase.endsWith("x86") ? "syswow64" : "system32";
                 write(new File(prefix, "drive_c/windows/" + system + "/winevulkan.json"), "ICD");
@@ -113,8 +106,12 @@ public class VulkanRuntimeTest {
             if (unsupportedBridge && phase.startsWith("baseline-")) return new VulkanRuntimeInstaller.Result(1,
                     "Failed to load Wine graphics driver supporting Vulkan. ERROR_INITIALIZATION_FAILED");
             if (phase.startsWith("native-")) {
+                if (timeout) throw new IOException("Native probe timed out");
                 assertEquals("original Wine64", read(original64));
                 assertEquals("original Wine32", read(original32));
+                String arch = phase.substring("native-".length());
+                assertTrue(VulkanRuntimePayload.matches(new File(target, arch + "/vulkan-1.dll"), arch + "/vulkan-1.dll"));
+                assertTrue(VulkanRuntimePayload.matches(new File(target, arch + "/vulkaninfo.exe"), arch + "/vulkaninfo.exe"));
             }
             String output = probe(phase.startsWith("native-"));
             if (phase.equals(differentDriver)) output = output.replace("Quasar 67", "stock");
@@ -127,14 +124,14 @@ public class VulkanRuntimeTest {
         }
     }
 
-    @Test public void installsAfterBaselineThenRestoresWineLoadersBeforeNativeDeviceChecks() throws Exception {
+    @Test public void verifiedPayloadIsPreparedBesideWineWithOnlyOneFinalServerFlush() throws Exception {
         Fixture f = new Fixture();
         assertTrue(f.prepare("runtime10-driver67"));
         f.originalLoaders();
         assertTrue(new File(f.target, ".verified").isFile());
-        assertTrue(f.phases.indexOf("baseline-x86") < f.phases.indexOf("install"));
-        assertTrue(f.phases.indexOf("install") < f.phases.indexOf("native-x64"));
-        assertEquals("Only stop at actual loader transitions and after final validation", 3, Collections.frequency(f.phases, "stop"));
+        assertEquals(Arrays.asList("baseline-x64", "register-x64", "baseline-x86", "register-x86",
+                "native-x64", "native-x86", "stop", "wait"), f.phases);
+        assertFalse(new WineVulkanBackup(f.prefix).exists());
         f.phases.clear();
         assertTrue(f.prepare("runtime10-driver67"));
         assertTrue("No reinstall at every launch", f.phases.isEmpty());
@@ -164,7 +161,7 @@ public class VulkanRuntimeTest {
         assertFalse(f.phases.contains("native-x86"));
     }
 
-    @Test public void installerTimeoutRestoresBothLoadersAndLeavesNoSuccessReceipt() throws Exception {
+    @Test public void nativeProbeTimeoutPreservesBothLoadersAndLeavesNoSuccessReceipt() throws Exception {
         Fixture f = new Fixture(); f.timeout = true;
         assertFalse(f.prepare("timeout"));
         f.originalLoaders();
@@ -172,9 +169,13 @@ public class VulkanRuntimeTest {
         assertFalse(new WineVulkanBackup(f.prefix).exists());
     }
 
-    @Test public void zeroInstallerExitWithDamagedPayloadDoesNotCountAsInstalled() throws Exception {
-        Fixture f = new Fixture(); f.corruptInstall = true;
-        assertFalse(f.prepare("zero exit but broken")); f.originalLoaders();
+    @Test public void damagedPayloadNeverReachesTheNativeProbeOrCountsAsInstalled() throws Exception {
+        Fixture f = new Fixture();
+        File damaged = VulkanRuntimePayload.prepare(temp.newFolder(), () -> new FileInputStream(archive));
+        write(new File(damaged, "x64/vulkan-1.dll"), "truncated loader");
+        assertFalse(VulkanRuntimeInstaller.prepare(f.prefix, damaged, true, "damaged", f::run));
+        f.originalLoaders();
+        assertFalse(f.phases.contains("native-x64"));
         assertFalse(new File(f.target, ".verified").exists());
     }
 
@@ -193,9 +194,18 @@ public class VulkanRuntimeTest {
 
     @Test public void changedRuntimeOrDamagedProbeTriggersNewVerification() throws Exception {
         Fixture f = new Fixture(); assertTrue(f.prepare("first"));
-        f.phases.clear(); assertTrue(f.prepare("second")); assertTrue(f.phases.contains("install"));
+        f.phases.clear(); assertTrue(f.prepare("second")); assertTrue(f.phases.contains("baseline-x64"));
         write(new File(f.target, "x64/vulkaninfo.exe"), "corrupt");
-        f.phases.clear(); assertTrue(f.prepare("second")); assertTrue(f.phases.contains("install"));
+        f.phases.clear(); assertTrue(f.prepare("second")); assertTrue(f.phases.contains("native-x64"));
+    }
+
+    @Test public void preparingSideBySideRuntimeDoesNotDetachOrOverwriteSharedWineLoaders() throws Exception {
+        Fixture f = new Fixture();
+        File shared = temp.newFile("shared-native-loader.dll"); write(shared, "original Wine64");
+        Files.delete(f.original64.toPath()); Files.createLink(f.original64.toPath(), shared.toPath());
+        assertTrue(f.prepare("shared-runtime"));
+        assertTrue(Files.isSameFile(f.original64.toPath(), shared.toPath()));
+        assertEquals("original Wine64", read(shared)); f.originalLoaders();
     }
 
     @Test public void interruptedInstallationIsRecoveredBeforeAnyNewProbe() throws Exception {

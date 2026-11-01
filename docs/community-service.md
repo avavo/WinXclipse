@@ -14,8 +14,13 @@ Não há cadastro de senha próprio da aplicação.
 
 ## Operação
 
-No app, exportar a config pelo menu do container, revisar nome/capa e salvar.
-Escolher **Publicar na comunidade** na confirmação. O mesmo ZIP também pode ser
+No app, exportar a config pelo menu do container, revisar nome/capa e confirmar
+**Exportar e enviar**. O envio à comunidade começa automaticamente. Na conclusão,
+**OK** fecha a janela; **Cancelar envio da configuração à comunidade**, abaixo de
+OK, pergunta **Sim/Não** antes de retirar a publicação. O ZIP local é preservado.
+O cancelamento exige a credencial da instalação que enviou e o hash do ZIP
+original; IDs e hashes públicos do catálogo não concedem esse direito.
+O mesmo ZIP também pode ser
 compartilhado por qualquer app ou enviado na página pública. Ele não contém jogo
 nem saves; autor, aparelho, notas e configuração exportados ficam públicos.
 

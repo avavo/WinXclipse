@@ -35,6 +35,31 @@ public final class ContentVersion {
         return "";
     }
 
+    /** Graphics WCP filenames and embedded manifests use different marker order. */
+    public static String graphicsPackageName(String name) {
+        String value = (name == null ? "" : name).toLowerCase(Locale.ENGLISH)
+                .replaceFirst("\\.(?:wcp(?:\\.(?:xz|zst))?|xz|tzst|zst)$", "")
+                .replaceFirst("^(?:dxvk|vkd3d)[-_]+(?:proton[-_]+)?", "")
+                .replaceFirst("^v(?=\\d)", "");
+        java.util.List<String> version = new java.util.ArrayList<>();
+        java.util.Set<String> markers = new java.util.TreeSet<>();
+        for (String part : value.split("[-_]+")) {
+            if (part.equals("arm64ec") || part.equals("gplasync") || part.equals("async")) markers.add(part);
+            else if (!part.isEmpty()) version.add(part);
+        }
+        String base = String.join("-", version).replaceFirst("^v(?=\\d)", "");
+        // These two published 3.1.1-1 assets embed version v3.1.1-gplasync:
+        // -1 is their packaging revision, not another DLL build/version.
+        if (markers.contains("gplasync") && base.equals("3.1.1-1")) base = "3.1.1";
+        return canonical(base + (markers.isEmpty() ? "" : "-" + String.join("-", markers)));
+    }
+
+    public static boolean samePackageName(String type, String actual, String requested) {
+        if ("DXVK".equalsIgnoreCase(type) || "VKD3D".equalsIgnoreCase(type))
+            return !graphicsPackageName(actual).isEmpty() && graphicsPackageName(actual).equals(graphicsPackageName(requested));
+        return !canonical(actual).isEmpty() && canonical(actual).equals(canonical(requested));
+    }
+
     public static boolean matches(String actualName, int actualCode, String requestedName,
                                   String requestedEntry, Integer requestedCode, boolean remote) {
         String requested = canonical(requestedName);

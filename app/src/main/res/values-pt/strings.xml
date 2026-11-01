@@ -1236,4 +1236,5 @@
     <string name="disable_experimental_bcn">Desativar BCn experimental</string>
     <string name="hud_swap">Uso de swap</string>
     <string name="displayx_ready_x11">DisplayX pronto · X11/GDI</string>
+    <string name="edit_default_container_config">Editar configuração padrão dos containers</string>
 </resources>

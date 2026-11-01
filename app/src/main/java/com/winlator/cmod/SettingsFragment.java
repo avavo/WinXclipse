@@ -173,6 +173,11 @@ public class SettingsFragment extends Fragment {
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.settings_fragment, container, false);
+        com.winlator.cmod.core.FormToggleRows.apply(view);
+        view.findViewById(R.id.BTDefaultContainerConfig).setOnClickListener(v ->
+                getParentFragmentManager().beginTransaction()
+                        .replace(R.id.FLFragmentContainer, new ContainerDetailFragment(-1))
+                        .addToBackStack("container-defaults").commit());
         final Context context = getContext();
         preferences = PreferenceManager.getDefaultSharedPreferences(context);
 

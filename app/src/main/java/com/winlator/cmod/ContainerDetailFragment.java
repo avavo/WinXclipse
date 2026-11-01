@@ -96,8 +96,8 @@ public class ContainerDetailFragment extends Fragment {
 
     private ContainerManager manager;
     private ContentsManager contentsManager;
-    private final int containerId;
-    private static Container container;
+    private int containerId;
+    private Container container;
     private PreloaderDialog preloaderDialog;
     private JSONArray gpuCards;
     private String xperfConfig = "";
@@ -116,6 +116,9 @@ public class ContainerDetailFragment extends Fragment {
 
     public ContainerDetailFragment(int containerId) {
         this.containerId = containerId;
+        Bundle arguments = new Bundle();
+        arguments.putInt("containerId", containerId);
+        setArguments(arguments);
     }
 
 //    private static final String[] SDL2_ENV_VARS = {
@@ -133,6 +136,7 @@ public class ContainerDetailFragment extends Fragment {
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        if (getArguments() != null) containerId = getArguments().getInt("containerId", containerId);
         setHasOptionsMenu(false);
         preloaderDialog = new PreloaderDialog(getActivity());
 
@@ -325,7 +329,9 @@ public class ContainerDetailFragment extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
         com.winlator.cmod.core.InterfaceMotion.apply(view);
-        ((AppCompatActivity)getActivity()).getSupportActionBar().setTitle(isEditMode() ? R.string.edit_container : R.string.new_container);
+        ((AppCompatActivity)getActivity()).getSupportActionBar().setTitle(containerId == -1
+                ? R.string.edit_default_container_config : containerId > 0 ? R.string.edit_container : R.string.new_container);
+        com.winlator.cmod.core.FormToggleRows.apply(view);
 
         // Find TextViews by ID and apply dynamic styles
         TextView desktopLabel = view.findViewById(R.id.TVDesktop);
@@ -379,6 +385,7 @@ public class ContainerDetailFragment extends Fragment {
 
         manager = new ContainerManager(context);
         container = containerId > 0 ? manager.getContainerById(containerId) : null;
+        if (containerId <= 0) container = com.winlator.cmod.container.ContainerDefaults.load(context, containerId == -1);
         contentsManager = new ContentsManager(context);
         contentsManager.syncContents();
 
@@ -398,7 +405,7 @@ public class ContainerDetailFragment extends Fragment {
         llWineVersion.setVisibility(View.VISIBLE);
 
         // Set container name and graphics driver version based on mode
-        if (isEditMode()) {
+        if (containerId != 0 && isEditMode()) {
             etName.setText(container.getName());
         } else {
             etName.setText(getString(R.string.container) + "-" + manager.getNextContainerId());
@@ -471,6 +478,8 @@ public class ContainerDetailFragment extends Fragment {
                         if (activeDxvkDialog == dlg) activeDxvkDialog = null;
                     });
                 });
+        if (containerId == 0 && container != null && container.getDxvkConfFile().isFile())
+            dxvkConfState.stagedContent = FileUtils.readString(container.getDxvkConfFile());
         setupDDrawSpinner(sDDrawrapper, isEditMode() ? container.getDDrawWrapper() : Container.DEFAULT_DDRAWRAPPER);
         KeyValueSet initialDXConfig = DXVKConfigDialog.parseConfig(vDXWrapperConfig.getTag());
         if (initialDXConfig.get("ddrawrapper").isEmpty()) {
@@ -959,8 +968,10 @@ public class ContainerDetailFragment extends Fragment {
 
 
 
-                if (isEditMode()) {
-                    // Update existing container properties
+                if (containerId != 0) {
+                    if (container == null) { AppUtils.showToast(context, R.string.configuration_save_failed); return; }
+                    if (containerId == -1) container.setWineVersion(sWineVersion.getSelectedItem().toString());
+                    // Update the real container or the independent default-settings draft.
                     container.setName(name);
                     container.setScreenSize(screenSize);
                     container.setEnvVars(envVars);
@@ -1718,7 +1729,7 @@ public class ContainerDetailFragment extends Fragment {
 
     private void loadWineVersionSpinner(final View view, Spinner sWineVersion, Spinner sBox64Version) {
         final Context context = getContext();
-        sWineVersion.setEnabled(!isEditMode());
+        sWineVersion.setEnabled(containerId <= 0);
 //
         sWineVersion.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override

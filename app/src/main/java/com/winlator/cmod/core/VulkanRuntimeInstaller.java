@@ -6,7 +6,7 @@ import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Installs inside the selected Wine only, with device checks and persistent loader recovery. */
+/** Prepares a verified side-by-side runtime without replacing Wine's live loaders. */
 public final class VulkanRuntimeInstaller {
     public static final class Result {
         public final int status;
@@ -30,7 +30,7 @@ public final class VulkanRuntimeInstaller {
                 : has32 ? new String[]{"x64", "x86"} : new String[]{"x64"};
         File target = new File(prefix, ROOT), receipt = new File(target, ".verified");
         File unavailable = new File(target, ".baseline-unavailable");
-        String expected = "WinXclipse VulkanRT protocol 1\n" + VulkanRuntimePayload.VERSION + "\n" + identity + "\n" + String.join(",", architectures) + "\n";
+        String expected = "WinXclipse VulkanRT protocol 2\n" + VulkanRuntimePayload.VERSION + "\n" + identity + "\n" + String.join(",", architectures) + "\n";
         if (receipt.isFile() && expected.equals(read(receipt)) && installedFiles(target, architectures)) return true;
         // Cache only an explicit unsupported Wine bridge, never a timeout or
         // incomplete probe. Keep the original bridge and diagnostic; do not mark
@@ -64,32 +64,27 @@ public final class VulkanRuntimeInstaller {
                 if (result.status != 0 || !new File(prefix, "drive_c/windows/" + system + "/winevulkan.json").isFile())
                     throw new IOException("Wine Vulkan ICD registration failed (" + arch + ")");
             }
-            stop(runner);
-            ranWine = false;
-            backup.create();
-            try {
-                ranWine = true;
-                Result installed = runner.run("install", new String[]{new File(payload, "installer.exe").getAbsolutePath(), "/S"}, 90_000);
-                if (installed.status != 0) throw new IOException("VulkanRT installer exit " + installed.status);
-                // Flush installer registry writes before collecting its real payload.
-                stop(runner);
-                ranWine = false;
-                for (String arch : architectures) {
-                    String system = win64 && arch.equals("x86") ? "syswow64" : "system32";
-                    File loader = new File(prefix, "drive_c/windows/" + system + "/vulkan-1.dll");
-                    String hash = arch.equals("x64") ? HASH64 : HASH32;
-                    if (!hash.equals(VulkanRuntimePayload.sha256(loader))) throw new IOException("VulkanRT installed loader mismatch (" + arch + ")");
-                    File directory = new File(target, arch);
-                    Files.createDirectories(directory.toPath());
-                    Files.copy(loader.toPath(), new File(directory, "vulkan-1.dll").toPath(), StandardCopyOption.REPLACE_EXISTING);
-                    Files.copy(new File(payload, arch + "/vulkaninfo.exe").toPath(), new File(directory, "vulkaninfo.exe").toPath(), StandardCopyOption.REPLACE_EXISTING);
+            // The package already contains the exact official DLLs. Running NSIS
+            // only to collect those files started another translated process and
+            // required two server restarts and loader backup/restore. Publish the
+            // same verified files beside vulkaninfo instead, leaving system32 and
+            // syswow64 untouched. Only legacy interrupted installs need recovery.
+            for (String arch : architectures) {
+                File directory = new File(target, arch);
+                Files.createDirectories(directory.toPath());
+                for (String name : new String[]{"vulkan-1.dll", "vulkaninfo.exe"}) {
+                    Path temporary = Files.createTempFile(directory.toPath(), ".vulkanrt-", ".tmp");
+                    try {
+                        Files.copy(new File(payload, arch + "/" + name).toPath(), temporary, StandardCopyOption.REPLACE_EXISTING);
+                        if (!VulkanRuntimePayload.matches(temporary.toFile(), arch + "/" + name))
+                            throw new IOException("VulkanRT payload mismatch (" + arch + "/" + name + ")");
+                        Files.move(temporary, new File(directory, name).toPath(), StandardCopyOption.REPLACE_EXISTING);
+                    } finally { Files.deleteIfExists(temporary); }
                 }
-            } finally {
-                if (ranWine) { stop(runner); ranWine = false; }
-                backup.restore();
             }
-            // Official runtime remains installed, with its loader usable alongside
-            // the Wine bridge. Games retain their original Wine loaders (also 1.4).
+            // Separate Wine processes resolve their local DLL and overrides without
+            // restarting the shared server. Verify both architectures before the
+            // one final stop/flush and success receipt.
             for (String arch : architectures) {
                 ranWine = true;
                 String command = "set \"VK_DRIVER_FILES=\" && set \"VK_ICD_FILENAMES=\" && \""

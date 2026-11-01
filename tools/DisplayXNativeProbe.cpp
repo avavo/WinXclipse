@@ -101,6 +101,29 @@ struct Probe {
             count=0;auto getImages=reinterpret_cast<PFN_vkGetSwapchainImagesKHR>(getDevice(device,"vkGetSwapchainImagesKHR"));
             check(getImages(device,swapchain,&count,nullptr),"image count");std::vector<VkImage> images(count);
             check(getImages(device,swapchain,&count,images.data()),"images");
+            // Exercise the render-target path used by DXVK as well as transfer
+            // clears. A transfer-only test misses attachment/DCC/layout bugs.
+            VkAttachmentDescription attachment{};attachment.format=swapInfo.imageFormat;
+            attachment.samples=VK_SAMPLE_COUNT_1_BIT;attachment.loadOp=VK_ATTACHMENT_LOAD_OP_CLEAR;
+            attachment.storeOp=VK_ATTACHMENT_STORE_OP_STORE;attachment.initialLayout=VK_IMAGE_LAYOUT_UNDEFINED;
+            attachment.finalLayout=VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+            VkAttachmentReference reference{0,VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+            VkSubpassDescription subpass{};subpass.pipelineBindPoint=VK_PIPELINE_BIND_POINT_GRAPHICS;
+            subpass.colorAttachmentCount=1;subpass.pColorAttachments=&reference;
+            VkRenderPassCreateInfo passInfo{VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO};passInfo.attachmentCount=1;
+            passInfo.pAttachments=&attachment;passInfo.subpassCount=1;passInfo.pSubpasses=&subpass;
+            VkRenderPass pass{};
+            check(reinterpret_cast<PFN_vkCreateRenderPass>(getDevice(device,"vkCreateRenderPass"))(device,&passInfo,nullptr,&pass),"attachment pass");
+            std::vector<VkImageView> views(count);std::vector<VkFramebuffer> frames(count);
+            for(uint32_t n=0;n<count;n++) {
+                VkImageViewCreateInfo view{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};view.image=images[n];
+                view.viewType=VK_IMAGE_VIEW_TYPE_2D;view.format=swapInfo.imageFormat;
+                view.subresourceRange={VK_IMAGE_ASPECT_COLOR_BIT,0,1,0,1};
+                check(reinterpret_cast<PFN_vkCreateImageView>(getDevice(device,"vkCreateImageView"))(device,&view,nullptr,&views[n]),"attachment view");
+                VkFramebufferCreateInfo frame{VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};frame.renderPass=pass;
+                frame.attachmentCount=1;frame.pAttachments=&views[n];frame.width=frame.height=64;frame.layers=1;
+                check(reinterpret_cast<PFN_vkCreateFramebuffer>(getDevice(device,"vkCreateFramebuffer"))(device,&frame,nullptr,&frames[n]),"attachment framebuffer");
+            }
             VkCommandPoolCreateInfo poolInfo{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};poolInfo.queueFamilyIndex=family;poolInfo.flags=VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
             VkCommandPool pool{};check(vkCreateCommandPool(device,&poolInfo,nullptr,&pool),"command pool");
             VkCommandBufferAllocateInfo allocate{VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};allocate.commandPool=pool;allocate.level=VK_COMMAND_BUFFER_LEVEL_PRIMARY;allocate.commandBufferCount=1;
@@ -112,7 +135,15 @@ struct Probe {
                 check(vkWaitForFences(device,1,&fence,true,1'000'000'000),"acquire fence");vkResetFences(device,1,&fence);
                 vkResetCommandBuffer(command,0);VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};check(vkBeginCommandBuffer(command,&begin),"begin clear");
                 VkClearColorValue color{{float(frame==0),float(frame==1),float(frame==2),1}};
-                VkImageSubresourceRange range{VK_IMAGE_ASPECT_COLOR_BIT,0,1,0,1};vkCmdClearColorImage(command,images[index],VK_IMAGE_LAYOUT_GENERAL,&color,1,&range);
+                if(frame==0) {
+                    VkImageSubresourceRange range{VK_IMAGE_ASPECT_COLOR_BIT,0,1,0,1};vkCmdClearColorImage(command,images[index],VK_IMAGE_LAYOUT_GENERAL,&color,1,&range);
+                } else {
+                    VkClearValue clear{};clear.color=color;
+                    VkRenderPassBeginInfo render{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};render.renderPass=pass;
+                    render.framebuffer=frames[index];render.renderArea={{0,0},{64,64}};render.clearValueCount=1;render.pClearValues=&clear;
+                    reinterpret_cast<PFN_vkCmdBeginRenderPass>(getDevice(device,"vkCmdBeginRenderPass"))(command,&render,VK_SUBPASS_CONTENTS_INLINE);
+                    vkCmdEndRenderPass(command);
+                }
                 check(vkEndCommandBuffer(command),"end clear");VkSubmitInfo submit{VK_STRUCTURE_TYPE_SUBMIT_INFO};submit.commandBufferCount=1;submit.pCommandBuffers=&command;
                 check(reinterpret_cast<PFN_vkQueueSubmit>(getDevice(device,"vkQueueSubmit"))(queue,1,&submit,{}),"submit clear");
                 VkPresentInfoKHR present{VK_STRUCTURE_TYPE_PRESENT_INFO_KHR};present.swapchainCount=1;present.pSwapchains=&swapchain;present.pImageIndices=&index;
@@ -120,6 +151,11 @@ struct Probe {
             }
             for(int n=0;n<500&&!stop;n++) std::this_thread::sleep_for(std::chrono::milliseconds(20));
             vkDeviceWaitIdle(device);
+            for(uint32_t n=0;n<count;n++) {
+                reinterpret_cast<PFN_vkDestroyFramebuffer>(getDevice(device,"vkDestroyFramebuffer"))(device,frames[n],nullptr);
+                reinterpret_cast<PFN_vkDestroyImageView>(getDevice(device,"vkDestroyImageView"))(device,views[n],nullptr);
+            }
+            reinterpret_cast<PFN_vkDestroyRenderPass>(getDevice(device,"vkDestroyRenderPass"))(device,pass,nullptr);
             reinterpret_cast<PFN_vkDestroySwapchainKHR>(getDevice(device,"vkDestroySwapchainKHR"))(device,swapchain,nullptr);
             vkDestroyFence(device,fence,nullptr);vkDestroyCommandPool(device,pool,nullptr);
             reinterpret_cast<PFN_vkDestroyDevice>(getDevice(device,"vkDestroyDevice"))(device,nullptr);

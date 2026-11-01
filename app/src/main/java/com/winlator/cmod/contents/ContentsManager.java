@@ -38,7 +38,7 @@ public class ContentsManager {
     public static final String PROFILE_NAME = "profile.json";
     private static final String TAG = "ContentsManager";
     public static final String REMOTE_PROFILES = "contents.json";
-    private static final String REMOTE_CACHE_KEY = "github_release_contents_cache";
+    private static final String REMOTE_CACHE_KEY = "github_release_contents_cache_v2";
     private static final String REMOTE_REFRESH_TIME_KEY = "github_release_contents_refresh_time";
     private static final String GITHUB_RELEASE_API = "https://api.github.com/repos/avavo/WinXclipse/releases/tags/";
     private static final String[] REMOTE_RELEASE_TAGS = {
@@ -541,7 +541,7 @@ public class ContentsManager {
             }
             // A catalog identity may normalize a legacy type/build code, but
             // cannot turn another runtime, release or ABI into the requested one.
-            if (!ContentVersion.canonical(profile.verName).equals(ContentVersion.canonical(expectedProfile.verName))) {
+            if (!ContentVersion.samePackageName(profile.type.toString(), profile.verName, expectedProfile.verName)) {
                 failStagedInstall(callback, InstallFailedReason.ERROR_BADPROFILE, null, file);
                 return;
             }

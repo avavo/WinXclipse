@@ -1,5 +1,17 @@
 [
   {
+    "type": "DXVK",
+    "verName": "1.6.1",
+    "verCode": 1,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/dxvk-and-vkd3d/dxvk-1.6.wcp"
+  },
+  {
+    "type": "DXVK",
+    "verName": "1.11.0-async-sarek",
+    "verCode": 0,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/dxvk-and-vkd3d/Dxvk-Sarek-async-1.11.wcp"
+  },
+  {
     "type": "FEXCore",
     "verName": "2509",
     "verCode": 1,
@@ -220,12 +232,6 @@
     "verName": "2.14.1-arm64ec",
     "verCode": 0,
     "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/dxvk-and-vkd3d/Vkd3d-arm64ec-2.14.1.wcp"
-  },
-  {
-    "type": "VKD3D",
-    "verName": "arm64ec-3.0a",
-    "verCode": 0,
-    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/dxvk-and-vkd3d/vkd3d-arm64ec-3.0a.wcp"
   },
   {
     "type": "VKD3D",

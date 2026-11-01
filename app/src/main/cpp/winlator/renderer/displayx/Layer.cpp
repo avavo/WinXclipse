@@ -8,6 +8,7 @@
 #include <android/log.h>
 #include "Protocol.hpp"
 #include "WsiPolicy.hpp"
+#include "BufferPolicy.hpp"
 #include <sys/un.h>
 #include <poll.h>
 #include <atomic>
@@ -39,6 +40,7 @@ struct Device {
     VkDevice handle{};VkPhysicalDevice gpu{};std::shared_ptr<Instance> instance;
     PFN_vkGetDeviceProcAddr get{};uint32_t family=0;VkQueue acquireQueue{};
     PFN_vkSetDeviceLoaderData setLoaderData{};
+    bool cpuReadable=false;
     std::atomic<bool> enabled{false};
     std::atomic<uint32_t> activeSwapchains{0};
     // All exposed queue operations use this lock. Internal acquire submissions
@@ -148,6 +150,7 @@ struct Swapchain {
             // format query confirm it. No reinterpreting RGBA memory as BGRA.
             desc.format=info.imageFormat==VK_FORMAT_R8G8B8A8_UNORM?1:5;
             desc.usage=AHARDWAREBUFFER_USAGE_GPU_FRAMEBUFFER|AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE|AHARDWAREBUFFER_USAGE_COMPOSER_OVERLAY;
+            if(d->cpuReadable)desc.usage|=AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN;
             if(AHardwareBuffer_allocate(&desc,&s.buffer)) {
                 desc.usage&=~AHARDWAREBUFFER_USAGE_COMPOSER_OVERLAY;
                 if(AHardwareBuffer_allocate(&desc,&s.buffer))return false;
@@ -313,6 +316,9 @@ VKAPI_ATTR VkResult VKAPI_CALL createDevice(VkPhysicalDevice gpu,const VkDeviceC
     auto* nextLink=link->u.pLayerInfo->pNext;link->u.pLayerInfo=nextLink;
     auto create=reinterpret_cast<PFN_vkCreateDevice>(get(i->handle,"vkCreateDevice"));
     auto d=std::make_shared<Device>();d->instance=i;d->gpu=gpu;d->get=getDevice;
+    auto properties=reinterpret_cast<PFN_vkGetPhysicalDeviceProperties>(get(i->handle,"vkGetPhysicalDeviceProperties"));
+    VkPhysicalDeviceProperties physical{};properties(gpu,&physical);
+    d->cpuReadable=cpuReadableBuffer(physical.vendorID,physical.deviceName);
     for(auto* node=reinterpret_cast<const VkBaseInStructure*>(info->pNext);node;node=node->pNext)
         if(node->sType==VK_STRUCTURE_TYPE_LOADER_DEVICE_CREATE_INFO) {
             auto* callback=reinterpret_cast<const VkLayerDeviceCreateInfo*>(node);
@@ -401,7 +407,7 @@ VKAPI_ATTR VkResult VKAPI_CALL createSwapchain(VkDevice handle,const VkSwapchain
             {std::lock_guard<std::mutex> l(registryMutex);swapchains[s->handle]=s;}
             d->activeSwapchains.fetch_add(1);
             {std::lock_guard<std::mutex> l(d->objectMutex);for(uint32_t n=0;n<s->pool.count;n++)d->directImages.insert(s->images[n].image);}
-            INFO("Direct AHB: window=%u %ux%u images=%u format=%u",window,s->pool.width,s->pool.height,s->pool.count,s->pool.format);return VK_SUCCESS;
+            INFO("Direct AHB: window=%u %ux%u images=%u format=%u cpu-readable=%u",window,s->pool.width,s->pool.height,s->pool.count,s->pool.format,d->cpuReadable?1u:0u);return VK_SUCCESS;
         }
         WARN("AHB swapchain unsupported/unavailable; using original X11 WSI");
     }

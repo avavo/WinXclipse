@@ -1,4 +1,17 @@
-# WinXclipse  
+<div align="center">
+
+# WinXclipse
+
+**Windows on Android, tuned for Exynos & Xclipse.**
+
+[![Latest release](https://img.shields.io/github/v/release/avavo/WinXclipse?style=flat&label=release&color=7c3aed&logo=github&logoColor=white)](https://github.com/avavo/WinXclipse/releases/latest)
+[![GitHub stars](https://img.shields.io/github/stars/avavo/WinXclipse?style=flat&label=stars&color=a78bfa&logo=github&logoColor=white)](https://github.com/avavo/WinXclipse/stargazers)
+[![Exynos Community members](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fdiscord.com%2Fapi%2Fv10%2Finvites%2Fu2nDTXRxyx%3Fwith_counts%3Dtrue&query=%24.approximate_member_count&label=Exynos%20Community&suffix=%20members&color=7c3aed&logo=discord&logoColor=white&cacheSeconds=3600)](https://discord.gg/u2nDTXRxyx)
+[![GPLv3](https://img.shields.io/badge/license-GPLv3-5b21b6?style=flat)](LICENSE)
+
+**[Get WinXclipse](https://github.com/avavo/WinXclipse/releases/latest)** · **[Join the community](https://discord.gg/u2nDTXRxyx)** · **[What's changing](WinXclipse-v0.9.6-release.txt)**
+
+</div>
   
 WinXclipse is an Android project based on Winlator CMOD and adapted for Samsung Exynos devices with Xclipse GPUs.  
   
@@ -9,7 +22,7 @@ WinXclipse allows Windows applications and games to run on Android by combining:
 - Wine and Proton runtimes, including ARM64EC builds  
 - CPU translation layers: FEXCore and Box64  
 - Graphics stacks: DXVK, VKD3D-Proton, the built-in hybrid Default/CMOD v1/Kirimu wrappers, and downloadable CMOD v2/GameNative/Ref4ik-v6 packages
-- Container management for isolated runtime configurations, input controls, diagnostics, and external content delivery  
+- Container management for isolated runtime configurations, editable defaults for new containers, input controls, diagnostics, and external content delivery
   
 Development is focused on the Exynos/Xclipse platform. Every supported GPU pairing — from Xclipse 530 (RDNA2) through 920, 940/950 (RDNA3) to 960 (RDNA4) — receives dedicated tuning for BCn texture handling, unified-memory-aware VRAM caps, and CPU cluster scheduling on big.LITTLE/DynamIQ Exynos SoCs.  
 

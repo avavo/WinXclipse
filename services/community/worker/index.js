@@ -307,6 +307,24 @@ async function routes(request, env) {
     const { manifest, cover } = await readArchive(bytes);
     return json(item(await save(env, manifest, cover, null, true, source), origin, true), 201);
   }
+  const withdrawal = /^\/api\/v1\/configs\/([^/]+)$/.exec(path);
+  if (withdrawal && method === 'DELETE') {
+    const identity = await client(request, env);
+    await rate(env, 'withdraw:' + identity, 30, 3600000);
+    const digest = request.headers.get('x-submission-hash') || '';
+    if (!/^[a-f0-9]{64}$/.test(digest)) fail(400, 'invalid_submission_hash');
+    const row = await find(env, withdrawal[1], true);
+    // Possessing a catalog ID or its public download hash never grants ownership.
+    if (row.submission_key !== await sha256(identity + ':' + digest)) fail(403, 'submission_not_owned');
+    if (row.deleted) return json({ id: row.id, deleted: true });
+    const result = await env.DB.prepare('UPDATE configs SET deleted=1,revision=revision+1,updated_at=? WHERE id=? AND revision=? AND deleted=0')
+      .bind(time(), row.id, row.revision).run();
+    if (!result.meta.changes) fail(409, 'revision_conflict');
+    await env.BUCKET.delete(row.zip_key).catch(() => {});
+    if (row.cover_key) await env.BUCKET.delete(row.cover_key).catch(() => {});
+    await audit(env, row.id, 'withdraw', '{}');
+    return json({ id: row.id, deleted: true });
+  }
   const edit = /^\/api\/admin\/configs\/([^/]+)(\/cover)?$/.exec(path);
   if (edit && ['PATCH', 'PUT', 'DELETE'].includes(method)) {
     const row = await find(env, edit[1]); checkRevision(request, row);
@@ -336,7 +354,7 @@ function publicPage() {
   return `<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>WinXclipse · Comunidade</title>
 <style>:root{color-scheme:dark;font:16px system-ui;background:#100e16;color:#f7f4ff}body{max-width:1100px;margin:auto;padding:32px 20px}h1{font-size:clamp(30px,5vw,52px);margin-bottom:8px}p{color:#c4bdd5;line-height:1.6}header{border-bottom:1px solid #393047;padding-bottom:24px}.mark{color:#bf91ff;letter-spacing:.18em;font-size:12px}button,input{font:inherit;padding:12px;border-radius:10px;border:1px solid #695081;background:#21182e;color:inherit}button{cursor:pointer;background:#7046ae}button:disabled{opacity:.5}input[type=search]{width:100%;box-sizing:border-box;margin:24px 0}#grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:18px}.card{border:1px solid #393047;border-radius:16px;overflow:hidden;background:#1b1722}.card img{width:100%;height:250px;object-fit:cover;background:#292133}.info{padding:18px}.info h2{font-size:19px;margin:10px 0}.badge{font-size:12px;color:#a8e0c0}a{color:#d8b4ff}section{margin:28px 0}.upload{padding:24px;border-radius:16px;border:1px solid #4f386c}#status{min-height:1.5em}small{color:#c4bdd5}button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid #bf91ff;outline-offset:3px}</style>
 <header><div class="mark">WINXCLIPSE / COMUNIDADE</div><h1>Uma boa configuração.<br>Mais gente jogando.</h1><p>Configs compartilhadas pela comunidade, com versões e dependências preservadas.</p></header>
-<section class="upload"><h2>Compartilhar uma config</h2><p>Exporte o ZIP pelo menu do container. O envio aparece sem verificação até a revisão do mantenedor.</p><input id="zip" type="file" accept=".zip,application/zip" aria-label="Configuração ZIP"> <button id="send">Enviar configuração</button><p id="status" role="status" aria-live="polite"></p></section>
+<section class="upload"><h2>Compartilhar uma config</h2><p>O app envia automaticamente ao exportar pelo menu do container. Aqui você também pode enviar um ZIP já salvo. O envio aparece sem verificação até a revisão do mantenedor.</p><input id="zip" type="file" accept=".zip,application/zip" aria-label="Configuração ZIP"> <button id="send">Enviar configuração</button><p id="status" role="status" aria-live="polite"></p></section>
 <input id="search" type="search" placeholder="Buscar jogo ou aparelho" aria-label="Buscar jogo ou aparelho"><main id="grid"></main><p id="empty" role="status">Carregando configurações…</p>
 <script>
 let items=[];const grid=document.getElementById('grid'),empty=document.getElementById('empty');

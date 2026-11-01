@@ -71,6 +71,20 @@ normal por acquire/FIFO. Se solicitar present-wait por outra rota, ou comandos
 de manutenção/timing ainda não atendidos, esse dispositivo fica com WSI original.
 Não se emula `vkWaitForPresentKHR` com um sinal de GPU que possa mentir ou travar.
 
+Em Xclipse/Samsung (vendor Samsung/AMD ou nome Xclipse), o alocador AHB pede também
+`AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN`. Isso solicita armazenamento interoperável
+em vez do layout GPU-only privado da Samsung. Não há mapeamento nem cópia de pixels
+pela CPU. A regra vale para o ICD System e RADV; `MESA_GRALLOC_LINEAR` sozinho não
+alcança a alocação AHB feita diretamente por este layer. Se essa combinação não
+puder ser alocada, a WSI original continua sendo o fallback.
+
+A adaptação segue a descrição do problema de gralloc no
+[RADV de JimVulkan](https://github.com/JimVulkan/radv-xclipse#runtime-switches).
+O probe agora exercita tanto clear de transferência quanto render pass com
+attachment e layout PRESENT_SRC, caminho mais próximo de DXVK. A nova alocação
+ainda precisa de confirmação visual no aparelho com System e RADV; o teste antigo
+de três cores por transferência não comprovava render targets de jogos.
+
 ## Origem e verificação
 
 Ludashi e Ludashi Plus foram referências de arquitetura/protocolo, não binários
@@ -93,7 +107,7 @@ carregamento: resolve-os por `dlsym` após verificar o Android.
 Seis testes JVM novos cobrem implantação/atualização do manifesto, preservação dos
 outros layers e confirmação/cancelamento. A ferramenta
 `tools/test_displayx_protocol.py` executa o código C++ real com falhas injetadas
-nas syscalls: 23 cenários de bounds, fragmentação, EINTR, EOF, descritores, seleção
+nas syscalls: 25 cenários de bounds, fragmentação, EINTR, EOF, descritores, política de buffers Xclipse, seleção
 do plano direto e erros terminais de fences. POLLERR/HUP/NVAL encerram a espera
 com desconexão do produtor, sem busy loop nem liberação antecipada do slot.
 Não simula um driver Vulkan nem comprova scanout Android.

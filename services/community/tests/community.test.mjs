@@ -39,6 +39,9 @@ async function upload(env, key, value = manifest(), cover = null) {
   return request(env, '/api/v1/configs', 'POST', makeArchive(value, cover), { Authorization: 'Bearer ' + key, 'Content-Type': 'application/zip' });
 }
 const adminHeaders = revision => ({ Authorization: 'Bearer ' + ADMIN, 'If-Match': '"' + revision + '"', 'Content-Type': 'application/json' });
+async function withdrawalHeaders(key, archive) {
+  return { Authorization: 'Bearer ' + key, 'X-Submission-Hash': Buffer.from(await crypto.subtle.digest('SHA-256', archive)).toString('hex') };
+}
 function chunk(name, data) {
   const result = new Uint8Array(data.length + 12), view = new DataView(result.buffer);
   view.setUint32(0, data.length); result.set(new TextEncoder().encode(name), 4); result.set(data, 8);
@@ -144,6 +147,44 @@ test('removed configs disappear from downloads but keep a catalog tombstone', as
   assert.equal((await worker.fetch(new Request(item.downloadUrl), env)).status, 404); assert.equal(env.files.size, 0);
   assert.equal((await (await request(env, '/api/v1/catalog')).json()).items[0].deleted, true);
   assert.equal((await upload(env, key)).status, 409);
+});
+
+test('submitter can withdraw a normalized ZIP after moderation, with an idempotent retry', async t => {
+  const env = environment(); t.after(() => env.sqlite.close()); const key = await register(env);
+  const archive = deflatedZip(manifest());
+  const item = await (await request(env, '/api/v1/configs', 'POST', archive, { Authorization: 'Bearer ' + key })).json();
+  const headers = await withdrawalHeaders(key, archive);
+  assert.notEqual(headers['X-Submission-Hash'], item.sha256, 'original upload differs from normalized public ZIP');
+  assert.equal((await request(env, '/api/admin/configs/' + item.id, 'PATCH', JSON.stringify({verified:true}), adminHeaders(1))).status, 200);
+  for (let retry = 0; retry < 2; retry++) {
+    const response = await request(env, '/api/v1/configs/' + item.id, 'DELETE', undefined, headers);
+    assert.equal(response.status, 200); assert.equal((await response.json()).deleted, true);
+  }
+  assert.equal((await worker.fetch(new Request(item.downloadUrl), env)).status, 404);
+  assert.equal(env.files.size, 0);
+  const catalog = await (await request(env, '/api/v1/catalog')).json();
+  assert.equal(catalog.items[0].deleted, true); assert.equal(catalog.items[0].revision, 3);
+  assert.equal(env.sqlite.prepare("SELECT COUNT(*) AS n FROM moderation_log WHERE action='withdraw'").get().n, 1);
+});
+
+test('withdrawal rejects another client, public hash, missing proof and anonymous requests', async t => {
+  const env = environment(); t.after(() => env.sqlite.close()); const owner = await register(env), stranger = await register(env);
+  const archive = deflatedZip(manifest());
+  const item = await (await request(env, '/api/v1/configs', 'POST', archive, { Authorization: 'Bearer ' + owner })).json();
+  const path = '/api/v1/configs/' + item.id;
+  assert.equal((await request(env, path, 'DELETE', undefined, await withdrawalHeaders(stranger, archive))).status, 403);
+  assert.equal((await request(env, path, 'DELETE', undefined, { Authorization: 'Bearer ' + owner, 'X-Submission-Hash': item.sha256 })).status, 403);
+  assert.equal((await request(env, path, 'DELETE', undefined, { Authorization: 'Bearer ' + owner })).status, 400);
+  assert.equal((await request(env, path, 'DELETE')).status, 401);
+  assert.equal((await worker.fetch(new Request(item.downloadUrl), env)).status, 200);
+});
+
+test('a client cannot withdraw an imported legacy configuration', async t => {
+  const env = environment(); t.after(() => env.sqlite.close()); const key = await register(env), archive = makeArchive(manifest(), null);
+  const response = await request(env, '/api/admin/import', 'POST', archive,
+    {Authorization:'Bearer '+ADMIN, 'Content-Type':'application/zip', 'X-Source-Url':'https://github.com/avavo/WinXclipse/releases/download/community-configs/Legacy.zip'});
+  const item = await response.json();
+  assert.equal((await request(env, '/api/v1/configs/' + item.id, 'DELETE', undefined, await withdrawalHeaders(key, archive))).status, 403);
 });
 test('storage limit rejects publication and removes the uncommitted object', async t => {
   const env = environment(); t.after(() => env.sqlite.close()); env.MAX_STORAGE_BYTES = 1; const key = await register(env);

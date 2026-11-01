@@ -77,5 +77,7 @@ Ainda é necessário testar em aparelho: instalação limpa, atualização de AP
 primeiro shortcut de um container novo, troca entre runtimes compatíveis, Wine
 x86/x86_64/ARM64EC e cancelamento durante o boot. Os defeitos acima são verificáveis
 no código; ainda não foi comprovado que explicam todos os jogos em 0 MB ou todos
-os encerramentos relatados. VulkanRT automático e a revisão completa de drivers,
-FSR e processos continuam nos respectivos itens do plano.
+os encerramentos relatados. A preparação VulkanRT agora instala os arquivos oficiais lado a lado, sem executar
+o extrator NSIS traduzido nem reiniciar o servidor duas vezes para coletar DLLs já
+embarcadas. Os testes reais de GPU/driver continuam obrigatórios para gerar o recibo.
+Essa redução do trabalho não é uma medição de tempo de boot no aparelho; ver [vulkanrt.md](vulkanrt.md).

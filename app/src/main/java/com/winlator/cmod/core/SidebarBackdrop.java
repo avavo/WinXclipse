@@ -19,11 +19,29 @@ public final class SidebarBackdrop implements AutoCloseable {
     private final HandlerThread worker = new HandlerThread("SidebarBackdrop");
     private final Handler handler;
     private volatile int generation;
-    private boolean closed;
+    private volatile boolean closed;
+    private Runnable pendingTimeout;
+    private final FrameCapture frameCapture;
+
+    interface FrameCapture {
+        void request(SurfaceView source, Handler worker, java.util.function.Consumer<Frame> completed);
+    }
+    static final class Frame {
+        final Bitmap bitmap;
+        final int x, y, width, height;
+        Frame(Bitmap bitmap, int x, int y, int width, int height) {
+            this.bitmap = bitmap; this.x = x; this.y = y; this.width = width; this.height = height;
+        }
+    }
 
     public SidebarBackdrop(View panel) {
+        this(panel, SidebarBackdrop::captureSurface);
+    }
+
+    SidebarBackdrop(View panel, FrameCapture frameCapture) {
         this.panel = panel;
-        panel.setBackground(PopupStyle.surface(panel.getContext(), false));
+        this.frameCapture = frameCapture;
+        setFallbackBackground();
         worker.start();
         handler = new Handler(worker.getLooper());
     }
@@ -32,14 +50,42 @@ public final class SidebarBackdrop implements AutoCloseable {
 
     /** The drawer starts moving only after its first blurred snapshot is ready. */
     public void capture(SurfaceView source, Runnable ready) {
-        java.util.concurrent.atomic.AtomicBoolean delivered = new java.util.concurrent.atomic.AtomicBoolean();
-        Runnable finish = () -> { if (!closed && delivered.compareAndSet(false, true)) ready.run(); };
-        // PixelCopy can fail when the surface is being recreated. Retain the
-        // previous blur and keep the drawer responsive without an unblurred copy.
-        panel.postDelayed(finish, 250);
+        if (closed) return;
+        if (pendingTimeout != null) panel.removeCallbacks(pendingTimeout);
         final int request = ++generation;
-        if (closed || source == null || !source.getHolder().getSurface().isValid()
-                || source.getWidth() <= 0 || source.getHeight() <= 0) { panel.post(finish); return; }
+        java.util.concurrent.atomic.AtomicBoolean delivered = new java.util.concurrent.atomic.AtomicBoolean();
+        Runnable finish = () -> {
+            if (closed || request != generation || !delivered.compareAndSet(false, true)) return;
+            // Freeze this background for the whole opening. A slow PixelCopy may
+            // still return after the timeout, but must never change a visible panel.
+            generation++;
+            if (pendingTimeout != null) panel.removeCallbacks(pendingTimeout);
+            pendingTimeout = null;
+            ready.run();
+        };
+        pendingTimeout = finish;
+        panel.postDelayed(finish, 700);
+        frameCapture.request(source, handler, frame -> {
+            if (frame == null) { panel.post(finish); return; }
+            Bitmap bitmap = frame.bitmap;
+            if (closed || request != generation) { bitmap.recycle(); return; }
+            if (!handler.post(() -> {
+                if (closed || request != generation) { bitmap.recycle(); return; }
+                blur(bitmap);
+                panel.post(() -> {
+                    if (closed || request != generation || !panel.isAttachedToWindow()) {
+                        bitmap.recycle(); finish.run(); return;
+                    }
+                    panel.setBackground(snapshot(frame));
+                    finish.run();
+                });
+            })) bitmap.recycle();
+        });
+    }
+
+    private static void captureSurface(SurfaceView source, Handler handler, java.util.function.Consumer<Frame> completed) {
+        if (source == null || !source.getHolder().getSurface().isValid()
+                || source.getWidth() <= 0 || source.getHeight() <= 0) { completed.accept(null); return; }
         float scale = Math.min(1f, 320f / Math.max(source.getWidth(), source.getHeight()));
         Bitmap bitmap = Bitmap.createBitmap(Math.max(1, Math.round(source.getWidth() * scale)),
                 Math.max(1, Math.round(source.getHeight() * scale)), Bitmap.Config.ARGB_8888);
@@ -48,33 +94,37 @@ public final class SidebarBackdrop implements AutoCloseable {
         source.getLocationOnScreen(location);
         try {
             PixelCopy.request(source, bitmap, result -> {
-                if (result != PixelCopy.SUCCESS || request != generation) { bitmap.recycle(); panel.post(finish); return; }
-                blur(bitmap);
-                panel.post(() -> {
-                    if (closed || request != generation || !panel.isAttachedToWindow()) { bitmap.recycle(); return; }
-                    panel.setBackground(new Drawable() {
-                        private final Paint paint = new Paint(Paint.FILTER_BITMAP_FLAG);
-                        private final Drawable tint = PopupStyle.surface(panel.getContext(), true);
-                        @Override public void draw(Canvas canvas) {
-                            int save = canvas.save();
-                            canvas.clipRect(getBounds());
-                            int[] panelLocation = new int[2];
-                            panel.getLocationOnScreen(panelLocation);
-                            float left = location[0] - panelLocation[0], top = location[1] - panelLocation[1];
-                            canvas.drawBitmap(bitmap, null, new RectF(left, top, left + width, top + height), paint);
-                            tint.setBounds(getBounds());
-                            tint.draw(canvas);
-                            canvas.restoreToCount(save);
-                        }
-                        @Override public void setAlpha(int alpha) { paint.setAlpha(alpha); }
-                        @Override public void setColorFilter(ColorFilter filter) { paint.setColorFilter(filter); }
-                        @Override public int getOpacity() { return PixelFormat.TRANSLUCENT; }
-                    });
-                    panel.removeCallbacks(finish);
-                    finish.run();
-                });
+                if (result != PixelCopy.SUCCESS) { bitmap.recycle(); completed.accept(null); return; }
+                completed.accept(new Frame(bitmap, location[0], location[1], width, height));
             }, handler);
-        } catch (IllegalArgumentException e) { bitmap.recycle(); panel.post(finish); }
+        } catch (IllegalArgumentException e) { bitmap.recycle(); completed.accept(null); }
+    }
+
+    private Drawable snapshot(Frame frame) {
+        return new Drawable() {
+            private final Paint paint = new Paint(Paint.FILTER_BITMAP_FLAG);
+            private final Drawable tint = PopupStyle.surface(panel.getContext(), true);
+            @Override public void draw(Canvas canvas) {
+                int save = canvas.save();
+                canvas.clipRect(getBounds());
+                int[] panelLocation = new int[2];
+                panel.getLocationOnScreen(panelLocation);
+                float left = frame.x - panelLocation[0], top = frame.y - panelLocation[1];
+                canvas.drawBitmap(frame.bitmap, null, new RectF(left, top, left + frame.width, top + frame.height), paint);
+                tint.setBounds(getBounds());
+                tint.draw(canvas);
+                canvas.restoreToCount(save);
+            }
+            @Override public void setAlpha(int alpha) { paint.setAlpha(alpha); }
+            @Override public void setColorFilter(ColorFilter filter) { paint.setColorFilter(filter); }
+            @Override public int getOpacity() { return PixelFormat.TRANSLUCENT; }
+        };
+    }
+
+    private void setFallbackBackground() {
+        android.graphics.drawable.GradientDrawable fallback = PopupStyle.surface(panel.getContext(), false);
+        fallback.setColor(AppUtils.isDarkMode(panel.getContext()) ? 0xFF1B1429 : 0xFFF7F3FF);
+        panel.setBackground(fallback);
     }
 
     /** Runs on the worker and never touches a game texture or the renderer. */
@@ -103,7 +153,9 @@ public final class SidebarBackdrop implements AutoCloseable {
 
     public void clear() {
         generation++;
-        panel.setBackground(PopupStyle.surface(panel.getContext(), false));
+        if (pendingTimeout != null) panel.removeCallbacks(pendingTimeout);
+        pendingTimeout = null;
+        setFallbackBackground();
     }
 
     @Override public void close() {

@@ -38,8 +38,7 @@ import com.winlator.cmod.container.ContainerManager;
 import com.winlator.cmod.core.AppUtils;
 import com.winlator.cmod.core.CommunityCover;
 import com.winlator.cmod.core.InterfaceMotion;
-import com.winlator.cmod.core.CommunityService;
-import com.winlator.cmod.core.PreloaderDialog;
+import com.winlator.cmod.core.CommunityPublicationDialog;
 import com.winlator.cmod.core.ShortcutArtworkManager;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -123,7 +122,7 @@ public final class CommunityConfigExportDialogFragment extends DialogFragment {
         ScrollView scroll = new ScrollView(context); scroll.setFillViewport(false); scroll.addView(fields);
         AlertDialog dialog = new com.winlator.cmod.core.PopupStyle.Builder(context).setTitle(R.string.export_community_config)
                 .setMessage(R.string.config_export_explanation).setView(scroll)
-                .setNegativeButton(R.string.cancel, null).setPositiveButton(R.string.export, null).create();
+                .setNegativeButton(R.string.cancel, null).setPositiveButton(R.string.config_export_submit, null).create();
         dialog.setOnShowListener(ignored -> {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> export());
             updateExportButton(); InterfaceMotion.apply(fields);
@@ -318,11 +317,7 @@ public final class CommunityConfigExportDialogFragment extends DialogFragment {
                 ((AlertDialog)requireDialog()).getButton(AlertDialog.BUTTON_NEGATIVE).setEnabled(true);
                 if (result == null) { Toast.makeText(requireContext(), R.string.config_export_failed, Toast.LENGTH_LONG).show(); return; }
                 android.app.Activity host = requireActivity();
-                new com.winlator.cmod.core.PopupStyle.Builder(host).setTitle(R.string.config_export_complete)
-                        .setMessage(getString(R.string.config_export_saved, result.getAbsolutePath()))
-                        .setPositiveButton(R.string.config_export_share, (d, which) -> share(host, result))
-                        .setNeutralButton(R.string.community_publish, (d, which) -> publish(host, result))
-                        .setNegativeButton(android.R.string.ok, null).show();
+                CommunityPublicationDialog.show(host, result, () -> share(host, result));
                 dismiss();
             });
         });
@@ -338,26 +333,4 @@ public final class CommunityConfigExportDialogFragment extends DialogFragment {
         }
     }
 
-    private static void publish(android.app.Activity host, File output) {
-        if (host.isFinishing() || host.isDestroyed()) return;
-        PreloaderDialog progress = new PreloaderDialog(host); progress.show(R.string.community_publishing);
-        Context app = host.getApplicationContext();
-        IO.execute(() -> {
-            int message = R.string.community_publish_success;
-            try { CommunityService.publish(app, output); }
-            catch (CommunityService.ServiceException error) {
-                message = error.status == 429 ? R.string.community_publish_limited : R.string.community_publish_failed;
-            } catch (Exception error) { message = R.string.community_publish_failed; }
-            int result = message;
-            host.runOnUiThread(() -> {
-                progress.close();
-                if (host.isFinishing() || host.isDestroyed()) return;
-                new com.winlator.cmod.core.PopupStyle.Builder(host).setTitle(R.string.community_publish).setMessage(result)
-                        .setPositiveButton(android.R.string.ok, null)
-                        .setNeutralButton(R.string.config_export_share, (d,w) -> share(host, output))
-                        .setNegativeButton(result == R.string.community_publish_success ? R.string.cancel : R.string.community_retry_action,
-                                (d,w) -> { if (result != R.string.community_publish_success) publish(host, output); }).show();
-            });
-        });
-    }
 }

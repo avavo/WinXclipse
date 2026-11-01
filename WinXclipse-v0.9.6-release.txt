@@ -15,6 +15,7 @@ WinXclipse v0.9.6 is a major experimental update for Exynos/Xclipse devices. It 
 - Added DisplayX controls for Bypass X11, Performance mode, Present at refresh rate, Submit every buffer and Precise presentation.
 - Preserved standard X11/WSI fallback for unsupported paths. The HUD distinguishes actual DisplayX frames from a ready DisplayX session displaying X11/GDI content.
 - Fixed DisplayX extension reporting so unsupported native-swapchain extensions do not prevent the compatible AHB path from being used.
+- Request interoperable CPU-readable AHB allocations for Xclipse/Samsung instead of GPU-only private layouts, for both System and RADV. Rendering stays on the GPU; visual validation of this fix on the phone remains pending.
 - Query Vulkan extensions and API support from the selected driver in an isolated process, including custom drivers.
 - Set the default Vulkan version from the driver's reported API instead of its name. Added Vulkan 1.4 selection for drivers that report support.
 - Added JimVulkan/radv-xclipse to driver sources and improved driver reimport and recovery.
@@ -32,14 +33,17 @@ WinXclipse v0.9.6 is a major experimental update for Exynos/Xclipse devices. It 
 - Repair incomplete bundled runtimes through staging and rollback, preserving existing containers, user files and installed content.
 - Prepare each prefix with its selected Wine/Proton, wait for that prefix's wineserver and reapply configured components before launch.
 - Validate runtime architecture, launchers, modules and FEX bridge files. Remove stale FEX companion libraries when switching package types.
-- Prepare and verify VulkanRT 1.3.283.0 in the selected prefix while preserving the original Wine Vulkan integration and recovery files.
+- Prepare and verify VulkanRT 1.3.283.0 side by side in the selected prefix while preserving the original Wine Vulkan integration and legacy recovery files.
+- Remove the translated NSIS extraction step and two redundant server restarts from VulkanRT preparation. Use the already verified bundled DLLs and keep both architecture/device checks before recording success.
 - Avoid repeating an explicitly unsupported Wine Vulkan compatibility check for up to six hours per runtime/configuration; other failures remain retryable.
 - Preserve launcher-to-game hand-off handling, startup diagnostics and cleanup of genuinely empty Wine sessions.
 
 ### Interface & In-game Sidebar
 
 - Improved blurred surfaces across dialogs, selectors, context menus, startup progress and the in-game sidebar.
-- Capture the sidebar background before opening its animation to avoid the initial unblurred flash.
+- Capture and freeze the sidebar background before opening its animation. Prime the first snapshot with the desktop, retain the previous blur on timeout and reject late captures that used to change the visible panel.
+- Align Advanced switches and help icons, including BCn, with consistent control sizes and wrapping.
+- Add Container settings below Sound to edit the defaults used by future new containers, without modifying existing containers or community imports.
 - Improved text and icon contrast, rounded outlines, field heights, option spacing and storage/audio controls.
 - Show the current selection in radio-style selectors and keep VSync values readable.
 - Open HUD, Display, Input, logs, debug and terminal pages inside the sidebar, with X/back navigation.
@@ -83,6 +87,9 @@ WinXclipse v0.9.6 is a major experimental update for Exynos/Xclipse devices. It 
 - Review the selected versions, game name and cover before import, export, sharing or publication.
 - Stage imports and keep durable checkpoints to recover after interruption without creating duplicate containers or replacing unrelated files.
 - Add hosted community publication and moderation, verified legacy configurations, offline catalog snapshots and ZIP sharing.
+- Publish automatically after configuration export. OK closes the result; Cancel sending configuration to community asks Yes/No and removes the actual publication while keeping the local ZIP.
+- Match named DXVK/VKD3D WCP assets to their embedded manifests without mixing architectures or variants. Remove the deleted ARM64EC 3.0a download and refresh old cached catalogs.
+- Add live release, stars, community membership and license badges to the README with WinXclipse branding.
 
 ### File Manager, Backup & Stability
 

@@ -4,6 +4,30 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class ContentVersionTest {
+    @Test public void allPublishedGraphicsPackagesMatchInspectedProfileNames() throws Exception {
+        try (java.io.BufferedReader lines = new java.io.BufferedReader(new java.io.InputStreamReader(
+                getClass().getResourceAsStream("/graphics-package-identities.tsv"), java.nio.charset.StandardCharsets.UTF_8))) {
+            String line; int checked = 0;
+            while ((line = lines.readLine()) != null) {
+                if (line.startsWith("#") || line.isEmpty()) continue;
+                String[] entry = line.split("\t");
+                assertTrue(entry[0] + ": " + entry[2] + " != " + entry[3], ContentVersion.samePackageName(entry[1], entry[2], entry[3]));
+                checked++;
+            }
+            assertEquals(32, checked);
+        }
+    }
+    @Test public void graphicsPackagesMatchTheirRealEmbeddedManifests() {
+        assertTrue(ContentVersion.samePackageName("DXVK", "v3.1", "dxvk-3.1"));
+        assertTrue(ContentVersion.samePackageName("VKD3D", "3.1-arm64ec", "vkd3d-proton-arm64ec-3.1"));
+        assertTrue(ContentVersion.samePackageName("DXVK", "v3.1.1-gplasync-arm64ec", "dxvk-gplasync-arm64ec-3.1.1-1"));
+        assertTrue(ContentVersion.samePackageName("DXVK", "1.7.2-async", "dxvk-async-1.7.2"));
+        assertFalse(ContentVersion.samePackageName("DXVK", "3.1-arm64ec", "dxvk-3.1"));
+        assertFalse(ContentVersion.samePackageName("DXVK", "3.1-async", "dxvk-gplasync-3.1"));
+        assertFalse(ContentVersion.samePackageName("VKD3D", "3.0b-71095c7b", "3.0b-12345678"));
+        assertFalse(ContentVersion.samePackageName("DXVK", "3.1", "dxvk-3.1.1"));
+        assertFalse(ContentVersion.samePackageName("Wine", "10-arm64ec", "10-arm64"));
+    }
     @Test public void reopeningASelectorKeepsTheImportedBuildWhenNamesAreDuplicated() {
         java.util.List<String> rows = new java.util.ArrayList<>(java.util.Arrays.asList("2.6.1", "2.6.1-41", "2.6.1-42"));
         assertEquals(2, ContentVersion.retainSelection(rows, "2.6.1-42"));

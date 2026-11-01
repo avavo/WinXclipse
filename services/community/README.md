@@ -18,6 +18,17 @@ de hospedagem, nunca no código, APK, manifesto ou JavaScript enviado ao navegad
 - `POST /api/v1/configs`: ZIP binário, `Authorization: Bearer <credencial do cliente>`.
 - `GET /api/v1/configs/{id}/archive?r={revision}`: ZIP completo e SHA-256 no catálogo.
 - `GET /api/v1/configs/{id}/cover?r={revision}`: capa PNG.
+- `DELETE /api/v1/configs/{id}`: retirar o próprio envio, com a credencial original
+  em `Authorization` e SHA-256 do ZIP **enviado** em `X-Submission-Hash`. O hash do
+  ZIP normalizado no catálogo não substitui essa prova. A chave derivada inclui
+  a identidade do cliente; outro aparelho não pode retirar o envio.
+
+O app exporta e envia automaticamente após o usuário confirmar o formulário.
+Na conclusão, OK fecha; abaixo, cancelar envio abre confirmação Sim/Não. Sim
+retira a publicação, revoga downloads e mantém o ZIP local. Falha mantém a ação
+disponível para nova tentativa. Retirada repetida pelo mesmo autor é idempotente,
+inclusive após uma edição do mantenedor; importações administrativas não pertencem
+a clientes públicos.
 
 Envios públicos começam sem verificação. Repetir o mesmo ZIP com a mesma credencial
 retorna o mesmo ID; o autor não controla o selo. Campos administrativos nunca são

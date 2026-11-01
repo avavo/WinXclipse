@@ -6,6 +6,9 @@ All notable changes between WinXclipse releases, newest first.
 
 ### Fixed
 
+- Named DXVK/VKD3D downloads now match inspected WCP manifest identities, including ARM64EC and async variants. Corrected the 1.6.1/Sarek catalog metadata and removed the deleted ARM64EC 3.0a asset.
+- Sidebar captures are frozen before the entrance animation; late PixelCopy results cannot replace a visible backdrop. Advanced switches and help columns now align, including BCn.
+- DisplayX requests interoperable gralloc buffers on Xclipse for System and RADV. The native probe now includes attachment rendering; visual confirmation of the new allocation on the phone is still pending.
 - File Manager now treats a move/copy onto an existing file as a real replacement instead of creating a suffixed duplicate. Symlink-aware size accounting keeps the progress dialog accurate for large saves and game folders.
 - Shortcut lifecycle detection no longer mistakes the normal exit of `start.exe` for the game process. Slow launcher-to-game hand-offs are allowed to continue for 30 seconds, while shortcuts that never start still use the separate stale-launch backstop.
 - Wine/Proton, FEXCore, Box64, DXVK and VKD3D selectors and launchers now resolve only installed content. Failed FEXCore extraction cannot leave a false version marker, and an installed fallback is selected when an old container points at missing content.
@@ -16,7 +19,11 @@ All notable changes between WinXclipse releases, newest first.
 
 ### Changed
 
-- RAM Fix remains enabled by default. NRAMV's intrusive Android-process memory paging is now limited to the explicit Experimental Performance option, preventing background refault stalls in ordinary sessions.
+- RAM Fix remains enabled by default. Optional experimental memory, cache, policy and BCn settings are grouped below GStreamer; startup RAM preparation uses bounded allocator cleanup.
+- VulkanRT preparation uses the verified bundled DLLs side by side, removing translated NSIS extraction and redundant server restarts while retaining the device/driver checks.
+- Settings now offers editable defaults below Sound for future new containers. Defaults are stored independently from runnable prefixes and keep their editor mode across recreation.
+- Exporting a community configuration starts publication automatically. OK closes the result; the cancellation action below it asks Yes/No before withdrawing the actual publication and keeps the local ZIP.
+- README release, stars, community and license badges use WinXclipse colors and live counts.
 - Release version is now `0.9.6` (version code `27`). This build publishes only the main WinXclipse package.
 
 ## 0.9.5

@@ -12,7 +12,7 @@
     <string name="config_export_crashes">Inicia, pero se cierra inesperadamente</string>
     <string name="config_export_menu_only">Solo el menú</string>
     <string name="config_export_playable">Jugable</string>
-    <string name="config_export_explanation">Revisa el nombre del juego y la portada antes de guardar. El ZIP incluye solo la configuración, sin el juego ni las partidas. Compartir no requiere Discord.</string>
+    <string name="config_export_explanation">Revisa el nombre del juego y la portada antes de guardar. La configuración se enviará automáticamente a la comunidad. El ZIP no contiene el juego ni las partidas. Compartir no requiere Discord.</string>
     <string name="config_export_cover_empty">Ninguna portada seleccionada</string>
     <string name="config_export_cover_preview">Esta portada se incluirá en el ZIP</string>
     <string name="config_export_cover_loading">Preparando portada…</string>
@@ -37,4 +37,10 @@
     <string name="community_publish_failed">No se pudo publicar la configuración. Comprueba la conexión e inténtalo de nuevo. Tu ZIP sigue guardado en Downloads/WinXclipse/CommunityConfigs.</string>
     <string name="community_publish_limited">Límite de envíos alcanzado. Inténtalo más tarde. Tu ZIP sigue guardado.</string>
     <string name="community_download_failed">No se pudo descargar y verificar la configuración. Comprueba la conexión e inténtalo de nuevo.</string>
+    <string name="config_export_submit">Exportar y enviar</string>
+    <string name="community_cancel_submission">Cancelar envío de la configuración a la comunidad</string>
+    <string name="community_cancel_confirm">¿Retirar esta configuración de la comunidad? Se conservará el ZIP guardado en tu dispositivo.</string>
+    <string name="community_withdrawing">Retirando configuración…</string>
+    <string name="community_withdrawn">Configuración retirada de la comunidad. Tu ZIP sigue guardado.</string>
+    <string name="community_withdraw_failed">No se pudo retirar la configuración. Sigue publicada. Comprueba la conexión e inténtalo de nuevo.</string>
 </resources>

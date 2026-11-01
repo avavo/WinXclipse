@@ -12,7 +12,7 @@
     <string name="config_export_crashes">Inicia, mas fecha inesperadamente</string>
     <string name="config_export_menu_only">Apenas o menu</string>
     <string name="config_export_playable">Jogável</string>
-    <string name="config_export_explanation">Confira o nome do jogo e a capa antes de salvar. O ZIP inclui apenas a configuração, sem o jogo nem os saves. Compartilhar não exige Discord.</string>
+    <string name="config_export_explanation">Confira o nome do jogo e a capa antes de salvar. A configuração será enviada automaticamente à comunidade. O ZIP não contém o jogo nem os saves. Compartilhar não exige Discord.</string>
     <string name="config_export_cover_empty">Nenhuma capa selecionada</string>
     <string name="config_export_cover_preview">Esta capa será incluída no ZIP</string>
     <string name="config_export_cover_loading">Preparando capa…</string>
@@ -37,4 +37,10 @@
     <string name="community_publish_failed">Não foi possível publicar a configuração. Confira a conexão e tente novamente. Seu ZIP continua salvo em Downloads/WinXclipse/CommunityConfigs.</string>
     <string name="community_publish_limited">Limite de envios atingido. Tente novamente mais tarde. Seu ZIP continua salvo.</string>
     <string name="community_download_failed">Não foi possível baixar e verificar a config. Confira a conexão e tente novamente.</string>
+    <string name="config_export_submit">Exportar e enviar</string>
+    <string name="community_cancel_submission">Cancelar envio da configuração à comunidade</string>
+    <string name="community_cancel_confirm">Retirar esta configuração da comunidade? O ZIP salvo no seu aparelho será mantido.</string>
+    <string name="community_withdrawing">Retirando configuração…</string>
+    <string name="community_withdrawn">Configuração retirada da comunidade. Seu ZIP continua salvo.</string>
+    <string name="community_withdraw_failed">Não foi possível retirar a configuração. Ela continua publicada. Confira a conexão e tente novamente.</string>
 </resources>

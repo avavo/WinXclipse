@@ -129,7 +129,15 @@ public final class CommunityService {
                     if (!credential.matches("[A-Za-z0-9_-]{43}") || !prefs.edit().putString("upload_token", credential).commit())
                         throw new IOException("Cannot preserve upload identity");
                 }
-                try { return new Entry(requestJson("/api/v1/configs", "POST", credential, archive)); }
+                try {
+                    // The service normalizes the ZIP; ownership uses the ORIGINAL upload digest.
+                    String digest = PackageIdentity.sha256(archive);
+                    Entry entry = new Entry(requestJson("/api/v1/configs", "POST", credential, archive));
+                    JSONObject receipt = new JSONObject().put("token", credential).put("digest", digest);
+                    if (!prefs.edit().putString("submission:" + entry.id, receipt.toString()).commit())
+                        throw new IOException("Cannot preserve submission receipt");
+                    return entry;
+                }
                 catch (ServiceException error) {
                     if (error.status != 401 || attempt != 0) throw error;
                     prefs.edit().remove("upload_token").commit();
@@ -137,6 +145,23 @@ public final class CommunityService {
             }
         }
         throw new IOException("Unable to publish config");
+    }
+
+    /** Only the submitting installation can withdraw its own publication. */
+    public static void withdraw(Context context, String id) throws Exception {
+        CommunityEndpoint.file(id, 1, false); // Validate before constructing an API path.
+        synchronized (CLIENT_LOCK) {
+            SharedPreferences prefs = context.getSharedPreferences("community_service", Context.MODE_PRIVATE);
+            JSONObject receipt = new JSONObject(prefs.getString("submission:" + id, "{}"));
+            String token = receipt.optString("token"), digest = receipt.optString("digest");
+            if (!token.matches("[A-Za-z0-9_-]{43}") || !digest.matches("[a-f0-9]{64}"))
+                throw new IOException("Missing submission receipt");
+            JSONObject result = requestJson("/api/v1/configs/" + id, "DELETE", token, null, digest);
+            if (!id.equals(result.optString("id")) || !result.optBoolean("deleted"))
+                throw new IOException("Invalid withdrawal response");
+            // Keep the receipt for an idempotent retry if a response or activity is lost.
+            new File(context.getFilesDir(), "community_service_catalog.json").delete();
+        }
     }
 
     public static final class ServiceException extends IOException {
@@ -152,9 +177,14 @@ public final class CommunityService {
     }
 
     private static JSONObject requestJson(String path, String method, String token, File archive) throws Exception {
+        return requestJson(path, method, token, archive, null);
+    }
+
+    private static JSONObject requestJson(String path, String method, String token, File archive, String submissionHash) throws Exception {
         HttpURLConnection connection = connect(CommunityEndpoint.ORIGIN + path, method);
         try {
             if (token != null) connection.setRequestProperty("Authorization", "Bearer " + token);
+            if (submissionHash != null) connection.setRequestProperty("X-Submission-Hash", submissionHash);
             if ("POST".equals(method)) {
                 connection.setDoOutput(true); connection.setFixedLengthStreamingMode(archive == null ? 0 : archive.length());
                 connection.setRequestProperty("Content-Type", archive == null ? "application/json" : "application/zip");
