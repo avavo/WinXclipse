@@ -568,7 +568,10 @@ public class ContainerManager {
         };
         try {
             boolean bakedIn = runtimeProfile != null && runtimeProfile.bakedInRuntime;
-            boolean extracted = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context,
+            // A managed runtime owns its prefix pack even when its identifier
+            // happens to match an APK template (for example downloaded Proton 9).
+            boolean extracted = (bakedIn || runtimeProfile == null)
+                    && TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context,
                     com.winlator.cmod.core.WinePrefixBootstrap.templateAsset(wineVersion, bakedIn), staging, prefixListener);
             boolean trustedTemplate = extracted && bakedIn;
             if (!extracted) {
@@ -585,6 +588,12 @@ public class ContainerManager {
             if (extracted && !stagedPrefix.isDirectory() && new File(staging, "drive_c").isDirectory()) {
                 stagedPrefix = staging; // Some WCPs contain the prefix itself without a .wine wrapper.
             }
+            File wineInf = new File(wineBinDir.getParentFile(), "share/wine/wine.inf");
+            // Do not make an incomplete downloaded pack look prepared by filling
+            // its missing modules first. Only its own complete matching core counts.
+            boolean preparedPack = extracted && !trustedTemplate
+                    && com.winlator.cmod.core.WinePrefixBootstrap.adoptPreparedTemplate(
+                    stagedPrefix, wineInfo.getArch(), wineVersion, wineBinDir, wineLibDir, wineInf);
             WinePrefixState.ensureRegistries(stagedPrefix, wineInfo.isWin64());
             // Raw runtimes start with their own modules and let wineboot create
             // their registry/layout; no Proton 9 registry is relabelled as win32.
@@ -597,9 +606,12 @@ public class ContainerManager {
                 extractCommonDlls(wineInfo, wineLibDir, "x86_64-windows", "system32", stagedPrefix, null);
                 extractCommonDlls(wineInfo, wineLibDir, "i386-windows", "syswow64", stagedPrefix, null);
             }
-            if (trustedTemplate && com.winlator.cmod.core.WinePrefixBootstrap.adoptBundledTemplate(
-                    stagedPrefix, wineVersion, wineBinDir, wineLibDir, new File(runtimeRoot, "share/wine/wine.inf")))
-                Log.i("ContainerManager", "Prepared APK prefix matches bundled Proton; no forced first-boot migration");
+            if (trustedTemplate)
+                preparedPack = com.winlator.cmod.core.WinePrefixBootstrap.adoptPreparedTemplate(
+                        stagedPrefix, wineInfo.getArch(), wineVersion, wineBinDir, wineLibDir, wineInf);
+            if (preparedPack)
+                Log.i("ContainerManager", "Prepared " + (trustedTemplate ? "APK" : "downloaded")
+                        + " prefix matches selected runtime; no forced first-boot migration");
             File previous = DirectoryInstall.commit(stagedPrefix, new File(containerDir, ".wine"));
             if (previous != null) FileUtils.delete(previous);
             Log.i("ContainerManager", "Created isolated " + wineInfo.getArch() + " prefix for " + wineVersion);

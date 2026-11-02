@@ -20,9 +20,12 @@ public final class WinePrefixBootstrap {
         return (bakedInRuntime ? "proton-9.0-arm64ec" : selection) + "_container_pattern.tzst";
     }
 
-    /** Only called for the prepared prefix extracted from this APK for its baked-in runtime. */
-    public static boolean adoptBundledTemplate(File prefix, String identity, File wineBin, File wineLib,
-                                               File wineInf) throws IOException {
+    /** Accept only a freshly extracted prepared template for this installed runtime.
+     * Downloaded packs must be checked BEFORE seeding any missing core modules. */
+    public static boolean adoptPreparedTemplate(File prefix, String architecture, String identity,
+                                                File wineBin, File wineLib, File wineInf) throws IOException {
+        if (!WineRuntimeLayout.supportsArchitecture(architecture)
+                || !wineInf.isFile() || wineInf.length() == 0) return false;
         File timestamp = new File(prefix, ".update-timestamp");
         if (!timestamp.isFile() || timestamp.length() > 32
                 || !"disable".equals(new String(java.nio.file.Files.readAllBytes(timestamp.toPath()),
@@ -40,10 +43,14 @@ public final class WinePrefixBootstrap {
             }
             if (!hasKeys) return false;
         }
-        WinePrefixState.ensureRegistries(prefix, true);
-        // Confirm that the template contains the selected runtime's actual core,
-        // including WoW64. A raw/incomplete prefix still needs normal wineboot.
-        for (String[] arch : new String[][]{{"aarch64-windows", "system32"}, {"i386-windows", "syswow64"}}) {
+        WinePrefixState.ensureRegistries(prefix, !"x86".equals(architecture));
+        // Confirm that the archive already contains the selected runtime's actual
+        // core for every Windows side. Header-only/incomplete packs still migrate.
+        String primary = WineRuntimeLayout.isNativeArm64(architecture) ? "aarch64-windows" : "x86_64-windows";
+        String[][] modules = "x86".equals(architecture)
+                ? new String[][]{{"i386-windows", "system32"}}
+                : new String[][]{{primary, "system32"}, {"i386-windows", "syswow64"}};
+        for (String[] arch : modules) {
             for (String name : new String[]{"ntdll.dll", "kernel32.dll", "wineboot.exe"}) {
                 File source = new File(WineRuntimeLayout.modules(wineLib, arch[0]), name);
                 File target = new File(prefix, "drive_c/windows/" + arch[1] + "/" + name);
@@ -64,7 +71,8 @@ public final class WinePrefixBootstrap {
         if (!server.isFile() || server.length() == 0) throw new IOException("Wine server is missing or empty: " + server);
         if (!wineInf.isFile() || wineInf.length() == 0) throw new IOException("Wine setup data is missing or empty: " + wineInf);
         String fingerprint = WinePrefixState.fingerprint(identity, wine, wineInf);
-        if (WinePrefixState.isPrepared(prefix, fingerprint)) return false;
+        if (WinePrefixState.isPrepared(prefix, fingerprint)
+                || WinePrefixState.migrateLegacyReceipt(prefix, identity, wine, wineInf, fingerprint)) return false;
         WinePrefixState.invalidate(prefix);
 
         // -u forces Wine's real prefix migration even when an old template's

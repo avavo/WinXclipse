@@ -27,7 +27,7 @@ WinXclipse v0.9.6 is a major experimental update for Exynos/Xclipse devices. It 
 
 ### Startup, Wine & Proton
 
-- Correct the built-in Proton 9 catalog alias so new containers use its prepared APK prefix. Verify the runtime core before adopting that template, while keeping migration for other runtimes or incomplete prefixes.
+- Preserve prepared prefixes across Wine/Proton catalog name changes, including downloaded runtimes and successful preparations from the previous APK. New containers also reuse complete compatible prefix packs supplied by downloaded runtimes; incomplete packs and actual runtime changes still receive their required initialization.
 
 - Apply startup service, component and theme registry changes in a single pass per file, avoiding repeated rewrites of large Proton registries.
 - Keep new/default containers on an installed runtime after removal. Verify runtime deletion and prevent an unavailable saved Proton 9 from reappearing in the new-container selector.

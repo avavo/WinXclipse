@@ -80,7 +80,7 @@ public class WinePrefixBootstrapTest {
     @Test public void verifiedPreparedApkTemplateSkipsForcedWinebootAndRetainsRuntimeUpgradeChecks() throws Exception {
         Fixture f = new Fixture();
         File libraries = preparedTemplate(f);
-        assertTrue(WinePrefixBootstrap.adoptBundledTemplate(f.prefix, "proton9", f.bin, libraries, f.inf));
+        assertTrue(WinePrefixBootstrap.adoptPreparedTemplate(f.prefix, "arm64ec", "proton9", f.bin, libraries, f.inf));
         assertFalse(f.prepare("proton9", null, () -> fail("No redundant component installation")));
         assertTrue(f.phases.isEmpty());
         assertTrue(f.prepare("proton10", null, () -> {}));
@@ -88,26 +88,83 @@ public class WinePrefixBootstrapTest {
         assertEquals("do not touch", read(new File(f.prefix, "drive_c/Game/save.dat")));
     }
 
+    @Test public void creationAliasAndLaunchCatalogNameReuseThePreparedPrefix() throws Exception {
+        Fixture f = new Fixture();
+        File libraries = preparedTemplate(f);
+        assertTrue(WinePrefixBootstrap.adoptPreparedTemplate(f.prefix, "arm64ec",
+                "proton-9.0-arm64ec", f.bin, libraries, f.inf));
+        assertFalse(f.prepare("Proton-9.0-arm64ec-0", null, () -> fail("No duplicate components")));
+        assertTrue(f.phases.isEmpty());
+    }
+
+    @Test public void downloadedWineAndProtonKeepPreparationAcrossCatalogAliases() throws Exception {
+        Fixture f = new Fixture();
+        for (String id : new String[]{"wine-10.0-x86_64", "proton-10.0-arm64ec"}) {
+            assertTrue(f.prepare(id, null, () -> {}));
+            f.phases.clear();
+            assertFalse(f.prepare(Character.toUpperCase(id.charAt(0)) + id.substring(1) + "-0",
+                    null, () -> fail("No repeated downloaded-runtime preparation")));
+            assertTrue(f.phases.isEmpty());
+        }
+    }
+
+    @Test public void previousApkSuccessReceiptIsUpgradedWithoutRunningWineAgain() throws Exception {
+        Fixture f = new Fixture();
+        core(f.prefix);
+        WinePrefixState.ensureRegistries(f.prefix, true);
+        String id = "Proton-9.0-arm64ec-0";
+        WinePrefixState.markPrepared(f.prefix, WinePrefixState.legacyFingerprint(id, new File(f.bin, "wine"), f.inf));
+        assertFalse(f.prepare(id, null, () -> fail("Already initialized by previous APK")));
+        assertTrue(f.phases.isEmpty());
+        assertTrue(WinePrefixState.isPrepared(f.prefix, f.fingerprint("proton-9.0-arm64ec")));
+        // Build/architecture changes and same-name binary replacements still update.
+        assertTrue(f.prepare("Proton-9.0-arm64ec-1", null, () -> {}));
+        assertTrue(f.prepare("Proton-9.0-arm64-1", null, () -> {}));
+        write(f.runtime, "bin/wine", "replacement launcher");
+        assertTrue(f.prepare("Proton-9.0-arm64-1", null, () -> {}));
+    }
+
+    @Test public void downloadedPreparedPacksSupportBothX64AndWin32() throws Exception {
+        Fixture f = new Fixture();
+        File libraries = preparedTemplate(f);
+        for (String architecture : new String[]{"x86_64", "x86"}) {
+            WinePrefixState.invalidate(f.prefix);
+            String primary = architecture.equals("x86") ? "i386-windows" : "x86_64-windows";
+            for (String name : new String[]{"ntdll.dll", "kernel32.dll", "wineboot.exe"}) {
+                write(libraries, "wine/" + primary + "/" + name, "matching-" + name);
+                write(f.prefix, "drive_c/windows/system32/" + name, "matching-" + name);
+            }
+            for (String name : new String[]{"system.reg", "user.reg", "userdef.reg"})
+                write(f.prefix, name, "WINE REGISTRY Version 2\n#arch="
+                        + (architecture.equals("x86") ? "win32" : "win64") + "\n[Software\\\\Wine]\n");
+            String id = "Wine-10.0-" + architecture + "-0";
+            assertTrue(WinePrefixBootstrap.adoptPreparedTemplate(f.prefix, architecture, id, f.bin, libraries, f.inf));
+            assertFalse(WinePrefixBootstrap.prepare(f.prefix, !architecture.equals("x86"), id,
+                    f.bin, f.inf, null, f::run, () -> fail("Pack was already prepared")));
+        }
+        assertTrue(f.phases.isEmpty());
+    }
+
     @Test public void mismatchedOrIncompleteTemplateStillRequiresRealWineboot() throws Exception {
         Fixture f = new Fixture();
         File libraries = preparedTemplate(f);
         write(f.prefix, "drive_c/windows/syswow64/kernel32.dll", "another runtime");
-        assertFalse(WinePrefixBootstrap.adoptBundledTemplate(f.prefix, "proton9", f.bin, libraries, f.inf));
+        assertFalse(WinePrefixBootstrap.adoptPreparedTemplate(f.prefix, "arm64ec", "proton9", f.bin, libraries, f.inf));
         assertFalse(WinePrefixState.isPrepared(f.prefix, f.fingerprint("proton9")));
         assertTrue(f.prepare("proton9", null, () -> {}));
         WinePrefixState.invalidate(f.prefix);
         write(f.prefix, ".update-timestamp", "");
-        assertFalse(WinePrefixBootstrap.adoptBundledTemplate(f.prefix, "proton9", f.bin, libraries, f.inf));
+        assertFalse(WinePrefixBootstrap.adoptPreparedTemplate(f.prefix, "arm64ec", "proton9", f.bin, libraries, f.inf));
     }
 
     @Test public void emptyRegistrySkeletonIsNeverMistakenForPreparedTemplate() throws Exception {
         Fixture f = new Fixture();
         File libraries = preparedTemplate(f);
         write(f.prefix, "system.reg", "WINE REGISTRY Version 2\n#arch=win64\n");
-        assertFalse(WinePrefixBootstrap.adoptBundledTemplate(f.prefix, "proton9", f.bin, libraries, f.inf));
+        assertFalse(WinePrefixBootstrap.adoptPreparedTemplate(f.prefix, "arm64ec", "proton9", f.bin, libraries, f.inf));
         assertFalse(WinePrefixState.isPrepared(f.prefix, f.fingerprint("proton9")));
         assertTrue(new File(f.prefix, "user.reg").delete());
-        assertFalse(WinePrefixBootstrap.adoptBundledTemplate(f.prefix, "proton9", f.bin, libraries, f.inf));
+        assertFalse(WinePrefixBootstrap.adoptPreparedTemplate(f.prefix, "arm64ec", "proton9", f.bin, libraries, f.inf));
         assertFalse(new File(f.prefix, "user.reg").exists());
     }
 

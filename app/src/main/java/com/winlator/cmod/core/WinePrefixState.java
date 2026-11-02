@@ -81,7 +81,21 @@ public final class WinePrefixState {
         throw new IOException("Wine executable is missing or empty: " + bin);
     }
 
+    /** Catalog names differ in case and may append the default content build, -0.
+     * Keep nonzero builds, version suffixes and architectures distinct. Actual
+     * executable/setup bytes and locations remain part of every fingerprint. */
+    private static String canonicalIdentity(String identity) {
+        return (identity == null ? "" : identity.trim()).toLowerCase(java.util.Locale.ROOT)
+                .replaceFirst("^(wine|proton)-(.+)-0$", "$1-$2");
+    }
+
     public static String fingerprint(String identity, File wine, File wineInf) throws IOException {
+        return legacyFingerprint(canonicalIdentity(identity), wine, wineInf);
+    }
+
+    // Retain the exact v1 algorithm to migrate successful preparations written
+    // by older APKs. This never accepts a receipt for different runtime files.
+    static String legacyFingerprint(String identity, File wine, File wineInf) throws IOException {
         String value = identity + "\n" + wine.getCanonicalPath() + "\n" + wine.length() + "\n" + wine.lastModified()
                 + "\n" + wineInf.getCanonicalPath() + "\n" + wineInf.length() + "\n" + wineInf.lastModified();
         try {
@@ -105,6 +119,14 @@ public final class WinePrefixState {
     public static boolean isPrepared(File prefix, String fingerprint) throws IOException {
         File receipt = new File(prefix, RECEIPT);
         return hasCoreFiles(prefix) && receipt.isFile() && fingerprint.equals(read(receipt).trim());
+    }
+
+    static boolean migrateLegacyReceipt(File prefix, String identity, File wine, File wineInf,
+                                        String fingerprint) throws IOException {
+        if (!new File(prefix, RECEIPT).isFile() || !hasCoreFiles(prefix)
+                || !isPrepared(prefix, legacyFingerprint(identity, wine, wineInf))) return false;
+        markPrepared(prefix, fingerprint);
+        return true;
     }
 
     public static boolean hasCoreFiles(File prefix) {
