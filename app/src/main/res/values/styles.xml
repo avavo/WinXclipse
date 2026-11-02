@@ -3,6 +3,14 @@
 
     <!-- Light Theme -->
     <style name="AppTheme" parent="@style/Theme.AppCompat.Light.NoActionBar">
+        <item name="android:buttonStyle">@style/RoundedActionWidget</item>
+        <item name="buttonStyle">@style/RoundedActionWidget</item>
+        <item name="buttonBarPositiveButtonStyle">@style/RoundedActionWidget</item>
+        <item name="buttonBarNegativeButtonStyle">@style/RoundedActionWidget</item>
+        <item name="buttonBarNeutralButtonStyle">@style/RoundedActionWidget</item>
+        <item name="android:buttonBarPositiveButtonStyle">@style/RoundedActionWidget</item>
+        <item name="android:buttonBarNegativeButtonStyle">@style/RoundedActionWidget</item>
+        <item name="android:buttonBarNeutralButtonStyle">@style/RoundedActionWidget</item>
         <item name="android:alertDialogTheme">@style/ContentDialog</item>
         <item name="alertDialogTheme">@style/ContentDialog</item>
         <item name="colorAccent">@color/colorAccent</item>
@@ -36,6 +44,14 @@
 
     <!-- Dark Theme -->
     <style name="AppTheme.Dark" parent="@style/Theme.AppCompat.NoActionBar">
+        <item name="android:buttonStyle">@style/RoundedActionWidget</item>
+        <item name="buttonStyle">@style/RoundedActionWidget</item>
+        <item name="buttonBarPositiveButtonStyle">@style/RoundedActionWidget</item>
+        <item name="buttonBarNegativeButtonStyle">@style/RoundedActionWidget</item>
+        <item name="buttonBarNeutralButtonStyle">@style/RoundedActionWidget</item>
+        <item name="android:buttonBarPositiveButtonStyle">@style/RoundedActionWidget</item>
+        <item name="android:buttonBarNegativeButtonStyle">@style/RoundedActionWidget</item>
+        <item name="android:buttonBarNeutralButtonStyle">@style/RoundedActionWidget</item>
         <item name="android:alertDialogTheme">@style/ContentDialog.Dark</item>
         <item name="alertDialogTheme">@style/ContentDialog.Dark</item>
         <item name="colorAccent">@color/colorAccentDark</item>
@@ -146,6 +162,14 @@
     </style>
 
     <style name="BaseContentDialog" parent="@style/Theme.AppCompat.Light.Dialog.Alert">
+        <item name="android:buttonStyle">@style/RoundedActionWidget</item>
+        <item name="buttonStyle">@style/RoundedActionWidget</item>
+        <item name="buttonBarPositiveButtonStyle">@style/RoundedActionWidget</item>
+        <item name="buttonBarNegativeButtonStyle">@style/RoundedActionWidget</item>
+        <item name="buttonBarNeutralButtonStyle">@style/RoundedActionWidget</item>
+        <item name="android:buttonBarPositiveButtonStyle">@style/RoundedActionWidget</item>
+        <item name="android:buttonBarNegativeButtonStyle">@style/RoundedActionWidget</item>
+        <item name="android:buttonBarNeutralButtonStyle">@style/RoundedActionWidget</item>
         <item name="android:windowIsTranslucent">true</item>
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowFullscreen">true</item>
@@ -175,6 +199,14 @@
 
 
     <style name="BaseDarkContentDialog" parent="@style/Theme.AppCompat.Dialog.Alert">
+        <item name="android:buttonStyle">@style/RoundedActionWidget</item>
+        <item name="buttonStyle">@style/RoundedActionWidget</item>
+        <item name="buttonBarPositiveButtonStyle">@style/RoundedActionWidget</item>
+        <item name="buttonBarNegativeButtonStyle">@style/RoundedActionWidget</item>
+        <item name="buttonBarNeutralButtonStyle">@style/RoundedActionWidget</item>
+        <item name="android:buttonBarPositiveButtonStyle">@style/RoundedActionWidget</item>
+        <item name="android:buttonBarNegativeButtonStyle">@style/RoundedActionWidget</item>
+        <item name="android:buttonBarNeutralButtonStyle">@style/RoundedActionWidget</item>
         <item name="android:windowIsTranslucent">true</item>
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowFullscreen">true</item>
@@ -274,6 +306,18 @@
         <item name="checkboxStyle">@style/CheckBox</item>
     </style>
 
+    <style name="RoundedActionWidget" parent="Widget.AppCompat.Button">
+        <item name="android:background">@drawable/button_neutral</item>
+        <item name="backgroundTint">@null</item>
+        <item name="android:backgroundTint">@null</item>
+        <item name="android:textColor">#FFFFFF</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:paddingLeft">16dp</item>
+        <item name="android:paddingRight">16dp</item>
+        <item name="android:paddingTop">8dp</item>
+        <item name="android:paddingBottom">8dp</item>
+    </style>
     <!-- Button Styles -->
     <style name="BaseButton">
         <item name="android:layout_width">wrap_content</item>
@@ -340,7 +384,7 @@
         <item name="android:clickable">true</item>
         <item name="android:gravity">center</item>
         <item name="android:scaleType">centerInside</item>
-        <item name="android:background">?selectableItemBackgroundBorderless</item>
+        <item name="android:background">@drawable/icon_action_ripple</item>
         <item name="android:padding">4dp</item>
     </style>
 
@@ -357,7 +401,7 @@
     <style name="ListMenuButton" parent="BaseImageButton">
         <item name="android:layout_width">34dp</item>
         <item name="android:layout_height">34dp</item>
-        <item name="android:tint">@color/colorPrimaryDark</item>
+        <item name="android:tint">?attr/colorAccent</item>
         <item name="android:layout_marginLeft">2dp</item>
         <item name="android:layout_marginRight">2dp</item>
     </style>
@@ -380,7 +424,7 @@
     <style name="VerticalLine">
         <item name="android:layout_width">2dp</item>
         <item name="android:layout_height">match_parent</item>
-        <item name="android:background">?attr/colorControlNormal</item>
+        <item name="android:background">@drawable/rounded_icon_action_small</item>
         <item name="android:layout_marginTop">2dp</item>
         <item name="android:layout_marginBottom">2dp</item>
         <item name="android:layout_marginLeft">4dp</item>

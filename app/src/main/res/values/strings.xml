@@ -1363,4 +1363,8 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="hud_swap">Swap usage</string>
     <string name="displayx_ready_x11">DisplayX ready · X11/GDI</string>
     <string name="edit_default_container_config">Edit default container settings</string>
+    <string name="restore_control_presets">Restore default presets</string>
+    <string name="remove_all_control_presets">Delete all presets</string>
+    <string name="confirm_remove_all_control_presets">Delete all control presets, including custom layouts? Bundled layouts can be recovered with Restore default presets.</string>
+    <string name="control_presets_restored">Default presets restored. Custom layouts were kept.</string>
 </resources>

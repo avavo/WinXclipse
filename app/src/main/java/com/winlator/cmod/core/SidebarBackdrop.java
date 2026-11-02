@@ -106,11 +106,18 @@ public final class SidebarBackdrop implements AutoCloseable {
             private final Drawable tint = PopupStyle.surface(panel.getContext(), true);
             @Override public void draw(Canvas canvas) {
                 int save = canvas.save();
-                canvas.clipRect(getBounds());
-                int[] panelLocation = new int[2];
-                panel.getLocationOnScreen(panelLocation);
-                float left = frame.x - panelLocation[0], top = frame.y - panelLocation[1];
-                canvas.drawBitmap(frame.bitmap, null, new RectF(left, top, left + frame.width, top + frame.height), paint);
+                android.graphics.Path outline=new android.graphics.Path();
+                float radius=16*panel.getResources().getDisplayMetrics().density;
+                outline.addRoundRect(new RectF(getBounds()),radius,radius,android.graphics.Path.Direction.CW);
+                canvas.clipPath(outline);
+                // Cover the whole moving drawer, including insets outside the game surface.
+                // Screen-relative placement left transparent strips during the opening slide.
+                canvas.drawColor(AppUtils.isDarkMode(panel.getContext()) ? 0xFF1B1429 : 0xFFF7F3FF);
+                RectF bounds = new RectF(getBounds());
+                float scale = Math.max(bounds.width()/frame.bitmap.getWidth(), bounds.height()/frame.bitmap.getHeight());
+                float width = frame.bitmap.getWidth()*scale, height = frame.bitmap.getHeight()*scale;
+                float left = bounds.centerX()-width/2, top = bounds.centerY()-height/2;
+                canvas.drawBitmap(frame.bitmap,null,new RectF(left,top,left+width,top+height),paint);
                 tint.setBounds(getBounds());
                 tint.draw(canvas);
                 canvas.restoreToCount(save);

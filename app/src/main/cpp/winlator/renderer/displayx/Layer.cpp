@@ -150,11 +150,17 @@ struct Swapchain {
             // format query confirm it. No reinterpreting RGBA memory as BGRA.
             desc.format=info.imageFormat==VK_FORMAT_R8G8B8A8_UNORM?1:5;
             desc.usage=AHARDWAREBUFFER_USAGE_GPU_FRAMEBUFFER|AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE|AHARDWAREBUFFER_USAGE_COMPOSER_OVERLAY;
-            if(d->cpuReadable)desc.usage|=AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN;
+            // Match Quasar/Mesa's MESA_GRALLOC_LINEAR allocation contract: both
+            // SW_READ_RARELY and SW_WRITE_RARELY, without any CPU pixel copy.
+            if(d->cpuReadable)desc.usage|=AHARDWAREBUFFER_USAGE_CPU_READ_RARELY|AHARDWAREBUFFER_USAGE_CPU_WRITE_RARELY;
             if(AHardwareBuffer_allocate(&desc,&s.buffer)) {
                 desc.usage&=~AHARDWAREBUFFER_USAGE_COMPOSER_OVERLAY;
                 if(AHardwareBuffer_allocate(&desc,&s.buffer))return false;
             }
+            AHardwareBuffer_Desc allocated{};AHardwareBuffer_describe(s.buffer,&allocated);
+            if(allocated.width!=desc.width||allocated.height!=desc.height||allocated.layers!=1
+                ||allocated.format!=desc.format||allocated.stride<allocated.width)return false;
+            INFO("AHB allocation: format=%u stride=%u usage=0x%llx",allocated.format,allocated.stride,(unsigned long long)allocated.usage);
             VkAndroidHardwareBufferFormatPropertiesANDROID format{VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_FORMAT_PROPERTIES_ANDROID};
             VkAndroidHardwareBufferPropertiesANDROID props{VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_PROPERTIES_ANDROID};props.pNext=&format;
             if(d->GetAndroidHardwareBufferPropertiesANDROID(d->handle,s.buffer,&props)!=VK_SUCCESS||format.format!=info.imageFormat)return false;

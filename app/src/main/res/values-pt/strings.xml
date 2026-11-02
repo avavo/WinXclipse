@@ -1237,4 +1237,8 @@
     <string name="hud_swap">Uso de swap</string>
     <string name="displayx_ready_x11">DisplayX pronto · X11/GDI</string>
     <string name="edit_default_container_config">Editar configuração padrão dos containers</string>
+    <string name="restore_control_presets">Restaurar presets padrão</string>
+    <string name="remove_all_control_presets">Apagar todos os presets</string>
+    <string name="confirm_remove_all_control_presets">Apagar todos os presets de controle, incluindo os personalizados? Os padrões podem ser recuperados em Restaurar presets padrão.</string>
+    <string name="control_presets_restored">Presets padrão restaurados. Seus controles personalizados foram mantidos.</string>
 </resources>

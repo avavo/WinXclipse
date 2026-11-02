@@ -175,12 +175,19 @@ public final class CommunityConfigExportDialogFragment extends DialogFragment {
     private static String value(Bundle state, String key) { return state == null ? "" : state.getString(key, ""); }
     private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
     private EditText field(LinearLayout parent, int hint, String value) {
-        EditText field = new EditText(parent.getContext()); field.setHint(hint); field.setText(value); field.setSingleLine(true);
-        parent.addView(field, new LinearLayout.LayoutParams(-1, -2)); return field;
+        TextView label = new TextView(parent.getContext()); label.setText(hint); label.setTextSize(14);
+        LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(-1,-2);
+        labelParams.topMargin=dp(12); labelParams.bottomMargin=dp(6); parent.addView(label,labelParams);
+        EditText field = new EditText(parent.getContext()); field.setId(View.generateViewId()); label.setLabelFor(field.getId());
+        field.setText(value); field.setSingleLine(true); field.setTextSize(16);
+        field.setPadding(dp(12),dp(10),dp(12),dp(10)); field.setMinHeight(dp(52));
+        LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-1,-2); params.bottomMargin=dp(8);
+        parent.addView(field,params); return field;
     }
     private Button button(LinearLayout parent, int text) {
         Button button = new Button(parent.getContext()); button.setText(text); button.setAllCaps(false);
-        parent.addView(button, new LinearLayout.LayoutParams(-1, -2)); return button;
+        LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-1,-2); params.topMargin=dp(8);
+        button.setMinHeight(dp(48)); parent.addView(button,params); return button;
     }
     private void choice(int label, String stored, Bundle state) {
         RadioButton button = new RadioButton(requireContext()); button.setId(View.generateViewId());

@@ -46,6 +46,7 @@ public class ControlsEditorActivity extends LocalizedActivity implements View.On
         super.onCreate(bundle);
         AppUtils.hideSystemUI(this);
         setContentView(R.layout.controls_editor_activity);
+        com.winlator.cmod.core.ControlStyle.apply(findViewById(android.R.id.content));
 
         inputControlsView = new InputControlsView(this);
         inputControlsView.setEditMode(true);

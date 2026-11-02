@@ -157,8 +157,14 @@ public class ShortcutsFragment extends Fragment {
             option.setText(entries[i]);
             option.setTextSize(16);
             option.setTag(i);
-            option.setPadding(0, Math.round(6 * density), 0, Math.round(6 * density));
-            group.addView(option);
+            option.setButtonDrawable((android.graphics.drawable.Drawable)null);
+            option.setBackgroundResource(R.drawable.cover_action_selector);
+            option.setTextColor(android.graphics.Color.WHITE);
+            option.setMinHeight(Math.round(52*density));
+            option.setPadding(Math.round(16*density),Math.round(12*density),Math.round(16*density),Math.round(12*density));
+            RadioGroup.LayoutParams params = new RadioGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT);
+            params.bottomMargin = Math.round(10*density);
+            group.addView(option,params);
         }
         ((RadioButton) group.getChildAt(Math.max(0, Math.min(checked, entries.length - 1)))).setChecked(true);
         body.addView(group);

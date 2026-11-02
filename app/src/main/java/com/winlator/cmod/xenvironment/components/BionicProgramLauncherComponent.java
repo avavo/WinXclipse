@@ -631,9 +631,11 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         envVars.put("WINEARCH", wineInfo.isWin64() ? "win64" : "win32");
         EnvVars setupEnv = new EnvVars();
         setupEnv.putAll(envVars);
-        // First boot must not wait for an online Mono/Gecko installer dialog.
+        // First boot must not wait for an online Mono/Gecko installer dialog
+        // or rebuild Linux desktop menus that Android does not display. These
+        // overrides apply only to preparation, not the installed game's environment.
         String overrides = setupEnv.get("WINEDLLOVERRIDES");
-        setupEnv.put("WINEDLLOVERRIDES", (overrides.isEmpty() ? "" : overrides + ";") + "mscoree,mshtml=d");
+        setupEnv.put("WINEDLLOVERRIDES", (overrides.isEmpty() ? "" : overrides + ";") + "mscoree,mshtml=d;winemenubuilder.exe=d");
         try {
             File bin = new File(winePath);
             File wineRoot = bin.getParentFile();
@@ -648,8 +650,12 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
                         boolean cleanup = "-k".equals(option) || "-w".equals(option);
                         // Cancellation still has to stop the prefix's server if
                         // it was forked just as the user left the session.
-                        return ProcessHelper.execAndWait(args, setupEnv.toStringArray(), rootDir,
+                        long started=android.os.SystemClock.elapsedRealtime();
+                        int status=ProcessHelper.execAndWait(args, setupEnv.toStringArray(), rootDir,
                                 timeout, () -> stopped && !cleanup);
+                        Log.i("BionicStartup","prefix "+option+" exit="+status+" elapsedMs="
+                                +(android.os.SystemClock.elapsedRealtime()-started));
+                        return status;
                     },
                     () -> {
                         if (stopped) throw new IOException("Wine preparation cancelled");
@@ -670,9 +676,9 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
             if (!stopped) {
                 File payload = VulkanRuntimePayload.prepare(new File(context.getFilesDir(), "dependencies"),
                         () -> context.getAssets().open(VulkanRuntimePayload.ASSET));
-                String identity = WinePrefixState.fingerprint(container.getWineVersion(),
-                        WinePrefixState.wineExecutable(bin), new File(wineRoot, "share/wine/wine.inf"))
-                        + "|" + container.getGraphicsDriverConfig();
+                String identity = com.winlator.cmod.core.WineDependencyIdentity.build(
+                        WinePrefixState.fingerprint(container.getWineVersion(),WinePrefixState.wineExecutable(bin),
+                                new File(wineRoot,"share/wine/wine.inf")),android.os.Build.FINGERPRINT,setupEnv);
                 boolean installed = VulkanRuntimeInstaller.prepare(prefix, payload, wineInfo.isWin64(), identity,
                         (phase, arguments, timeout) -> {
                             if (dependencyStageCallback != null) dependencyStageCallback.call(phase);

@@ -18,7 +18,7 @@ public final class FormToggleRows {
         if (view instanceof CheckBox && namedSetting(view)) style((CheckBox)view);
         if (view instanceof ImageView) {
             try {
-                if(view.getResources().getResourceEntryName(view.getId()).endsWith("Help")
+                if(view.getResources().getResourceEntryName(view.getId()).contains("Help")
                         && view.getLayoutParams() instanceof LinearLayout.LayoutParams) help((ImageView)view);
             } catch(android.content.res.Resources.NotFoundException ignored) {}
         }
@@ -35,7 +35,8 @@ public final class FormToggleRows {
         view.setPadding(dp(view,6),dp(view,6),dp(view,6),dp(view,6));
     }
     private static boolean namedSetting(View view) {
-        try { return view.getResources().getResourceEntryName(view.getId()).startsWith("CB"); }
+        try { String name=view.getResources().getResourceEntryName(view.getId()).toLowerCase(java.util.Locale.ROOT);
+            return name.startsWith("cb")||name.startsWith("sw"); }
         catch (android.content.res.Resources.NotFoundException ignored) { return false; }
     }
     private static void style(CheckBox box) {
@@ -43,6 +44,14 @@ public final class FormToggleRows {
         box.setCompoundDrawablesRelativeWithIntrinsicBounds(null,null,box.getContext().getDrawable(R.drawable.compact_toggle_selector),null);
         box.setCompoundDrawablePadding(dp(box,8)); box.setGravity(Gravity.CENTER_VERTICAL);
         box.setMinHeight(dp(box,48)); box.setPadding(0,dp(box,4),0,dp(box,4));
+        if(box.getText().length()>0 && box.getParent() instanceof ViewGroup
+                && (!(box.getParent() instanceof com.google.android.flexbox.FlexboxLayout)
+                    || box.getLayoutParams().width==ViewGroup.LayoutParams.MATCH_PARENT)
+                && (!(box.getParent() instanceof LinearLayout)
+                    || ((LinearLayout)box.getParent()).getOrientation()==LinearLayout.VERTICAL)) {
+            ViewGroup.LayoutParams params=box.getLayoutParams(); params.width=ViewGroup.LayoutParams.MATCH_PARENT;
+            box.setLayoutParams(params); box.setPaddingRelative(0,dp(box,4),dp(box,44),dp(box,4));
+        }
     }
     private static void align(LinearLayout row) {
         CheckBox box=null;
@@ -56,9 +65,13 @@ public final class FormToggleRows {
         LinearLayout.LayoutParams boxParams=new LinearLayout.LayoutParams(0,ViewGroup.LayoutParams.WRAP_CONTENT,1);
         box.setLayoutParams(boxParams); row.setGravity(Gravity.CENTER_VERTICAL); row.setMinimumHeight(dp(row,52));
         int actions=0;
-        for(int i=0;i<row.getChildCount();i++) if(row.getChildAt(i) instanceof ImageView) {
+        boolean afterBox=false;
+        for(int i=0;i<row.getChildCount();i++) {
+            if(row.getChildAt(i)==box)afterBox=true;
+            if(afterBox && row.getChildAt(i) instanceof ImageView) {
             ImageView help=(ImageView)row.getChildAt(i);
             help(help); actions++;
+            }
         }
         if(actions==0) { Space reserve=new Space(row.getContext()); row.addView(reserve,new LinearLayout.LayoutParams(dp(row,44),1)); }
     }

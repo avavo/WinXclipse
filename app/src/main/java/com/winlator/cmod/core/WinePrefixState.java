@@ -29,19 +29,27 @@ public final class WinePrefixState {
         for (int i = 0; i < REGISTRIES.length; i++) {
             File file = new File(prefix, REGISTRIES[i]);
             if (file.exists() && !file.isFile()) throw new IOException("Invalid Wine registry: " + file);
-            String content = file.isFile() ? read(file) : "";
-            contents[i] = content;
-            if (content.isEmpty()) continue;
-            Matcher header = HEADER.matcher(content);
-            if (!header.find() || header.start() != 0) throw new IOException("Invalid Wine registry header: " + file);
-            Matcher arch = ARCH.matcher(content);
-            while (arch.find()) {
-                if (!desired.equals(arch.group(1))) throw new IOException(
-                        "Wine prefix architecture is " + arch.group(1) + ", runtime requires " + desired + ": " + file);
+            if (!file.isFile() || file.length()==0) { contents[i]=""; continue; }
+            boolean hasArch=false;
+            // Real Proton registries can be large. Validate without retaining
+            // three complete byte arrays/Strings and forcing startup garbage collection.
+            try (java.io.BufferedReader reader=Files.newBufferedReader(file.toPath(),StandardCharsets.UTF_8)) {
+                String line=reader.readLine();
+                if(line==null || !HEADER.matcher(line).matches()) throw new IOException("Invalid Wine registry header: " + file);
+                while((line=reader.readLine())!=null) {
+                    Matcher arch=ARCH.matcher(line);
+                    if(!arch.matches())continue;
+                    hasArch=true;
+                    if(!desired.equals(arch.group(1))) throw new IOException(
+                            "Wine prefix architecture is " + arch.group(1) + ", runtime requires " + desired + ": " + file);
+                }
             }
+            // Load the full text only for the uncommon missing-marker repair.
+            contents[i]=hasArch?null:read(file);
         }
         for (int i = 0; i < REGISTRIES.length; i++) {
             String content = contents[i];
+            if(content==null)continue;
             if (content.isEmpty()) content = "WINE REGISTRY Version 2\n#arch=" + desired + "\n";
             else if (!ARCH.matcher(content).find()) {
                 int end = content.indexOf('\n');

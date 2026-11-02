@@ -1237,4 +1237,8 @@
     <string name="hud_swap">Uso de swap</string>
     <string name="displayx_ready_x11">DisplayX listo · X11/GDI</string>
     <string name="edit_default_container_config">Editar configuración predeterminada de contenedores</string>
+    <string name="restore_control_presets">Restaurar controles predeterminados</string>
+    <string name="remove_all_control_presets">Eliminar todos los controles</string>
+    <string name="confirm_remove_all_control_presets">¿Eliminar todos los perfiles de control, incluidos los personalizados? Los perfiles incluidos se pueden recuperar con Restaurar controles predeterminados.</string>
+    <string name="control_presets_restored">Controles predeterminados restaurados. Se conservaron los perfiles personalizados.</string>
 </resources>

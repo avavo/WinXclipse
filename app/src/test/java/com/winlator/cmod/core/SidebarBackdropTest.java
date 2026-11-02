@@ -73,6 +73,24 @@ public class SidebarBackdropTest {
         assertTrue(late.isRecycled()); assertSame(cached,panel.getBackground());
     }
 
+    @Test public void blurredSnapshotCoversPanelInsetsAndDoesNotMoveWithDrawerScreenPosition() {
+        panel.layout(0,0,380,900);
+        backdrop.capture(null,opened::incrementAndGet); deliver(frame());
+        Drawable background=panel.getBackground();background.setBounds(0,0,380,900);
+        String previous=null;
+        for(int x:new int[]{-380,-200,0}) {
+            panel.setTranslationX(x);
+            android.graphics.Canvas canvas=new android.graphics.Canvas(Bitmap.createBitmap(380,900,Bitmap.Config.ARGB_8888));
+            background.draw(canvas);
+            String description=Shadows.shadowOf(canvas).getDescription();
+            assertTrue(description,description.contains("Bitmap"));
+            if(previous!=null)assertEquals(previous,description);
+            previous=description;
+            // The backdrop no longer depends on the moving panel's global coordinates.
+            assertEquals(1,opened.get());assertSame(background,panel.getBackground());
+        }
+    }
+
     @Test public void closedBackdropRejectsPendingCaptureAndNeverOpensTheDrawer() {
         backdrop.capture(null,opened::incrementAndGet); backdrop.close();
         Bitmap late=frame(); complete.accept(new SidebarBackdrop.Frame(late,0,0,320,180));

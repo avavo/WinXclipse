@@ -3,8 +3,8 @@
 #include <stdint.h>
 namespace displayx {
 // Samsung's GPU-only gralloc layout is private to its driver. Request a CPU-
-// readable allocation so both the guest ICD and Android compositor see the
-// same linear storage. This does NOT map/copy pixels through the CPU.
+// readable/writable allocation matching Mesa/Quasar's linear gralloc request.
+// Both importers still validate the driver-reported format/stride; no CPU copy.
 // RADV's MESA_GRALLOC_LINEAR workaround cannot affect our direct AHB allocator.
 inline bool cpuReadableBuffer(uint32_t vendor, const char* name) {
     if(vendor==0x144d || vendor==0x1002) return true; // Samsung / AMD on Android

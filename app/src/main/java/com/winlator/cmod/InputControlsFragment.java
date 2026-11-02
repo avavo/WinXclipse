@@ -225,6 +225,21 @@ public class InputControlsFragment extends Fragment {
             else AppUtils.showToast(context, R.string.no_profile_selected);
         });
 
+        view.findViewById(R.id.BTRestoreProfiles).setOnClickListener(v -> {
+            manager.restoreDefaultProfiles();
+            currentProfile = null;
+            loadProfileSpinner(sProfile);
+            updateLayout.run();
+            AppUtils.showToast(context,R.string.control_presets_restored);
+        });
+        view.findViewById(R.id.BTRemoveAllProfiles).setOnClickListener(v ->
+            ContentDialog.confirm(context,R.string.confirm_remove_all_control_presets,() -> {
+                manager.removeAllProfiles();
+                currentProfile = null;
+                loadProfileSpinner(sProfile);
+                updateLayout.run();
+            }));
+
         view.findViewById(R.id.BTControlsEditor).setOnClickListener((v) -> {
             if (currentProfile != null) {
                 Intent intent = new Intent(context, ControlsEditorActivity.class);

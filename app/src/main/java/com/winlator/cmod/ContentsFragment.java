@@ -957,6 +957,7 @@ public class ContentsFragment extends Fragment {
 
             ViewHolder(@NonNull View view) {
                 super(view);
+                com.winlator.cmod.core.ControlStyle.apply(view);
                 icon = view.findViewById(R.id.IVIcon);
                 title = view.findViewById(R.id.TVVersionName);
                 detail = view.findViewById(R.id.TVVersionCode);
@@ -1034,6 +1035,7 @@ public class ContentsFragment extends Fragment {
 
             public ViewHolder(@NonNull View view) {
                 super(view);
+                com.winlator.cmod.core.ControlStyle.apply(view);
 
                 ivIcon = view.findViewById(R.id.IVIcon);
                 tvVersionName = view.findViewById(R.id.TVVersionName);

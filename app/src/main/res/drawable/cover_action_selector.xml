@@ -1,0 +1,4 @@
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_checked="true"><shape><solid android:color="#7C3AED"/><stroke android:width="2dp" android:color="#C4A7FF"/><corners android:radius="16dp"/></shape></item>
+    <item android:drawable="@drawable/button_neutral"/>
+</selector>

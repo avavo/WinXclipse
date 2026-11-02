@@ -110,6 +110,7 @@ public final class PopupStyle {
     }
     public static void styleAnchoredView(View content) {
         if (content == null) return;
+        styleContent(content);
         View root = content.getRootView();
         root.setBackground(surface(content.getContext(), false));
         android.app.Activity activity = PopupBackdrop.activity(content.getContext());
@@ -117,6 +118,11 @@ public final class PopupStyle {
     }
 
     public static void styleContent(View view) {
+        ControlStyle.apply(view);
+        styleFields(view);
+    }
+
+    private static void styleFields(View view) {
         boolean dark = AppUtils.isDarkMode(view.getContext());
         if (view instanceof android.widget.Spinner || view instanceof android.widget.EditText
                 || view instanceof com.winlator.cmod.widget.MultiSelectionComboBox) {
@@ -144,7 +150,7 @@ public final class PopupStyle {
         }
         if (view instanceof android.view.ViewGroup) {
             android.view.ViewGroup group = (android.view.ViewGroup)view;
-            for (int i = 0; i < group.getChildCount(); i++) styleContent(group.getChildAt(i));
+            for (int i = 0; i < group.getChildCount(); i++) styleFields(group.getChildAt(i));
         }
     }
 

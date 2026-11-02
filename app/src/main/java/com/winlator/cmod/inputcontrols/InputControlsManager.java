@@ -50,52 +50,83 @@ public class InputControlsManager {
         return profiles;
     }
 
+    private static final String REMOVED_DEFAULTS = "inputcontrols_removed_defaults";
+    private static final String ASSET_ID = "inputcontrols_asset_id_";
+
+    /** Missing factory layouts are installed without overwriting edited/imported profiles. */
     private void copyAssetProfilesIfNeeded() {
-        File profilesDir = InputControlsManager.getProfilesDir(context);
-        if (FileUtils.isEmpty(profilesDir)) {
-            FileUtils.copy(context, "inputcontrols/profiles", profilesDir);
-            return;
-        }
-
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
-
-        int newVersion = AppUtils.getVersionCode(context);
-        int oldVersion = preferences.getInt("inputcontrols_app_version", 0);
-        boolean appWasUpdated = oldVersion != newVersion;
-        if (appWasUpdated)
-            preferences.edit().putInt("inputcontrols_app_version", newVersion).apply();
-
-        File[] files = profilesDir.listFiles();
+        java.util.Set<String> removed = preferences.getStringSet(REMOVED_DEFAULTS, Collections.emptySet());
+        File directory = getProfilesDir(context);
+        File[] files = directory.listFiles();
         if (files == null) return;
-
-        try {
-            AssetManager assetManager = context.getAssets();
-            String[] assetFiles = assetManager.list("inputcontrols/profiles");
-            for (String assetFile : assetFiles) {
-                String assetPath = "inputcontrols/profiles/"+assetFile;
-                ControlsProfile originProfile = loadProfile(context, assetManager.open(assetPath));
-
-                File targetFile = null;
-                for (File file : files) {
-                    ControlsProfile targetProfile = loadProfile(context, file);
-                    if (originProfile.id == targetProfile.id && originProfile.getName().equals(targetProfile.getName())) {
-                        targetFile = file;
-                        break;
-                    }
-                }
-
-                if (targetFile != null) {
-                    if (appWasUpdated) FileUtils.copy(context, assetPath, targetFile);
-                }
-                else {
-                    // Install newly bundled profiles on existing installations without
-                    // clearing or renumbering any user-created control layouts.
-                    File destination = new File(profilesDir, assetFile);
-                    if (!destination.exists()) FileUtils.copy(context, assetPath, destination);
-                }
-            }
+        for (File file : files) {
+            ControlsProfile profile = loadProfile(context, file);
+            if (profile != null) maxProfileId = Math.max(maxProfileId, profile.id);
         }
-        catch (IOException e) {}
+        try {
+            String[] assets = context.getAssets().list("inputcontrols/profiles");
+            if (assets == null) return;
+            for (String asset : assets) {
+                if (removed.contains(asset)) continue;
+                int installedId = preferences.getInt(ASSET_ID + asset, -1);
+                if (installedId >= 0 && ControlsProfile.getProfileFile(context, installedId).isFile()) continue;
+                String source = "inputcontrols/profiles/" + asset;
+                JSONObject data;
+                try (InputStream stream = context.getAssets().open(source)) {
+                    data = new JSONObject(new String(readAsset(stream), StandardCharsets.UTF_8));
+                }
+                int id = data.getInt("id");
+                File destination = ControlsProfile.getProfileFile(context, id);
+                ControlsProfile existing = loadProfile(context, destination);
+                // Adopt pre-existing bundled layouts once; updates must retain user edits.
+                if (installedId < 0 && existing != null && data.getString("name").equals(existing.getName())) {
+                    preferences.edit().putInt(ASSET_ID + asset, id).apply();
+                    continue;
+                }
+                if (destination.exists()) { id = ++maxProfileId; destination = ControlsProfile.getProfileFile(context,id); }
+                maxProfileId = Math.max(maxProfileId,id);
+                data.put("id",id);
+                FileUtils.writeString(destination,data.toString());
+                if (loadProfile(context,destination) != null)
+                    preferences.edit().putInt(ASSET_ID + asset,id).apply();
+            }
+        } catch (IOException | JSONException error) {
+            android.util.Log.w("InputControls","Unable to install bundled control presets",error);
+        }
+    }
+
+    private static byte[] readAsset(InputStream stream) throws IOException {
+        java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream();
+        byte[] buffer = new byte[8192]; int count;
+        while ((count=stream.read(buffer))!=-1) output.write(buffer,0,count);
+        return output.toByteArray();
+    }
+
+    /** Explicit recovery restores missing defaults and leaves custom layouts untouched. */
+    public int restoreDefaultProfiles() {
+        int before = getProfiles().size();
+        PreferenceManager.getDefaultSharedPreferences(context).edit().remove(REMOVED_DEFAULTS).apply();
+        loadProfiles(false);
+        return Math.max(0,profiles.size()-before);
+    }
+
+    public void removeAllProfiles() {
+        getProfiles();
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
+        java.util.Set<String> removed = new java.util.HashSet<>(preferences.getStringSet(REMOVED_DEFAULTS,Collections.emptySet()));
+        try {
+            String[] assets = context.getAssets().list("inputcontrols/profiles");
+            if (assets != null) Collections.addAll(removed,assets);
+        } catch(IOException error) { android.util.Log.w("InputControls","Unable to list defaults",error); }
+        SharedPreferences.Editor editor = preferences.edit().putStringSet(REMOVED_DEFAULTS,removed);
+        for (String asset : removed) editor.remove(ASSET_ID+asset);
+        editor.apply();
+        File[] files = getProfilesDir(context).listFiles();
+        if (files != null) for (File file : files)
+            if (file.isFile() && file.getName().matches("controls-[0-9]+\\.icp") && !file.delete())
+                android.util.Log.w("InputControls","Unable to remove " + file.getName());
+        loadProfiles(false);
     }
 
     public void loadProfiles(boolean ignoreTemplates) {
@@ -160,7 +191,18 @@ public class InputControlsManager {
 
     public void removeProfile(ControlsProfile profile) {
         File file = ControlsProfile.getProfileFile(context, profile.id);
-        if (file.isFile() && file.delete()) profiles.remove(profile);
+        if (file.isFile() && file.delete()) {
+            SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
+            java.util.Set<String> removed = new java.util.HashSet<>(preferences.getStringSet(REMOVED_DEFAULTS,Collections.emptySet()));
+            for (java.util.Map.Entry<String,?> entry : preferences.getAll().entrySet())
+                if (entry.getKey().startsWith(ASSET_ID) && entry.getValue() instanceof Integer
+                        && ((Integer)entry.getValue()) == profile.id)
+                    removed.add(entry.getKey().substring(ASSET_ID.length()));
+            SharedPreferences.Editor editor = preferences.edit().putStringSet(REMOVED_DEFAULTS,removed);
+            for (String asset : removed) editor.remove(ASSET_ID+asset);
+            editor.apply();
+            profiles.remove(profile);
+        }
     }
 
     public ControlsProfile importProfile(JSONObject data) {
@@ -239,7 +281,7 @@ public class InputControlsManager {
             profile.setCursorSpeed(cursorSpeed);
             return profile;
         }
-        catch (IOException e) {
+        catch (IOException | IllegalStateException | NumberFormatException e) {
             return null;
         }
     }

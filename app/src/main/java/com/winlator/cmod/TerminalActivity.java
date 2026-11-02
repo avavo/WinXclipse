@@ -9,6 +9,7 @@ public class TerminalActivity extends LocalizedActivity {
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
         setContentView(R.layout.activity_terminal);
+        com.winlator.cmod.core.ControlStyle.apply(findViewById(android.R.id.content));
         session = new TerminalSession(findViewById(android.R.id.content));
     }
 

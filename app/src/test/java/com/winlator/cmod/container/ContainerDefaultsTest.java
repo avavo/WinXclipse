@@ -13,6 +13,24 @@ import static org.junit.Assert.*;
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk=28, application=Application.class)
 public class ContainerDefaultsTest {
+    @Test public void removedRamFixVariableStaysRemovedAcrossSaveReloadAndNewContainer() throws Exception {
+        Context context=RuntimeEnvironment.getApplication();
+        Container draft=ContainerDefaults.load(context,true);
+        com.winlator.cmod.core.EnvVars env=new com.winlator.cmod.core.EnvVars(draft.getEnvVars());
+        assertTrue(env.has("DXVK_CONFIG_FILE")); env.remove("DXVK_CONFIG_FILE");
+        draft.setEnvVars(env.toString()); assertTrue(draft.saveData());
+        Container saved=ContainerDefaults.load(context,false);
+        assertFalse(new com.winlator.cmod.core.EnvVars(saved.getEnvVars()).has("DXVK_CONFIG_FILE"));
+        Container created=new Container(7);
+        File root=new File(context.getFilesDir(),"new-container-7"); assertTrue(root.mkdirs()); created.setRootDir(root);
+        created.loadData(new org.json.JSONObject(FileUtils.readString(saved.getConfigFile())));
+        created.putExtra("appVersion","0"); assertTrue(created.saveData());
+        Container reopened=new Container(7); reopened.setRootDir(root); reopened.loadData(new org.json.JSONObject(FileUtils.readString(created.getConfigFile())));
+        assertFalse(new com.winlator.cmod.core.EnvVars(reopened.getEnvVars()).has("DXVK_CONFIG_FILE"));
+        reopened.setEnvVars(""); assertTrue(reopened.saveData());
+        reopened.loadData(new org.json.JSONObject(FileUtils.readString(created.getConfigFile())));
+        assertEquals("",reopened.getEnvVars());
+    }
     @Test public void unsavedDraftDoesNotBecomeDefaultOrCreateWinePrefix() {
         Context context=RuntimeEnvironment.getApplication();
         assertNull(ContainerDefaults.load(context,false));

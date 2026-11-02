@@ -1,0 +1,16 @@
+{
+  "type": "FEXCore",
+  "versionName": "2608",
+  "versionCode": 0,
+  "description": "FEXCore Release from PPA",
+  "files": [
+    {
+      "source": "system32/libarm64ecfex.dll",
+      "target": "${system32}/libarm64ecfex.dll"
+    },
+    {
+      "source": "system32/libwow64fex.dll",
+      "target": "${system32}/libwow64fex.dll"
+    }
+  ]
+}

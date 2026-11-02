@@ -38,7 +38,7 @@ public class ContentsManager {
     public static final String PROFILE_NAME = "profile.json";
     private static final String TAG = "ContentsManager";
     public static final String REMOTE_PROFILES = "contents.json";
-    private static final String REMOTE_CACHE_KEY = "github_release_contents_cache_v2";
+    private static final String REMOTE_CACHE_KEY = "github_release_contents_cache_v3";
     private static final String REMOTE_REFRESH_TIME_KEY = "github_release_contents_refresh_time";
     private static final String GITHUB_RELEASE_API = "https://api.github.com/repos/avavo/WinXclipse/releases/tags/";
     private static final String[] REMOTE_RELEASE_TAGS = {

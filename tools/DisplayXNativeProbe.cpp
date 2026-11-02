@@ -4,6 +4,7 @@
 #include <vulkan/vulkan.h>
 #include <vulkan/vk_layer.h>
 #include <jni.h>
+#include <android/log.h>
 #include <dlfcn.h>
 #include <atomic>
 #include <thread>
@@ -12,9 +13,12 @@
 #include <chrono>
 #include <vector>
 #include <cstring>
+#include <cstdio>
 #include "../app/src/main/cpp/winlator/renderer/displayx/Server.hpp"
 
 namespace {
+PFN_vkGetInstanceProcAddr producerInstance=vkGetInstanceProcAddr;
+PFN_vkGetDeviceProcAddr producerDevice=vkGetDeviceProcAddr;
 void check(VkResult result, const char* where) {
     if (result != VK_SUCCESS) throw std::runtime_error(std::string(where)+"="+std::to_string(result));
 }
@@ -27,12 +31,12 @@ VKAPI_ATTR VkResult VKAPI_CALL fallbackSwapchain(VkDevice, const VkSwapchainCrea
 }
 VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL nextDevice(VkDevice device, const char* name) {
     if (!strcmp(name,"vkCreateSwapchainKHR")) return reinterpret_cast<PFN_vkVoidFunction>(fallbackSwapchain);
-    return vkGetDeviceProcAddr(device,name);
+    return producerDevice(device,name);
 }
 VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL nextInstance(VkInstance instance, const char* name) {
     if (!strcmp(name,"vkCreateXcbSurfaceKHR")) return reinterpret_cast<PFN_vkVoidFunction>(fakeSurface);
     if (!strcmp(name,"vkDestroySurfaceKHR")) return reinterpret_cast<PFN_vkVoidFunction>(freeSurface);
-    return vkGetInstanceProcAddr(instance,name);
+    return producerInstance(instance,name);
 }
 VKAPI_ATTR VkResult VKAPI_CALL loaderData(VkDevice, void*) { return VK_SUCCESS; }
 struct Probe {
@@ -45,6 +49,22 @@ struct Probe {
         try {
             setenv("WINXCLIPSE_DISPLAYX_SOCKET",socket.c_str(),1);
             setenv("WINXCLIPSE_DISPLAYX_FORMAT","rgba",1);
+            const char* driver=getenv("WINXCLIPSE_PROBE_DRIVER");
+            if(driver&&*driver) {
+                const char* hooks=getenv("WINXCLIPSE_PROBE_HOOKS");
+                const char* directory=getenv("WINXCLIPSE_PROBE_DRIVER_DIR");
+                const char* temporary=getenv("WINXCLIPSE_PROBE_TMP");
+                if(!hooks||!directory||!temporary)throw std::runtime_error("missing custom ICD paths");
+                void* tools=dlopen((std::string(hooks)+"/libadrenotools.so").c_str(),RTLD_NOW|RTLD_LOCAL);
+                using Open=void*(*)(int,int,const char*,const char*,const char*,const char*,const char*,void**);
+                auto open=tools?reinterpret_cast<Open>(dlsym(tools,"adrenotools_open_libvulkan")):nullptr;
+                void* loader=open?open(RTLD_NOW|RTLD_LOCAL,1,temporary,hooks,directory,driver,nullptr,nullptr):nullptr;
+                if(!loader)throw std::runtime_error("custom Vulkan loader failed");
+                producerInstance=reinterpret_cast<PFN_vkGetInstanceProcAddr>(dlsym(loader,"vkGetInstanceProcAddr"));
+                producerDevice=reinterpret_cast<PFN_vkGetDeviceProcAddr>(dlsym(loader,"vkGetDeviceProcAddr"));
+                if(!producerInstance||!producerDevice)throw std::runtime_error("missing custom dispatch");
+            }
+            bool srgb=getenv("WINXCLIPSE_PROBE_SRGB")!=nullptr;
             void* library = dlopen(layer.c_str(),RTLD_NOW|RTLD_LOCAL);
             if (!library) throw std::runtime_error(dlerror());
             auto negotiate = reinterpret_cast<PFN_vkNegotiateLoaderLayerInterfaceVersion>(dlsym(library,"vkNegotiateLoaderLayerInterfaceVersion"));
@@ -67,8 +87,18 @@ struct Probe {
             check(enumerate(gpu,nullptr,&extensionCount,extensions.data()),"extensions");
             for (const auto& e:extensions) if (!strcmp(e.extensionName,"VK_GOOGLE_display_timing") || !strcmp(e.extensionName,"VK_EXT_swapchain_maintenance1"))
                 throw std::runtime_error("incompatible WSI extension still advertised");
-            vkGetPhysicalDeviceQueueFamilyProperties(gpu,&count,nullptr);
-            std::vector<VkQueueFamilyProperties> families(count);vkGetPhysicalDeviceQueueFamilyProperties(gpu,&count,families.data());
+            auto queueFamilies=reinterpret_cast<PFN_vkGetPhysicalDeviceQueueFamilyProperties>(get(instance,"vkGetPhysicalDeviceQueueFamilyProperties"));
+            queueFamilies(gpu,&count,nullptr);
+            std::vector<VkQueueFamilyProperties> families(count);queueFamilies(gpu,&count,families.data());
+            VkPhysicalDeviceProperties properties{};
+            reinterpret_cast<PFN_vkGetPhysicalDeviceProperties>(get(instance,"vkGetPhysicalDeviceProperties"))(gpu,&properties);
+            printf("Producer GPU: %s vendor=%x format=%s\n",properties.deviceName,properties.vendorID,srgb?"sRGB mutable":"UNORM");fflush(stdout);
+            if(driver&&*driver) {
+                FILE* maps=fopen("/proc/self/maps","r");bool mapped=false;char line[4096];
+                std::string selected=std::string(getenv("WINXCLIPSE_PROBE_DRIVER_DIR"))+driver;
+                if(maps){while(fgets(line,sizeof(line),maps))if(std::string(line).find(selected)!=std::string::npos)mapped=true;fclose(maps);}
+                if(!mapped)throw std::runtime_error("selected custom ICD was not mapped");
+            }
             uint32_t family=0;while (family<count && !(families[family].queueFlags&VK_QUEUE_GRAPHICS_BIT)) family++;
             if (family==count) throw std::runtime_error("no graphics queue");
             float priority=1;VkDeviceQueueCreateInfo queueInfo{VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO};
@@ -78,10 +108,10 @@ struct Probe {
             VkLayerDeviceLink nextDeviceLink{};nextDeviceLink.pfnNextGetInstanceProcAddr=nextInstance;nextDeviceLink.pfnNextGetDeviceProcAddr=nextDevice;
             VkLayerDeviceCreateInfo deviceLink{};deviceLink.sType=VK_STRUCTURE_TYPE_LOADER_DEVICE_CREATE_INFO;
             deviceLink.function=VK_LAYER_LINK_INFO;deviceLink.u.pLayerInfo=&nextDeviceLink;deviceLink.pNext=&callback;
-            const char* swapchainExtension=VK_KHR_SWAPCHAIN_EXTENSION_NAME;
+            const char* requestedExtensions[]={VK_KHR_SWAPCHAIN_EXTENSION_NAME,VK_KHR_SWAPCHAIN_MUTABLE_FORMAT_EXTENSION_NAME,VK_KHR_IMAGE_FORMAT_LIST_EXTENSION_NAME};
             VkDeviceCreateInfo deviceInfo{VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};deviceInfo.pNext=&deviceLink;
             deviceInfo.queueCreateInfoCount=1;deviceInfo.pQueueCreateInfos=&queueInfo;
-            deviceInfo.enabledExtensionCount=1;deviceInfo.ppEnabledExtensionNames=&swapchainExtension;
+            deviceInfo.enabledExtensionCount=srgb?3:1;deviceInfo.ppEnabledExtensionNames=requestedExtensions;
             VkDevice device{};
             check(reinterpret_cast<PFN_vkCreateDevice>(get(instance,"vkCreateDevice"))(gpu,&deviceInfo,nullptr,&device),"device");
             VkQueue queue{};
@@ -96,6 +126,9 @@ struct Probe {
             swapInfo.imageUsage=VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT|VK_IMAGE_USAGE_TRANSFER_DST_BIT;
             swapInfo.preTransform=VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;swapInfo.compositeAlpha=VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
             swapInfo.presentMode=VK_PRESENT_MODE_FIFO_KHR;swapInfo.clipped=true;
+            VkFormat viewFormats[]={VK_FORMAT_R8G8B8A8_UNORM,VK_FORMAT_R8G8B8A8_SRGB};
+            VkImageFormatListCreateInfo formatList{VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO};formatList.viewFormatCount=2;formatList.pViewFormats=viewFormats;
+            if(srgb){swapInfo.flags=VK_SWAPCHAIN_CREATE_MUTABLE_FORMAT_BIT_KHR;swapInfo.pNext=&formatList;}
             VkSwapchainKHR swapchain{};
             check(reinterpret_cast<PFN_vkCreateSwapchainKHR>(getDevice(device,"vkCreateSwapchainKHR"))(device,&swapInfo,nullptr,&swapchain),"direct AHB swapchain");
             count=0;auto getImages=reinterpret_cast<PFN_vkGetSwapchainImagesKHR>(getDevice(device,"vkGetSwapchainImagesKHR"));
@@ -103,7 +136,7 @@ struct Probe {
             check(getImages(device,swapchain,&count,images.data()),"images");
             // Exercise the render-target path used by DXVK as well as transfer
             // clears. A transfer-only test misses attachment/DCC/layout bugs.
-            VkAttachmentDescription attachment{};attachment.format=swapInfo.imageFormat;
+            VkAttachmentDescription attachment{};attachment.format=srgb?VK_FORMAT_R8G8B8A8_SRGB:swapInfo.imageFormat;
             attachment.samples=VK_SAMPLE_COUNT_1_BIT;attachment.loadOp=VK_ATTACHMENT_LOAD_OP_CLEAR;
             attachment.storeOp=VK_ATTACHMENT_STORE_OP_STORE;attachment.initialLayout=VK_IMAGE_LAYOUT_UNDEFINED;
             attachment.finalLayout=VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
@@ -117,7 +150,7 @@ struct Probe {
             std::vector<VkImageView> views(count);std::vector<VkFramebuffer> frames(count);
             for(uint32_t n=0;n<count;n++) {
                 VkImageViewCreateInfo view{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};view.image=images[n];
-                view.viewType=VK_IMAGE_VIEW_TYPE_2D;view.format=swapInfo.imageFormat;
+                view.viewType=VK_IMAGE_VIEW_TYPE_2D;view.format=attachment.format;
                 view.subresourceRange={VK_IMAGE_ASPECT_COLOR_BIT,0,1,0,1};
                 check(reinterpret_cast<PFN_vkCreateImageView>(getDevice(device,"vkCreateImageView"))(device,&view,nullptr,&views[n]),"attachment view");
                 VkFramebufferCreateInfo frame{VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};frame.renderPass=pass;
@@ -125,39 +158,39 @@ struct Probe {
                 check(reinterpret_cast<PFN_vkCreateFramebuffer>(getDevice(device,"vkCreateFramebuffer"))(device,&frame,nullptr,&frames[n]),"attachment framebuffer");
             }
             VkCommandPoolCreateInfo poolInfo{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};poolInfo.queueFamilyIndex=family;poolInfo.flags=VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-            VkCommandPool pool{};check(vkCreateCommandPool(device,&poolInfo,nullptr,&pool),"command pool");
+            VkCommandPool pool{};check(reinterpret_cast<PFN_vkCreateCommandPool>(getDevice(device,"vkCreateCommandPool"))(device,&poolInfo,nullptr,&pool),"command pool");
             VkCommandBufferAllocateInfo allocate{VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};allocate.commandPool=pool;allocate.level=VK_COMMAND_BUFFER_LEVEL_PRIMARY;allocate.commandBufferCount=1;
-            VkCommandBuffer command{};check(vkAllocateCommandBuffers(device,&allocate,&command),"command buffer");
-            VkFenceCreateInfo fenceInfo{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};VkFence fence{};check(vkCreateFence(device,&fenceInfo,nullptr,&fence),"fence");
+            VkCommandBuffer command{};check(reinterpret_cast<PFN_vkAllocateCommandBuffers>(getDevice(device,"vkAllocateCommandBuffers"))(device,&allocate,&command),"command buffer");
+            VkFenceCreateInfo fenceInfo{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};VkFence fence{};check(reinterpret_cast<PFN_vkCreateFence>(getDevice(device,"vkCreateFence"))(device,&fenceInfo,nullptr,&fence),"fence");
             for (int frame=0;frame<3;frame++) {
                 uint32_t index=0;
                 check(reinterpret_cast<PFN_vkAcquireNextImageKHR>(getDevice(device,"vkAcquireNextImageKHR"))(device,swapchain,1'000'000'000,{},fence,&index),"acquire");
-                check(vkWaitForFences(device,1,&fence,true,1'000'000'000),"acquire fence");vkResetFences(device,1,&fence);
-                vkResetCommandBuffer(command,0);VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};check(vkBeginCommandBuffer(command,&begin),"begin clear");
+                check(reinterpret_cast<PFN_vkWaitForFences>(getDevice(device,"vkWaitForFences"))(device,1,&fence,true,1'000'000'000),"acquire fence");reinterpret_cast<PFN_vkResetFences>(getDevice(device,"vkResetFences"))(device,1,&fence);
+                reinterpret_cast<PFN_vkResetCommandBuffer>(getDevice(device,"vkResetCommandBuffer"))(command,0);VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};check(reinterpret_cast<PFN_vkBeginCommandBuffer>(getDevice(device,"vkBeginCommandBuffer"))(command,&begin),"begin clear");
                 VkClearColorValue color{{float(frame==0),float(frame==1),float(frame==2),1}};
                 if(frame==0) {
-                    VkImageSubresourceRange range{VK_IMAGE_ASPECT_COLOR_BIT,0,1,0,1};vkCmdClearColorImage(command,images[index],VK_IMAGE_LAYOUT_GENERAL,&color,1,&range);
+                    VkImageSubresourceRange range{VK_IMAGE_ASPECT_COLOR_BIT,0,1,0,1};reinterpret_cast<PFN_vkCmdClearColorImage>(getDevice(device,"vkCmdClearColorImage"))(command,images[index],VK_IMAGE_LAYOUT_GENERAL,&color,1,&range);
                 } else {
                     VkClearValue clear{};clear.color=color;
                     VkRenderPassBeginInfo render{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};render.renderPass=pass;
                     render.framebuffer=frames[index];render.renderArea={{0,0},{64,64}};render.clearValueCount=1;render.pClearValues=&clear;
                     reinterpret_cast<PFN_vkCmdBeginRenderPass>(getDevice(device,"vkCmdBeginRenderPass"))(command,&render,VK_SUBPASS_CONTENTS_INLINE);
-                    vkCmdEndRenderPass(command);
+                    reinterpret_cast<PFN_vkCmdEndRenderPass>(getDevice(device,"vkCmdEndRenderPass"))(command);
                 }
-                check(vkEndCommandBuffer(command),"end clear");VkSubmitInfo submit{VK_STRUCTURE_TYPE_SUBMIT_INFO};submit.commandBufferCount=1;submit.pCommandBuffers=&command;
+                check(reinterpret_cast<PFN_vkEndCommandBuffer>(getDevice(device,"vkEndCommandBuffer"))(command),"end clear");VkSubmitInfo submit{VK_STRUCTURE_TYPE_SUBMIT_INFO};submit.commandBufferCount=1;submit.pCommandBuffers=&command;
                 check(reinterpret_cast<PFN_vkQueueSubmit>(getDevice(device,"vkQueueSubmit"))(queue,1,&submit,{}),"submit clear");
                 VkPresentInfoKHR present{VK_STRUCTURE_TYPE_PRESENT_INFO_KHR};present.swapchainCount=1;present.pSwapchains=&swapchain;present.pImageIndices=&index;
                 check(reinterpret_cast<PFN_vkQueuePresentKHR>(getDevice(device,"vkQueuePresentKHR"))(queue,&present),"present IPC");
             }
             for(int n=0;n<500&&!stop;n++) std::this_thread::sleep_for(std::chrono::milliseconds(20));
-            vkDeviceWaitIdle(device);
+            reinterpret_cast<PFN_vkDeviceWaitIdle>(getDevice(device,"vkDeviceWaitIdle"))(device);
             for(uint32_t n=0;n<count;n++) {
                 reinterpret_cast<PFN_vkDestroyFramebuffer>(getDevice(device,"vkDestroyFramebuffer"))(device,frames[n],nullptr);
                 reinterpret_cast<PFN_vkDestroyImageView>(getDevice(device,"vkDestroyImageView"))(device,views[n],nullptr);
             }
             reinterpret_cast<PFN_vkDestroyRenderPass>(getDevice(device,"vkDestroyRenderPass"))(device,pass,nullptr);
             reinterpret_cast<PFN_vkDestroySwapchainKHR>(getDevice(device,"vkDestroySwapchainKHR"))(device,swapchain,nullptr);
-            vkDestroyFence(device,fence,nullptr);vkDestroyCommandPool(device,pool,nullptr);
+            reinterpret_cast<PFN_vkDestroyFence>(getDevice(device,"vkDestroyFence"))(device,fence,nullptr);reinterpret_cast<PFN_vkDestroyCommandPool>(getDevice(device,"vkDestroyCommandPool"))(device,pool,nullptr);
             reinterpret_cast<PFN_vkDestroyDevice>(getDevice(device,"vkDestroyDevice"))(device,nullptr);
             reinterpret_cast<PFN_vkDestroyInstance>(get(instance,"vkDestroyInstance"))(instance,nullptr);
             dlclose(library);

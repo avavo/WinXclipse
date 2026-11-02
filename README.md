@@ -22,7 +22,7 @@ WinXclipse allows Windows applications and games to run on Android by combining:
 - Wine and Proton runtimes, including ARM64EC builds  
 - CPU translation layers: FEXCore and Box64  
 - Graphics stacks: DXVK, VKD3D-Proton, the built-in hybrid Default/CMOD v1/Kirimu wrappers, and downloadable CMOD v2/GameNative/Ref4ik-v6 packages
-- Container management for isolated runtime configurations, editable defaults for new containers, input controls, diagnostics, and external content delivery
+- Container management for isolated runtime configurations, editable defaults for new containers, input controls with removable/restorable presets, diagnostics, and external content delivery
   
 Development is focused on the Exynos/Xclipse platform. Every supported GPU pairing — from Xclipse 530 (RDNA2) through 920, 940/950 (RDNA3) to 960 (RDNA4) — receives dedicated tuning for BCn texture handling, unified-memory-aware VRAM caps, and CPU cluster scheduling on big.LITTLE/DynamIQ Exynos SoCs.  
 

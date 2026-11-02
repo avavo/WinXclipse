@@ -71,46 +71,28 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:paddingVertical="8dp">
+            android:padding="8dp">
 
             <!-- Top line -->
-            <com.google.android.flexbox.FlexboxLayout
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:flexWrap="nowrap"
-                app:alignItems="center"
-                app:justifyContent="flex_start">
-
+                android:orientation="vertical">
                 <CheckBox
                     android:id="@+id/CBPlayer1"
-                    android:layout_width="wrap_content"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    app:layout_flexShrink="0"
-                    android:layout_marginEnd="8dp"/>
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/player_1"
-                    android:textSize="16sp"
-                    app:layout_flexShrink="0"
-                    android:layout_marginEnd="12dp"/>
-
+                    android:text="@string/player_1" />
                 <TextView
                     android:id="@+id/TVPlayer1DeviceName"
-                    android:layout_width="0dp"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:ellipsize="marquee"
-                    android:marqueeRepeatLimit="marquee_forever"
-                    android:singleLine="true"
-                    android:focusable="true"
-                    android:focusableInTouchMode="true"
+                    android:ellipsize="end"
                     android:maxLines="1"
                     android:text="@string/not_assigned"
                     android:textStyle="bold"
-                    app:layout_flexGrow="1"
-                    app:layout_minWidth="0dp"/>
-            </com.google.android.flexbox.FlexboxLayout>
+                    android:layout_marginBottom="8dp" />
+            </LinearLayout>
 
             <!-- Bottom actions (wrap if narrow, right-aligned when single line) -->
             <com.google.android.flexbox.FlexboxLayout
@@ -123,11 +105,11 @@
 
                 <CheckBox
                     android:id="@+id/CBVibrateP1"
-                    android:layout_width="wrap_content"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/vibrate"
                     app:layout_flexShrink="0"
-                    android:layout_marginEnd="8dp"
+                    android:layout_marginEnd="0dp"
                     android:layout_marginBottom="6dp"/>
 
                 <Button
@@ -167,46 +149,27 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:paddingVertical="8dp">
+            android:padding="8dp">
 
-            <com.google.android.flexbox.FlexboxLayout
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:flexWrap="nowrap"
-                app:alignItems="center"
-                app:justifyContent="flex_start">
-
-
+                android:orientation="vertical">
                 <CheckBox
                     android:id="@+id/CBPlayer2"
-                    android:layout_width="wrap_content"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    app:layout_flexShrink="0"
-                    android:layout_marginEnd="8dp"/>
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/player_2"
-                    android:textSize="16sp"
-                    app:layout_flexShrink="0"
-                    android:layout_marginEnd="12dp"/>
-
+                    android:text="@string/player_2" />
                 <TextView
                     android:id="@+id/TVPlayer2DeviceName"
-                    android:layout_width="0dp"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:ellipsize="marquee"
-                    android:marqueeRepeatLimit="marquee_forever"
-                    android:singleLine="true"
-                    android:focusable="true"
-                    android:focusableInTouchMode="true"
+                    android:ellipsize="end"
                     android:maxLines="1"
                     android:text="@string/not_assigned"
                     android:textStyle="bold"
-                    app:layout_flexGrow="1"
-                    app:layout_minWidth="0dp"/>
-            </com.google.android.flexbox.FlexboxLayout>
+                    android:layout_marginBottom="8dp" />
+            </LinearLayout>
 
             <com.google.android.flexbox.FlexboxLayout
                 android:layout_width="match_parent"
@@ -219,10 +182,10 @@
 
                 <CheckBox
                     android:id="@+id/CBVibrateP2"
-                    android:layout_width="wrap_content"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/vibrate"
-                    android:layout_marginEnd="8dp"
+                    android:layout_marginEnd="0dp"
                     android:layout_marginBottom="6dp"/>
 
                 <Button
@@ -260,43 +223,27 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:paddingVertical="8dp">
+            android:padding="8dp">
 
-            <com.google.android.flexbox.FlexboxLayout
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:flexWrap="nowrap"
-                app:alignItems="center"
-                app:justifyContent="flex_start">
-
+                android:orientation="vertical">
                 <CheckBox
                     android:id="@+id/CBPlayer3"
-                    android:layout_width="wrap_content"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginEnd="8dp"/>
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/player_3"
-                    android:textSize="16sp"
-                    android:layout_marginEnd="12dp"/>
-
+                    android:text="@string/player_3" />
                 <TextView
                     android:id="@+id/TVPlayer3DeviceName"
-                    android:layout_width="0dp"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:ellipsize="marquee"
-                    android:marqueeRepeatLimit="marquee_forever"
-                    android:singleLine="true"
-                    android:focusable="true"
-                    android:focusableInTouchMode="true"
+                    android:ellipsize="end"
                     android:maxLines="1"
                     android:text="@string/not_assigned"
                     android:textStyle="bold"
-                    app:layout_flexGrow="1"
-                    app:layout_minWidth="0dp"/>
-            </com.google.android.flexbox.FlexboxLayout>
+                    android:layout_marginBottom="8dp" />
+            </LinearLayout>
 
             <com.google.android.flexbox.FlexboxLayout
                 android:layout_width="match_parent"
@@ -309,10 +256,10 @@
 
                 <CheckBox
                     android:id="@+id/CBVibrateP3"
-                    android:layout_width="wrap_content"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/vibrate"
-                    android:layout_marginEnd="8dp"
+                    android:layout_marginEnd="0dp"
                     android:layout_marginBottom="6dp"/>
 
                 <Button
@@ -350,44 +297,27 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:paddingVertical="8dp">
+            android:padding="8dp">
 
-            <com.google.android.flexbox.FlexboxLayout
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:flexWrap="nowrap"
-                app:alignItems="center"
-                app:justifyContent="flex_start">
-
-
+                android:orientation="vertical">
                 <CheckBox
                     android:id="@+id/CBPlayer4"
-                    android:layout_width="wrap_content"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginEnd="8dp"/>
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/player_4"
-                    android:textSize="16sp"
-                    android:layout_marginEnd="12dp"/>
-
+                    android:text="@string/player_4" />
                 <TextView
                     android:id="@+id/TVPlayer4DeviceName"
-                    android:layout_width="0dp"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:ellipsize="marquee"
-                    android:marqueeRepeatLimit="marquee_forever"
-                    android:singleLine="true"
-                    android:focusable="true"
-                    android:focusableInTouchMode="true"
+                    android:ellipsize="end"
                     android:maxLines="1"
                     android:text="@string/not_assigned"
                     android:textStyle="bold"
-                    app:layout_flexGrow="1"
-                    app:layout_minWidth="0dp"/>
-            </com.google.android.flexbox.FlexboxLayout>
+                    android:layout_marginBottom="8dp" />
+            </LinearLayout>
 
             <com.google.android.flexbox.FlexboxLayout
                 android:layout_width="match_parent"
@@ -399,10 +329,10 @@
 
                 <CheckBox
                     android:id="@+id/CBVibrateP4"
-                    android:layout_width="wrap_content"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/vibrate"
-                    android:layout_marginEnd="8dp"
+                    android:layout_marginEnd="0dp"
                     android:layout_marginBottom="6dp"/>
 
                 <Button

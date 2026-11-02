@@ -861,22 +861,10 @@ public class Container {
                 }
             }
 
-            if (data.has("envVars") && data.has("extraData")) {
-                JSONObject extraData = data.getJSONObject("extraData");
-                int appVersion;
-                try {
-                    appVersion = Integer.parseInt(extraData.optString("appVersion", "0"));
-                }
-                catch (NumberFormatException e) {
-                    appVersion = 0;
-                }
-                if (appVersion < 16) {
-                    EnvVars defaultEnvVars = new EnvVars(DEFAULT_ENV_VARS);
-                    EnvVars envVars = new EnvVars(data.getString("envVars"));
-                    for (String name : defaultEnvVars) if (!envVars.has(name)) envVars.put(name, defaultEnvVars.get(name));
-                    data.put("envVars", envVars.toString());
-                }
-            }
+            // An explicit environment is authoritative, including an empty one.
+            // Re-merging factory defaults on load resurrected deleted variables
+            // (notably DXVK_CONFIG_FILE), including default-container drafts.
+            // New containers still start with DEFAULT_ENV_VARS.
 
             KeyValueSet wincomponents1 = new KeyValueSet(DEFAULT_WINCOMPONENTS);
             KeyValueSet wincomponents2 = new KeyValueSet(data.getString("wincomponents"));

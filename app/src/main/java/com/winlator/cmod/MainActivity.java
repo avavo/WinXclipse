@@ -103,6 +103,12 @@ public class MainActivity extends LocalizedActivity implements NavigationView.On
         isDarkMode = AppUtils.isDarkMode(this);
         setTheme(isDarkMode ? R.style.AppTheme_Dark : R.style.AppTheme);
         super.onCreate(savedInstanceState);
+        getSupportFragmentManager().registerFragmentLifecycleCallbacks(new androidx.fragment.app.FragmentManager.FragmentLifecycleCallbacks() {
+            @Override public void onFragmentViewCreated(@NonNull androidx.fragment.app.FragmentManager fm,
+                    @NonNull androidx.fragment.app.Fragment fragment, @NonNull View view, Bundle state) {
+                com.winlator.cmod.core.ControlStyle.apply(view);
+            }
+        }, true);
         // Portrait lock disabled by default and follows system (UNSPECIFIED)
         boolean lockLandscape = PreferenceManager.getDefaultSharedPreferences(this).getBoolean("lock_landscape", false);
         if (lockLandscape) {

@@ -6,9 +6,13 @@ All notable changes between WinXclipse releases, newest first.
 
 ### Fixed
 
+- Rounded actions now share the purple app style across Settings, ImageFS, shortcuts, downloads, terminal and input/control dialogs. Icon-only actions remain unfilled; gears/downloads keep smaller outlines. Export fields have separate labels and consistent spacing; controller switches and help columns align.
+- Deleted control presets stay deleted after reload, including an empty library. Restore default presets recovers bundled layouts without overwriting custom or edited profiles; Delete all presets requires confirmation.
+- FEX downloads now match all 15 currently published manifests, including 2508, and use live 2607/2608 URLs. Removed the unavailable online 2610 link; the bundled 2610 runtime remains available.
+- Removing an environment variable, including the RAM Fix path, stays saved in container defaults and existing containers instead of being restored by a legacy migration.
 - Named DXVK/VKD3D downloads now match inspected WCP manifest identities, including ARM64EC and async variants. Corrected the 1.6.1/Sarek catalog metadata and removed the deleted ARM64EC 3.0a asset.
 - Sidebar captures are frozen before the entrance animation; late PixelCopy results cannot replace a visible backdrop. Advanced switches and help columns now align, including BCn.
-- DisplayX requests interoperable gralloc buffers on Xclipse for System and RADV. The native probe now includes attachment rendering; visual confirmation of the new allocation on the phone is still pending.
+- DisplayX requests interoperable read/write gralloc buffers on Xclipse. The S24+ native probe passed transfer and attachment presentation with System and JimVulkan RADV in UNORM and mutable sRGB. Full RE9/DXVK validation remains pending.
 - File Manager now treats a move/copy onto an existing file as a real replacement instead of creating a suffixed duplicate. Symlink-aware size accounting keeps the progress dialog accurate for large saves and game folders.
 - Shortcut lifecycle detection no longer mistakes the normal exit of `start.exe` for the game process. Slow launcher-to-game hand-offs are allowed to continue for 30 seconds, while shortcuts that never start still use the separate stale-launch backstop.
 - Wine/Proton, FEXCore, Box64, DXVK and VKD3D selectors and launchers now resolve only installed content. Failed FEXCore extraction cannot leave a false version marker, and an installed fallback is selected when an old container points at missing content.
@@ -19,6 +23,7 @@ All notable changes between WinXclipse releases, newest first.
 
 ### Changed
 
+- Prefix preparation avoids desktop-menu rebuilding and full in-memory registry copies. Vulkan dependency checks are keyed to the selected ICD/API instead of presentation and RAM tweaks.
 - RAM Fix remains enabled by default. Optional experimental memory, cache, policy and BCn settings are grouped below GStreamer; startup RAM preparation uses bounded allocator cleanup.
 - VulkanRT preparation uses the verified bundled DLLs side by side, removing translated NSIS extraction and redundant server restarts while retaining the device/driver checks.
 - Settings now offers editable defaults below Sound for future new containers. Defaults are stored independently from runnable prefixes and keep their editor mode across recreation.

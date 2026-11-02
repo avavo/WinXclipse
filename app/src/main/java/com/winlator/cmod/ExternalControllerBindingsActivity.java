@@ -46,6 +46,7 @@ public class ExternalControllerBindingsActivity extends LocalizedActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.external_controller_bindings_activity);
+        com.winlator.cmod.core.ControlStyle.apply(findViewById(android.R.id.content));
 
         Intent intent = getIntent();
         int profileId = intent.getIntExtra("profile_id", 0);

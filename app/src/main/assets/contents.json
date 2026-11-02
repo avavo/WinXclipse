@@ -13,6 +13,30 @@
   },
   {
     "type": "FEXCore",
+    "verName": "241214",
+    "verCode": 0,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-fexcore-v0.8/2412.wcp"
+  },
+  {
+    "type": "FEXCore",
+    "verName": "2505",
+    "verCode": 1,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-fexcore-v0.8/2505.wcp"
+  },
+  {
+    "type": "FEXCore",
+    "verName": "250708",
+    "verCode": 0,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-fexcore-v0.8/2507.wcp"
+  },
+  {
+    "type": "FEXCore",
+    "verName": "2508",
+    "verCode": 1,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-fexcore-v0.8/2508.1.wcp"
+  },
+  {
+    "type": "FEXCore",
     "verName": "2509",
     "verCode": 1,
     "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-fexcore-v0.8/2509.1.wcp"
@@ -63,7 +87,19 @@
     "type": "FEXCore",
     "verName": "2607",
     "verCode": 0,
-    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-fexcore-v0.8/2607.1.wcp"
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-fexcore-v0.8/2607.wcp"
+  },
+  {
+    "type": "FEXCore",
+    "verName": "2608",
+    "verCode": 0,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-fexcore-v0.8/2608.wcp"
+  },
+  {
+    "type": "FEXCore",
+    "verName": "FEXCore-2609",
+    "verCode": 2064,
+    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-fexcore-v0.8/2609.wcp"
   },
   {
     "type": "Proton",
@@ -252,21 +288,9 @@
     "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/box/Box64-0.4.3-260519-024717c.wcp"
   },
   {
-    "type": "FEXCore",
-    "verName": "2608",
-    "verCode": 0,
-    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-fexcore-v0.8/FEXCore-2608.wcp"
-  },
-  {
     "type": "Box64",
     "verName": "0.4.5-415416f2b-Bionic",
     "verCode": 0,
     "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/box/Box64-0.4.5-415416f2b-Bionic.wcp"
-  },
-  {
-    "type": "FEXCore",
-    "verName": "2610",
-    "verCode": 2246,
-    "remoteUrl": "https://github.com/avavo/WinXclipse/releases/download/runtime-fexcore-v0.8/FEXCore-2610.wcp"
   }
 ]
