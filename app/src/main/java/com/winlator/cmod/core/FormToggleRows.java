@@ -16,12 +16,7 @@ public final class FormToggleRows {
     private static int dp(View view, int value) { return Math.round(value * view.getResources().getDisplayMetrics().density); }
     public static void apply(View view) {
         if (view instanceof CheckBox && namedSetting(view)) style((CheckBox)view);
-        if (view instanceof ImageView) {
-            try {
-                if(view.getResources().getResourceEntryName(view.getId()).contains("Help")
-                        && view.getLayoutParams() instanceof LinearLayout.LayoutParams) help((ImageView)view);
-            } catch(android.content.res.Resources.NotFoundException ignored) {}
-        }
+        if (view instanceof ImageView && valueRowHelp(view)) help((ImageView)view);
         if (view instanceof ViewGroup) {
             ViewGroup group=(ViewGroup)view;
             for (int i=0;i<group.getChildCount();i++) apply(group.getChildAt(i));
@@ -29,9 +24,20 @@ public final class FormToggleRows {
                 align((LinearLayout)group);
         }
     }
+    private static boolean valueRowHelp(View view) {
+        if (!(view.getParent() instanceof LinearLayout)
+                || ((LinearLayout)view.getParent()).getOrientation()!=LinearLayout.HORIZONTAL) return false;
+        try {
+            if (!view.getResources().getResourceEntryName(view.getId()).contains("Help")) return false;
+        } catch(android.content.res.Resources.NotFoundException ignored) { return false; }
+        LinearLayout row=(LinearLayout)view.getParent();
+        for(int i=0;i<row.getChildCount();i++)
+            if(row.getChildAt(i) instanceof android.widget.Spinner || row.getChildAt(i) instanceof android.widget.EditText) return true;
+        return false;
+    }
     private static void help(ImageView view) {
         LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(dp(view,36),dp(view,36));
-        params.setMarginStart(dp(view,8)); view.setLayoutParams(params);
+        params.setMarginStart(dp(view,8)); params.gravity=Gravity.CENTER_VERTICAL; view.setLayoutParams(params);
         view.setPadding(dp(view,6),dp(view,6),dp(view,6),dp(view,6));
     }
     private static boolean namedSetting(View view) {

@@ -3889,65 +3889,8 @@ public class XServerDisplayActivity extends LocalizedActivity implements Navigat
     }
 
     private void showSidebarFpsLimiter(DisplayRenderer renderer) {
-        final int[] values = {24, 30, 45, 60, 75, 90, 120};
-        final String[] labels = {
-                "24 FPS", "30 FPS", "45 FPS", "60 FPS",
-                "75 FPS", "90 FPS", "120 FPS", getString(R.string.custom) + "…"
-        };
-        int configured = getConfiguredFpsLimit();
-        int checked = labels.length - 1;
-        for (int index = 0; index < values.length; index++) {
-            if (values[index] == configured) {
-                checked = index;
-                break;
-            }
-        }
-        new com.winlator.cmod.core.PopupStyle.Builder(this)
-                .setTitle(R.string.fps_limit)
-                .setSingleChoiceItems(labels, checked, (dialog, which) -> {
-                    dialog.dismiss();
-                    if (which < values.length) {
-                        applySidebarFpsLimitChoice(renderer, values[which]);
-                    }
-                    else {
-                        showCustomSidebarFpsLimiter(renderer);
-                    }
-                })
-                .setNegativeButton(R.string.cancel, null)
-                .show();
-    }
-
-    private void showCustomSidebarFpsLimiter(DisplayRenderer renderer) {
-        EditText input = new EditText(this);
-        input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
-        input.setSelectAllOnFocus(true);
-        input.setText(String.valueOf(getConfiguredFpsLimit()));
-        int sidePadding = Math.round(24 * getResources().getDisplayMetrics().density);
-        LinearLayout holder = new LinearLayout(this);
-        holder.setPadding(sidePadding, 0, sidePadding, 0);
-        holder.addView(input, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        androidx.appcompat.app.AlertDialog dialog =
-                new com.winlator.cmod.core.PopupStyle.Builder(this)
-                .setTitle(R.string.fps_limit)
-                .setMessage(R.string.fps_limit_help)
-                .setView(holder)
-                .setPositiveButton(R.string.ok, null)
-                .setNegativeButton(R.string.cancel, null)
-                .create();
-        dialog.setOnShowListener(ignored -> dialog.getButton(
-                androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
-            try {
-                int configured = Math.max(15, Math.min(240,
-                        Integer.parseInt(input.getText().toString().trim())));
-                applySidebarFpsLimitChoice(renderer, configured);
-                dialog.dismiss();
-            }
-            catch (Exception invalid) {
-                input.setError("15-240");
-            }
-        }));
-        dialog.show();
+        new com.winlator.cmod.contentdialog.FpsLimiterDialog(this, getConfiguredFpsLimit(),
+                configured -> applySidebarFpsLimitChoice(renderer, configured)).show();
     }
 
     private void applySidebarFpsLimitChoice(DisplayRenderer renderer, int configured) {

@@ -6,7 +6,8 @@ All notable changes between WinXclipse releases, newest first.
 
 ### Fixed
 
-- Rounded actions now share the purple app style across Settings, ImageFS, shortcuts, downloads, terminal and input/control dialogs. Icon-only actions remain unfilled; gears/downloads keep smaller outlines. Export fields have separate labels and consistent spacing; controller switches and help columns align.
+- Rounded actions now share the purple app style across Settings, ImageFS, shortcuts, downloads, terminal and input/control dialogs. Settings icons, including preset imports and the default-container gear, remain unfilled; container field gears/downloads keep smaller outlines. Export fields have separate labels and consistent spacing; controller switches and help columns align.
+- Sidebar Exit/Pause/Help retain three equal targets and uncropped icons. HUD panel actions have separate spacing, the FPS preset/custom editor stays inside the sidebar with live updates, and Wrapper caption help no longer displaces the field action column.
 - Deleted control presets stay deleted after reload, including an empty library. Restore default presets recovers bundled layouts without overwriting custom or edited profiles; Delete all presets requires confirmation.
 - FEX downloads now match all 15 currently published manifests, including 2508, and use live 2607/2608 URLs. Removed the unavailable online 2610 link; the bundled 2610 runtime remains available.
 - Removing an environment variable, including the RAM Fix path, stays saved in container defaults and existing containers instead of being restored by a legacy migration.

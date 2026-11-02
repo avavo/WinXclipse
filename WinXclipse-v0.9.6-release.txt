@@ -46,7 +46,9 @@ WinXclipse v0.9.6 is a major experimental update for Exynos/Xclipse devices. It 
 - Capture and freeze the sidebar background before opening its animation. Prime the first snapshot with the desktop, retain the previous blur on timeout and reject late captures that used to change the visible panel.
 - Keep the blurred snapshot covering the entire sidebar during its slide, including areas outside the game surface; retain an opaque base instead of exposing clear strips.
 - Apply rounded purple actions across Settings tools, ImageFS, shortcuts, downloads, HUD/Input/Display pages, control editors, terminal Execute and OK/Cancel buttons.
-- Keep icon-only actions unfilled; retain smaller outlined surfaces for settings gears and downloads, with centered icons and preserved padding.
+- Keep Settings toolbar/import/default-container icons unfilled; retain smaller outlined surfaces for gears/downloads in container fields, with centered icons and preserved padding.
+- Keep Exit/Pause/Help equally spaced in the sidebar with complete icons, separate the HUD panel action from its appearance selector, and align container/shortcut field actions by moving Wrapper help into the caption.
+- Edit FPS presets and the custom value in the sidebar page with live updates and X/back navigation, without a separate preset/custom popup.
 - Separate community-export labels and inputs and match the three cover actions to the app style.
 - Align Settings and controller switches/help icons, including BCn, with consistent control sizes and wrapping.
 - Keep deleted control presets deleted across reloads, including an empty library. Add confirmed Delete all presets and Restore default presets, preserving existing custom/edited layouts during restore.

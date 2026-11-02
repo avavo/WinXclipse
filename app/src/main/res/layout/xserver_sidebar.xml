@@ -411,7 +411,7 @@
     <LinearLayout
         android:id="@+id/LLSidebarFooter"
         android:layout_width="match_parent"
-        android:layout_height="44dp"
+        android:layout_height="48dp"
         android:gravity="center"
         android:orientation="horizontal">
         <ImageButton
@@ -422,6 +422,7 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/exit"
             android:padding="10dp"
+            android:scaleType="centerInside"
             android:src="@drawable/icon_power"
             app:tint="#EF5350" />
         <ImageButton
@@ -432,6 +433,7 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/pause_resume"
             android:padding="10dp"
+            android:scaleType="centerInside"
             android:src="@drawable/icon_pause"
             app:tint="@color/colorAccent" />
         <ImageButton
@@ -442,6 +444,7 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/touchpad_help"
             android:padding="10dp"
+            android:scaleType="centerInside"
             android:src="@drawable/icon_help"
             app:tint="@color/colorAccent" />
     </LinearLayout>

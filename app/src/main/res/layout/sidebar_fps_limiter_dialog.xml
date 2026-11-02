@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.winlator.cmod.widget.GestureScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="false"
+    android:scrollbars="vertical">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="10dp">
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:text="@string/fps_limit_help"
+            android:textSize="14sp" />
+        <RadioGroup
+            android:id="@+id/RGFpsLimit"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+        <EditText
+            android:id="@+id/ETFpsLimit"
+            style="@style/EditText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="48dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="8dp"
+            android:inputType="number"
+            android:singleLine="true"
+            android:maxLength="3"
+            android:selectAllOnFocus="true"
+            android:contentDescription="@string/custom"
+            android:visibility="gone" />
+    </LinearLayout>
+</com.winlator.cmod.widget.GestureScrollView>

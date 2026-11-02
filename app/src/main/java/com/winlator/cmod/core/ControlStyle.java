@@ -20,11 +20,15 @@ public final class ControlStyle {
         catch(android.content.res.Resources.NotFoundException ignored) { return false; }
     }
     private static boolean outlinedIcon(View view) {
+        // Settings toolbars use plain glyphs, including preset import and the
+        // default-container gear. Field actions in container editors keep their outline.
+        for (View ancestor=view; ancestor!=null;
+                ancestor=ancestor.getParent() instanceof View ? (View)ancestor.getParent() : null)
+            if (ancestor.getId()==R.id.SettingsPage) return false;
         try {
             String name=view.getResources().getResourceEntryName(view.getId());
             return name.contains("Download") || name.endsWith("Config") || name.endsWith("ConfigIcon")
-                    || name.endsWith("Settings") || (name.startsWith("BTManage")&&name.contains("Content"))
-                    || name.equals("BTImportBox64Preset") || name.equals("BTImportFEXCorePreset");
+                    || name.endsWith("Settings") || (name.startsWith("BTManage")&&name.contains("Content"));
         } catch(android.content.res.Resources.NotFoundException ignored) { return false; }
     }
     private static void style(View view) {

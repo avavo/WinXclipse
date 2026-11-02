@@ -20,7 +20,7 @@ public class FormToggleRowsTest {
     private Rect bounds(ViewGroup root,View child) {
         Rect result=new Rect(0,0,child.getWidth(),child.getHeight()); root.offsetDescendantRectToMyCoords(child,result); return result;
     }
-    @Test public void iconOnlyActionsStayUnfilledExceptSmallerSettingsAndDownloadSurfaces() {
+    @Test public void settingsToolsStayUnfilledWhileContainerFieldActionsKeepSmallerSurfaces() {
         Context context=new ContextThemeWrapper(RuntimeEnvironment.getApplication(),R.style.AppTheme_Dark);
         ViewGroup sidebar=(ViewGroup)LayoutInflater.from(context).inflate(R.layout.xserver_sidebar,null);
         View power=sidebar.findViewById(R.id.BTSidebarExit);int padding=power.getPaddingTop();
@@ -31,7 +31,15 @@ public class FormToggleRowsTest {
         ViewGroup settings=(ViewGroup)LayoutInflater.from(context).inflate(R.layout.settings_fragment,null);
         View download=settings.findViewById(R.id.BTImportFEXCorePreset);int iconPadding=download.getPaddingStart();
         ControlStyle.apply(settings);ControlStyle.apply(settings);
-        assertTrue(download.getBackground() instanceof android.graphics.drawable.InsetDrawable);
+        assertTrue(download.getBackground() instanceof android.graphics.drawable.RippleDrawable);
+        assertEquals(1,((android.graphics.drawable.RippleDrawable)download.getBackground()).getNumberOfLayers());
+        View gear=settings.findViewById(R.id.BTDefaultContainerConfigIcon);
+        assertTrue(gear.getBackground() instanceof android.graphics.drawable.RippleDrawable);
+        assertEquals(1,((android.graphics.drawable.RippleDrawable)gear.getBackground()).getNumberOfLayers());
+        ViewGroup editor=(ViewGroup)LayoutInflater.from(context).inflate(R.layout.container_detail_fragment,null);
+        ControlStyle.apply(editor);
+        assertTrue(editor.findViewById(R.id.BTManageWineContent).getBackground() instanceof android.graphics.drawable.InsetDrawable);
+        assertTrue(editor.findViewById(R.id.BTVideoConfig).getBackground() instanceof android.graphics.drawable.InsetDrawable);
         assertEquals(iconPadding,download.getPaddingStart());
         View add=settings.findViewById(R.id.BTAddFEXCorePreset);
         assertEquals(1,((android.graphics.drawable.RippleDrawable)add.getBackground()).getNumberOfLayers());

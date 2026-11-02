@@ -214,10 +214,13 @@ public class PopupLayoutTest {
             View config = root.findViewById(R.id.BTGraphicsDriverConfig);
             View help = root.findViewById(R.id.BTHelpGraphicsDriver);
             View download = root.findViewById(layout == R.layout.container_detail_fragment ? R.id.BTManageGraphicsContent : R.id.BTManageGraphicsContentShortcut);
-            assertEquals(download.getWidth(), config.getWidth()); assertEquals(config.getWidth(), help.getWidth());
-            assertEquals(download.getHeight(), config.getHeight()); assertEquals(config.getHeight(), help.getHeight());
-            assertEquals(download.getTop(), config.getTop()); assertEquals(config.getTop(), help.getTop());
-            assertEquals(config.getLeft() - download.getRight(), help.getLeft() - config.getRight());
+            assertEquals(download.getWidth(), config.getWidth());
+            assertEquals(download.getHeight(), config.getHeight());
+            assertEquals(download.getTop(), config.getTop());
+            assertSame(root.findViewById(R.id.LLWrapperLabel),help.getParent());
+            View label=root.findViewById(R.id.TVWrapperLabel);
+            assertEquals(label.getTop()+label.getHeight()/2,help.getTop()+help.getHeight()/2);
+            assertTrue(help.getWidth()<config.getWidth());
         }
     }
     @Test public void vsyncValueHasEnoughSpaceToDisplayItsFullSelection() {
