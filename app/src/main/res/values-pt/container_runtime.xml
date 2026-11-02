@@ -1,0 +1,3 @@
+<resources>
+    <string name="container_runtime_missing">Nenhum Wine/Proton instalado está selecionado. Instale uma versão em Downloads e selecione antes de criar o container.</string>
+</resources>

@@ -27,6 +27,9 @@ WinXclipse v0.9.6 is a major experimental update for Exynos/Xclipse devices. It 
 
 ### Startup, Wine & Proton
 
+- Apply startup service, component and theme registry changes in a single pass per file, avoiding repeated rewrites of large Proton registries.
+- Keep new/default containers on an installed runtime after removal. Verify runtime deletion and prevent an unavailable saved Proton 9 from reappearing in the new-container selector.
+
 - Recompressed the bundled Proton TAR as Zstandard without changing its extracted contents, reducing decompression overhead.
 - Buffered archive reads, reused extraction buffers and reduced writes for large zero-filled entries.
 - Fixed first-install extraction progress for system files and bundled content packages. Percentages follow compressed reads and package installation; unmeasured preparation uses an indeterminate indicator instead of a frozen 0%.

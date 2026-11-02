@@ -987,12 +987,17 @@ public class ContentsManager {
         return realPath;
     }
 
-    public void removeContent(ContentProfile profile) {
-        if (profilesMap.get(profile.type).contains(profile)) {
-            FileUtils.delete(getInstallDir(context, profile));
-            profilesMap.get(profile.type).remove(profile);
+    public boolean removeContent(ContentProfile profile) {
+        if (!profilesMap.get(profile.type).contains(profile)) return false;
+        File directory = getInstallDir(context, profile);
+        if (directory.exists() && (!FileUtils.delete(directory) || directory.exists())) {
+            Log.e(TAG, "Content removal did not finish: " + directory);
             syncContents();
+            return false;
         }
+        profilesMap.get(profile.type).remove(profile);
+        syncContents();
+        return true;
     }
 
     public static String getEntryName(ContentProfile profile) {

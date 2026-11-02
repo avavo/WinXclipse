@@ -1151,12 +1151,16 @@ public class ContentsFragment extends Fragment {
                                 final int movedCount = moved;
                                 final ContentProfile finalReplacement = replacement;
                                 android.app.Activity hostActivity = getActivity();
+                                final Context removalContext = requireContext().getApplicationContext();
                                 PreloaderDialog preloader = new PreloaderDialog(requireActivity());
                                 preloader.show(R.string.installing_content);
                                 preloader.setIndeterminate();
                                 preloader.allowBackground();
                                 new Thread(() -> {
-                                    manager.removeContent(profile);
+                                    boolean removed = manager.removeContent(profile);
+                                    if (removed && !com.winlator.cmod.container.ContainerDefaults.replaceRemovedRuntime(
+                                            removalContext, ContentsManager.getEntryName(profile), replacementEntry))
+                                        Log.e("ContainerDefaults", "Cannot redirect removed runtime in saved defaults");
                                     if (hostActivity == null) return;
                                     hostActivity.runOnUiThread(() -> {
                                         if (!isAdded()) { preloader.close(); return; }
@@ -1166,6 +1170,10 @@ public class ContentsFragment extends Fragment {
                                                 .remove(MainActivity.PREF_INSTALLED_ASSET_CONTENTS)
                                                 .apply();
                                         loadContentList();
+                                        if (!removed) {
+                                            ContentDialog.alert(getContext(), getString(R.string.unable_to_remove_this_wine_version), null);
+                                            return;
+                                        }
                                         if (movedCount > 0) AppUtils.showToast(getContext(), String.format(
                                                 getString(R.string.containers_moved_to_runtime),
                                                 ContentsManager.getEntryName(finalReplacement)));
@@ -1173,7 +1181,14 @@ public class ContentsFragment extends Fragment {
                                 }, "RemoveBakedInRuntime").start();
                                 return;
                             }
-                            manager.removeContent(profile);
+                            if (!manager.removeContent(profile)) {
+                                ContentDialog.alert(getContext(), getString(R.string.unable_to_remove_this_wine_version), null);
+                                loadContentList();
+                                return;
+                            }
+                            if (isRuntime && !com.winlator.cmod.container.ContainerDefaults.replaceRemovedRuntime(
+                                    getContext(), ContentsManager.getEntryName(profile), ContentsManager.getEntryName(replacement)))
+                                Log.e("ContainerDefaults", "Cannot redirect removed runtime in saved defaults");
                             // Drop the bundled-asset success markers so an
                             // uninstalled embedded bundle is offered for
                             // reinstall on the next app launch.

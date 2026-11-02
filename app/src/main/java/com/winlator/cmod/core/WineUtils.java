@@ -71,7 +71,7 @@ public abstract class WineUtils {
         return true;
     }
 
-    private static void setWindowMetrics(WineRegistryEditor registryEditor) {
+    private static void setWindowMetrics(WineRegistryBatch registryEditor) {
         byte[] fontNormalData = (new MSLogFont()).toByteArray();
         byte[] fontBoldData = (new MSLogFont()).setWeight(700).toByteArray();
         registryEditor.setHexValue("Control Panel\\Desktop\\WindowMetrics", "CaptionFont", fontBoldData);
@@ -87,7 +87,7 @@ public abstract class WineUtils {
         File systemRegFile = new File(rootDir, ImageFs.WINEPREFIX+"/system.reg");
         File userRegFile = new File(rootDir, ImageFs.WINEPREFIX+"/user.reg");
 
-        try (WineRegistryEditor registryEditor = new WineRegistryEditor(systemRegFile)) {
+        try (WineRegistryBatch registryEditor = new WineRegistryBatch(systemRegFile)) {
             registryEditor.setStringValue("Software\\Classes\\.reg", null, "REGfile");
             registryEditor.setStringValue("Software\\Classes\\.reg", "Content Type", "application/reg");
             registryEditor.setStringValue("Software\\Classes\\REGfile\\Shell\\Open\\command", null, "C:\\windows\\regedit.exe /C \"%1\"");
@@ -101,7 +101,7 @@ public abstract class WineUtils {
         final String[] xinputLibs = {"dinput", "dinput8", "xinput1_1", "xinput1_2", "xinput1_3", "xinput1_4", "xinput9_1_0", "xinputuap"};
         final String dllOverridesKey = "Software\\Wine\\DllOverrides";
 
-        try (WineRegistryEditor registryEditor = new WineRegistryEditor(userRegFile)) {
+        try (WineRegistryBatch registryEditor = new WineRegistryBatch(userRegFile)) {
             for (String name : direct3dLibs) registryEditor.setStringValue(dllOverridesKey, name, "native,builtin");
             for (String name : xinputLibs) registryEditor.setStringValue(dllOverridesKey, name, "builtin,native");
             // Match the reference ARM64EC launcher outside Mali: prefer the
@@ -120,7 +120,7 @@ public abstract class WineUtils {
         final String dllOverridesKey = "Software\\Wine\\DllOverrides";
         File userRegFile = new File(container.getRootDir(), ".wine/user.reg");
 
-        try (WineRegistryEditor registryEditor = new WineRegistryEditor(userRegFile)) {
+        try (WineRegistryBatch registryEditor = new WineRegistryBatch(userRegFile)) {
             JSONObject wincomponentsJSONObject = new JSONObject(FileUtils.readString(context, "wincomponents/wincomponents.json"));
             JSONArray dlnames = wincomponentsJSONObject.getJSONArray(identifier);
             for (int i = 0; i < dlnames.length(); i++) {
@@ -158,7 +158,7 @@ public abstract class WineUtils {
             }
         }
         else if (identifier.equals("xaudio")) {
-            try (WineRegistryEditor registryEditor = new WineRegistryEditor(systemRegFile)) {
+            try (WineRegistryBatch registryEditor = new WineRegistryBatch(systemRegFile)) {
                 if (useNative) {
                     registryEditor.setStringValue("Software\\Classes\\Wow6432Node\\CLSID\\{074B110F-7F58-4743-AEA5-12F1B5074ED}\\InprocServer32", null, "C:\\windows\\syswow64\\xactengine3_5.dll");
                     registryEditor.setStringValue("Software\\Classes\\Wow6432Node\\CLSID\\{0977D092-2D95-4E43-8D42-9DDCC2545ED5}\\InprocServer32", null, "C:\\windows\\syswow64\\xactengine3_4.dll");
@@ -265,7 +265,7 @@ public abstract class WineUtils {
         };
         File systemRegFile = new File(container.getRootDir(), ".wine/system.reg");
 
-        try (WineRegistryEditor registryEditor = new WineRegistryEditor(systemRegFile)) {
+        try (WineRegistryBatch registryEditor = new WineRegistryBatch(systemRegFile)) {
             registryEditor.setCreateKeyIfNotExist(false);
 
             for (String service : services) {

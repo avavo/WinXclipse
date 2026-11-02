@@ -11,6 +11,25 @@ public final class ContainerDefaults {
     public static final int EDIT_DEFAULTS = -1;
     private ContainerDefaults() {}
 
+    private static String runtimeKey(String value) {
+        return value == null ? "" : value.trim().toLowerCase(java.util.Locale.ROOT).replaceFirst("-0$", "");
+    }
+
+    /** A new/default container can only select a runtime that is actually installed. */
+    public static String installedRuntime(String saved, java.util.List<String> installed) {
+        for (String candidate : installed) if (runtimeKey(saved).equals(runtimeKey(candidate))) return candidate;
+        return installed.isEmpty() ? "" : installed.get(0);
+    }
+
+    public static boolean replaceRemovedRuntime(Context context, String removed, String replacement) {
+        Container defaults = load(context, false);
+        if (defaults != null && runtimeKey(defaults.getWineVersion()).equals(runtimeKey(removed))) {
+            defaults.setWineVersion(replacement);
+            return defaults.saveData();
+        }
+        return true;
+    }
+
     public static Container load(Context context, boolean create) {
         File directory = new File(context.getFilesDir(), "container-defaults");
         Container defaults = new Container(0);

@@ -642,7 +642,8 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
             // Imported/copied prefixes can leave 0771 on this directory. Wine
             // refuses it even when the runtime preparation receipt is current.
             com.winlator.cmod.core.WineServerDirectory.prepare(prefix);
-            WinePrefixBootstrap.prepare(prefix, wineInfo.isWin64(),
+            long prefixStarted = android.os.SystemClock.elapsedRealtime();
+            boolean prefixUpdated = WinePrefixBootstrap.prepare(prefix, wineInfo.isWin64(),
                     container.getWineVersion(), bin, new File(wineRoot, "share/wine/wine.inf"),
                     wineInfo.usesNativeArm64() ? null : new File(imageFs.getBinDir(), "box64"),
                     (args, timeout) -> {
@@ -659,7 +660,10 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
                     },
                     () -> {
                         if (stopped) throw new IOException("Wine preparation cancelled");
+                        long componentsStarted = android.os.SystemClock.elapsedRealtime();
                         if (prefixUpdatedCallback != null) prefixUpdatedCallback.run();
+                        Log.i("BionicStartup", "components elapsedMs="
+                                + (android.os.SystemClock.elapsedRealtime() - componentsStarted));
                         // A runtime update can materialize its own bridge files.
                         // Verify/reapply the chosen translator after Wine is off
                         // so the first game uses the selected build as well.
@@ -667,6 +671,8 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
                         if (!ready) throw new IOException(translatorFailure);
                         if (stopped) throw new IOException("Wine preparation cancelled");
                     });
+            Log.i("BionicStartup", "prefix " + (prefixUpdated ? "updated" : "cached") + " elapsedMs="
+                    + (android.os.SystemClock.elapsedRealtime() - prefixStarted));
             // The post-update installer can add environment overrides too.
             if (this.envVars != null) envVars.putAll(this.envVars);
             com.winlator.cmod.core.GuestMemoryPolicy.apply(envVars,

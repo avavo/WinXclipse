@@ -892,6 +892,10 @@ public class ContainerDetailFragment extends Fragment {
         // Set up confirm button
         view.findViewById(R.id.BTConfirm).setOnClickListener((v) -> {
             try {
+                if (sWineVersion.getSelectedItem() == null) {
+                    ContentDialog.alert(context, getString(R.string.container_runtime_missing), null);
+                    return;
+                }
                 // Capture and set container properties based on UI inputs
                 String name = etName.getText().toString();
                 String screenSize = getScreenSize(view);
@@ -1739,6 +1743,7 @@ public class ContainerDetailFragment extends Fragment {
                 Spinner sEmulator = view.findViewById(R.id.SEmulator);
                 Spinner sEmulator64 = view.findViewById(R.id.SEmulator64);
                 sEmulator64.setEnabled(false);
+                if (sWineVersion.getSelectedItem() == null) return;
                 String wineVersion = sWineVersion.getSelectedItem().toString();
                 WineInfo wineInfo = WineInfo.fromIdentifier(context, contentsManager, wineVersion);
                 if (wineInfo.usesNativeArm64()) {
@@ -1762,6 +1767,7 @@ public class ContainerDetailFragment extends Fragment {
                 Spinner sEmulator = view.findViewById(R.id.SEmulator);
                 Spinner sEmulator64 = view.findViewById(R.id.SEmulator64);
                 sEmulator64.setEnabled(false);
+                if (sWineVersion.getSelectedItem() == null) return;
                 String wineVersion = sWineVersion.getSelectedItem().toString();
                 WineInfo wineInfo = WineInfo.fromIdentifier(context, contentsManager, wineVersion);
                 if (wineInfo.usesNativeArm64()) {
@@ -1798,8 +1804,19 @@ public class ContainerDetailFragment extends Fragment {
             if (contentsManager.isInstalledProfile(profile))
                 addUniqueWineVersion(wineVersions, ContentsManager.getEntryName(profile));
         }
+        String selected = container != null ? container.getWineVersion() : WineInfo.MAIN_WINE_VERSION.identifier();
+        if (containerId <= 0) {
+            selected = com.winlator.cmod.container.ContainerDefaults.installedRuntime(selected, wineVersions);
+            if (container != null && !selected.isEmpty() && !selected.equals(container.getWineVersion())) {
+                container.setWineVersion(selected);
+                // Heal defaults saved before runtime removal was reflected here.
+                // Keep every other option, including intentionally removed env vars.
+                if (container.getConfigFile().isFile() && !container.saveData())
+                    Log.e("ContainerDefaults", "Cannot persist installed runtime selection");
+            }
+        }
         sWineVersion.setAdapter(new ThemedSpinnerAdapter<>(context, wineVersions));
-        if (isEditMode()) AppUtils.setContentVersionSelection(sWineVersion, container.getWineVersion());
+        if (!selected.isEmpty()) AppUtils.setContentVersionSelection(sWineVersion, selected);
     }
 
     /**

@@ -13,6 +13,30 @@ import static org.junit.Assert.*;
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk=28, application=Application.class)
 public class ContainerDefaultsTest {
+    @Test public void removingDefaultRuntimeMovesOnlyItsVersionToTheInstalledReplacement() {
+        Context context=RuntimeEnvironment.getApplication();
+        Container draft=ContainerDefaults.load(context,true);
+        draft.setWineVersion("proton-9.0-arm64ec");
+        draft.setScreenSize("1920x1080"); draft.setEnvVars(""); draft.putExtra("renderer", "egl");
+        assertTrue(draft.saveData());
+        assertTrue(ContainerDefaults.replaceRemovedRuntime(context,"Proton-9.0-arm64ec-0","Proton-10.0-arm64ec-2"));
+        Container saved=ContainerDefaults.load(context,false);
+        assertEquals("Proton-10.0-arm64ec-2",saved.getWineVersion());
+        assertEquals("1920x1080",saved.getScreenSize());
+        assertEquals("",saved.getEnvVars()); assertEquals("egl",saved.getExtra("renderer"));
+        assertTrue(ContainerDefaults.replaceRemovedRuntime(context,"Proton-11.0-arm64ec-0","Proton-9.0-arm64ec-0"));
+        assertEquals("Proton-10.0-arm64ec-2",ContainerDefaults.load(context,false).getWineVersion());
+    }
+
+    @Test public void newContainersNeverReinsertRemovedRuntimeFromSavedDefaults() {
+        java.util.List<String> installed=new java.util.ArrayList<>(java.util.Arrays.asList("Proton-10.0-arm64ec-2"));
+        assertEquals("Proton-10.0-arm64ec-2",ContainerDefaults.installedRuntime("proton-9.0-arm64ec",installed));
+        assertEquals(1,installed.size());
+        assertEquals("",ContainerDefaults.installedRuntime("proton-9.0-arm64ec",java.util.Collections.emptyList()));
+        assertEquals("Proton-9.0-arm64ec-0",ContainerDefaults.installedRuntime("proton-9.0-arm64ec",
+                java.util.Arrays.asList("Proton-10.0-arm64ec-2","Proton-9.0-arm64ec-0")));
+    }
+
     @Test public void removedRamFixVariableStaysRemovedAcrossSaveReloadAndNewContainer() throws Exception {
         Context context=RuntimeEnvironment.getApplication();
         Container draft=ContainerDefaults.load(context,true);

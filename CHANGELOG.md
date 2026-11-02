@@ -4,6 +4,9 @@ All notable changes between WinXclipse releases, newest first.
 
 ## 0.9.6
 
+- Apply Wine service, component and theme registry settings in one streaming pass per file instead of rewriting the whole registry for each value. Preserve unchanged registry bytes and report prefix/component preparation timings.
+- New containers now resolve saved defaults against installed Wine/Proton versions. Removing a runtime updates matching saved defaults and verifies filesystem deletion, preventing a missing Proton 9 from reappearing as a selectable installed runtime.
+
 ### Fixed
 
 - Rounded actions now share the purple app style across Settings, ImageFS, shortcuts, downloads, terminal and input/control dialogs. Settings icons, including preset imports and the default-container gear, remain unfilled; container field gears/downloads keep smaller outlines. Export fields have separate labels and consistent spacing; controller switches and help columns align.

@@ -66,7 +66,7 @@ public abstract class WineThemeManager {
             wallpaperReady = createWallpaperBMPFile(context, screenInfo, resolvedTheme);
         }
 
-        try (WineRegistryEditor registryEditor = new WineRegistryEditor(userRegFile)) {
+        try (WineRegistryBatch registryEditor = new WineRegistryBatch(userRegFile)) {
             if (themeInfo.backgroundType == BackgroundType.IMAGE && wallpaperReady) {
                 registryEditor.setStringValue("Control Panel\\Desktop", "Wallpaper", ImageFs.CACHE_PATH+"/wallpaper.bmp");
                 // The old icon-style wallpaper was intentionally generated at
