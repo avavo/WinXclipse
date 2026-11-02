@@ -27,6 +27,8 @@ WinXclipse v0.9.6 is a major experimental update for Exynos/Xclipse devices. It 
 
 ### Startup, Wine & Proton
 
+- Correct the built-in Proton 9 catalog alias so new containers use its prepared APK prefix. Verify the runtime core before adopting that template, while keeping migration for other runtimes or incomplete prefixes.
+
 - Apply startup service, component and theme registry changes in a single pass per file, avoiding repeated rewrites of large Proton registries.
 - Keep new/default containers on an installed runtime after removal. Verify runtime deletion and prevent an unavailable saved Proton 9 from reappearing in the new-container selector.
 
@@ -44,6 +46,8 @@ WinXclipse v0.9.6 is a major experimental update for Exynos/Xclipse devices. It 
 - Preserve launcher-to-game hand-off handling, startup diagnostics and cleanup of genuinely empty Wine sessions.
 
 ### Interface & In-game Sidebar
+
+- Unify the RAM HUD and task manager on one Android reading and rounding rule. Show binary RAM quantities in GiB, including free/used formats, and keep unreadable swap data separate from RAM availability.
 
 - Improved blurred surfaces across dialogs, selectors, context menus, startup progress and the in-game sidebar.
 - Capture and freeze the sidebar background before opening its animation. Prime the first snapshot with the desktop, retain the previous blur on timeout and reject late captures that used to change the visible panel.

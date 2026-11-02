@@ -1120,8 +1120,8 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="hud_sensor_note">N/A means the system does not expose this sensor. ≈ marks a charge estimate.</string>
     <string name="hud_ram_used_percent">RAM used (%)</string>
     <string name="hud_ram_free_percent">RAM free (%)</string>
-    <string name="hud_ram_used_gb">RAM used (GB)</string>
-    <string name="hud_ram_free_gb">RAM free (GB)</string>
+    <string name="hud_ram_used_gb">RAM used (GiB)</string>
+    <string name="hud_ram_free_gb">RAM free (GiB)</string>
     <string name="measurement_button">Add measurement button</string>
     <string name="measurement_auto_save">Save results to Download/WinXclipse automatically</string>
     <string name="measurement_fps">Average source FPS</string>

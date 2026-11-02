@@ -23,8 +23,8 @@ public class MemoryUsageBarView extends View {
     private final Paint titlePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint valuePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF bounds = new RectF();
-    private int percent;
-    private String memoryText = "0.00 / 0.00 GB";
+    private int percent = -1;
+    private String memoryText = "N/A";
 
     public MemoryUsageBarView(Context context) {
         this(context, null);
@@ -52,9 +52,9 @@ public class MemoryUsageBarView extends View {
     }
 
     public void setMemoryUsage(int percent, long usedBytes, long totalBytes) {
-        this.percent = Math.max(0, Math.min(100, percent));
-        memoryText = String.format(java.util.Locale.US, "%.2f / %.2f GB",
-                bytesToGb(usedBytes), bytesToGb(totalBytes));
+        boolean valid = totalBytes > 0 && usedBytes >= 0 && usedBytes <= totalBytes && percent >= 0;
+        this.percent = valid ? Math.min(100, percent) : -1;
+        memoryText = valid ? com.winlator.cmod.core.TelemetryMath.ramPair(totalBytes, totalBytes - usedBytes) : "N/A";
         invalidate();
     }
 
@@ -91,14 +91,10 @@ public class MemoryUsageBarView extends View {
         float titleHeight = titleFm.descent - titleFm.ascent;
         float valueHeight = valueFm.descent - valueFm.ascent;
         float top = (getHeight() - titleHeight - valueHeight - dp(4)) / 2f;
-        canvas.drawText("RAM " + percent + "%", getWidth() / 2f,
+        canvas.drawText("RAM " + (percent >= 0 ? percent + "%" : "N/A"), getWidth() / 2f,
                 top - titleFm.ascent, titlePaint);
         canvas.drawText(memoryText, getWidth() / 2f,
                 top + titleHeight + dp(4) - valueFm.ascent, valuePaint);
-    }
-
-    private float bytesToGb(long bytes) {
-        return bytes / (1024f * 1024f * 1024f);
     }
 
     private float dp(float value) {

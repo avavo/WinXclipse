@@ -108,8 +108,14 @@ public final class TelemetryMath {
         if (total <= 0 || available < 0 || available > total) return "N/A";
         boolean free = format == 1 || format == 3;
         long bytes = free ? available : total - available;
-        return format >= 2 ? String.format(Locale.getDefault(), "%.1f GB", bytes / 1_000_000_000d)
+        return format >= 2 ? String.format(Locale.getDefault(), "%.2f GiB", bytes / 1_073_741_824d)
                 : Math.round(bytes * 100d / total) + "%";
+    }
+
+    public static String ramPair(long total, long available) {
+        if (total <= 0 || available < 0 || available > total) return "N/A";
+        return String.format(Locale.getDefault(), "%.2f / %.2f GiB",
+                (total - available) / 1_073_741_824d, total / 1_073_741_824d);
     }
 
     public static String cortexName(long midr) {

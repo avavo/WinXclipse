@@ -15,6 +15,46 @@ public final class WinePrefixBootstrap {
 
     private WinePrefixBootstrap() {}
 
+    /** Catalog aliases of the APK runtime use the same bundled prepared prefix. */
+    public static String templateAsset(String selection, boolean bakedInRuntime) {
+        return (bakedInRuntime ? "proton-9.0-arm64ec" : selection) + "_container_pattern.tzst";
+    }
+
+    /** Only called for the prepared prefix extracted from this APK for its baked-in runtime. */
+    public static boolean adoptBundledTemplate(File prefix, String identity, File wineBin, File wineLib,
+                                               File wineInf) throws IOException {
+        File timestamp = new File(prefix, ".update-timestamp");
+        if (!timestamp.isFile() || timestamp.length() > 32
+                || !"disable".equals(new String(java.nio.file.Files.readAllBytes(timestamp.toPath()),
+                java.nio.charset.StandardCharsets.UTF_8).trim())) return false;
+        for (String name : new String[]{"system.reg", "user.reg", "userdef.reg"}) {
+            File hive = new File(prefix, name);
+            if (!hive.isFile()) return false;
+            boolean hasKeys = false;
+            try (java.io.BufferedReader reader = java.nio.file.Files.newBufferedReader(hive.toPath(),
+                    java.nio.charset.StandardCharsets.UTF_8)) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (line.startsWith("[") && line.contains("]")) { hasKeys = true; break; }
+                }
+            }
+            if (!hasKeys) return false;
+        }
+        WinePrefixState.ensureRegistries(prefix, true);
+        // Confirm that the template contains the selected runtime's actual core,
+        // including WoW64. A raw/incomplete prefix still needs normal wineboot.
+        for (String[] arch : new String[][]{{"aarch64-windows", "system32"}, {"i386-windows", "syswow64"}}) {
+            for (String name : new String[]{"ntdll.dll", "kernel32.dll", "wineboot.exe"}) {
+                File source = new File(WineRuntimeLayout.modules(wineLib, arch[0]), name);
+                File target = new File(prefix, "drive_c/windows/" + arch[1] + "/" + name);
+                if (!RuntimeFiles.samePayload(source, target)) return false;
+            }
+        }
+        WinePrefixState.markPrepared(prefix, WinePrefixState.fingerprint(identity,
+                WinePrefixState.wineExecutable(wineBin), wineInf));
+        return true;
+    }
+
     public static boolean prepare(File prefix, boolean win64, String identity, File wineBin,
                                   File wineInf, File box64, Runner runner, AfterUpdate afterUpdate)
             throws IOException, InterruptedException {

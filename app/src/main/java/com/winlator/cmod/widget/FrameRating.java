@@ -1,6 +1,5 @@
 package com.winlator.cmod.widget;
 
-import android.app.ActivityManager;
 import android.content.Context;
 import android.os.SystemClock;
 import android.util.AttributeSet;
@@ -14,7 +13,6 @@ import com.winlator.cmod.R;
 
 import com.winlator.cmod.container.Container;
 import com.winlator.cmod.core.GPUInformation;
-import com.winlator.cmod.core.StringUtils;
 
 import java.util.Locale;
 
@@ -25,7 +23,7 @@ public class FrameRating extends FrameLayout implements Runnable {
     private float lastFPS = 0;
     private String renderer = null;
     private String gpuName = null;
-    private String totalRAM = null;
+
     private final TextView tvFPS;
     private final TextView tvRenderer;
     private final TextView tvGPU;
@@ -47,27 +45,8 @@ public class FrameRating extends FrameLayout implements Runnable {
         tvRenderer = view.findViewById(R.id.TVRenderer);
         tvGPU = view.findViewById(R.id.TVGPU);
         tvRAM = view.findViewById(R.id.TVRAM);
-        totalRAM = getTotalRAM();
+
         addView(view);
-    }
-    
-    private String getTotalRAM() {
-        String totalRAM = "";
-        ActivityManager activityManager = (ActivityManager)context.getSystemService(Context.ACTIVITY_SERVICE);
-        ActivityManager.MemoryInfo memoryInfo = new ActivityManager.MemoryInfo();
-        activityManager.getMemoryInfo(memoryInfo);
-        totalRAM = StringUtils.formatBytes(memoryInfo.totalMem);
-        return totalRAM;
-    }
-    
-    private String getAvailableRAM() {
-        String availableRAM = "";
-        ActivityManager activityManager = (ActivityManager)context.getSystemService(Context.ACTIVITY_SERVICE);
-        ActivityManager.MemoryInfo memoryInfo = new ActivityManager.MemoryInfo();
-        activityManager.getMemoryInfo(memoryInfo);
-        long usedMem = memoryInfo.totalMem - memoryInfo.availMem;
-        availableRAM = StringUtils.formatBytes(usedMem, false);
-        return availableRAM;
     }
     
     public void reset() {
@@ -116,6 +95,7 @@ public class FrameRating extends FrameLayout implements Runnable {
             if (!exynosModel.isEmpty()) rendererName += " (" + exynosModel + ")";
             tvGPU.setText(rendererName);
         }
-        tvRAM.setText(context.getString(R.string.legacy_hud_ram, getAvailableRAM(), totalRAM));
+        com.winlator.cmod.core.SystemMemoryUsage memory = com.winlator.cmod.core.SystemMemoryUsage.read(context);
+        tvRAM.setText("RAM " + com.winlator.cmod.core.TelemetryMath.ramPair(memory.total, memory.available));
     }
 }

@@ -41,8 +41,8 @@ public class TelemetryMathTest {
     @Test public void ramFormatsFreeAndUsedFromSameMeasuredBytes() {
         assertEquals("75%", TelemetryMath.ram(8_000_000_000L, 2_000_000_000L, 0));
         assertEquals("25%", TelemetryMath.ram(8_000_000_000L, 2_000_000_000L, 1));
-        assertTrue(TelemetryMath.ram(8_000_000_000L, 2_000_000_000L, 2).matches("6[.,]0 GB"));
-        assertTrue(TelemetryMath.ram(8_000_000_000L, 2_000_000_000L, 3).matches("2[.,]0 GB"));
+        assertTrue(TelemetryMath.ram(8_000_000_000L, 2_000_000_000L, 2).matches("5[.,]59 GiB"));
+        assertTrue(TelemetryMath.ram(8_000_000_000L, 2_000_000_000L, 3).matches("1[.,]86 GiB"));
         assertEquals("N/A", TelemetryMath.ram(8, 9, 0));
     }
     @Test public void cortexNameRequiresActualArmImplementerAndKnownPart() {

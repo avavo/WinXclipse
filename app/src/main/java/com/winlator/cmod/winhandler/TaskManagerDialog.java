@@ -1,6 +1,5 @@
 package com.winlator.cmod.winhandler;
 
-import android.app.ActivityManager;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.os.Build;
@@ -210,16 +209,9 @@ public class TaskManagerDialog extends ContentDialog implements OnGetProcessInfo
     }
 
     private void updateMemoryInfoView() {
-        ActivityManager activityManager = (ActivityManager)activity.getSystemService(Context.ACTIVITY_SERVICE);
-        ActivityManager.MemoryInfo memoryInfo = new ActivityManager.MemoryInfo();
-        activityManager.getMemoryInfo(memoryInfo);
-        long usedMem = memoryInfo.totalMem - memoryInfo.availMem;
-        int memUsagePercent = memoryInfo.totalMem > 0
-                ? Math.min(100, Math.max(0, (int)Math.round(((double)usedMem / memoryInfo.totalMem) * 100.0d)))
-                : 0;
-
+        com.winlator.cmod.core.SystemMemoryUsage memory = activity.getHudDataSource().memory;
         MemoryUsageBarView memoryBar = findViewById(R.id.MemoryUsageBar);
-        memoryBar.setMemoryUsage(memUsagePercent, usedMem, memoryInfo.totalMem);
+        memoryBar.setMemoryUsage(memory.usedPercent, memory.used, memory.total);
     }
 
     private int resolveThemeColor(int attr) {

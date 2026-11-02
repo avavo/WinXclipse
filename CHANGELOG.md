@@ -4,6 +4,9 @@ All notable changes between WinXclipse releases, newest first.
 
 ## 0.9.6
 
+- Resolve catalog aliases to the APK Proton 9 prepared-prefix template. Verify the selected runtime core before recording it ready, avoiding a forced reconstruction of an already prepared new prefix. Other runtimes and mismatched/incomplete templates still migrate normally.
+- Make the RAM HUD and task manager share one Android memory sample and rounding rule. Use GiB consistently for binary RAM values and show unavailable samples as N/A.
+
 - Apply Wine service, component and theme registry settings in one streaming pass per file instead of rewriting the whole registry for each value. Preserve unchanged registry bytes and report prefix/component preparation timings.
 - New containers now resolve saved defaults against installed Wine/Proton versions. Removing a runtime updates matching saved defaults and verifies filesystem deletion, preventing a missing Proton 9 from reappearing as a selectable installed runtime.
 

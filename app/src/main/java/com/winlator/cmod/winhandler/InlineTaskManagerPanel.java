@@ -1,6 +1,5 @@
 package com.winlator.cmod.winhandler;
 
-import android.app.ActivityManager;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.os.Build;
@@ -106,13 +105,9 @@ public class InlineTaskManagerPanel extends LinearLayout implements OnGetProcess
         ((TextView)list.getChildAt(count - 1)).setText("GPU   "
                 + (gpu >= 0 ? gpu + "%" : "N/A %") + "   " + (mhz >= 0 ? mhz + " MHz" : "N/A MHz"));
         ((TextView)findViewById(R.id.TVInlineCPUTitle)).setText("CPU (" + (sample.usage >= 0 ? sample.usage + "%" : "N/A") + ")");
-        ActivityManager manager = (ActivityManager) activity.getSystemService(Context.ACTIVITY_SERVICE);
-        ActivityManager.MemoryInfo info = new ActivityManager.MemoryInfo();
-        manager.getMemoryInfo(info);
-        long used = info.totalMem - info.availMem;
-        int percent = info.totalMem > 0 ? (int) Math.min(100, Math.round(used * 100d / info.totalMem)) : 0;
+        com.winlator.cmod.core.SystemMemoryUsage memory = source.memory;
         ((MemoryUsageBarView) findViewById(R.id.InlineMemoryUsageBar))
-                .setMemoryUsage(percent, used, info.totalMem);
+                .setMemoryUsage(memory.usedPercent, memory.used, memory.total);
     }
 
     @Override

@@ -423,12 +423,13 @@ public class WinlatorHUD extends View {
             int ctm = dataSource.cpuTempC.get();
             int gtm = dataSource.gpuTempC.get();
             int pc = dataSource.batteryPct.get();
-            int rm = dataSource.ramUsagePct.get();
+            com.winlator.cmod.core.SystemMemoryUsage memory = dataSource.memory;
+            int rm = memory.usedPercent;
 
             if (g != snapGpu)   { snapGpu = g;  strGpu = g  >= 0 ? g  + "%" : "N/A"; }
             if (cp != snapCpu)  { snapCpu = cp; strCpu = cp >= 0 ? cp + "%" : "N/A"; }
             snapRam = rm;
-            String ram = TelemetryMath.ram(dataSource.ramTotalBytes, dataSource.ramAvailableBytes, ramFormat);
+            String ram = TelemetryMath.ram(memory.total, memory.available, ramFormat);
             if (!ram.equals(strRam)) { strRam = ram; requestLayout(); }
             updateRamAlert(rm);
             if (tm != snapTmp)  { snapTmp = tm; strTmp = tm > 0 ? tm + "°C" : ""; }

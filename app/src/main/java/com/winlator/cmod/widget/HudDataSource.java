@@ -28,10 +28,9 @@ public class HudDataSource {
     public final AtomicInteger cpuTempC      = new AtomicInteger(-1);
     public final AtomicInteger gpuTempC      = new AtomicInteger(-1);
     public final AtomicInteger batteryPct    = new AtomicInteger(-1);
-    public final AtomicInteger ramUsagePct  = new AtomicInteger(-1);
     public final AtomicInteger gpuMhz = new AtomicInteger(-1);
     public volatile CpuTelemetry.Sample cpu = CpuTelemetry.EMPTY;
-    public volatile long ramTotalBytes = -1, ramAvailableBytes = -1;
+    public volatile com.winlator.cmod.core.SystemMemoryUsage memory = com.winlator.cmod.core.SystemMemoryUsage.UNKNOWN;
     public volatile long swapTotalBytes = -1, swapFreeBytes = -1;
     public volatile boolean cpuApThermistor;
     public volatile double batteryAvailableMah = Double.NaN;
@@ -392,25 +391,21 @@ public class HudDataSource {
     }
 
     private void pollRam() {
+        com.winlator.cmod.core.SystemMemoryUsage reading = com.winlator.cmod.core.SystemMemoryUsage.read(context);
+        memory = reading;
         try (java.io.BufferedReader r = new java.io.BufferedReader(
                 new java.io.FileReader("/proc/meminfo"))) {
-            long memTotal = -1, memAvail = -1, swapTotal = -1, swapFree = -1;
+            long swapTotal = -1, swapFree = -1;
             String line;
             while ((line = r.readLine()) != null) {
-                if (line.startsWith("MemTotal:"))     memTotal = parseMeminfoKb(line);
-                else if (line.startsWith("MemAvailable:")) memAvail = parseMeminfoKb(line);
-                else if (line.startsWith("SwapTotal:")) swapTotal = parseMeminfoKb(line);
+                if (line.startsWith("SwapTotal:")) swapTotal = parseMeminfoKb(line);
                 else if (line.startsWith("SwapFree:")) swapFree = parseMeminfoKb(line);
             }
             swapTotalBytes = swapTotal >= 0 ? swapTotal * 1024 : -1;
             swapFreeBytes = swapFree >= 0 && swapFree <= swapTotal ? swapFree * 1024 : -1;
-            ramTotalBytes = memTotal > 0 ? memTotal * 1024 : -1;
-            ramAvailableBytes = memAvail >= 0 && memAvail <= memTotal ? memAvail * 1024 : -1;
-            if (memTotal > 0 && memAvail >= 0 && memAvail <= memTotal)
-                ramUsagePct.set((int)(100L * (memTotal - memAvail) / memTotal));
-            else ramUsagePct.set(-1);
+
         } catch (Exception e) {
-            ramUsagePct.set(-1); ramTotalBytes = ramAvailableBytes = -1;
+            // A denied swap read must not erase the independent Android RAM reading.
             swapTotalBytes = swapFreeBytes = -1;
         }
     }

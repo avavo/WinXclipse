@@ -567,8 +567,10 @@ public class ContainerManager {
             return onExtractFileListener != null ? onExtractFileListener.onExtractFile(file, size) : file;
         };
         try {
+            boolean bakedIn = runtimeProfile != null && runtimeProfile.bakedInRuntime;
             boolean extracted = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context,
-                    wineVersion + "_container_pattern.tzst", staging, prefixListener);
+                    com.winlator.cmod.core.WinePrefixBootstrap.templateAsset(wineVersion, bakedIn), staging, prefixListener);
+            boolean trustedTemplate = extracted && bakedIn;
             if (!extracted) {
                 if (!FileUtils.clear(staging)) return false;
                 if (runtimeProfile != null && runtimeProfile.winePrefixPack != null) {
@@ -595,6 +597,9 @@ public class ContainerManager {
                 extractCommonDlls(wineInfo, wineLibDir, "x86_64-windows", "system32", stagedPrefix, null);
                 extractCommonDlls(wineInfo, wineLibDir, "i386-windows", "syswow64", stagedPrefix, null);
             }
+            if (trustedTemplate && com.winlator.cmod.core.WinePrefixBootstrap.adoptBundledTemplate(
+                    stagedPrefix, wineVersion, wineBinDir, wineLibDir, new File(runtimeRoot, "share/wine/wine.inf")))
+                Log.i("ContainerManager", "Prepared APK prefix matches bundled Proton; no forced first-boot migration");
             File previous = DirectoryInstall.commit(stagedPrefix, new File(containerDir, ".wine"));
             if (previous != null) FileUtils.delete(previous);
             Log.i("ContainerManager", "Created isolated " + wineInfo.getArch() + " prefix for " + wineVersion);
