@@ -197,7 +197,7 @@ public class XClientRequestHandler implements RequestHandler {
                     }
                     break;
                 case ClientOpcodes.REPARENT_WINDOW:
-                    try (XLock lock = client.xServer.lock(XServer.Lockable.WINDOW_MANAGER)) {
+                    try (XLock lock = client.xServer.lock(XServer.Lockable.WINDOW_MANAGER, XServer.Lockable.INPUT_DEVICE)) {
                         WindowRequests.reparentWindow(client, inputStream, outputStream);
                     }
                     break;

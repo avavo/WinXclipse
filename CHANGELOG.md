@@ -12,6 +12,7 @@ All notable changes between WinXclipse releases, newest first.
 - Removing an environment variable, including the RAM Fix path, stays saved in container defaults and existing containers instead of being restored by a legacy migration.
 - Named DXVK/VKD3D downloads now match inspected WCP manifest identities, including ARM64EC and async variants. Corrected the 1.6.1/Sarek catalog metadata and removed the deleted ARM64EC 3.0a asset.
 - Sidebar captures are frozen before the entrance animation; late PixelCopy results cannot replace a visible backdrop. Advanced switches and help columns now align, including BCn.
+- Wine Vulkan windows retain their XID/drawable when reparented, honor their new coordinates and refresh the compositor scene. Moving a Wine parent also moves its nested rendering windows; InputOnly windows cannot cover the frame.
 - DisplayX requests interoperable read/write gralloc buffers on Xclipse. The S24+ native probe passed transfer and attachment presentation with System and JimVulkan RADV in UNORM and mutable sRGB. Full RE9/DXVK validation remains pending.
 - File Manager now treats a move/copy onto an existing file as a real replacement instead of creating a suffixed duplicate. Symlink-aware size accounting keeps the progress dialog accurate for large saves and game folders.
 - Shortcut lifecycle detection no longer mistakes the normal exit of `start.exe` for the game process. Slow launcher-to-game hand-offs are allowed to continue for 30 seconds, while shortcuts that never start still use the separate stale-launch backstop.

@@ -22,7 +22,15 @@ por container/shortcut, inicialmente desativada. Usa o compositor Vulkan.
   recriar seu swapchain com a WSI original. Falha geral do compositor continua
   sendo exibida ao usuário; não há mudança silenciosa da opção salva.
 
-X11 continua responsável pela árvore de janelas e entrada. Um callback leve
+X11 continua responsável pela árvore de janelas e entrada. ReparentWindow mantém
+XID/drawable, aplica as coordenadas e emite Unmap/Reparent/Map conforme o estado
+anterior e as regras de redirecionamento. O compositor reconstrói a cena ao mudar
+o pai; mover uma janela atualiza também a posição absoluta das filhas e o mapa
+de entrada de tela cheia. Janelas InputOnly não são imagens nem podem ocultar
+um frame. Essas correções foram verificadas em testes locais de protocolo/cena;
+a tela preta relatada no RE9 não foi confirmada como resolvida no aparelho.
+
+Um callback leve
 notifica a chegada de frames para HUD/medições, sem transportar pixels em Java.
 O log distingue `SurfaceFlinger direct AHB`, `AHB Vulkan composition` e
 `X11 pixel upload`. Redesenhar o cursor ou o fundo não conta como novo frame do jogo.
@@ -72,7 +80,8 @@ de manutenção/timing ainda não atendidos, esse dispositivo fica com WSI origi
 Não se emula `vkWaitForPresentKHR` com um sinal de GPU que possa mentir ou travar.
 
 Em Xclipse/Samsung (vendor Samsung/AMD ou nome Xclipse), o alocador AHB pede também
-`AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN`. Isso solicita armazenamento interoperável
+`AHARDWAREBUFFER_USAGE_CPU_READ_RARELY | AHARDWAREBUFFER_USAGE_CPU_WRITE_RARELY`.
+Isso solicita armazenamento interoperável
 em vez do layout GPU-only privado da Samsung. Não há mapeamento nem cópia de pixels
 pela CPU. A regra vale para o ICD System e RADV; `MESA_GRALLOC_LINEAR` sozinho não
 alcança a alocação AHB feita diretamente por este layer. Se essa combinação não
@@ -81,9 +90,11 @@ puder ser alocada, a WSI original continua sendo o fallback.
 A adaptação segue a descrição do problema de gralloc no
 [RADV de JimVulkan](https://github.com/JimVulkan/radv-xclipse#runtime-switches).
 O probe agora exercita tanto clear de transferência quanto render pass com
-attachment e layout PRESENT_SRC, caminho mais próximo de DXVK. A nova alocação
-ainda precisa de confirmação visual no aparelho com System e RADV; o teste antigo
-de três cores por transferência não comprovava render targets de jogos.
+attachment e layout PRESENT_SRC, caminho mais próximo de DXVK. No SM-S926B sob
+o UID do app, System e JimVulkan RADV v1.8.0 apresentaram 12 quadros corretos nos
+casos UNORM/sRGB mutável; o ICD RADV foi confirmado em /proc/self/maps. Esse probe
+não cobre o caminho de janelas do Wine nem a execução do RE9. A revisão seguinte
+foi feita sem novos testes de DisplayX no aparelho, conforme pedido do usuário.
 
 ## Origem e verificação
 
@@ -115,10 +126,11 @@ Não simula um driver Vulkan nem comprova scanout Android.
 O cadastro de famílias das filas pertence ao dispositivo Vulkan e é liberado
 com ele; recriar dispositivos não acumula handles em uma tabela global antiga.
 
-O probe independente no S24+ confirmou importação AHB, SYNC_FD e carregamento dos
-módulos; protocolo/SCM_RIGHTS e handle AHB passaram por socket anônimo real.
-Socket de arquivo foi bloqueado para o UID shell, sem execução dentro do app.
-Ainda falta executar o app alterado para confirmar imagem/cor, rotação,
-alternância com efeitos e blur, retorno de background, recriação/teardown,
-ABI/driver e desempenho em jogo. Ver [device-probe.md](device-probe.md).
+O probe inicial executado como shell só confirmou importação AHB e transporte por
+socket anônimo; seu UID não podia abrir o socket de arquivo. A validação posterior
+sob o UID do app confirmou a camada guest, AHBs, fences e compositor reais com
+System/RADV, conforme [o registro de controles](feedback-2026-11-01-controls.md).
+Faltam imagem do RE9, rotação, alternância com efeitos/blur, retorno de background
+e desempenho em jogo. Ver também [device-probe.md](device-probe.md) para os limites
+do probe inicial e [a revisão das janelas](feedback-2026-11-02-displayx.md).
 Não há garantia dos 80–100 FPS citados nem de alívio de 100% da CPU.

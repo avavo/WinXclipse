@@ -13,6 +13,7 @@ import com.winlator.cmod.xserver.events.Event;
 import com.winlator.cmod.xserver.events.Expose;
 import com.winlator.cmod.xserver.events.MapNotify;
 import com.winlator.cmod.xserver.events.MapRequest;
+import com.winlator.cmod.xserver.events.ReparentNotify;
 import com.winlator.cmod.xserver.events.ResizeRequest;
 import com.winlator.cmod.xserver.events.UnmapNotify;
 
@@ -34,6 +35,8 @@ public class WindowManager extends XResourceManager {
         default void onUnmapWindow(Window window) {}
 
         default void onChangeWindowZOrder(Window window) {}
+
+        default void onReparentWindow(Window window) {}
 
         default void onUpdateWindowContent(Window window) {}
 
@@ -333,10 +336,26 @@ public class WindowManager extends XResourceManager {
         else parent.sendEvent(Event.SUBSTRUCTURE_REDIRECT, new ConfigureRequest(parent, window, window.previousSibling(), x, y, width, height, borderWidth, stackMode, valueMask));
     }
 
-    public void reparentWindow(Window window, Window newParent) {
+    public void reparentWindow(Window window, Window newParent, short x, short y) throws BadMatch {
+        // Wine can move its Vulkan client window out of a hidden dummy parent.
+        // Keep its drawable/XID, but update both the X11 hierarchy and the scene.
+        if (window == rootWindow || window == newParent || window.isAncestorOf(newParent)
+                || (window.isInputOutput() && !newParent.isInputOutput())) throw new BadMatch();
         Window oldParent = window.getParent();
+        boolean wasMapped = window.attributes.isMapped();
+        if (wasMapped) unmapWindow(window);
         if (oldParent != null) oldParent.removeChild(window);
         newParent.addChild(window);
+        window.setX(x);
+        window.setY(y);
+        window.sendEvent(Event.STRUCTURE_NOTIFY, new ReparentNotify(window, window, newParent));
+        if (oldParent != null)
+            oldParent.sendEvent(Event.SUBSTRUCTURE_NOTIFY, new ReparentNotify(oldParent, window, newParent));
+        if (newParent != oldParent)
+            newParent.sendEvent(Event.SUBSTRUCTURE_NOTIFY, new ReparentNotify(newParent, window, newParent));
+        for (int i = onWindowModificationListeners.size()-1; i >= 0; i--)
+            onWindowModificationListeners.get(i).onReparentWindow(window);
+        if (wasMapped) mapWindow(window);
     }
 
     public Window findPointWindow(short rootX, short rootY) {

@@ -199,6 +199,11 @@ public abstract class SceneRenderer extends DisplayRenderer {
     }
 
     @Override
+    public void onReparentWindow(Window window) {
+        onChangeWindowZOrder(window);
+    }
+
+    @Override
     public void onUpdateWindowContent(Window window) {
         if (isApplicationContent(window)) {
             sourceSequence.incrementAndGet();
@@ -319,7 +324,7 @@ public abstract class SceneRenderer extends DisplayRenderer {
 
     protected void collectRenderableWindows(Window window, int x, int y) {
         if (!window.attributes.isMapped()) return;
-        if (window != xServer.windowManager.rootWindow) {
+        if (window != xServer.windowManager.rootWindow && window.isInputOutput()) {
             boolean viewable = true;
 
             if (unviewableWMClasses != null) {
@@ -379,12 +384,17 @@ public abstract class SceneRenderer extends DisplayRenderer {
     }
 
     protected void updateWindowPosition(Window window) {
-        for (RenderableWindow renderableWindow : renderableWindows) {
-            if (renderableWindow.content == window.getContent()) {
-                renderableWindow.rootX = window.getRootX();
-                renderableWindow.rootY = window.getRootY();
-                break;
+        try (XLock lock = xServer.lock(XServer.Lockable.WINDOW_MANAGER)) {
+            // A Wine Vulkan surface belongs to a child X window. Moving the
+            // decorated parent also moves every descendant in screen space.
+            for (RenderableWindow renderableWindow : renderableWindows) {
+                Window target = xServer.windowManager.getWindow(renderableWindow.content.id);
+                if (target != null && (target == window || window.isAncestorOf(target))) {
+                    renderableWindow.rootX = target.getRootX();
+                    renderableWindow.rootY = target.getRootY();
+                }
             }
+            updateForcedWindowMap();
         }
     }
 

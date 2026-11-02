@@ -82,8 +82,9 @@ A biblioteca RADV selecionada foi confirmada em /proc/self/maps, sem aceitar
 fallback silencioso para System. O transporte usa a camada, AHardwareBuffers,
 fences, socket e compositor reais. Só a criação da superfície X11 é substituída.
 O primeiro quadro usa transfer; os demais usam render pass com attachment e layout
-PRESENT. O teste não é um jogo DXVK nem uma execução do RE9. O executável/atalho
-do RE9 ainda precisa ser indicado para essa verificação.
+PRESENT. O teste não é um jogo DXVK nem uma execução do RE9. O usuário pediu que
+a revisão seguinte do DisplayX prossiga por código, sem abrir o jogo; a imagem
+do RE9 permanece sem validação.
 
 ## Verificações
 

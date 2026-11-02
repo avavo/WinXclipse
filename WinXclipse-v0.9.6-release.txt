@@ -15,6 +15,7 @@ WinXclipse v0.9.6 is a major experimental update for Exynos/Xclipse devices. It 
 - Added DisplayX controls for Bypass X11, Performance mode, Present at refresh rate, Submit every buffer and Precise presentation.
 - Preserved standard X11/WSI fallback for unsupported paths. The HUD distinguishes actual DisplayX frames from a ready DisplayX session displaying X11/GDI content.
 - Fixed DisplayX extension reporting so unsupported native-swapchain extensions do not prevent the compatible AHB path from being used.
+- Correct Wine Vulkan child-window reparenting, coordinates and scene refresh while preserving the XID/drawable. Parent movement now updates descendants; InputOnly windows no longer enter composition. These fixes are locally verified without opening RE9; its black-screen report still needs game validation.
 - Request the CPU read/write gralloc usage pair used by Mesa/Quasar for Xclipse interop, validate the allocated format/stride and keep rendering on the GPU. A standalone S24+ test passed with System and JimVulkan RADV in UNORM and mutable sRGB; full RE9/DXVK validation remains pending.
 - Query Vulkan extensions and API support from the selected driver in an isolated process, including custom drivers.
 - Set the default Vulkan version from the driver's reported API instead of its name. Added Vulkan 1.4 selection for drivers that report support.
