@@ -3,7 +3,8 @@
 Serviço hospedado em Cloudflare Workers pelo plugin Sites, com banco D1 e arquivos
 R2. O computador do mantenedor não participa da execução do serviço publicado.
 O painel de moderação é outro Site, restrito aos mantenedores autorizados, em
-`../moderation`. URLs e operação estão em `../../docs/community-service.md`.
+`../moderation`. A [API pública](https://winxclipse-community.silky-moss-5631.chatgpt.site),
+a operação e os endpoints estão descritos abaixo.
 
 O manifesto `.openai/hosting.json` guarda somente a identidade do Site e os nomes
 dos bindings. `ADMIN_TOKEN` e `RATE_SALT` são secrets configurados no ambiente

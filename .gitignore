@@ -3,6 +3,14 @@ build/
 app/build/
 app/.cxx/
 local.properties
+.kotlin/
+
+# Private APK signing material stays outside the repository.
+*.jks
+*.keystore
+*.p12
+*.pfx
+keystore-password*.txt
 
 *.apk
 *.apks

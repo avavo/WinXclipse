@@ -15,6 +15,27 @@
   
 WinXclipse is an Android project based on Winlator CMOD and adapted for Samsung Exynos devices with Xclipse GPUs.  
   
+## Before installing 0.9.6: back up your data
+
+**The APK signing key changed. Builds signed with the previous key, including the original 0.9.5, cannot be replaced directly by these APKs. Back up your saves, containers, settings and control presets before uninstalling the old app. Uninstalling removes its private data.**
+
+1. In the old app, export each save and use **Backup Container** for the containers you want to keep. Settings also offers **Backup Data** for the app data.
+2. Check that the backup files were created. Copy them to shared storage or a computer, outside the app's private folders, before removing the old installation. A community configuration ZIP contains settings, not a complete container or its saves.
+3. Install the new APK and restore/import your backups. Keep the original copies until you have checked your saves and containers.
+
+Recent local 0.9.6 APKs already use the new key. The migration above is for installations signed with the old key.
+
+## APK editions
+
+All four editions include the same WinXclipse features and fixes. Each package keeps its own app data.
+
+| Edition | Android package |
+| --- | --- |
+| WinXclipse | `com.win.xclipse` |
+| Antutu | `com.antutu.ABenchMark` |
+| Geekbench | `com.primatelabs.geekbench6` |
+| PUBG | `com.tencent.ig` |
+
 ## What is WinXclipse?  
   
 WinXclipse allows Windows applications and games to run on Android by combining:  

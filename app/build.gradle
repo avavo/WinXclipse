@@ -31,11 +31,22 @@ android {
 
     testOptions {
         unitTests.includeAndroidResources = true
-        unitTests.all { maxHeapSize = '2g' }
+        unitTests.all {
+            maxHeapSize = '2g'
+            // Conscrypt's Android AAR and desktop test JAR expose identical
+            // classes. Prefer the desktop implementation only in JVM tests;
+            // otherwise some identity flavors try loading Android JNI on Windows.
+            doFirst {
+                def desktopConscrypt = classpath.filter { it.name.startsWith('conscrypt-openjdk-uber-') }
+                if (desktopConscrypt.isEmpty()) throw new GradleException('Missing desktop Conscrypt test runtime')
+                classpath = desktopConscrypt + (classpath - desktopConscrypt)
+            }
+        }
     }
 
-// Keep the signing certificate stable so future APKs can update these
-    // installations in place without deleting containers, saves or settings.
+    // Reuse the current signing key for all four APK identities. The original
+    // 0.9.5 used another key: back up its data before uninstalling to migrate.
+    // Keep private signing material outside this repository.
     def keystoreProps = new Properties()
     def keystorePropsFile = rootProject.file('local.properties')
     if (keystorePropsFile.exists()) {
@@ -124,7 +135,7 @@ android {
             minifyEnabled false
         }
         release {
-            // Same certificate as installed builds so APKs update in place
+            // Current key shared across editions; old-key installs require backup/migration.
             signingConfig signingConfigs.winxclipseUpdate
         }
     }
@@ -168,6 +179,7 @@ dependencies {
     testImplementation 'junit:junit:4.13.2'
     // Host native library for archive tests; the APK keeps the Android AAR.
     testRuntimeOnly 'com.github.luben:zstd-jni:1.5.2-3@jar'
+    testRuntimeOnly 'org.conscrypt:conscrypt-openjdk-uber:2.5.2'
     // Real JSON parsing in JVM import tests; Android keeps its platform implementation.
     testImplementation 'org.json:json:20240303'
     testImplementation 'org.robolectric:robolectric:4.14.1'

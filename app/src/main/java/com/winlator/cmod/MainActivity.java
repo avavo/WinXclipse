@@ -50,7 +50,6 @@ import com.winlator.cmod.core.Callback;
 import com.winlator.cmod.core.AppUtils;
 import com.winlator.cmod.core.DefaultVersion;
 import com.winlator.cmod.core.PreloaderDialog;
-import com.winlator.cmod.core.UpdateChecker;
 import com.winlator.cmod.container.ContainerManager;
 import com.winlator.cmod.inputcontrols.ControllerManager;
 import com.winlator.cmod.saves.Save;
@@ -165,7 +164,6 @@ public class MainActivity extends LocalizedActivity implements NavigationView.On
             continueStartup();
 
         }
-        UpdateChecker.check(this);
     }
 
     private void applyMaxRefreshRate() {
@@ -562,33 +560,7 @@ public class MainActivity extends LocalizedActivity implements NavigationView.On
 
     private void continueStartup() {
         ImageFsInstaller.installIfNeeded(this, () ->
-                checkForAndInstallAssetContents(() -> {
-                    showUpgradeNoticeIfNeeded(this::requestStorageAccessAfterInstallation);
-                }));
-    }
-
-    private void showUpgradeNoticeIfNeeded(Runnable next) {
-        if (isFinishing() || isDestroyed()) return;
-        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
-        boolean show = false;
-        try {
-            PackageInfo info = getPackageManager().getPackageInfo(getPackageName(), 0);
-            show = com.winlator.cmod.core.UpgradeNotice.shouldShow096(BuildConfig.VERSION_NAME,
-                    preferences.getBoolean("upgrade_notice_096_shown", false), info.firstInstallTime, info.lastUpdateTime);
-        }
-        catch (PackageManager.NameNotFoundException ignored) {}
-        if (!show) {
-            next.run();
-            return;
-        }
-        new com.winlator.cmod.core.PopupStyle.Builder(this)
-                .setTitle(R.string.upgrade_096_title)
-                .setMessage(R.string.upgrade_096_message)
-                .setPositiveButton(android.R.string.ok, null)
-                .setOnDismissListener(dialog -> {
-                    if (!isFinishing() && !isDestroyed()) next.run();
-                }).show();
-        preferences.edit().putBoolean("upgrade_notice_096_shown", true).apply();
+                checkForAndInstallAssetContents(this::requestStorageAccessAfterInstallation));
     }
 
     private void requestStorageAccessAfterInstallation() {

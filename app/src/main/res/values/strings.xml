@@ -957,8 +957,6 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="container_new">Create new</string>
     <string name="container_import_zip">Import from ZIP</string>
     <string name="container_import_community">Import from community</string>
-    <string name="upgrade_096_title">What changed in 0.9.6</string>
-    <string name="upgrade_096_message">FEX 2610 and Box64 0.4.5, downloads with pause and resume, installation and driver fixes, and improved display refresh handling. RAM Fix remains enabled.</string>
     <string name="hud_show_device">Show phone model</string>
     <string name="hud_show_driver_name">Show driver name</string>
     <string name="hud_soc_format">SoC label</string>
@@ -1026,8 +1024,6 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="restore_data">Restore Data</string>
     <string name="reset_properties">Reset Properties</string>
     <string name="current_version">Current Version:</string>
-    <string name="update_available">A new version is available</string>
-    <string name="update_download_hint">Download the latest version from the official page.</string>
     <string name="winetricks_verb">Enter Winetricks verb</string>
     <string name="move_window">Move Window</string>
     <string name="execute_winetricks">Execute Winetricks</string>
@@ -1200,9 +1196,6 @@ E.g. <b>META</b> for <i>META key</i>, \n
     <string name="storage_permission_not_persisted">Could not keep access to this folder. Select it again when needed.</string>
     <string name="restore_completed">Data restored successfully.</string>
     <string name="restore_failed">Data restore failed.</string>
-    <string name="winxclipse_update">WinXclipse update</string>
-    <string name="update_installed_version">Installed version: v%1$s</string>
-    <string name="update_later">Later</string>
     <string name="container_import_title">Import container</string>
     <string name="container_import_help">Select the exported xuser- directory to restore a container. Its files and shortcuts will be copied into the app storage; check that enough free space is available. Review the container settings after importing. The original directory is kept.</string>
     <string name="container_import_confirm">Confirm import</string>

@@ -2,6 +2,21 @@
 
 WinXclipse v0.9.6 is a major experimental update for Exynos/Xclipse devices. It adds a Vulkan compositor and optional DisplayX transport, improves Wine/Proton installation and recovery, reorganizes the classic interface and in-game sidebar, expands the HUD, and adds resumable downloads, safer community imports and Android document storage support.
 
+## Before installing: back up saves and containers
+
+**The app signing key changed. These APKs cannot be installed directly over a version signed with the old key, including the original 0.9.5. Back up your saves, containers, settings and control presets before uninstalling the old version. Uninstalling deletes its private data.**
+
+- Use the old app's Saves export, Backup Container and Settings > Backup Data as needed.
+- Verify that the backup files exist and copy them to shared storage or a computer outside the app's private folders before uninstalling.
+- A community configuration ZIP exports settings; it does not back up a complete container or its saves.
+- After installing the new APK, restore/import your backups and check your data before deleting the backup copies.
+
+Recent local 0.9.6 APKs already use the new key; this migration is required for installations using the previous key.
+
+## APK editions
+
+WinXclipse, Antutu, Geekbench and PUBG include the same features and fixes, with separate Android package identities and app data.
+
 ## Highlights
 
 ### Video, Vulkan & DisplayX
@@ -70,6 +85,7 @@ WinXclipse v0.9.6 is a major experimental update for Exynos/Xclipse devices. It 
 - Center Create new in the add-container menu, wrap navigation labels and improve download/settings/help action sizing.
 - Add English, Portuguese and Spanish, with automatic system-language detection and a persistent manual choice.
 - Keep the classic interface active and preserve the unfinished console interface separately.
+- Remove automatic app-update prompts and the obsolete 0.9.6 startup announcement.
 
 ### HUD & Measurements
 
@@ -133,7 +149,7 @@ The S24+ archive benchmark measured decompression plus SHA-256 at 28.270 s for X
 
 ### Installation & Update Compatibility
 
-Local test APKs use a stable local test certificate and can update matching test builds. Updating directly over the original 0.9.5 APK requires its original private signing key, which has not been recovered.
+All four APK editions use the current signing key. Installations signed with the old key require the backup, uninstall and restore steps above. The original 0.9.5 private signing key is unavailable.
 
 This text is prepared for v0.9.6; no public release or tag has been published yet.
 

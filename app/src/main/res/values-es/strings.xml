@@ -831,8 +831,6 @@
     <string name="container_new">Crear nuevo</string>
     <string name="container_import_zip">Importar desde ZIP</string>
     <string name="container_import_community">Importar de la comunidad</string>
-    <string name="upgrade_096_title">Novedades de la versión 0.9.6</string>
-    <string name="upgrade_096_message">FEX 2610 y Box64 0.4.5, descargas con pausa y reanudación, correcciones de instalación y controladores y mejoras de frecuencia de pantalla. RAM Fix sigue activado.</string>
     <string name="hud_show_device">Mostrar modelo del móvil</string>
     <string name="hud_show_driver_name">Mostrar nombre del controlador</string>
     <string name="hud_soc_format">Formato del SoC</string>
@@ -900,8 +898,6 @@
     <string name="restore_data">Restaurar datos</string>
     <string name="reset_properties">Restablecer propiedades</string>
     <string name="current_version">Versión actual:</string>
-    <string name="update_available">Hay una nueva versión disponible</string>
-    <string name="update_download_hint">Descarga la versión más reciente desde la página oficial.</string>
     <string name="winetricks_verb">Introduce el comando de Winetricks</string>
     <string name="move_window">Mover ventana</string>
     <string name="execute_winetricks">Ejecutar Winetricks</string>
@@ -1074,9 +1070,6 @@
     <string name="storage_permission_not_persisted">No se pudo mantener el acceso a esta carpeta. Selecciónala de nuevo cuando la necesites.</string>
     <string name="restore_completed">Datos restaurados correctamente.</string>
     <string name="restore_failed">Error al restaurar los datos.</string>
-    <string name="winxclipse_update">Actualización de WinXclipse</string>
-    <string name="update_installed_version">Versión instalada: v%1$s</string>
-    <string name="update_later">Más tarde</string>
     <string name="container_import_title">Importar contenedor</string>
     <string name="container_import_help">Selecciona la carpeta xuser- exportada para restaurar un contenedor. Sus archivos y accesos directos se copiarán al almacenamiento de la aplicación; comprueba que haya suficiente espacio libre. Revisa los ajustes del contenedor tras importarlo. La carpeta original se conservará.</string>
     <string name="container_import_confirm">Confirmar importación</string>

@@ -831,8 +831,6 @@
     <string name="container_new">Criar novo</string>
     <string name="container_import_zip">Importar de ZIP</string>
     <string name="container_import_community">Importar da comunidade</string>
-    <string name="upgrade_096_title">O que mudou na 0.9.6</string>
-    <string name="upgrade_096_message">FEX 2610 e Box64 0.4.5, downloads com pausa e retomada, correções na instalação e nos drivers e melhorias na taxa de atualização da tela. O RAM Fix continua ativado.</string>
     <string name="hud_show_device">Mostrar modelo do celular</string>
     <string name="hud_show_driver_name">Mostrar nome do driver</string>
     <string name="hud_soc_format">Formato do SoC</string>
@@ -900,8 +898,6 @@
     <string name="restore_data">Restaurar dados</string>
     <string name="reset_properties">Redefinir propriedades</string>
     <string name="current_version">Versão atual:</string>
-    <string name="update_available">Uma nova versão está disponível</string>
-    <string name="update_download_hint">Baixe a versão mais recente pela página oficial.</string>
     <string name="winetricks_verb">Digite o comando do Winetricks</string>
     <string name="move_window">Mover janela</string>
     <string name="execute_winetricks">Executar Winetricks</string>
@@ -1074,9 +1070,6 @@
     <string name="storage_permission_not_persisted">Não foi possível manter o acesso a esta pasta. Selecione-a novamente quando precisar.</string>
     <string name="restore_completed">Dados restaurados com sucesso.</string>
     <string name="restore_failed">Falha ao restaurar os dados.</string>
-    <string name="winxclipse_update">Atualização do WinXclipse</string>
-    <string name="update_installed_version">Versão instalada: v%1$s</string>
-    <string name="update_later">Depois</string>
     <string name="container_import_title">Importar container</string>
     <string name="container_import_help">Selecione a pasta xuser- exportada para restaurar um container. Os arquivos e atalhos serão copiados para o armazenamento do app; confira se há espaço livre suficiente. Revise as configurações do container após importar. A pasta original será mantida.</string>
     <string name="container_import_confirm">Confirmar importação</string>

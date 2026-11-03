@@ -4,6 +4,10 @@ All notable changes between WinXclipse releases, newest first.
 
 ## 0.9.6
 
+- Document the signing-key migration prominently: back up saves, full containers, settings and control presets outside private app storage before removing an installation signed with the old key. Offer WinXclipse, Antutu, Geekbench and PUBG APK editions with the current key.
+- Remove automatic app-update prompts and the obsolete 0.9.6 startup announcement. Keep storage permission requests after runtime installation.
+- Remove the root docs directory and update repository references.
+
 - Keep prepared Wine/Proton prefixes ready across catalog aliases, including downloaded runtimes and receipts from the previous APK. Complete downloaded prefix packs can also skip forced first-boot migration after validating their architecture, registries and exact core modules. Raw/incomplete packs and actual runtime/build changes still migrate normally.
 - Make the RAM HUD and task manager share one Android memory sample and rounding rule. Use GiB consistently for binary RAM values and show unavailable samples as N/A.
 
@@ -37,7 +41,7 @@ All notable changes between WinXclipse releases, newest first.
 - Settings now offers editable defaults below Sound for future new containers. Defaults are stored independently from runnable prefixes and keep their editor mode across recreation.
 - Exporting a community configuration starts publication automatically. OK closes the result; the cancellation action below it asks Yes/No before withdrawing the actual publication and keeps the local ZIP.
 - README release, stars, community and license badges use WinXclipse colors and live counts.
-- Release version is now `0.9.6` (version code `27`). This build publishes only the main WinXclipse package.
+- Release version is now `0.9.6` (version code `27`), with WinXclipse, Antutu, Geekbench and PUBG APK editions.
 
 ## 0.9.5
 
