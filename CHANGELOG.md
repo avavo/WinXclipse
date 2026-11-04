@@ -4,44 +4,178 @@ All notable changes between WinXclipse releases, newest first.
 
 ## 0.9.6
 
-- Document the signing-key migration prominently: back up saves, full containers, settings and control presets outside private app storage before removing an installation signed with the old key. Offer WinXclipse, Antutu, Geekbench and PUBG APK editions with the current key.
-- Remove automatic app-update prompts and the obsolete 0.9.6 startup announcement. Keep storage permission requests after runtime installation.
-- Remove the root docs directory and update repository references.
+### Installation and APK editions
 
-- Keep prepared Wine/Proton prefixes ready across catalog aliases, including downloaded runtimes and receipts from the previous APK. Complete downloaded prefix packs can also skip forced first-boot migration after validating their architecture, registries and exact core modules. Raw/incomplete packs and actual runtime/build changes still migrate normally.
-- Make the RAM HUD and task manager share one Android memory sample and rounding rule. Use GiB consistently for binary RAM values and show unavailable samples as N/A.
+- The APK signing key changed. Installations signed with the old key, including the original 0.9.5, require uninstalling the old app and reinstalling 0.9.6. Export saves and full containers, back up settings/control presets, and verify copies outside private app storage before uninstalling. Restore the backups after installation; community configuration ZIPs do not contain full containers or saves.
+- WinXclipse, Antutu, Geekbench and PUBG provide the same features with separate Android package identities and app data. Recent local 0.9.6 builds already use the current key.
 
-- Apply Wine service, component and theme registry settings in one streaming pass per file instead of rewriting the whole registry for each value. Preserve unchanged registry bytes and report prefix/component preparation timings.
-- New containers now resolve saved defaults against installed Wine/Proton versions. Removing a runtime updates matching saved defaults and verifies filesystem deletion, preventing a missing Proton 9 from reappearing as a selectable installed runtime.
+### Video, Vulkan & DisplayX
 
-### Fixed
+- Added a Vulkan compositor with FSR EASU/RCAS, HDR, FXAA, CRT, NTSC, Toon and compute Frame Generation.
+- Kept the Android compositor separate from the Wine renderer: Vulkan/OpenGL outside, Vulkan/GL/EGL inside Video settings.
+- Added Zink and Automatic OpenGL driver choices. Zink is the default; Automatic lets Mesa choose without forcing Zink.
+- Added optional DisplayX AHardwareBuffer transport, disabled by default and available only when both the Android compositor and Wine renderer use Vulkan.
+- Switching Wine to GL or EGL immediately clears DisplayX. Incompatible saved configurations are also checked before launch.
+- Added separate surface-format preferences: BGRA by default for Vulkan and RGBA for DisplayX, with manual selection available.
+- Added DisplayX controls for Bypass X11, Performance mode, Present at refresh rate, Submit every buffer and Precise presentation.
+- Preserved standard X11/WSI fallback for unsupported paths. The HUD distinguishes actual DisplayX frames from a ready DisplayX session displaying X11/GDI content.
+- Fixed DisplayX extension reporting so unsupported native-swapchain extensions do not prevent the compatible AHB path from being used.
+- Correct Wine Vulkan child-window reparenting, coordinates and scene refresh while preserving the XID/drawable. Parent movement now updates descendants; InputOnly windows no longer enter composition. These fixes are locally verified without opening RE9; its black-screen report still needs game validation.
+- Request the CPU read/write gralloc usage pair used by Mesa/Quasar for Xclipse interop, validate the allocated format/stride and keep rendering on the GPU. A standalone S24+ test passed with System and JimVulkan RADV in UNORM and mutable sRGB; full RE9/DXVK validation remains pending.
+- Query Vulkan extensions and API support from the selected driver in an isolated process, including custom drivers.
+- Set the default Vulkan version from the driver's reported API instead of its name. Added Vulkan 1.4 selection for drivers that report support.
+- Added JimVulkan/radv-xclipse to driver sources and improved driver reimport and recovery.
+- Enabled BCn support by default. Quasar, RADV and Phoenix default to None for BCn emulation.
+- Display the real-device GPU choice as Xclipse while preserving its original function and saved identifier.
+- Improved FSR scaling, viewport edges, cursor composition, Frame Generation history resets and graphics-resource cleanup.
+- Request the appropriate high-refresh display mode for the app and game surface, including resume and surface recreation. Game FPS and the FPS limiter remain independent.
 
-- Rounded actions now share the purple app style across Settings, ImageFS, shortcuts, downloads, terminal and input/control dialogs. Settings icons, including preset imports and the default-container gear, remain unfilled; container field gears/downloads keep smaller outlines. Export fields have separate labels and consistent spacing; controller switches and help columns align.
-- Sidebar Exit/Pause/Help retain three equal targets and uncropped icons. HUD panel actions have separate spacing, the FPS preset/custom editor stays inside the sidebar with live updates, and Wrapper caption help no longer displaces the field action column.
-- Deleted control presets stay deleted after reload, including an empty library. Restore default presets recovers bundled layouts without overwriting custom or edited profiles; Delete all presets requires confirmation.
-- FEX downloads now match all 15 currently published manifests, including 2508, and use live 2607/2608 URLs. Removed the unavailable online 2610 link; the bundled 2610 runtime remains available.
-- Removing an environment variable, including the RAM Fix path, stays saved in container defaults and existing containers instead of being restored by a legacy migration.
-- Named DXVK/VKD3D downloads now match inspected WCP manifest identities, including ARM64EC and async variants. Corrected the 1.6.1/Sarek catalog metadata and removed the deleted ARM64EC 3.0a asset.
-- Sidebar captures are frozen before the entrance animation; late PixelCopy results cannot replace a visible backdrop. Advanced switches and help columns now align, including BCn.
-- Wine Vulkan windows retain their XID/drawable when reparented, honor their new coordinates and refresh the compositor scene. Moving a Wine parent also moves its nested rendering windows; InputOnly windows cannot cover the frame.
-- DisplayX requests interoperable read/write gralloc buffers on Xclipse. The S24+ native probe passed transfer and attachment presentation with System and JimVulkan RADV in UNORM and mutable sRGB. Full RE9/DXVK validation remains pending.
-- File Manager now treats a move/copy onto an existing file as a real replacement instead of creating a suffixed duplicate. Symlink-aware size accounting keeps the progress dialog accurate for large saves and game folders.
-- Shortcut lifecycle detection no longer mistakes the normal exit of `start.exe` for the game process. Slow launcher-to-game hand-offs are allowed to continue for 30 seconds, while shortcuts that never start still use the separate stale-launch backstop.
-- Wine/Proton, FEXCore, Box64, DXVK and VKD3D selectors and launchers now resolve only installed content. Failed FEXCore extraction cannot leave a false version marker, and an installed fallback is selected when an old container points at missing content.
-- Prefix compatibility repair was narrowed to a one-time cleanup of legacy runtime copies; it no longer replaces broad sets of Wine DLLs and cannot mix Proton generations in an existing prefix.
-- Proton/FEX catalog entries now use the published archive names and manifest version codes, removing dead downloads and repeated install prompts.
-- Normal and Essential startup keep `RpcSs` available for COM-based games and installers, and X server multi-locks acquire resources in a stable order.
-- Imported Vulkan settings are validated against the device and clamp unsupported Vulkan 1.4 requests to 1.3. Missing or empty runtime identifiers are handled without aborting launch.
+### Startup, Wine & Proton
 
-### Changed
+- Preserve prepared prefixes across Wine/Proton catalog name changes, including downloaded runtimes and successful preparations from the previous APK. New containers also reuse complete compatible prefix packs supplied by downloaded runtimes; incomplete packs and actual runtime changes still receive their required initialization.
 
-- Prefix preparation avoids desktop-menu rebuilding and full in-memory registry copies. Vulkan dependency checks are keyed to the selected ICD/API instead of presentation and RAM tweaks.
-- RAM Fix remains enabled by default. Optional experimental memory, cache, policy and BCn settings are grouped below GStreamer; startup RAM preparation uses bounded allocator cleanup.
-- VulkanRT preparation uses the verified bundled DLLs side by side, removing translated NSIS extraction and redundant server restarts while retaining the device/driver checks.
-- Settings now offers editable defaults below Sound for future new containers. Defaults are stored independently from runnable prefixes and keep their editor mode across recreation.
-- Exporting a community configuration starts publication automatically. OK closes the result; the cancellation action below it asks Yes/No before withdrawing the actual publication and keeps the local ZIP.
-- README release, stars, community and license badges use WinXclipse colors and live counts.
-- Release version is now `0.9.6` (version code `27`), with WinXclipse, Antutu, Geekbench and PUBG APK editions.
+- Apply startup service, component and theme registry changes in a single pass per file, avoiding repeated rewrites of large Proton registries.
+- Keep new/default containers on an installed runtime after removal. Verify runtime deletion and prevent an unavailable saved Proton 9 from reappearing in the new-container selector.
+
+- Recompressed the bundled Proton TAR as Zstandard without changing its extracted contents, reducing decompression overhead.
+- Buffered archive reads, reused extraction buffers and reduced writes for large zero-filled entries.
+- Fixed first-install extraction progress for system files and bundled content packages. Percentages follow compressed reads and package installation; unmeasured preparation uses an indeterminate indicator instead of a frozen 0%.
+- Validate archives through their footer and reject truncated or incomplete packages before recording success.
+- Repair incomplete bundled runtimes through staging and rollback, preserving existing containers, user files and installed content.
+- Prepare each prefix with its selected Wine/Proton, wait for that prefix's wineserver and reapply configured components before launch.
+- Validate runtime architecture, launchers, modules and FEX bridge files. Remove stale FEX companion libraries when switching package types.
+- Prepare and verify VulkanRT 1.3.283.0 side by side in the selected prefix while preserving the original Wine Vulkan integration and legacy recovery files.
+- Remove the translated NSIS extraction step and two redundant server restarts from VulkanRT preparation. Use the already verified bundled DLLs and keep both architecture/device checks before recording success.
+- Avoid repeating an explicitly unsupported Wine Vulkan compatibility check for up to six hours per runtime/configuration; other failures remain retryable.
+- Skip Linux desktop-menu rebuilding during prefix setup, stream registry validation and avoid repeating Vulkan dependency probes when only presentation or RAM settings change. Record prefix phase timings for device diagnosis.
+- Preserve launcher-to-game hand-off handling, startup diagnostics and cleanup of genuinely empty Wine sessions.
+
+### Interface & In-game Sidebar
+
+- Unify the RAM HUD and task manager on one Android reading and rounding rule. Show binary RAM quantities in GiB, including free/used formats, and keep unreadable swap data separate from RAM availability.
+
+- Improved blurred surfaces across dialogs, selectors, context menus, startup progress and the in-game sidebar.
+- Capture and freeze the sidebar background before opening its animation. Prime the first snapshot with the desktop, retain the previous blur on timeout and reject late captures that used to change the visible panel.
+- Keep the blurred snapshot covering the entire sidebar during its slide, including areas outside the game surface; retain an opaque base instead of exposing clear strips.
+- Apply rounded purple actions across Settings tools, ImageFS, shortcuts, downloads, HUD/Input/Display pages, control editors, terminal Execute and OK/Cancel buttons.
+- Keep Settings toolbar/import/default-container icons unfilled; retain smaller outlined surfaces for gears/downloads in container fields, with centered icons and preserved padding.
+- Keep Exit/Pause/Help equally spaced in the sidebar with complete icons, separate the HUD panel action from its appearance selector, and align container/shortcut field actions by moving Wrapper help into the caption.
+- Edit FPS presets and the custom value in the sidebar page with live updates and X/back navigation, without a separate preset/custom popup.
+- Separate community-export labels and inputs and match the three cover actions to the app style.
+- Align Settings and controller switches/help icons, including BCn, with consistent control sizes and wrapping.
+- Keep deleted control presets deleted across reloads, including an empty library. Add confirmed Delete all presets and Restore default presets, preserving existing custom/edited layouts during restore.
+- Add Container settings below Sound to edit the defaults used by future new containers, without modifying existing containers or community imports.
+- Improved text and icon contrast, rounded outlines, field heights, option spacing and storage/audio controls.
+- Show the current selection in radio-style selectors and keep VSync values readable.
+- Open HUD, Display, Input, logs, debug and terminal pages inside the sidebar, with X/back navigation.
+- Apply in-session settings as edited and confirm pending values when closing, removing redundant OK/Cancel footers from these sidebar pages.
+- Allow the HUD settings body to scroll fully and reduce the height of the power, pause and help footer.
+- Restore a vertical RAM meter beside CPU information in Task Manager. Expand all CPU and process rows in one sidebar scroll surface.
+- Improve shortcut editing menus, keep artwork previews proportional and make overflow icons readable.
+- Center Create new in the add-container menu, wrap navigation labels and improve download/settings/help action sizing.
+- Add English, Portuguese and Spanish, with automatic system-language detection and a persistent manual choice.
+- Keep the classic interface active and preserve the unfinished console interface separately.
+- Remove automatic app-update prompts and the obsolete 0.9.6 startup announcement.
+
+### HUD & Measurements
+
+- Expanded native HUD presets, configurable panels and combinations with the DXVK HUD.
+- Added actual DisplayX/X11 transport information.
+- Improved per-core CPU usage, clock readings, core names, GPU usage/frequency and unavailable-sensor recovery.
+- Added optional GPU and CPU/AP temperature readings and swap used/total. Unavailable measurements are shown as unavailable.
+- Added Samsung sensor handling for the S24+, including the readable GPU sensor and AP thermistor; AP readings are identified separately from CPU die temperature.
+- Corrected battery-current unit handling on affected Samsung devices to restore power readings instead of rounding them to 0 W.
+- Improved device/SoC/GPU identification and RAM display formats.
+- Added gameplay measurements with average FPS, 1% lows, ranges, battery/power information and TXT reports.
+- Keep real and generated FPS separate and exclude paused periods from gameplay measurements.
+
+### CPU, Memory & Experimental Options
+
+- Enable Sync CPU with Wine and WoW64 performance-core pinning by default while preserving explicit choices.
+- Move experimental controls below GStreamer, with their experimental status visible instead of hiding them in a separate dialog.
+- Expose RAM preparation, aggressive RAM, cache, VRAM limits, policy engine and optimized BCn controls together.
+- Show the optimized BCn layer only while BCn is enabled. Disable experimental BCn also turns off the optimized layer.
+- Replace temporary RAM-pressure allocations during startup with bounded allocator cleanup.
+- Apply the aggressive allocator policy inside guest processes when enabled, including child processes, and preserve other preload libraries.
+- Preserve explicit environment-variable removals in both container defaults and individual containers; old migrations no longer restore deleted RAM Fix entries.
+- Keep RAM preparation and aggressive memory behavior optional; they do not guarantee a lower total Android RAM percentage or faster startup in every game.
+
+### Downloads, Runtimes & Community Configurations
+
+- Use FEXCore 2610 and Box64 0.4.5 as new defaults while retaining older downloadable versions.
+- Match the FEX catalog to all 15 published WCP manifests, including 2508 and the differently named 2412/2507/2609 packages. Replace dead 2607/2608 links and remove the unavailable online 2610 link; the bundled runtime remains available.
+- Remove duplicate FEX version entries caused by bundled, installed and online catalog identifiers, preserving genuinely different builds.
+- Combine Wine and Proton in one download category while retaining version, build and architecture information.
+- Add a shared download queue with pause, resume, retry and cancel, remote-file validation and safer concurrent cache handling.
+- Resolve exact community dependencies across runtimes, translators, drivers and wrappers before creating a container.
+- Review the selected versions, game name and cover before import, export, sharing or publication.
+- Stage imports and keep durable checkpoints to recover after interruption without creating duplicate containers or replacing unrelated files.
+- Add hosted community publication and moderation, verified legacy configurations, offline catalog snapshots and ZIP sharing.
+- Publish automatically after configuration export. OK closes the result; Cancel sending configuration to community asks Yes/No and removes the actual publication while keeping the local ZIP.
+- Match named DXVK/VKD3D WCP assets to their embedded manifests without mixing architectures or variants. Remove the deleted ARM64EC 3.0a download and refresh old cached catalogs.
+- Add live release, stars, community membership and license badges to the README with WinXclipse branding.
+
+### File Manager, Backup & Stability
+
+- Start File Manager on a drive/storage selection screen and show internal storage in GB, with an optional percentage display.
+- Browse Android document trees without requiring a direct filesystem path, with persistent permissions and supported file actions.
+- Share the clipboard across local drives and document storage. Stage transfers, verify copied data and preserve sources until a move succeeds.
+- Improve cancellation, replacement backup and rollback for file transfers, subject to the document provider's capabilities.
+- Fix backup restoration edge cases involving source ownership, truncation, self-copy and interrupted document streams.
+- Improve physical mouse/keyboard detection, relative motion, wheel handling, pointer capture and controller cleanup.
+- Validate complete gamepad profiles before applying them and save mappings atomically in UTF-8.
+- Improve PulseAudio reconnection, audio-route handling and pause/underrun recovery.
+- Validate graphics-wrapper payloads and restore previous files after failed changes instead of leaving a partial installation.
+
+## Status
+
+### Functionally experimental
+
+DisplayX, Frame Generation, BCn layers, memory policies, wrappers and game compatibility vary by device, GPU driver, Android firmware, runtime and game. Wine's GDI desktop can still use X11 with DisplayX enabled; the HUD reports that distinction.
+
+Native DisplayX transport, synchronization and RGB frame readback were checked on the Galaxy S24+. Full Proton/DXVK gameplay validation remains pending. The user confirmed 120 Hz operation on the device; that does not imply every game renders at 120 FPS.
+
+The S24+ archive benchmark measured decompression plus SHA-256 at 28.270 s for XZ and 2.178 s for Zstandard. This is not a complete app/container boot measurement, and the compressed Proton asset is about 34 MB larger.
+
+### Additional fixes and maintenance
+
+- File Manager replaces an existing destination instead of creating a suffixed duplicate. Symlink-aware sizes keep progress accurate for large saves and game folders.
+- Shortcut lifecycle detection distinguishes the normal exit of start.exe from the game process and allows 30 seconds for slow launcher-to-game hand-offs.
+- Prefix compatibility repair performs a one-time cleanup of legacy runtime copies without replacing broad DLL sets or mixing Proton generations.
+- Normal and Essential startup keep RpcSs available for COM-based games/installers; X server multi-locks use a stable acquisition order.
+- Imported Vulkan settings are checked against the selected driver and device, including clamping unsupported Vulkan 1.4 requests to 1.3.
+- Wine/Proton, FEXCore, Box64, DXVK and VKD3D selectors resolve installed payloads instead of treating remote catalog rows as installed packages.
+- Remove the root docs directory and update repository references. Host tests consistently select the desktop Conscrypt provider across all four APK identities.
+
+### Credits
+
+- Winlator by Brunodev85
+- Winlator CMOD by coffincolors and Pipetto-crypto
+- Winlator Glibc by longjunyu2
+- Winlator OpenXR by lvonasek
+- Wine
+- Box86/Box64 by ptitSeb
+- FEX-Emu
+- Mesa, DXVK, VKD3D, D8VK and CNC DDraw
+- AMD FidelityFX Super Resolution
+- Souza controls branch
+- Winlator Mali
+- Winlator Ludashi
+- Bannerlator HUD references
+- ExynosTools / Soula
+- GameNative Team
+- Leegao
+- Ref4ik-v6
+- Kirimu — integrated Vulkan / BCn wrapper
+- Jim / JimVulkan — RADV for Xclipse (https://github.com/JimVulkan/radv-xclipse)
+- JavaSteam by Longi94 and contributors
+- heroic-gogdl by Heroic Games Launcher contributors
+- gbe_fork / Goldberg Steam Emulator
+- Zstandard
+- zstd-jni by Luben Karavelov
+- Winlator Xclipse adaptation by Álvaro
+
+Additional license information is listed in THIRD_PARTY_NOTICES.md. Project credits are also available in the app's About screen.
 
 ## 0.9.5
 
