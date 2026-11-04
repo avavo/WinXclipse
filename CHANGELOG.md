@@ -127,9 +127,7 @@ All notable changes between WinXclipse releases, newest first.
 - Improve PulseAudio reconnection, audio-route handling and pause/underrun recovery.
 - Validate graphics-wrapper payloads and restore previous files after failed changes instead of leaving a partial installation.
 
-## Status
-
-### Functionally experimental
+### Experimental status
 
 DisplayX, Frame Generation, BCn layers, memory policies, wrappers and game compatibility vary by device, GPU driver, Android firmware, runtime and game. Wine's GDI desktop can still use X11 with DisplayX enabled; the HUD reports that distinction.
 
